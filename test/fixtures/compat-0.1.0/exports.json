@@ -183,6 +183,7 @@
         "shouldCloseOnRelease",
         "summarisePanel",
         "usePanelCloseEligible",
+        "usePanelPinned",
         "usePanelReorderEligible",
         "usePhoneAPIs",
         "vendorLabelForUsbVendorId"

@@ -29,7 +29,6 @@ const slotValue = (tuning: Partial<SlotTuning>): PanelSlotValue => ({
   resizable: true,
   maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
-  pinned: false,
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS), ...tuning },
 });
 

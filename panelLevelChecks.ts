@@ -19,7 +19,7 @@ const SETTINGS_SINCE: Record<CatalogName, PanelApiLevel> = {
   maxInstances: 1, listed: 1, startVisibility: 1, hideStickiness: 1, capacityReturn: 1, overflow: 1,
   revealOnScroll: 1, edgeHold: 1, resize: 1, scrollOnOpen: 1, scrollOnMove: 1, toggleWhenClosed: 1, showWhenClosed: 1,
   placeOnAdd: 1, placeOnShow: 1, layer: 1, enterFrom: 1, exitTo: 1,
-  slots: 1, maxSlots: 1, title: 1, pinning: 1, pinningWhenNotLive: 1, headerButtons: 1,
+  slots: 1, maxSlots: 1, title: 1, headerButtons: 1,
   restoreVisibility: 1, afterClose: 1,
   'tuning.rowGap': 1, 'tuning.rowTop': 1, 'tuning.phoneHeight': 1, 'tuning.dragToClose': 1, 'tuning.slide': 1, 'tuning.hopFraction': 1, 'tuning.edgeScroll': 1, 'tuning.saveQuietMs': 1,
   'tuning.gestureLockMs': 1, 'tuning.gestureQuietMs': 1, 'tuning.resizeSettleSlides': 1, 'tuning.returnTieBreak': 1, 'tuning.dropTieBreak': 1,

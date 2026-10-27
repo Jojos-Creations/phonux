@@ -79,8 +79,8 @@ test('closable false: a person is refused, the developer is not', async () => {
   assert.equal(code.order().join(' '), 'root a c');
 });
 
-test('movable false: a person is refused a move and a placement, the developer is not, and a pin with a placement moves it', async () => {
-  const settings = { b: { movable: false, pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } } as const;
+test('movable false: a person is refused a move and a placement, the developer is not', async () => {
+  const settings = { b: { movable: false } } as const;
   const r = await pinRig({ settings: settings as never });
   assert.equal(letter(r.turn(() => r.h.b!.move(1, 'person'))), 'not-movable');
   assert.equal(letter(r.turn(() => r.h.b!.place('row-start', 'person'))), 'not-movable');
@@ -89,8 +89,6 @@ test('movable false: a person is refused a move and a placement, the developer i
   assert.equal(r.order().join(' '), 'root a c b');
   assert.equal(letter(r.turn(() => r.h.b!.place('row-start'))), 'T');
   assert.equal(r.order().join(' '), 'b root a c');
-  assert.equal(letter(r.turn(() => r.h.b!.unpin())), 'T', 'a placement-bearing unpin');
-  assert.equal(letter(r.turn(() => r.h.b!.pin())), 'T', 'a placement-bearing pin');
   assert.equal(r.order().join(' '), 'b root a c');
 });
 
@@ -125,21 +123,6 @@ test('the developer reorders the root whatever its movable says: the handle move
   assert.equal(r.order().join(' '), 'a b root c');
   assert.equal(letter(r.turn(() => root.move(-2))), 'T');
   assert.equal(r.order().join(' '), 'root a b c');
-});
-
-test('pin, pin(person), unpin and place on the root are refused with root-fixed, movable unset or true, and write no self-anchor', async () => {
-  for (const movable of [undefined, true]) {
-    const r = await pinRig();
-    const root = r.ws.panels.get(r.ws.rootId)!;
-    if (movable) assert.equal(letter(r.turn(() => root.configure({ movable: true }))), 'T');
-    const before = JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live]));
-    for (const call of [() => root.pin(), () => root.pin('person'), () => root.unpin(), () => root.unpin('person'), () => root.place('row-end'), () => root.place('row-end', 'person')]) {
-      assert.equal(letter(r.turn(call)), 'root-fixed', `movable ${movable}`);
-    }
-    assert.equal(JSON.stringify(r.m.latest().entries.map((p) => [p.id, p.anchor, p.live])), before);
-    assert.equal(r.entry('root').anchor, undefined);
-    assert.equal(r.order().join(' '), 'root a b c');
-  }
 });
 
 test('a live configure patch that names draggable or placeable throws invalid-settings naming movable', async () => {

@@ -63,8 +63,6 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   enterFrom: true,
   exitTo: true,
   title: true,
-  pinning: true,
-  pinningWhenNotLive: true,
   restoreVisibility: true,
   afterClose: true,
 };
@@ -113,11 +111,8 @@ export const aState: PanelState = {
   params: { page: 1 },
   listed: true,
   settings: resolved,
-  pinned: false,
-  deferredPin: { by: 'pin' },
 };
-export const aClosedState: PanelState = { ...aState, status: 'closed', engineId: null, index: null, title: 'Notes', params: undefined, deferredPin: { parkable: true } };
-export const noDeferredPin: PanelState = { ...aState, deferredPin: null };
+export const aClosedState: PanelState = { ...aState, status: 'closed', engineId: null, index: null, title: 'Notes', params: undefined };
 
 export const aSnapshot: PanelSnapshot = { version: 3, status: 'ready', panels: [aState, aClosedState] };
 
@@ -157,9 +152,7 @@ export const viewHandle: ViewHandle = {
   place: () => done,
   setSlots: () => done,
   scrollTo: () => done,
-  pin: () => done,
-  unpin: () => done,
-  configure: () => ({ ok: true, changed: false, shown: false, now: [], later: [], shadowed: [], notes: [] }),
+  configure: () => ({ ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] }),
 };
 export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { overflow: 'park' } };
 export const defined: PanelTemplate<{ page: number }> = definePanel({ id: 'paged', view: () => null, params: { page: 1 } });

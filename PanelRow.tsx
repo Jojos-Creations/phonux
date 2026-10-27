@@ -12,7 +12,6 @@ import { useHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { LandingContext, usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
-import { pinnedIds } from './panelPin.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import type { PanelTemplate } from './panelTemplate.js';
@@ -24,7 +23,7 @@ import { PanelRowSlot, SizeBox, type SlotEntrance, type SlotExit } from './Panel
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
-import { reorderStepsForOffset, type PanelWindow } from './panelWindow.js';
+import { reorderStepsForOffset } from './panelWindow.js';
 import { RowDropContext, dropParts, partShifts, useRowDrop, type Neighbor, type Walk } from './panelRowDrop.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
@@ -139,19 +138,6 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
   const slot = React.useContext(PanelSlotContext);
   return (offsetX) => reorderStepsForOffset(offsetX, slot?.neighborWidths ?? NO_NEIGHBORS, (slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning ?? OUTSIDE_ROW_TUNING).hopFraction);
 };
-/** What `PanelState.pinned` says for the panel (its `pinning` definition against the row), so a drag across the root changes it too. Unprovided: false.
- * @public */
-export const usePanelPinned = (): boolean => {
-  const slot = React.useContext(PanelSlotContext);
-  const handle = slot?.handle;
-  const fallback = slot?.pinned ?? false;
-  return React.useSyncExternalStore(
-    handle === undefined ? NO_SUBSCRIPTION : handle.subscribe,
-    () => (handle === undefined ? fallback : handle.getState().pinned),
-    () => fallback,
-  );
-};
-const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its template's view.
@@ -171,7 +157,7 @@ export function PanelRow({
   /** The raw one-list array (PanelRowEntry, not PanelSummary): `view` alone picks the component (an unknown key renders a
    * placeholder, never nothing), independent of `layer` (stacking) and `anchoredEnter` (enter direction). */
   entries: readonly PanelRowEntry[];
-  /** The row's root entry: an entry with no anchor orients against it, and `usePanelPinned` means left of it. */
+  /** The row's root entry: an entry with no anchor orients against it. */
   rootId: string;
   /** Ids being closed: each exits DOWN while its `exitTo` resolves to 'auto'. Kept off PanelsAPI on purpose. */
   closingIds: ReadonlySet<string>;
@@ -218,7 +204,6 @@ export function PanelRow({
   const presentAll = entries.filter(isPresent);
   const heldById = new Map((rowNumbers?.held ?? []).map((h) => [h.id, h] as const));
   const present = presentAll.filter((p) => !heldById.has(p.id));
-  const pinned = pinnedIds(entries as readonly PanelWindow[], rootId);
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
   const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
@@ -415,7 +400,6 @@ export function PanelRow({
           neighborWidths: neighborWidthsAt(p),
           drawn: { width: rest.width, height: phoneHeight },
           handle,
-          pinned: pinned.has(p.id),
           closing: closingIds.has(p.id),
           tuning: own,
           dragScroll,

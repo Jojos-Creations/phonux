@@ -177,7 +177,6 @@ function mountAlone(dragScroll: DragScroll | undefined) {
     ...resolvePanelSettings().value,
     collapsible: true,
     neighborWidths: { left: [], right: [] },
-    pinned: false,
     tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
     dragScroll: value,
   });

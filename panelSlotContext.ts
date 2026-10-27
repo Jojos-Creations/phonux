@@ -70,12 +70,11 @@ export interface PanelSlotValue {
   readonly resizable: ResolvedPanelSettings['resizable'];
   readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
-  readonly pinned: boolean;
   /** True while the panel is being closed: its exit runs on the close timing, and PanelRow keeps this last value through it. */
   readonly closing?: boolean | undefined;
   /** The size the row draws this slot at, which an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` follows. Absent outside a row, where an omitted size is the phone size. */
   readonly drawn?: { readonly width: number; readonly height: number } | undefined;
-  /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */
+  /** The panel's own handle, which `usePanelDragProps` closes and moves through reads. Absent in a row without a workspace. */
   readonly handle?: Pick<ViewHandle, 'close' | 'move' | 'getState' | 'subscribe' | 'setSlots'> | undefined;
   /** The workspace's tuning this row reads: every slot gets the same values. */
   readonly tuning: SlotTuning;

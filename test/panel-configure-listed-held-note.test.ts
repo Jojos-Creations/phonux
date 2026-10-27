@@ -20,7 +20,7 @@ type Done = Extract<ConfigureResult, { ok: true }>;
 
 const note = (panelId: string): SettingNote => ({ code: 'hold-unlisted', panelId, key: 'listed', message: 'listed: a held hide of an unlisted panel can be shown by code only' });
 
-const answer = (changed: boolean, now: string[], notes: SettingNote[]): unknown => ({ ok: true, changed, shown: false, now, later: [], shadowed: [], notes });
+const answer = (changed: boolean, now: string[], notes: SettingNote[]): unknown => ({ ok: true, changed, now, later: [], shadowed: [], notes });
 
 /** A rig with panel c hidden and settled: parked and held, and still listed unless its settings say otherwise. */
 async function heldRig(o: PinRigOptions = {}): Promise<PinRig> {
@@ -108,16 +108,7 @@ test('no note when the held panel was already unlisted: nothing newly becomes un
   assert.equal(r.m.notes.length, 1);
 });
 
-test('no note when the same call frees the panel: refused whole, or shown, it is not held', async () => {
-  const shown = await heldRig({ settings: { c: { pinningWhenNotLive: 'show' } } });
-  const out = shown.turn(() => shown.h.c!.configure({ listed: false, parkable: false })) as Done;
-  assert.deepEqual([out.ok, out.shown, out.notes], [true, true, []], 'the call shows the panel');
-  await shown.settle();
-  assert.deepEqual([shown.state('c').status, shown.state('c').held], ['live', false]);
-  assert.equal(shown.facts('c').listed, false);
-  assert.deepEqual(holdNotes(shown), [], 'nothing is held, so nothing is showable by code only');
-  cleanup();
-
+test('no note when the same call frees the panel: it is refused whole and stays held', async () => {
   const refused = await heldRig();
   const no = refused.turn(() => refused.h.c!.configure({ listed: false, parkable: false }));
   assert.equal(no.ok, false);
@@ -127,16 +118,3 @@ test('no note when the same call frees the panel: refused whole, or shown, it is
   assert.equal(refused.m.notes.length, 0);
 });
 
-test('a held panel that becomes unlisted while its parkable flip waits is told once', async () => {
-  const r = await heldRig({ settings: { c: { pinningWhenNotLive: 'apply-on-next-show' } } });
-  const n = note(r.entry('c').id);
-  const out = r.turn(() => r.h.c!.configure({ listed: false, parkable: false }));
-  assert.deepEqual(out, { ok: true, changed: true, shown: false, now: ['listed'], later: ['parkable'], shadowed: [], notes: [n] });
-  assert.deepEqual(r.m.notes, [n]);
-  assert.deepEqual([r.state('c').status, r.state('c').held], ['parked', true], 'the flip waits and the panel is still held');
-  assert.equal(r.facts('c').listed, false);
-  assert.deepEqual(r.state('c').deferredPin, { parkable: false });
-  const again = r.turn(() => r.h.c!.configure({ listed: false, parkable: false })) as Done;
-  assert.deepEqual([again.changed, again.notes], [false, []], 'the same call again changes nothing');
-  assert.equal(r.m.notes.length, 1);
-});

@@ -32,7 +32,6 @@ const OWNER_IDS: readonly string[] = [
   'phonux-saved-overrides-and-template-paths',
   'phonux-workspace-attach-and-snapshot',
   'phonux-panel-handle-operations',
-  'phonux-pin-and-reset',
   'phonux-header-buttons',
   'phonux-max-live-panels',
   'phonux-slot-sizing-resizable-root-v3',
@@ -60,9 +59,9 @@ function docClassWords(doc: string): Map<string, string> {
   return rows;
 }
 
-test('release gate: the catalog has 58 descriptors and the DESIGN.md table has 58 rows', () => {
-  assert.equal(PANEL_SETTINGS_CATALOG.length, 58);
-  assert.equal(docClassWords(DESIGN).size, 58);
+test('release gate: the catalog has 56 descriptors and the DESIGN.md table has 56 rows', () => {
+  assert.equal(PANEL_SETTINGS_CATALOG.length, 56);
+  assert.equal(docClassWords(DESIGN).size, 56);
 });
 
 for (const d of PANEL_SETTINGS_CATALOG) {
@@ -71,12 +70,12 @@ for (const d of PANEL_SETTINGS_CATALOG) {
     assert.equal(holders.length, 1, `${d.name} has ${holders.length} differential calls (${holders.join(', ')})`);
     assert.equal(count(MATRIX, probeOf(d.name)), 1, `${d.name} needs one matrix probe`);
     assert.equal(docClassWords(DESIGN).get(d.name), d.configure.cls, `${d.name} class word in DESIGN.md`);
-    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 18 entries`);
+    assert.ok(OWNER_IDS.includes(d.ownerEntry), `${d.name} owner ${d.ownerEntry} is not one of the 17 entries`);
   });
 }
 
-test('release gate: the owners are exactly the 18 listed ids', () => {
-  assert.equal(OWNER_IDS.length, 18);
+test('release gate: the owners are exactly the 17 listed ids', () => {
+  assert.equal(OWNER_IDS.length, 17);
   assert.deepEqual([...new Set(PANEL_SETTINGS_CATALOG.map((d) => d.ownerEntry))].sort(), [...OWNER_IDS].sort());
 });
 

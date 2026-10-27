@@ -1,7 +1,6 @@
 /**
  * A workspace for the tests of `tuning.maxLivePanels`: a scrolling History root and web panels w1, w2, ... that park for
- * room, mounted in a measured row. Panels are added in id order, so the row reads [root w1 w2 ...]; a pinned one sits left
- * of the root. `row()` writes the row in array order and marks a parked panel with `*`.
+ * room, mounted in a measured row. Panels are added in id order, so the row reads [root w1 w2 ...]. `row()` writes the row in array order and marks a parked panel with `*`.
  */
 import * as React from 'react';
 import { act } from 'react';
@@ -16,12 +15,10 @@ const ROOT = 'root';
 export interface CapRigOptions {
   /** How many web panels w1..wK have a template; default 7. */
   count?: number;
-  /** How many of them are added before the row is mounted, in id order (the pinned ones always are); default all. Others open later through `add`. */
+  /** How many of them are added before the row is mounted, in id order; default all. Others open later through `add`. */
   initial?: number;
   /** `tuning.maxLivePanels`; left out, the key is unset. */
   cap?: number | null;
-  /** Panels added at the row start, so they sit pinned left of the root in the order given and are live before the cap is first read. */
-  pinned?: readonly string[];
   /** The measured container width; default 1280, 0 is unmeasured. */
   width?: number;
   /** Every web panel's `capacityReturn`; default 'manual'. */
@@ -58,8 +55,6 @@ export interface CapRig {
   row: () => string;
   /** The live panels right of the root, in row order. */
   unpinnedLive: () => string[];
-  /** The panels left of the root that are live, in row order. */
-  pinnedLive: () => string[];
   /** The parked panels, in row order. */
   parked: () => string[];
   /** The row of every committed render, when `record` is set. */
@@ -105,10 +100,9 @@ function grabbable(id: string, settings: PanelSettings) {
 
 export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
   const ids = Array.from({ length: o.count ?? 7 }, (_, k) => `w${k + 1}`);
-  const pinned = new Set(o.pinned ?? []);
   const settings: PanelSettings = { overflow: 'park', capacityReturn: o.returns ?? 'manual', revealOnScroll: o.reveal ?? 'never', ...o.settings };
   const template = (id: string) => {
-    const own: PanelSettings = { ...settings, ...(pinned.has(id) ? { placeOnAdd: 'row-start' as const } : {}), ...o.own?.[id] };
+    const own: PanelSettings = { ...settings, ...o.own?.[id] };
     return o.grab === true ? grabbable(id, own) : markerTemplate(id, { settings: own });
   };
   const ws = createWorkspace({
@@ -119,9 +113,7 @@ export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
     ...(o.workspace ?? {}),
   });
   const h: Record<string, PanelHandle> = {};
-  // Each panel at the row start lands before the last one, so the pinned are added last to first.
-  for (const id of [...(o.pinned ?? [])].reverse()) h[id] = ws.addPanel(id);
-  for (const id of ids.slice(0, o.initial ?? ids.length)) if (!pinned.has(id)) h[id] = ws.addPanel(id);
+  for (const id of ids.slice(0, o.initial ?? ids.length)) h[id] = ws.addPanel(id);
   const commits: string[] = [];
   const m = mountWorkspace(ws, { width: o.width ?? 1280, ...(o.strict === true ? { strict: true } : {}), ...(o.record === true ? { onCommit: (provided: ProvidedPanels) => void commits.push(rowOf(provided.entries)) } : {}) });
   await flush();
@@ -148,7 +140,6 @@ export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
     },
     row: () => rowOf(m.latest().entries),
     unpinnedLive: () => entries().filter((p, k) => k > rootAt() && p.live).map(panelKey),
-    pinnedLive: () => entries().filter((p, k) => k < rootAt() && p.live).map(panelKey),
     parked: () => entries().filter((p) => !p.live).map(panelKey),
     commits,
     entry: (name) => {

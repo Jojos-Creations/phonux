@@ -30,7 +30,6 @@ const NO_OPS: EngineOps = {
   setSlots: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   scrollTo: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reopen: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
-  pin: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reset: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   inUndoWindow: () => false,
   resetClosed: () => false,
@@ -41,7 +40,7 @@ const NO_OPS: EngineOps = {
 
 afterEach(() => cleanup());
 
-const KEYS_OF_STATE = ['id', 'templateId', 'status', 'held', 'engineId', 'index', 'title', 'url', 'params', 'listed', 'settings', 'pinned', 'deferredPin', 'openedBy'];
+const KEYS_OF_STATE = ['id', 'templateId', 'status', 'held', 'engineId', 'index', 'title', 'url', 'params', 'listed', 'settings', 'openedBy'];
 const statuses = (w: WorkspaceHandle): string[] => w.panels.getSnapshot().panels.map((p) => `${p.id}:${p.status}`);
 
 // ---------------------------------------------------------------------------
@@ -79,14 +78,14 @@ test('the two-template example with a root template: the root and two panels mou
   assert.equal(entries[0]!.view, 'history');
 });
 
-test('a template view receives its panel summary, the seventeen sorted keys of the operable handle (the read-only five and the twelve verbs) and the four of the reader', () => {
+test('a template view receives its panel summary, the fifteen sorted keys of the operable handle (the read-only five and the ten verbs) and the four of the reader', () => {
   const w = createWorkspace({ mount: false, templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
   assert.ok(node, 'the template view did not render');
   assert.equal(node.dataset.slot, m.latest().entries.find((p) => p.view === 'probe')!.key, 'panel is the row entry summary, and its id is the key');
-  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setSlots, scrollTo, pin, unpin, configure: 17 keys and no manager');
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility'], 'id, templateId, getState, getSettings, subscribe, show, hide, toggleVisibility, close, open, move, place, setSlots, scrollTo, configure: 15 keys and no manager');
   assert.equal(node.dataset.managerKeys, 'get,list,getSnapshot,subscribe');
   assert.equal(node.dataset.handleId, 'probe');
 });
@@ -108,7 +107,7 @@ test('getSnapshot is reference-equal until something changes and its keys are ex
   assert.equal(w.panels.getSnapshot(), again, 'nothing changed, so the snapshot is the same object');
 });
 
-test('each PanelState has exactly the fifteen keys in order, with engineId and index null for a pending panel', () => {
+test('each PanelState has exactly the twelve keys in order, with engineId and index null for a pending panel', () => {
   const w = createWorkspace({ mount: false, templates: [markerTemplate('k')] });
   const h = w.addPanel('k');
   const pending = h.getState();
@@ -428,21 +427,6 @@ test('no source file mentions PanelEvent, while PanelHandle is mentioned (contro
   const mentions = (word: string): number => files.filter((f) => readFileSync(f, 'utf8').includes(word)).length;
   assert.equal(mentions('PanelEvent'), 0);
   assert.ok(mentions('PanelHandle') > 0);
-});
-
-test('PanelState.pinned is the pure isPinned of the entry: left of the root true, right of the root false', () => {
-  const w = createWorkspace({ mount: false });
-  const binding = bindingOf(w);
-  binding.attach({});
-  const root = binding.initialEntries()[0]!;
-  const entry = (id: string, anchor: PanelWindow['anchor']): PanelWindow => ({ id, url: '', title: id, live: true, view: 'x', collapsible: true, listed: true, key: id, anchor });
-  const left = entry('l', { panel: root.id, position: 'left', priority: 0 });
-  const right = entry('r', { panel: root.id, position: 'right', priority: 0 });
-  binding.publish({ entries: [left, root, right], held: new Set(), settled: true, create: () => {}, lateRegister: () => {}, ops: NO_OPS });
-  const by = Object.fromEntries(w.panels.getSnapshot().panels.map((p) => [p.id, p]));
-  assert.equal(by.l!.pinned, true);
-  assert.equal(by.r!.pinned, false);
-  assert.equal(by.l!.deferredPin, null);
 });
 
 test('the afterClose differential: the same close, run under each value, differs at the next launch', async () => {

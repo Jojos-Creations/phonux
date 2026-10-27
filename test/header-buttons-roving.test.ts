@@ -87,9 +87,9 @@ test('removing the button that held the stop gives it to the first remaining one
 });
 
 test('disabling the button that held the stop moves it to the first enabled one', async () => {
-  const rig = await headerRig({ ids: ['a'], slots: { menu: slot('Menu', { side: 'start', disabled: (c) => c.state.pinned }), size: slot('Size') } });
+  const rig = await headerRig({ ids: ['a'], slots: { menu: slot('Menu', { side: 'start', disabled: (c) => !c.settings.closable }), size: slot('Size') } });
   assert.deepEqual(stops(rig), ['Menu']);
-  rig.turn(() => void rig.h.a!.pin());
+  rig.turn(() => void rig.h.a!.configure({ closable: false }));
   assert.deepEqual(stops(rig), ['Size']);
 });
 

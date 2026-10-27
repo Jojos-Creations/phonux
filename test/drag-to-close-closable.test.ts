@@ -27,7 +27,6 @@ const slotValue = (closable: boolean, tuning: Partial<SlotTuning>): PanelSlotVal
   resizable: true,
   maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
-  pinned: false,
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS), ...tuning },
 });
 

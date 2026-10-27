@@ -99,8 +99,6 @@ export function usePanelClosing(
    * closed and `undoPlacement` is the one it carries, which for an entry with no settings is 'old-slot'.
    */
   reapply?: (panel: PanelWindow) => Reapplied,
-  /** Lands a restored entry that carries a pin change it waited with: the change is applied in the update that restores it. */
-  settle?: (row: PanelWindow[], id: string) => { row: PanelWindow[]; notes: SettingNote[] },
 ): UsePanelClosingResult {
   // Plain stores: a read in the timer below sees every entry the window holds, whichever closure made the last write.
   const [closedStore] = useState(() => createPanelList<ClosedView[]>([]));
@@ -145,9 +143,7 @@ export function usePanelClosing(
       onWindowElapsed?.([found.closed]);
       return true;
     }
-    // A pin change the entry waited with dies with it; the one a closed panel waits with is on its record.
-    const { deferredPin: _dropped, ...closedPanel } = found.closed;
-    closedStore.set([...closedStore.get(), { panel: closedPanel, index: found.index, logId, reported: FIXED.reportClose }]);
+    closedStore.set([...closedStore.get(), { panel: found.closed, index: found.index, logId, reported: FIXED.reportClose }]);
     const now = Date.now();
     const end = Math.max(windowEnd.current ?? 0, now + FIXED.undoWindowMs);
     windowEnd.current = end;
@@ -191,13 +187,8 @@ export function usePanelClosing(
       // here, once per panel, and its result is what every call below restores.
       const restoringPanel = resetHostDataOnRestore ? withHostData(rebuilt, resetHostDataOnRestore(rebuilt.hostData, rebuilt)) : rebuilt;
       const at = { rootId, fallback: FIXED.placeFallback, ...(order !== undefined ? { order } : {}) };
-      const restoreInto = (row: PanelWindow[]): PanelWindow[] => {
-        const restored = restorePlaced(row, restoringPanel, index, placeAt, at).row;
-        return settle === undefined ? restored : settle(restored, panel.id).row;
-      };
-      const placedBack = restorePlaced(working, restoringPanel, index, placeAt, at);
-      const settledBack = settle === undefined ? undefined : settle(placedBack.row, panel.id);
-      const landed = { row: settledBack?.row ?? placedBack.row, notes: [...placedBack.notes, ...(settledBack?.notes ?? [])] };
+      const restoreInto = (row: PanelWindow[]): PanelWindow[] => restorePlaced(row, restoringPanel, index, placeAt, at).row;
+      const landed = restorePlaced(working, restoringPanel, index, placeAt, at);
       reportNotes(onNote, landed.notes);
       if (rebuilt.live) {
         // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it

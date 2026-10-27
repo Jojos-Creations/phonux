@@ -10,7 +10,7 @@ import * as React from 'react';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps } from '../../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelNeighborWidths, usePanelReorderSteps } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
@@ -172,7 +172,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       useFrameClaim('frame');
       const caps = usePanelCapabilities();
       const neighbors = usePanelNeighborWidths();
-      const pinned = usePanelPinned();
       const steps = usePanelReorderSteps();
       const [n, setN] = useViewState('n', 0);
       useEffect(() => {
@@ -196,7 +195,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-reorder': String(caps.movable),
         'data-caps': JSON.stringify({ closable: caps.closable, movable: caps.movable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
-        'data-pinned': String(pinned),
         'data-n': String(n),
         'data-steps': JSON.stringify([150, 250].map(steps)),
       });

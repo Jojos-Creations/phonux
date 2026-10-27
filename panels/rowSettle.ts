@@ -4,7 +4,6 @@
  */
 
 import { computeRowNumbers } from '../rowNumbers.js';
-import { pinnedIds } from '../panelPin.js';
 import { isPresent } from '../panelRowEntry.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
@@ -18,28 +17,21 @@ export interface RowEnv {
   readonly gap: number;
   readonly fixedColumnCount: number;
   readonly maxLive: number | null;
-  readonly rootId: string;
   readonly dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']>;
 }
 
 /** Live and parkable for room: the panels whose count and widths the capacity governs. */
 export const isParkLive = (p: PanelWindow): boolean => p.live && parksForRoom(p);
 
-const NO_IDS: ReadonlySet<string> = new Set();
-
-
 /**
- * What prices `row`: panel widths, how many parkable panels may be live, whether a live set settles, and which panels
- * the cap leaves alone. A scroll panel never parks, so its width comes off the budget instead of counting.
+ * What prices `row`: panel widths, how many parkable panels may be live, whether a live set settles. A scroll panel never parks, so its width comes off the budget instead of counting.
  */
 export function rowPricing(env: RowEnv, row: readonly PanelWindow[]) {
-  const { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, rootId } = env;
+  const { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive } = env;
   const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
   // Only a row with a scroll panel, or a fixed column wider than a phone, prices its reserved widths one by one; any other keeps the fixed column count the host passed.
   const widerThanPhone = row.some((p) => isPresent(p) && !p.collapsible && panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap) !== phoneWidth);
   const reservedWidths = widerThanPhone || row.some((p) => isPresent(p) && !parksForRoom(p) && p.collapsible) ? numbers.reservedWidths : undefined;
-  // Parked ones included, so a pinned panel that returns is still exempt. Empty without a cap: nothing then reads a pin.
-  const pinned = maxLive === null ? NO_IDS : pinnedIds(row, rootId);
   const widthOf = (p: PanelWindow): number => panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap);
   const fitCapacityFor = (liveWidths: readonly number[]): number => {
     // `containerWidth === 0` means unmeasured (the first commit, and every jsdom test that never calls
@@ -52,16 +44,16 @@ export function rowPricing(env: RowEnv, row: readonly PanelWindow[]) {
   };
   /**
    * How many panels `set` (live parkable, row order) may number: the window's fit (priced from `fitWidths`, else `set`'s
-   * own), held under a cap to at most N plus the pinned panels of `set`. A scrolling row under a cap ignores the fit.
+   * own), held under a cap to at most N. A scrolling row under a cap ignores the fit.
    */
   const capacityFor = (set: readonly PanelWindow[], fitWidths: readonly number[] = set.map(widthOf)): number => {
     if (maxLive === null) return fitCapacityFor(fitWidths);
     const fit = numbers.rowScroll ? Number.POSITIVE_INFINITY : fitCapacityFor(fitWidths);
-    return Math.min(fit, maxLive + set.filter((p) => pinned.has(p.id)).length);
+    return Math.min(fit, maxLive);
   };
   /** Whether `set` (live parkable panels, row order) can stay live as it is: the one test both reconcile branches settle against. */
   const settles = (set: readonly PanelWindow[]): boolean => set.length <= capacityFor(set);
-  return { widthOf, capacityFor, settles, pinned };
+  return { widthOf, capacityFor, settles };
 }
 
 /** `next`, plus in the same update whatever the reconcile's DROP would park, so no committed row overflows. */
@@ -70,7 +62,7 @@ const { dropTieBreak } = env;
   const live = next.filter(isParkLive);
   const priced = rowPricing(env, next);
   if (priced.settles(live)) return next;
-  const parked = new Set(fewestParksThatSettle(live, priced.widthOf, priced.settles, [...keep, ...priced.pinned], dropTieBreak));
+  const parked = new Set(fewestParksThatSettle(live, priced.widthOf, priced.settles, keep, dropTieBreak));
   return parked.size === 0 ? next : next.map((p) => (parked.has(p.id) ? { ...p, live: false } : p));
 }
 

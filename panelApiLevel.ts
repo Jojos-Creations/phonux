@@ -56,8 +56,6 @@ export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]-?: ShapeOf<Ne
     place: { kind: 'function' },
     setSlots: { kind: 'function' },
     scrollTo: { kind: 'function' },
-    pin: { kind: 'function' },
-    unpin: { kind: 'function' },
     configure: { kind: 'function' },
   },
   manager: {

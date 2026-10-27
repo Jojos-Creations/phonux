@@ -111,12 +111,11 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   maxSlots: [1, 2, 3, 64],
   restoreVisibility: ['saved', 'live', 'parked'],
   afterClose: ['stay-closed', 'return-next-launch'],
-  pinningWhenNotLive: ['place-only', 'refuse', 'show', 'apply-on-next-show', { parked: 'show' }, { hidden: 'refuse' }, { closed: 'apply-on-next-show' }, { parked: 'place-only', hidden: 'show', closed: 'refuse' }],
   title: ['', 'Notes'],
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'pinning', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -125,7 +124,6 @@ const PROBES: readonly Probe[] = [
   ['number given a string', { template: asSettings({ maxSlots: '1' }) }, 'template', 'maxSlots'],
   ['number given NaN', { template: asSettings({ slots: Number.NaN }) }, 'template', 'slots'],
   ['title given a number', { template: asSettings({ title: 5 }) }, 'template', 'title'],
-  ['pinning given a string', { template: asSettings({ pinning: 'row-start' }) }, 'template', 'pinning'],
   ['unknown member of overflow', { template: asSettings({ overflow: 'wrap' }) }, 'template', 'overflow'],
   ['slots given a string', { template: asSettings({ slots: '2' }) }, 'template', 'slots'],
   ['zero slots', { template: asSettings({ slots: 0 }) }, 'template', 'slots'],
@@ -153,8 +151,6 @@ const PROBES: readonly Probe[] = [
   ['headerButtons given a list', { template: asSettings({ headerButtons: [slot('a')] }) }, 'template', 'headerButtons'],
   ['headerButtons holding a string for a slot', { template: asSettings({ headerButtons: { size: 'x' } }) }, 'template', 'headerButtons'],
   ['headerButtons holding true for a slot', { template: asSettings({ headerButtons: { size: true } }) }, 'template', 'headerButtons'],
-  ["pinningWhenNotLive 'maybe'", { template: asSettings({ pinningWhenNotLive: 'maybe' }) }, 'template', 'pinningWhenNotLive'],
-  ["pinningWhenNotLive closed: 'show'", { template: asSettings({ pinningWhenNotLive: { closed: 'show' } }) }, 'template', 'pinningWhenNotLive'],
   ['pinningWhenNotLive with an unknown status', { template: asSettings({ pinningWhenNotLive: { open: 'show' } }) }, 'template', 'pinningWhenNotLive'],
   ['tuning given a number', { instance: asSettings({ tuning: 5 }) }, 'instance', 'tuning'],
   ['a template layer carrying a tuning leaf', { template: asSettings({ tuning: { hopFraction: 0.7 } }) }, 'template', 'tuning'],
@@ -164,7 +160,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 58 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 56 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -283,8 +279,8 @@ const RANGES: readonly RangeRow[] = [
   ['slide.glideEase', 'cubic-out', 'accept'],
   ['slide.glideEase', 'linear', 'accept'],
   ['slide.glideEase', 'easeIn', 'reject'],
-  ['slide.glideEase', [0, 0, 0.58, 1], 'accept'],
-  ['slide.glideEase', [-0.01, 0, 0.58, 1], 'reject'],
+  ['slide.glideEase', [0, 0, 0.56, 1], 'accept'],
+  ['slide.glideEase', [-0.01, 0, 0.56, 1], 'reject'],
   ['slide.ease', [0.2, 0, 1], 'reject'],
   ['slide.ease', [-0.01, 0, 0.5, 1], 'reject'],
   ['slide.ease', [0, 0, 0.5, 1], 'accept'],
@@ -429,12 +425,10 @@ test('cascade: undefined never overrides, at any layer', () => {
   assert.equal(absent.value.closable, false, 'an undefined tuning is not a tuning');
 });
 
-test('cascade: placeOnAdd, placeOnShow, pinning and pinningWhenNotLive are replaced whole', () => {
+test('cascade: placeOnAdd and placeOnShow are replaced whole', () => {
   const rows: ReadonlyArray<readonly [string, unknown, unknown]> = [
     ['placeOnAdd', { before: 'a' }, { after: 'b' }],
     ['placeOnShow', { before: 'a' }, { anchor: { panel: 'b', position: 'right' } }],
-    ['pinning', { pinned: { placement: 'row-start', parkable: true }, unpinned: { placement: 'row-end', parkable: false } }, { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } }],
-    ['pinningWhenNotLive', { parked: 'show', hidden: 'refuse' }, { closed: 'refuse' }],
   ];
   for (const [key, lower, higher] of rows) {
     const res = resolve({ template: asSettings({ [key]: lower }), instance: asSettings({ [key]: higher }) });
@@ -443,7 +437,7 @@ test('cascade: placeOnAdd, placeOnShow, pinning and pinningWhenNotLive are repla
     const alone = resolve({ template: asSettings({ [key]: lower }) });
     assert.deepEqual((alone.value as unknown as Record<string, unknown>)[key], lower, `${key}: the lower layer alone`);
   }
-  assert.equal(rows.length, 4);
+  assert.equal(rows.length, 2);
 });
 
 test('cascade: headerButtons merges per slot id; an instance false removes only that id; a later slot replaces the earlier whole', () => {
@@ -690,15 +684,14 @@ test('park levers: capacityReturn on a panel whose overflow resolves to scroll y
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
 
-test('host layer: closable true, headerButtons, overflow and pinning are not-view-settable and change nothing', () => {
+test('host layer: closable true, headerButtons and overflow are not-view-settable and change nothing', () => {
   const res = resolve({
-    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, overflow: 'park', pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } }),
+    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, overflow: 'park' }),
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
     ['headerButtons', 'host', 'not-view-settable'],
     ['overflow', 'host', 'not-view-settable'],
-    ['pinning', 'host', 'not-view-settable'],
   ]);
   assert.deepEqual([res.value.closable, res.value.overflow, res.value.headerButtons, res.source.closable, res.source.overflow], [true, 'scroll', {}, 'library', 'library']);
 });
@@ -915,74 +908,12 @@ test('lenient: a layer that is not an object is dropped whole with one note; the
   }
 });
 
-// ---------------------------------------------------------------------------
-// Pin definitions
-// ---------------------------------------------------------------------------
-
-type PinRow = readonly [what: string, pinning: unknown, outcome: 'valid' | 'invalid'];
-const PIN_TABLE: readonly PinRow[] = [
-  ['the default', { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, 'valid'],
-  ['the parkable pair alone', { pinned: { parkable: false }, unpinned: { parkable: true } }, 'valid'],
-  ['the pair, pinned next to a dock, unpinned at the row end', { pinned: { placement: { after: 'dock' }, parkable: false }, unpinned: { placement: 'row-end', parkable: true } }, 'valid'],
-  ['row-start with after-fixed', { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } }, 'valid'],
-  ['the pair with row-start and row-end', { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end', parkable: true } }, 'valid'],
-  ['the pair the other way round', { pinned: { parkable: true }, unpinned: { parkable: false } }, 'valid'],
-  ['empty halves', { pinned: {}, unpinned: {} }, 'valid'],
-  ['an empty definition', {}, 'valid'],
-  ['parkable in one half only', { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end' } }, 'invalid'],
-  ['parkable in the unpinned half only', { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end', parkable: true } }, 'invalid'],
-  ['equal parkable values, both true', { pinned: { parkable: true }, unpinned: { parkable: true } }, 'invalid'],
-  ['equal parkable values, both false', { pinned: { parkable: false }, unpinned: { parkable: false } }, 'invalid'],
-  ['pinned row-end with unpinned row-start', { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-start' } }, 'invalid'],
-  ['parkable-start without the pair', { pinned: { placement: 'parkable-start' }, unpinned: { placement: 'row-end' } }, 'invalid'],
-  ['parkable-end without the pair', { pinned: { placement: 'parkable-end' }, unpinned: { placement: 'row-start' } }, 'invalid'],
-  ['in-place in the pinned half', { pinned: { placement: 'in-place' }, unpinned: { placement: 'row-end' } }, 'invalid'],
-  ['in-place in the unpinned half', { pinned: { placement: 'row-start' }, unpinned: { placement: 'in-place' } }, 'invalid'],
-  ['an unknown half key', { pinned: { placement: 'row-start', slot: 1 }, unpinned: { placement: 'row-end' } }, 'invalid'],
-  ['an unknown key beside the halves', { pinned: {}, unpinned: {}, extra: {} }, 'invalid'],
-  ['pinned filled and unpinned empty', { pinned: { placement: 'row-start' }, unpinned: {} }, 'invalid'],
-  ['pinned empty and unpinned filled', { pinned: {}, unpinned: { placement: 'row-end' } }, 'invalid'],
-];
-
-test('pinning: a hand-written table of valid and invalid definitions; invalid ones throw invalid-settings naming layer and key; executed equals rows', () => {
-  let executed = 0;
-  for (const [what, pinning, outcome] of PIN_TABLE) {
-    for (const layer of ['template', 'instance'] as const) {
-      const layers: PanelSettingsLayers = { [layer]: asSettings({ pinning }) };
-      if (outcome === 'valid') {
-        const res = resolve(layers);
-        assert.deepEqual(res.value.pinning, { pinned: {}, unpinned: {}, ...(pinning as object) }, `${what} at ${layer}`);
-        assert.equal(res.source.pinning, layer);
-      } else {
-        refuses(layers, layer, 'pinning');
-      }
-    }
-    executed += 1;
-  }
-  assert.equal(executed, PIN_TABLE.length);
-  assert.equal(PIN_TABLE.filter((row) => row[2] === 'valid').length, 8);
-  assert.equal(PIN_TABLE.filter((row) => row[2] === 'invalid').length, 13);
-});
-
-test('pinning: the default is the row-start and row-end pair, and a saved invalid pinning is dropped in lenient mode', () => {
-  assert.deepEqual(resolve().value.pinning, { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } });
-  assert.equal(resolve().source.pinning, 'library');
-  const res = resolve({ instance: asSettings({ pinning: { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-start' } } }) }, { lenient: true });
-  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['invalid-saved-setting', 'pinning']]);
-  assert.deepEqual(res.value.pinning, resolve().value.pinning);
-});
-
-test('pinning: pin-unlists appears when a pinned half names parkable false and listed is unset, and not when listed is set', () => {
-  const pinning = { pinned: { parkable: false }, unpinned: { parkable: true } } as const;
-  const unset = resolve({ template: { pinning } });
-  assert.deepEqual(unset.notes.map((n) => [n.code, n.key]), [['pin-unlists', 'pinning']]);
-  for (const listed of [true, false]) {
-    const set = resolve({ template: { pinning, listed } });
-    assert.deepEqual(set.notes, [], `listed ${listed}`);
-  }
-  assert.deepEqual(resolve({ template: { pinning: { pinned: { parkable: true }, unpinned: { parkable: false } } } }).notes, []);
-  assert.deepEqual(resolve().notes, []);
-  assert.deepEqual(resolve({ template: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } }).notes, []);
+test('a saved row that still carries the removed pinning settings loads: each is dropped with a note, and a code layer refuses them', () => {
+  const saved = asSettings({ pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, pinningWhenNotLive: 'show' });
+  const res = resolve({ instance: saved }, { lenient: true });
+  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['invalid-saved-setting', 'pinning'], ['invalid-saved-setting', 'pinningWhenNotLive']]);
+  assert.deepEqual(res.value, resolve().value);
+  refuses({ template: saved }, 'template', 'pinning');
 });
 
 // ---------------------------------------------------------------------------
@@ -1016,7 +947,6 @@ function deepFreeze<T>(value: T): T {
 /** Keys a stack asks for more often, so the coupling rules fire in most stacks. */
 const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, maxSlots: 0.3, slots: 0.3, overflow: 0.3, clearable: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
 const SKEWED_FALSE = new Set(['parkable', 'closable']);
-const PIN_VALID = PIN_TABLE.filter((row) => row[2] === 'valid').map((row) => row[1]);
 const SLOT_IDS = ['size', 'pin', 'menu'] as const;
 const VIEW_KEYS = ['title', 'listed', 'layer', 'slots', 'placeOnAdd', 'enterFrom'];
 
@@ -1037,7 +967,6 @@ function randomLayer(rng: Rng, kind: 'workspace' | 'template' | 'host' | 'instan
     if (!chance(rng, p)) continue;
     layer[key] = SKEWED_FALSE.has(key) ? pick(rng, [false, false, true]) : pick(rng, values);
   }
-  if (chance(rng, 0.15)) layer.pinning = pick(rng, PIN_VALID);
   if (chance(rng, 0.2)) layer.headerButtons = randomHeaderButtons(rng);
   return layer as PanelSettings;
 }
@@ -1058,8 +987,7 @@ function randomStack(rng: Rng): { layers: PanelSettingsLayers; options: ResolveO
   return { layers, options: { root: chance(rng, 0.15) } };
 }
 
-const PIN_DOMAIN = PIN_VALID.map((p) => ({ pinned: {}, unpinned: {}, ...(p as object) }));
-const NOTE_CODES = ['override-dropped', 'pin-unlists', 'park-lever-inert', 'resizable-capped'];
+const NOTE_CODES = ['override-dropped', 'park-lever-inert', 'resizable-capped'];
 
 const coverage = { stacks: 0, roots: 0, withConflicts: 0, withNotes: 0, userParkableApplied: 0, userSlotsApplied: 0, rules: new Set<string>(), kinds: new Set<string>(), noteCodes: new Set<string>() };
 
@@ -1073,7 +1001,6 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
 
   for (const [key, value] of Object.entries(v)) {
     if (key === 'headerButtons') assert.ok(Object.values(value as Loose).every((s) => typeof s === 'object' && s !== null && typeof (s as Loose).label === 'string'), 'headerButtons holds slots only');
-    else if (key === 'pinning') assert.ok(PIN_DOMAIN.some((p) => isDeepStrictEqual(p, value)) || isDeepStrictEqual(value, { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }), 'pinning in domain');
     else assert.ok((ENUMERATED[key] ?? []).some((member) => isDeepStrictEqual(member, value)), `${key} = ${JSON.stringify(value)} is in its domain`);
   }
   for (const key of Object.keys(v)) if (key !== 'headerButtons') assert.ok(key in res.source, `${key} has a source`);
@@ -1100,13 +1027,13 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
     const layer = layers[layerName] as Loose | undefined;
     if (layer === undefined) continue;
     for (const key of Object.keys(layer)) {
-      if (res.source[key] === layerName && key !== 'headerButtons' && key !== 'pinning') assert.ok(isDeepStrictEqual(layer[key], v[key]), `${layerName}.${key} won, so its value stands`);
+      if (res.source[key] === layerName && key !== 'headerButtons') assert.ok(isDeepStrictEqual(layer[key], v[key]), `${layerName}.${key} won, so its value stands`);
     }
   }
   const instance = layers.instance as Loose | undefined;
   if (instance !== undefined) {
     for (const key of Object.keys(instance)) {
-      if (['hostCreatable', 'hollowDot', 'multiple', 'maxInstances', 'headerButtons', 'pinning'].includes(key)) continue;
+      if (['hostCreatable', 'hollowDot', 'multiple', 'maxInstances', 'headerButtons'].includes(key)) continue;
       assert.ok(['instance', 'forced', 'user'].includes(res.source[key] as string), `an instance ask of ${key} is beaten only by a rule or the person: ${String(res.source[key])}`);
     }
   }
@@ -1163,8 +1090,8 @@ test('property: the generator exercised every rule, every conflict kind, the roo
   assert.ok(coverage.stacks >= 1000, `${coverage.stacks} stacks were checked before this test`);
   assert.deepEqual([...coverage.rules].sort(), ['C1', 'C2', 'C4', 'C5']);
   assert.deepEqual([...coverage.kinds].sort(), ['forced', 'not-view-settable', 'wrong-scope']);
-  assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'park-lever-inert', 'pin-unlists', 'resizable-capped']);
-  assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 300, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
+  assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'park-lever-inert', 'resizable-capped']);
+  assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 200, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
   assert.ok(coverage.userParkableApplied >= 20 && coverage.userSlotsApplied >= 100, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
 });
 

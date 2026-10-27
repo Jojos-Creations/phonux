@@ -24,7 +24,7 @@ test('a maxInstances patch on a template that is not multiple answers one moot n
   const warn = mock.method(console, 'warn', () => {});
   const r = await pinRig();
   const res = r.turn(() => r.ws.panels.configureTemplate('b', { maxInstances: 3 }));
-  assert.deepEqual({ ...res }, { ok: true, changed: true, shown: false, now: [], later: ['maxInstances'], shadowed: [], notes: [MOOT] });
+  assert.deepEqual({ ...res }, { ok: true, changed: true, now: [], later: ['maxInstances'], shadowed: [], notes: [MOOT] });
   assert.deepEqual(r.m.notes, [MOOT], 'onNote heard it once');
   assert.equal(warn.mock.callCount(), 0, 'a note is not a conflict');
   assert.equal(r.ws.panels.get('b')!.getSettings().value.maxInstances, 3, 'the limit is stored');

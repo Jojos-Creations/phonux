@@ -371,7 +371,6 @@ const bareSlot = (): PanelSlotValue => ({
   ...resolvePanelSettings().value,
   collapsible: true,
   neighborWidths: { left: [], right: [] },
-  pinned: false,
   tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
   dragScroll: { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' },
 });

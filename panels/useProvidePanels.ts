@@ -23,7 +23,6 @@ import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
 import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, panelRectEvent, type PanelRectDetail, type PanelRectEvent } from '../panelChrome.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
-import { decidePinChange, type PinChange, type PinStatus } from '../panelPin.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
@@ -326,7 +325,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const keepLiveRef = useRef<ReadonlyMap<string, PanelWindow[]>>(new Map());
   const capParkedRef = useRef<string[]>([]);
   const maxLive = tuning.maxLivePanels ?? null;
-  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, rootId, dropTieBreak: timing.dropTieBreak };
+  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak };
   const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== rawPanels).map(([id]) => id);
   const panels = maxLive === null ? rawPanels : settleKeeping(settleEnv, rawPanels, acted);
   if (panels !== rawPanels) {
@@ -441,10 +440,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     placeAt,
     landAt,
     landPanel,
-    previewPin,
-    pinPanel,
-    recordPin,
-    deferPin,
     resetPanels,
     gate,
     touchPanel,
@@ -454,7 +449,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     capParkedRef,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
     ...(core.order !== undefined ? { order: core.order } : {}),
-    resolveWith: core.resolveWith,
     resolveDefaults: core.resolveDefaults,
   });
 
@@ -528,7 +522,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const drawnSlotsRef = useRef('');
   const settledNumbersRef = useRef<RowNumbers | undefined>(undefined);
   const endWidthRef = useRef<number | undefined>(undefined);
-  // The window, a pin, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
+  // The window, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
   // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
   useLayoutEffect(() => {
     const el = i.overflowContainerRef.current;
@@ -627,10 +621,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const kept = opened.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
       return carried.sized ? recordOverride(kept, 'slots', [req.engineId], rootId) : kept;
     };
-    // A pin change stored while the panel was closed lands as the panel is added: placement, then the `parkable` flip.
-    const withPin = (row: PanelWindow[]): PanelWindow[] => (req.deferredPin === undefined || !row.some((p) => p.id === req.engineId) ? row : landPanel(row, req.engineId, 'in-place', req.deferredPin).row);
-    if (req.deferredPin !== undefined && build(panels).some((p) => p.id === req.engineId)) reportNotes(i.onNote, landPanel(build(panels), req.engineId, 'in-place', req.deferredPin).notes);
-    revealPanelProactively(panels, (prev) => withPin(build(prev)));
+    revealPanelProactively(panels, build);
     requestOpen(req.engineId, { fresh: true });
   };
 
@@ -894,10 +885,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const reapply = (p: PanelWindow): Reapplied => {
     if (p.settings === undefined || p.marker === true) return { panel: p, placeAs: FIXED.undoPlacement };
     const value = core.resolved(p);
-    // A pin change stored on the closed panel's record applies as the undo restores it.
-    const waiting = core.takeDeferredPin(panelKey(p));
     const layer = p.declared === true ? undefined : core.layerOf(p);
-    return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(layer !== undefined ? { instance: layer } : {}), ...(waiting !== undefined ? { deferredPin: waiting } : {}) }, placeAs: FIXED.undoPlacement };
+    return { panel: { ...applyTemplate(p, value, 'reconfigure'), ...(layer !== undefined ? { instance: layer } : {}) }, placeAs: FIXED.undoPlacement };
   };
 
   // After usePanelManager: undo makes room for a live view through its revealPanelProactively. `onAfterClose`
@@ -931,7 +920,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     i.onNote,
     core.order,
     reapply,
-    (row, id) => landPanel(row, id, 'in-place'),
   );
 
   /** `close` as a person's gesture and the manager's `close` verb both run it: the picture, then the close. True when the close was accepted. */
@@ -1097,41 +1085,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const to = align ?? (effective(target).scrollOnOpen === 'none' ? 'into-view' : (effective(target).scrollOnOpen as ScrollAlign));
       return accepted(requestOpen(engineId, { align: align ?? null, forced: true }) && wouldScroll(engineId, to));
     },
-    pin: (engineId, by, source) => {
-      const target = held(engineId);
-      if (!isEntry(target)) return target;
-      if (gate.busy([engineId], 'other')) return busy(target);
-      const change: PinChange = { by };
-      const status: PinStatus = target.live ? 'live' : heldIds.has(engineId) ? 'hidden' : 'parked';
-      const decision = decidePinChange(target, status, effective(target).pinningWhenNotLive, change);
-      const preview = previewPin(engineId, change);
-      if (decision.kind === 'refuse') return refused(decision.code!, `panel '${panelKey(target)}' is not live and its pinningWhenNotLive does not let ${by}() reshape the row`);
-      if (!preview.ok) return { ...refused(preview.code, preview.message), ...(preview.setting === undefined ? {} : { setting: preview.setting }) };
-      const token = gate.take([engineId], 'other')!;
-      try {
-        if (decision.kind === 'defer') {
-          // A call that leaves the panel reading as it does cancels what waits; any other replaces it.
-          const equal = !preview.changed;
-          const stored = target.deferredPin;
-          const next = equal ? undefined : change;
-          const moved = JSON.stringify(stored) !== JSON.stringify(next);
-          if (moved) deferPin(engineId, next ?? null);
-          return { ...accepted(moved), deferred: !equal };
-        }
-        if (decision.kind === 'show') {
-          handleActivatePanel(engineId, change);
-          if (source === 'person') recordPin(engineId, change);
-          scrollForShow(engineId);
-          return { ...accepted(true), shown: true };
-        }
-        const done = pinPanel(engineId, change, source === 'person');
-        const changed = done.ok && done.changed;
-        if (changed) followPanel(engineId);
-        return accepted(changed);
-      } finally {
-        gate.release(token);
-      }
-    },
     reset: (engineIds, follow) => {
       const named = engineIds.map((id) => held(id)).filter(isEntry);
       if (gate.busy(panels.map((p) => p.id), 'other')) return refused('busy', 'a panel already has an operation in this turn');
@@ -1162,10 +1115,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         const again = plan(now, status);
         return 'next' in again ? applyConfigure(prev, now, again.next) : prev;
       });
-      if (outcome.show !== undefined) {
-        handleActivatePanel(engineId, outcome.show, applyConfigure(panels, target, outcome.next));
-        scrollForShow(engineId);
-      }
       gate.release(token);
       return outcome.done;
     },

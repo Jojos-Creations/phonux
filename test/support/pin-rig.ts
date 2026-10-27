@@ -1,5 +1,5 @@
 /**
- * A workspace of marker templates mounted in a measured row, for the tests that pin, unpin and reset panels. With a root
+ * A workspace of marker templates mounted in a measured row, for the tests that configure and reset panels. With a root
  * the row reads [root a b c ...]; panels are added in id order and read by their names, not their engine ids.
  */
 import { createWorkspace } from '../../index.js';
@@ -38,7 +38,7 @@ export interface PinRig {
   entry: (id: string) => PanelWindow;
   state: (id: string) => PanelState;
   /** The permission and listing facts a pin changes, as literals. */
-  facts: (id: string) => { parkable: boolean; listed: boolean; movable: boolean; clearable: boolean; pinned: boolean };
+  facts: (id: string) => { parkable: boolean; listed: boolean; movable: boolean; clearable: boolean };
   provided: () => ProvidedPanels;
   settle: () => Promise<void>;
 }
@@ -78,7 +78,7 @@ export async function pinRig(o: PinRigOptions = {}): Promise<PinRig> {
     state: (id) => ws.panels.get(id)!.getState(),
     facts: (id) => {
       const s = ws.panels.get(id)!.getState();
-      return { parkable: s.settings.parkable, listed: s.listed, movable: s.settings.movable, clearable: s.settings.clearable, pinned: s.pinned };
+      return { parkable: s.settings.parkable, listed: s.listed, movable: s.settings.movable, clearable: s.settings.clearable };
     },
     provided: () => m.latest(),
     settle: () => advanceFrames(900),

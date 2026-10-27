@@ -167,37 +167,6 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 /** One generic title-bar button slot: the icon form or the text form, told apart by the `icon` key. @public */
 export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
 
-/** One half of a pin definition: where the panel goes and, optionally, whether it is parkable in that state. @public */
-export type PinHalf = {
-  /** Where the panel is placed in this state. */
-  placement?: AddPlacement;
-  /** The `parkable` value the panel takes in this state. */
-  parkable?: boolean;
-};
-
-/** What pin() and unpin() do. Valid only when a drag cannot make the pinned state unreadable. @public */
-export type Pinning = {
-  /** What `pin()` does, and what the panel reads as when pinned. */
-  pinned: PinHalf;
-  /** What `unpin()` does. */
-  unpinned: PinHalf;
-};
-
-/** What a pin change does to a panel that is not live: place it only, refuse, show it, or apply on its next show. @public */
-export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
-
-/** What a pin change does to a panel that is not live: one answer, or one per status. @public */
-export type PinningWhenNotLive =
-  | PinWhenNotLive
-  | {
-      /** The answer for a parked panel. */
-      parked?: PinWhenNotLive;
-      /** The answer for a hidden panel. */
-      hidden?: PinWhenNotLive;
-      /** The answer for a closed panel: refuse, or apply on its next show. */
-      closed?: 'refuse' | 'apply-on-next-show';
-    };
-
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
@@ -207,7 +176,7 @@ export type SettingValues = {
   closable: boolean;
   /** Whether the panel can be parked; false makes it a fixed column, which needs one slot. */
   parkable: boolean;
-  /** Whether a person can move the panel, by a reorder drag or by dropping it at a placement. The developer's own `move()`, `place()` and pin with a placement are not limited by it. Defaults to the resolved `parkable`. */
+  /** Whether a person can move the panel, by a reorder drag or by dropping it at a placement. The developer's own `move()` and `place()` are not limited by it. Defaults to the resolved `parkable`. */
   movable: boolean;
   /** Whether another panel's drag can cross this panel. */
   crossable: boolean;
@@ -241,7 +210,7 @@ export type SettingValues = {
   resize: 'reveal' | 'reflow';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
-  /** Whether the row follows the panel when it is moved, placed, resized, pinned, unpinned or its layout reset. */
+  /** Whether the row follows the panel when it is moved, placed, resized or its layout reset. */
   scrollOnMove: ScrollOnMove;
   /** What `toggleVisibility()` does to a closed declared panel: nothing ('ignore') or reopen it ('reopen'). */
   toggleWhenClosed: 'ignore' | 'reopen';
@@ -263,10 +232,6 @@ export type SettingValues = {
   maxSlots: number;
   /** The panel's title. */
   title: string;
-  /** What `pin()` and `unpin()` do, and what the panel reads as pinned. */
-  pinning: Pinning;
-  /** What a pin change does to a panel that is not live. */
-  pinningWhenNotLive: PinningWhenNotLive;
   /** Whether the panel is restored as it was saved ('saved'), live or parked. */
   restoreVisibility: 'saved' | 'live' | 'parked';
   /** Whether a closed panel stays closed ('stay-closed') or returns at the next launch ('return-next-launch'). */
@@ -368,8 +333,8 @@ export type WorkspaceTuning = {
   /** Overrides for the chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
   /**
-   * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
-   * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
+   * The most parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
+   * it park the way they do when the window is full. In a row that
    * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
    * Raising it (or setting `null`) through `configureTuning` brings back the most recently capacity-parked panels, up to the new
    * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
@@ -435,7 +400,7 @@ export type ResolvedWorkspaceTuning = {
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
   /** The chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome: ChromeTuning;
-  /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
+  /** The most parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
   /** Whether the default mount fits the phone size to the window: 'off' or 'fit'. */
   phoneFit: 'off' | 'fit';
@@ -964,28 +929,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
-    name: 'pinning',
-    group: 'pinning',
-    values: 'object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin',
-    default: '{ pinned: { placement: \'row-start\' }, unpinned: { placement: \'row-end\' } } (0.1.0\'s one pin rule)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-pin-and-reset',
-    configure: { cls: 'NOW', doors: ['instance'] },
-  },
-  {
-    name: 'pinningWhenNotLive',
-    group: 'pinning',
-    values: 'place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show)',
-    default: 'place-only',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-pin-and-reset',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'headerButtons',
     group: 'header',
     values: 'object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon?, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6); with icon the label is the accessible name, without it the label is the text drawn',
@@ -1330,8 +1273,6 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   slots: 1,
   maxSlots: ALL_SLOTS,
   title: undefined,
-  pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } as Pinning,
-  pinningWhenNotLive: 'place-only' as PinningWhenNotLive,
   headerButtons: {},
   restoreVisibility: 'saved' as const,
   afterClose: 'stay-closed' as const,
@@ -1467,60 +1408,6 @@ const headerButtonsProblem: Check = (v) => {
   return undefined;
 };
 
-const PIN_HALF_KEYS: readonly string[] = ['placement', 'parkable'];
-
-const pinHalfProblem = (half: unknown, which: string): string | undefined => {
-  if (!isPlain(half)) return `${which} must be an object`;
-  for (const key of Object.keys(half)) if (!PIN_HALF_KEYS.includes(key)) return `unknown key '${key}' in ${which}`;
-  if (half.placement !== undefined) {
-    const problem = placementProblem(half.placement);
-    if (problem !== undefined) return `${which}.placement: ${problem}`;
-  }
-  if (half.parkable !== undefined && typeof half.parkable !== 'boolean') return `${which}.parkable must be a boolean`;
-  return undefined;
-};
-
-/** Pinned is read from facts a drag cannot erase: the parkable pair, or row-start with row-end or after-fixed; an empty definition reads false. */
-function pinIsReadable(pinned: Plain, unpinned: Plain): boolean {
-  if (Object.keys(pinned).length === 0 && Object.keys(unpinned).length === 0) return true;
-  if (pinned.parkable !== undefined) return true;
-  return pinned.placement === 'row-start' && (unpinned.placement === 'row-end' || unpinned.placement === 'after-fixed');
-}
-
-const pinningProblem: Check = (v) => {
-  if (!isPlain(v)) return 'expected { pinned, unpinned }';
-  for (const key of Object.keys(v)) if (key !== 'pinned' && key !== 'unpinned') return `unknown key '${key}'`;
-  const pinned = v.pinned ?? {};
-  const unpinned = v.unpinned ?? {};
-  const halves = pinHalfProblem(pinned, 'pinned') ?? pinHalfProblem(unpinned, 'unpinned');
-  if (halves !== undefined) return halves;
-  const pinnedHalf = pinned as Plain;
-  const unpinnedHalf = unpinned as Plain;
-  if ((pinnedHalf.parkable === undefined) !== (unpinnedHalf.parkable === undefined)) return 'parkable is named in one half only';
-  if (pinnedHalf.parkable !== undefined && pinnedHalf.parkable === unpinnedHalf.parkable) return 'both halves name the same parkable value';
-  if (!pinIsReadable(pinnedHalf, unpinnedHalf)) return 'a drag would make the pinned state unreadable: name parkable in both halves, or use row-start with row-end or after-fixed';
-  return undefined;
-};
-
-const PIN_WHEN_NOT_LIVE: readonly string[] = ['place-only', 'refuse', 'show', 'apply-on-next-show'];
-
-const pinningWhenNotLiveProblem: Check = (v) => {
-  if (typeof v === 'string') return PIN_WHEN_NOT_LIVE.includes(v) ? undefined : `expected one of ${PIN_WHEN_NOT_LIVE.join(', ')}`;
-  if (!isPlain(v)) return 'expected a word or { parked?, hidden?, closed? }';
-  for (const key of Object.keys(v)) {
-    const value = v[key];
-    if (value === undefined) continue;
-    if (key === 'parked' || key === 'hidden') {
-      if (typeof value !== 'string' || !PIN_WHEN_NOT_LIVE.includes(value)) return `${key} must be one of ${PIN_WHEN_NOT_LIVE.join(', ')}`;
-    } else if (key === 'closed') {
-      if (value !== 'refuse' && value !== 'apply-on-next-show') return "closed must be 'refuse' or 'apply-on-next-show'";
-    } else {
-      return `unknown key '${key}'`;
-    }
-  }
-  return undefined;
-};
-
 /** What the removed per-panel settings do, typed as the values they once took so the code that reads them keeps its branches. @internal */
 export interface FixedBehaviour {
   readonly hideWhenLast: 'allow' | 'refuse';
@@ -1625,8 +1512,6 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   slots: integer(1, ALL_SLOTS),
   maxSlots: integer(1, ALL_SLOTS),
   title: text,
-  pinning: pinningProblem,
-  pinningWhenNotLive: pinningWhenNotLiveProblem,
   headerButtons: headerButtonsProblem,
   restoreVisibility: oneOf('saved', 'live', 'parked'),
   afterClose: oneOf('stay-closed', 'return-next-launch'),
@@ -1779,9 +1664,6 @@ function reject(layer: string, key: string, problem: string, lenientLayer: boole
   throw new PanelManagerError('invalid-settings', `${where}: ${problem}`, key === '' ? { layer } : { layer, key });
 }
 
-/** A pin definition may leave a half out; the resolved value always has both. */
-const withBothHalves = (v: Plain): Pinning => ({ pinned: (v.pinned ?? {}) as PinHalf, unpinned: (v.unpinned ?? {}) as PinHalf });
-
 function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
   const accepted: Accepted = { flat: new Map() };
   if (raw === undefined) return accepted;
@@ -1829,7 +1711,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       env.pending.push({ key, layer, kind: 'not-view-settable', asked: value });
       continue;
     }
-    accepted.flat.set(key, key === 'pinning' ? withBothHalves(value as Plain) : value);
+    accepted.flat.set(key, value);
   }
   return accepted;
 }
@@ -1943,7 +1825,7 @@ function applyRules(s: State, root: boolean): void {
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
-  // `movable` is not forced: code moves the root whatever it says, and it gates only the person's drag. The root is never closed, placed, pinned or unpinned.
+  // `movable` is not forced: code moves the root whatever it says, and it gates only the person's drag. The root is never closed or placed.
 }
 
 const PARK_LEVERS = ['capacityReturn'] as const;
@@ -2005,10 +1887,6 @@ export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: 
   const resizableAsked = state.source.resizable === 'template' || state.source.resizable === 'host' || state.source.resizable === 'instance';
   if (resolved.resizable === true && resizableAsked && resolved.maxSlots === 1) {
     notes.push({ code: 'resizable-capped', key: 'maxSlots', message: `maxSlots: resizable is set by the ${state.source.resizable} layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots too` });
-  }
-  const pinning = resolved.pinning as Pinning;
-  if (pinning.pinned.parkable === false && state.source.listed === 'derived') {
-    notes.push({ code: 'pin-unlists', key: 'pinning', message: 'pinning: the pinned half makes the panel a fixed column, which is unlisted unless listed is set' });
   }
   if (resolved.overflow === 'scroll') {
     for (const key of PARK_LEVERS) {

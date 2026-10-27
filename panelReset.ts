@@ -1,9 +1,9 @@
 /**
- * What a reset does to a row: for each named panel, the person's overrides and any deferred pin go, its slot count and
+ * What a reset does to a row: for each named panel, the person's overrides go, its slot count and
  * `parkable` are the cascade's again, and it is placed by its `placeOnAdd`. Pure: parking what no longer fits is the
  * engine's, because it needs the row's measure.
  */
-import { reparked } from './panelPin.js';
+import { reparked } from './panelConfigure.js';
 import { placePanel, type PlacementOptions } from './panelPlacement.js';
 import type { PanelSettingsResolution, SettingNote } from './panelSettings.js';
 import { clearOverrides, slotsOf, type PanelWindow } from './panelWindow.js';
@@ -47,7 +47,6 @@ export function resetEntries(row: readonly PanelWindow[], ids: readonly string[]
   let notes: SettingNote[] = [];
   const resized: string[] = [];
   let reparkable = false;
-  let dropped = false;
   for (const id of named) {
     const entry = next.find((p) => p.id === id)!;
     const resolution = env.resolveDefaults(entry);
@@ -55,10 +54,8 @@ export function resetEntries(row: readonly PanelWindow[], ids: readonly string[]
     const slots = slotsOf(entry);
     if (slots !== value.slots) resized.push(id);
     if (entry.collapsible !== value.parkable) reparkable = true;
-    if (entry.deferredPin !== undefined) dropped = true;
-    const { deferredPin: _gone, ...bare } = reparked(entry, resolution);
     const reset: PanelWindow = {
-      ...bare,
+      ...reparked(entry, resolution),
       ...(slots === value.slots ? {} : { slots: value.slots }),
       applied: { placeOnAdd: value.placeOnAdd },
     };
@@ -70,6 +67,6 @@ export function resetEntries(row: readonly PanelWindow[], ids: readonly string[]
   const cleared = clearOverrides(next, named);
   const overridesCleared = cleared !== next;
   const moved = slotOf(next).join() !== slotOf(row).join();
-  const changed = moved || resized.length > 0 || reparkable || overridesCleared || dropped;
+  const changed = moved || resized.length > 0 || reparkable || overridesCleared;
   return { row: changed ? cleared : (row as PanelWindow[]), changed, resized, notes };
 }

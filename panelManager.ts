@@ -5,7 +5,7 @@
 import type { JsonValue } from './hostApi.js';
 import { filterStates, type PanelHandle, type ReadSource } from './panelHandles.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import type { CatalogName, PanelId, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import type { PanelId, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import type { InstancePatch, SettingsPatch } from './settingsPatch.js';
 import type { ListFilter, PanelSnapshot } from './panelTemplate.js';
 
@@ -28,20 +28,6 @@ export type PanelResult =
       /** A sentence saying which panel and what stood in the way. */
       readonly message: string;
     };
-
-/**
- * What `pin()` and `unpin()` answer: a `PanelResult` and, where it applies, whether the pin showed a hidden panel,
- * whether it was stored for the panel's next show, and, for a refusal of `settings-conflict`, the setting in the way.
- * @public
- */
-export type PinResult = PanelResult & {
-  /** True when the pin showed a parked or hidden panel and applied in the same commit. */
-  readonly shown?: boolean;
-  /** True when the pin was stored to apply the next time the panel is live. */
-  readonly deferred?: boolean;
-  /** The catalog name of the explicit setting a fixed pin would override, with a `settings-conflict` refusal. */
-  readonly setting?: CatalogName;
-};
 
 /**
  * What `resetLayout` answers: a `PanelResult` and the panels it reset, the live panels it parked to make a larger
@@ -68,10 +54,8 @@ export type ConfigureResult =
   | {
       /** The change was accepted. */
       readonly ok: true;
-      /** True when a different value was stored or a waiting flip of `parkable` was cancelled; false for an equal or empty patch. */
+      /** True when a different value was stored; false for an equal or empty patch. */
       readonly changed: boolean;
-      /** True only when a flip of `parkable` showed a parked or hidden panel under `pinningWhenNotLive` 'show'; otherwise false. */
-      readonly shown: boolean;
       /** The catalog names applied in this commit. */
       readonly now: readonly string[];
       /** The catalog names stored for the next time the panel or the workspace reads them. */
@@ -111,7 +95,7 @@ export interface PanelManager {
   /** A handle for every panel `f` keeps; all panels when `f` is left out. */
   list(f?: ListFilter): readonly PanelHandle[];
   /**
-   * Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.
+   * Changes settings of one panel after it was added; `null` removes an instance value. All or nothing, in one update. A flip of `parkable` on a panel that is not live is refused with `would-reshape-row` or `is-closed`.
    * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
    */
   configure(id: PanelId, patch: InstancePatch): ConfigureResult;
@@ -125,7 +109,7 @@ export interface PanelManager {
    * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
    */
   configureTuning(patch: { [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null }): ConfigureResult;
-  /** Clears the person's overrides and any deferred pin of one panel, or of every panel but the root with 'all', and applies the cascade defaults now, in one update. */
+  /** Clears the person's overrides of one panel, or of every panel but the root with 'all', and applies the cascade defaults now, in one update. */
   resetLayout(target: PanelId | 'all'): ResetResult;
   /**
    * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).

@@ -142,16 +142,16 @@ function changelogBreakingNames(): Set<string> {
   return names;
 }
 
-test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 55 names since removed (30 root values, 18 root types, 1 testing value, 6 testing types)', () => {
+test('compat-0.1.0 fixture: 66 root values and 2 testing values in 0.1.0, 56 names since removed (31 root values, 18 root types, 1 testing value, 6 testing types)', () => {
   const fixture = exportsFixture();
   assert.equal(fixture.root.values.length, 66);
   assert.equal(fixture.testing.values.length, 2);
   const removed = fixture.removedSince010;
-  assert.equal(removed.root.values.length, 30);
+  assert.equal(removed.root.values.length, 31);
   assert.equal(removed.root.types.length, 18);
   assert.equal(removed.testing.values.length, 1);
   assert.equal(removed.testing.types.length, 6);
-  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 55);
+  assert.equal(removed.root.values.length + removed.root.types.length + removed.testing.values.length + removed.testing.types.length, 56);
   assert.ok(removed.root.values.every((name) => fixture.root.values.includes(name)), 'every removed root value was a 0.1.0 root value');
   assert.ok(removed.root.types.every((name) => fixture.root.types.includes(name)), 'every removed root type was a 0.1.0 root type');
   assert.ok(removed.testing.values.every((name) => fixture.testing.values.includes(name)), 'every removed testing value was a 0.1.0 testing value');

@@ -240,7 +240,7 @@ function applyTemplateWrites(source: string): { reconfigure: string[]; create: s
 /** The entry fields a configure must never write itself: only applyTemplate's reconfigure branch (through `reparked`) may. */
 const ENTRY_FIELDS = ['collapsible', 'listed', 'anchoredEnter', 'size', 'anchor', 'hostData', 'overrides', 'applied', 'live', 'settings', 'title'];
 /** The files a configure passes through before and after the engine's update. */
-const CONFIGURE_FILES = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
+const CONFIGURE_FILES = ['panelConfigure.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
 const CONFIGURE_FUNCTIONS = ['configureOne', 'configureTemplateOne', 'configureTuningOne'];
 
 /** Every write of an entry field in the configure files, as `file function:field`, with workspaceCore.ts narrowed to its three configure functions. */
@@ -260,12 +260,12 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
   assert.deepEqual(both, ['applyTemplate:collapsible', 'applyTemplate:collapsible'], 'one write of each per mode, both inside applyTemplate');
   // The configure path: reconfigured() hands the entry to reparked(), which calls applyTemplate in reconfigure mode, and nothing else builds one.
   assert.match(stripComments(read('panelConfigure.ts'), 'panelConfigure.ts'), /reparked\(entry, plan\.resolution\)/);
-  assert.match(stripComments(read('panelPin.ts'), 'panelPin.ts'), /applyTemplate\(entry, resolution\.value, 'reconfigure'\)/);
+  assert.match(stripComments(read('panelConfigure.ts'), 'panelConfigure.ts'), /applyTemplate\(entry, resolution\.value, 'reconfigure'\)/);
   for (const file of CONFIGURE_FILES) {
     const calls = [...stripComments(read(file), file).matchAll(/\bapplyTemplate\(([^;]*?), '(create|reconfigure)'\)/g)].map((m) => m[2]);
-    assert.deepEqual(calls, file === 'panelPin.ts' ? ['reconfigure'] : file === 'workspaceCore.ts' ? ['create'] : [], `${file}: applyTemplate calls (workspaceCore's one is the root entry's creation)`);
+    assert.deepEqual(calls, file === 'panelConfigure.ts' ? ['reconfigure'] : file === 'workspaceCore.ts' ? ['create'] : [], `${file}: applyTemplate calls (workspaceCore's one is the root entry's creation)`);
   }
-  assert.deepEqual(configureWriters(read), ['panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'], 'the only other writes: the fixed-column flip in reparked, and the record\'s own layer');
+  assert.deepEqual(configureWriters(read), ['panelConfigure.ts reparked:live', 'workspaceCore.ts configureOne:settings'], 'the only other writes: the fixed-column flip in reparked, and the record\'s own layer');
 
   const dir = mkdtempSync(join(tmpdir(), 'phonux-invariants-'));
   try {
@@ -277,7 +277,7 @@ test('source: a configure writes an entry only through applyTemplate\'s reconfig
     };
     assert.deepEqual(
       planted('panelConfigure.ts', 'export function plantedWriter(p: PanelWindow): PanelWindow {\n  const q = { ...p, size: undefined };\n  q.collapsible = false;\n  return q;\n}'),
-      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:size', 'panelPin.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
+      ['panelConfigure.ts plantedWriter:collapsible', 'panelConfigure.ts plantedWriter:size', 'panelConfigure.ts reparked:live', 'workspaceCore.ts configureOne:settings'],
       'a second writer in panelConfigure.ts is found, both of its writes',
     );
     assert.deepEqual(
@@ -351,9 +351,9 @@ test('source: the read handle has exactly id, templateId, getState, getSettings 
   assert.deepEqual(returnedKeys(src, 'makeReader'), ['get', 'list', 'getSnapshot', 'subscribe']);
 });
 
-test('source: the handle a view receives has the five read members and the twelve verbs, and no manager', () => {
+test('source: the handle a view receives has the five read members and the ten verbs, and no manager', () => {
   const src = read('panelHandles.ts');
-  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure']);
+  assert.deepEqual(returnedKeys(src, 'makeViewHandle'), ['id', 'templateId', 'getState', 'getSettings', 'subscribe', 'show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo', 'configure']);
   const widened = src.replace('    show: (src', '    manager: {},\n    show: (src');
   assert.notEqual(widened, src, 'control: the plant applied');
   assert.ok(returnedKeys(widened, 'makeViewHandle').includes('manager'), 'the pin sees a planted member');
@@ -426,17 +426,17 @@ test('source: the scroll files import no flushSync and use no useMemo or useCall
   }
 });
 
-test('source: the pin, reset and configure files import no flushSync, and a planted import is found', () => {
+test('source: the reset and configure files import no flushSync, and a planted import is found', () => {
   assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
-  for (const file of ['panelPin.ts', 'panelReset.ts', 'panelConfigure.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts']) {
+  for (const file of ['panelReset.ts', 'panelConfigure.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts']) {
     assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a verb`);
   }
 });
 
 /** The files a configure passes through, and the two hooks that import flushSync today for the park exit and the close exit. */
-const FLUSH_SYNC_FREE = ['panelConfigure.ts', 'panelPin.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
+const FLUSH_SYNC_FREE = ['panelConfigure.ts', 'panelManager.ts', 'panelHandles.ts', 'workspaceCore.ts'];
 
-test('source: the five configure files import no flushSync, the two hooks that do are not among them, and a scratch copy of each with an import is found', () => {
+test('source: the four configure files import no flushSync, the two hooks that do are not among them, and a scratch copy of each with an import is found', () => {
   assert.deepEqual(FLUSH_SYNC_FREE, CONFIGURE_FILES, 'the scan covers exactly the files a configure passes through');
   for (const file of FLUSH_SYNC_FREE) assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a configure`);
   for (const file of ['panels/usePanelManager.ts', 'panels/usePanelClosing.ts']) assert.equal(importsFlushSync(read(file)), true, `control: ${file} imports flushSync today, so the scan can see one in a real file`);

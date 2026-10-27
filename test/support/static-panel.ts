@@ -27,7 +27,6 @@ export function staticPanel(o: { slots?: Record<string, HeaderButton>; props?: O
     ...resolvePanelSettings().value,
     collapsible: true,
     neighborWidths: { left: [], right: [] },
-    pinned: false,
     tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
     ...(o.slots === undefined ? {} : { headerButtonSlots: { slots: o.slots, handle, report: () => {}, note: () => {} } }),
   };

@@ -41,9 +41,9 @@ test('mergePatch: null deletes a value from the layer and the result resolves, w
   assert.equal(resolvePanelSettings({ instance: next }).value.overflow, 'scroll');
 });
 
-test('mergePatch: a value replaces the key, and placeOnAdd and pinningWhenNotLive are replaced whole', () => {
-  const next = mergePatch({ placeOnAdd: { before: 'a' }, pinningWhenNotLive: { parked: 'show', hidden: 'refuse' } }, { placeOnAdd: { after: 'b' }, pinningWhenNotLive: { closed: 'refuse' } });
-  assert.deepEqual(next, { placeOnAdd: { after: 'b' }, pinningWhenNotLive: { closed: 'refuse' } });
+test('mergePatch: a value replaces the key, and placeOnAdd is replaced whole', () => {
+  const next = mergePatch({ placeOnAdd: { before: 'a' }, title: 'A' }, { placeOnAdd: { after: 'b' }, title: 'B' });
+  assert.deepEqual(next, { placeOnAdd: { after: 'b' }, title: 'B' });
 });
 
 test('mergePatch: undefined never changes anything, and an empty patch, an undefined patch and an equal patch return the same layer object', () => {
@@ -122,8 +122,6 @@ const FLAT_POOL: Record<string, readonly unknown[]> = {
   maxSlots: [1, 2, 64],
   slots: [1, 2, 3],
   placeOnAdd: ['row-end', { before: 'a' }, { after: 'b' }],
-  pinningWhenNotLive: ['refuse', { parked: 'show' }, { closed: 'refuse' }],
-  pinning: [{ pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, { pinned: { parkable: false }, unpinned: { parkable: true } }],
   layer: ['base', 'raised'],
 };
 const LEAF_POOL: Record<string, readonly unknown[]> = {

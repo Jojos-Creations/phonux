@@ -121,8 +121,8 @@ export interface PanelsAPI {
   readonly panelList: readonly PanelSummary[];
   /**
    * How many panels, permanent columns such as the root included, the window fits at the current phone width and row gap:
-   * the phone-width ceiling for a fresh row, at least one more than the permanent columns. Pinned panels are not subtracted
-   * and a scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
+   * the phone-width ceiling for a fresh row, at least one more than the permanent columns. A
+   * scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
    */
   readonly maxFitPanels?: number | null;
   /**

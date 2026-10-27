@@ -293,7 +293,7 @@ test('case B9: scrollOnMove follow to none: the next pin does not scroll, and no
       await r.settle();
       assert.equal(r.m.container.scrollLeft, 406, 'nothing scrolls at configure');
     }
-    assert.equal(letter(r.turn(() => r.h.b!.pin())), 'T');
+    assert.equal(letter(r.turn(() => r.h.b!.place('row-start'))), 'T');
     await r.settle();
     const at = r.m.container.scrollLeft;
     r.m.unmount();
@@ -336,7 +336,7 @@ test('edge scroll 4: a drag in flight keeps the edge numbers it began with', asy
 
 test('edge scroll 5: configureTuning sets the zone for every panel and null puts the library default back', async () => {
   const r = await dragRig();
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.edgeScroll'], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } }))) }, { ok: true, changed: true, now: [], later: ['tuning.edgeScroll'], shadowed: [], notes: [] });
   assert.equal(await heldScroll(r, 's3', HALF_ZONE_POINTER), 0, 'a panel reads the new workspace zone');
   assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'and so does every other');
   done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: null } as never)));
@@ -378,40 +378,21 @@ test('root column 2: resizable true on the root stands, the size settings being 
   assert.equal(r.state(r.ws.rootId).settings.resizable, true);
 });
 
-type Cell = { reply: 'would-reshape-row' | 'is-closed' | 'shown' | 'deferred' | 'stored'; fixed: boolean };
-const PIN_CELLS: readonly { value: unknown; parked: Cell; hidden: Cell; closed: Cell }[] = [
-  { value: 'place-only', parked: { reply: 'would-reshape-row', fixed: false }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'is-closed', fixed: false } },
-  { value: 'refuse', parked: { reply: 'would-reshape-row', fixed: false }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'is-closed', fixed: false } },
-  { value: 'show', parked: { reply: 'shown', fixed: true }, hidden: { reply: 'shown', fixed: true }, closed: { reply: 'is-closed', fixed: false } },
-  { value: 'apply-on-next-show', parked: { reply: 'deferred', fixed: false }, hidden: { reply: 'deferred', fixed: false }, closed: { reply: 'stored', fixed: false } },
-  { value: { parked: 'show', hidden: 'refuse', closed: 'apply-on-next-show' }, parked: { reply: 'shown', fixed: true }, hidden: { reply: 'would-reshape-row', fixed: false }, closed: { reply: 'stored', fixed: false } },
-  { value: { parked: 'apply-on-next-show', hidden: 'show', closed: 'refuse' }, parked: { reply: 'deferred', fixed: false }, hidden: { reply: 'shown', fixed: true }, closed: { reply: 'is-closed', fixed: false } },
-];
+type Cell = { reply: 'would-reshape-row' | 'is-closed' };
+const FLIP_CELLS: readonly { parked: Cell; hidden: Cell; closed: Cell }[] = [{ parked: { reply: 'would-reshape-row' }, hidden: { reply: 'would-reshape-row' }, closed: { reply: 'is-closed' } }];
 
-test('root column 3: pinningWhenNotLive over its four values and the per-status object decides what configure(parkable false) answers on a parked, hidden, closed declared and undo-window panel', async () => {
+test('root column 3: configure(parkable false) is refused on a parked, hidden, closed declared and undo-window panel', async () => {
   const s = soft();
   let executed = 0;
-  for (const cell of PIN_CELLS) {
-    const label = JSON.stringify(cell.value);
-    const settings = { a: { pinningWhenNotLive: cell.value } } as never;
+  for (const cell of FLIP_CELLS) {
+    const label = 'default';
     const check = (name: string, expected: Cell, r: MatrixRig, res: ConfigureResult, id: string): void => {
-      if (expected.reply === 'would-reshape-row' || expected.reply === 'is-closed') {
-        refusedWith(res, expected.reply);
-        assert.equal(r.state(id).settings.parkable, true, `${name}: nothing changed`);
-        return;
-      }
-      const ok = done(res);
-      if (expected.reply === 'shown') {
-        assert.deepEqual([ok.shown, r.state(id).status, r.state(id).settings.parkable], [true, 'live', false], `${name}: the show path ran and the flip applied in the same commit`);
-      } else if (expected.reply === 'deferred') {
-        assert.deepEqual([ok.shown, r.state(id).status, r.state(id).deferredPin], [false, 'parked', { parkable: false }], `${name}: stored as deferredPin { parkable }`);
-      } else {
-        assert.equal(r.state(id).status, 'closed', `${name}: stays closed, the edit stored on the record`);
-      }
+      refusedWith(res, expected.reply);
+      assert.equal(r.state(id).settings.parkable, true, `${name}: nothing changed`);
     };
     await s.run(`${label} on an engine-parked panel`, async () => {
       executed += 1;
-      const r = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1000, settings });
+      const r = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1000 });
       await r.settle();
       assert.deepEqual([r.state('a').status, r.state('a').held], ['parked', false]);
       // The panel is a park panel, so the flip names overflow scroll too: a fixed column forces it, and a template ask of park would be a conflict.
@@ -420,7 +401,7 @@ test('root column 3: pinningWhenNotLive over its four values and the per-status 
     });
     await s.run(`${label} on a hidden panel`, async () => {
       executed += 1;
-      const r = await matrixRig({ settings });
+      const r = await matrixRig();
       r.turn(() => r.h.a!.hide());
       await r.settle();
       assert.deepEqual([r.state('a').status, r.state('a').held], ['parked', true]);
@@ -429,7 +410,7 @@ test('root column 3: pinningWhenNotLive over its four values and the per-status 
     });
     await s.run(`${label} on a closed declared panel`, async () => {
       executed += 1;
-      const r = await matrixRig({ settings });
+      const r = await matrixRig();
       try {
         const w = mockWindow();
         r.turn(() => r.h.a!.close());
@@ -442,13 +423,13 @@ test('root column 3: pinningWhenNotLive over its four values and the per-status 
     });
     await s.run(`${label} on a panel in the undo window`, async () => {
       executed += 1;
-      const r = await matrixRig({ settings });
+      const r = await matrixRig();
       r.turn(() => r.h.a!.close());
       check('U', cell.closed, r, r.turn(() => r.h.a!.configure({ parkable: false })), 'a');
       r.m.unmount();
     });
   }
-  assert.equal(executed, PIN_CELLS.length * 4, 'every value ran in each of the four statuses');
+  assert.equal(executed, FLIP_CELLS.length * 4, 'every cell ran in each of the four statuses');
   s.end();
 });
 

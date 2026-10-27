@@ -9,7 +9,6 @@ import type { PanelAnchor } from './panelRowOrder.js';
 import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
-import type { DeferredPin } from './panelTemplate.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
 /**
@@ -70,8 +69,6 @@ export interface PanelWindow {
   declared?: true;
   /** The engine id of the panel whose view opened this one, set once at create; when that panel leaves the row this takes its opener. Only `keepOpeners` and a move rewrite it. */
   openedBy?: string;
-  /** A pin change waiting for this entry to become live, applied inside whichever path makes it live. Session only: never saved. */
-  deferredPin?: DeferredPin;
   /** True only for the reserved '__root__' entry a row without a root keeps: it holds the anchor point, is never drawn and never counted as a column or a hop. */
   marker?: true;
 }

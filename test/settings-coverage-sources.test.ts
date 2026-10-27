@@ -29,7 +29,6 @@ const OWNING_BASENAMES = [
   'settings-enforcement-memory',
   'workspace-attach',
   'panel-manager-operations',
-  'panel-pin',
   'header-buttons',
   'max-live-panels-count',
   'slot-sizing',
@@ -55,9 +54,9 @@ function holders(texts: ReadonlyMap<string, string>, name: string): string[] {
   return found;
 }
 
-test('S7 sources: the search runs over every test file and the catalog has 58 names', () => {
-  assert.equal(NAMES.length, 58);
-  assert.equal(new Set(NAMES).size, 58);
+test('S7 sources: the search runs over every test file and the catalog has 56 names', () => {
+  assert.equal(NAMES.length, 56);
+  assert.equal(new Set(NAMES).size, 56);
   assert.equal(TEST_FILES.length > 50, true, `found ${TEST_FILES.length} test files`);
   assert.deepEqual(
     OWNING_FILES.filter((f) => !TEXT.has(f)),

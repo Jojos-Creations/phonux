@@ -88,7 +88,7 @@ export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
-export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
+export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { usePanelRowDrop } from './usePanelRowDrop.js';
 export type { PanelRowDrop } from './usePanelRowDrop.js';
 export { slideToTransition } from './directionalTransition.js';
@@ -131,10 +131,6 @@ export type {
   HeaderButtonBase,
   HeaderButtonIconForm,
   HeaderButtonTextForm,
-  PinHalf,
-  Pinning,
-  PinWhenNotLive,
-  PinningWhenNotLive,
   SettingValues,
   PanelSettings,
   ResolvedPanelSettings,
@@ -171,7 +167,6 @@ export type {
   PanelViewProps,
   AnyPanelTemplate,
   PanelStatus,
-  DeferredPin,
   PanelState,
   ListFilter,
   PanelSnapshot,
@@ -190,7 +185,7 @@ export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
 export type { MovePanelOptions, MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
+export type { ConfigureResult, PanelManager, PanelResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from './panels/usePanelStates.js';
 export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
 export type { PanelRect, PanelRectEvent } from './panelChrome.js';

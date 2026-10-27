@@ -71,7 +71,7 @@ test('parity: a slot with only icon, label and onClick is the markup of a bare M
 
 const mountedSlots = {
   size: slot('Panel size', { order: 0, description: 'phone', sx: { color: '#ffffff' } }),
-  pin: slot('Pin panel', { order: 1, pressed: (c) => c.state.pinned, sx: { color: '#ffffff' } }),
+  pin: slot('Pin panel', { order: 1, pressed: (c) => c.settings.closable, sx: { color: '#ffffff' } }),
   menu: slot('Menu', { side: 'start' }),
 };
 
@@ -84,7 +84,7 @@ test('where drawn: two end buttons after the view action in one cluster, a start
   assert.equal(first.tagName, 'BUTTON', 'the start button is before the title box');
   const buttons = rig.buttons('a');
   const pin = buttons.find((b) => b.getAttribute('aria-label') === 'Pin panel')!;
-  assert.equal(pin.getAttribute('aria-pressed'), 'false');
+  assert.equal(pin.getAttribute('aria-pressed'), 'true');
   const size = buttons.find((b) => b.getAttribute('aria-label') === 'Panel size')!;
   assert.equal(size.hasAttribute('aria-pressed'), false);
   const described = row.ownerDocument.getElementById(size.getAttribute("aria-describedby")!)!;
@@ -125,7 +125,7 @@ test('where drawn: the side setting changes which end the button sits at', async
 });
 
 test('coexistence: the view action stays first and is the same node across a press; Panel headerButtons={false} keeps the hook and PanelHeaderButtons', async () => {
-  const rig = await headerRig({ slots: { pin: slot('Pin', { onClick: (h) => void h.pin() }) }, actions: createElement('b', { 'data-view-action': '' }, 'x') });
+  const rig = await headerRig({ slots: { pin: slot('Pin', { onClick: (h) => void h.place('row-start') }) }, actions: createElement('b', { 'data-view-action': '' }, 'x') });
   const action = rig.m.container.querySelector('[data-view-action]')!;
   act(() => rig.buttons('a')[0]!.click());
   assert.ok(rig.m.container.querySelector('[data-view-action]') === action, 'the view action is the same node');

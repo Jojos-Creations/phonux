@@ -154,14 +154,6 @@ test('without labels every default string is the English text', () => {
   assert.equal(renderToStaticMarkup(React.createElement(Untitled, { panel: { id: 'x', live: true } })).includes('Untitled panel'), true);
 });
 
-test('the pin-refusal labels default to English and a host overrides them', () => {
-  assert.equal(DEFAULT_LABELS.pinFailed, 'Could not pin this panel');
-  assert.equal(DEFAULT_LABELS.unpinFailed, 'Could not unpin this panel');
-  const labels = resolveLabels({ pinFailed: 'Anheften fehlgeschlagen' });
-  assert.equal(labels.pinFailed, 'Anheften fehlgeschlagen');
-  assert.equal(labels.unpinFailed, DEFAULT_LABELS.unpinFailed);
-});
-
 test('a label key given as undefined keeps its default', () => {
   const given = { untitledPanel: undefined, untitledHeader: 'Namenlos' } as unknown as Partial<PhonuxLabels>;
   const labels = resolveLabels(given);

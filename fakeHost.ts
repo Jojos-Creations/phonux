@@ -17,7 +17,7 @@ import {
   type PhoneDeviceAPI,
 } from './hostApi.js';
 import type { SnapshotsAPI } from './snapshots.js';
-import type { ConfigureResult, PanelResult, PinResult } from './panelManager.js';
+import type { ConfigureResult, PanelResult } from './panelManager.js';
 import { resolvePanelSettings, type PanelId } from './panelSettings.js';
 import type { JsonValue, PanelSummary } from './hostApi.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState, PanelViewProps, ViewHandle } from './panelTemplate.js';
@@ -32,16 +32,16 @@ export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 export type { AddPlacement, AnchorRequest, PanelId, PanelSettingsResolution, ResolvedPanelSettings, ScrollAlign, SettingValues, HeaderButton, SourceLayer, SettingNote, SettingConflict, CatalogName } from './panelSettings.js';
-export type { ConfigureResult, PanelResult, PinResult } from './panelManager.js';
+export type { ConfigureResult, PanelResult } from './panelManager.js';
 export type { PanelRefusal } from './panelManagerError.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelStatus, PanelViewProps, ViewHandle, DeferredPin, WorkspaceStatus } from './panelTemplate.js';
+export type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelStatus, PanelViewProps, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 export type { ViewPatch } from './settingsPatch.js';
 export type { BezierEase, FadeEase } from './panelSettings.js';
-export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext, PinHalf, PinWhenNotLive } from './panelSettings.js';
+export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext } from './panelSettings.js';
 export type { SettingsPatch } from './settingsPatch.js';
 export type { CssStyle, ElementProps } from './cssStyle.js';
-export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, Pinning, PinningWhenNotLive, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
+export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
 export type { InstancePatch } from './settingsPatch.js';
 
 /** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */
@@ -238,8 +238,7 @@ export interface FakePanel<P extends JsonValue = JsonValue> {
 }
 
 const ACCEPTED: PanelResult = { ok: true, changed: false };
-const ACCEPTED_PIN: PinResult = { ok: true, changed: false };
-const ACCEPTED_CONFIGURE: ConfigureResult = { ok: true, changed: false, shown: false, now: [], later: [], shadowed: [], notes: [] };
+const ACCEPTED_CONFIGURE: ConfigureResult = { ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] };
 
 /**
  * Builds a handle and a reader over one in-memory panel, so a view takes `props` from a test with no cast. The panel holds
@@ -261,8 +260,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
     title: undefined,
     listed: true,
     settings: resolution.value,
-    pinned: false,
-    deferredPin: null,
     ...state,
     params: state.params,
   };
@@ -286,8 +283,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
     place: (...args) => answer('place', args, ACCEPTED),
     setSlots: (...args) => answer('setSlots', args, ACCEPTED),
     scrollTo: (...args) => answer('scrollTo', args, ACCEPTED),
-    pin: (...args) => answer('pin', args, ACCEPTED_PIN),
-    unpin: (...args) => answer('unpin', args, ACCEPTED_PIN),
     configure: (...args) => answer('configure', args, ACCEPTED_CONFIGURE),
   };
   const manager: PanelReader = {

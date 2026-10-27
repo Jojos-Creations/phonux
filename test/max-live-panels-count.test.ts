@@ -209,12 +209,6 @@ test('committed rows: the same under StrictMode', async () => {
   assert.equal(r.row(), 'root w1* w2* w3 w4 w5 w6 w7');
 });
 
-test('committed rows: two pinned panels arrive live and the leftmost two unpinned ones arrive parked', async () => {
-  const r = await capRig({ count: 9, cap: 5, pinned: ['w1', 'w2'], record: true });
-  assert.equal(firstWithPanels(r.commits), 'w1 w2 root w3* w4* w5 w6 w7 w8 w9');
-  assert.deepEqual(r.commits.filter((row) => liveRightOfRoot(row) > 5), [], 'no committed row held a sixth live unpinned panel');
-});
-
 test('committed rows: hand-built entries arrive in the first commit with the excess parked', () => {
   const rows: string[] = [];
   handBuilt(six(), 3000, { maxLivePanels: 3 }, rows);
@@ -249,12 +243,6 @@ test('committed rows: the panels parked before the first row is shown are parks 
   r.turn(() => r.h.w6!.close());
   await r.settle();
   assert.equal(r.row(), 'root w1 w2 w3 w4 w5', 'and the next closing returned the one parked before it');
-});
-
-test('committed rows: under auto a panel parked before the first row is shown reads as parked, not hidden', async () => {
-  const r = await capRig({ count: 7, cap: 5, returns: 'auto', own: { w1: { pinningWhenNotLive: { parked: 'place-only', hidden: 'refuse' } } } });
-  assert.equal(r.row(), 'root w1* w2* w3 w4 w5 w6 w7');
-  assert.equal(r.turn(() => r.h.w1!.pin()).ok, true, 'a pin change that a hidden panel refuses is placed for a parked one');
 });
 
 test('committed rows: under manual the panels parked before the first row is shown stay hidden until shown', async () => {
@@ -312,14 +300,6 @@ test('run time: a value that is not an integer of 1 or more is refused and chang
   await r.settle();
   assert.equal(r.ws.tuning.maxLivePanels, 2);
   assert.equal(r.row(), 'root w1* w2* w3 w4');
-});
-
-test('run time: lowering N with a pinned panel present parks unpinned panels only', async () => {
-  const r = await capRig({ count: 5, width: 4000, pinned: ['w1'] });
-  assert.equal(r.row(), 'w1 root w2 w3 w4 w5');
-  r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }));
-  await r.settle();
-  assert.equal(r.row(), 'w1 root w2* w3* w4 w5', 'the pinned panel is not among the parked and not among the two kept');
 });
 
 test('differential coverage: the names the differential above completed are exactly the one this file owns', () => {

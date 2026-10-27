@@ -18,17 +18,6 @@ import type { PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSett
 /** Where a panel is: waiting to be added, in the strip, parked or hidden, or closed. @public */
 export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 
-/** A pin change waiting for the panel to become live. @public */
-export type DeferredPin =
-  | {
-      /** Which call to apply once the panel is live: `pin` or `unpin`. */
-      by: 'pin' | 'unpin';
-    }
-  | {
-      /** The `parkable` value to apply once the panel is live. */
-      parkable: boolean;
-    };
-
 /** Where a workspace is in its life: `detached`, `loading`, `ready` or `disposed`. @public */
 export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
 
@@ -64,10 +53,6 @@ export interface PanelState {
   readonly listed: boolean;
   /** The panel's settings, resolved from every layer. */
   readonly settings: ResolvedPanelSettings;
-  /** Whether the panel's `pinning` setting currently reads as pinned. */
-  readonly pinned: boolean;
-  /** A pin change waiting for the panel to become live, or null when none is. */
-  readonly deferredPin: DeferredPin | null;
   /**
    * The id of the panel whose view opened this one through its own `useWorkspace().panels.addPanel`, or null for a panel the
    * host opened, one added before the workspace was ready, one that arrived alone from another workspace, and a pending or
