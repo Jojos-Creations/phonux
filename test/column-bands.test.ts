@@ -115,8 +115,14 @@ test('a band lets clicks through to the row; only its slots take them', async ()
   await until('a cell', () => cells().length === 1);
   const band = cells()[0]!.querySelector<HTMLElement>('[data-column-band="above"]')!;
   assert.equal(band.style.pointerEvents, 'none');
-  const content = band.querySelector<HTMLElement>('[data-column-slot] > div')!;
-  assert.equal(content.style.pointerEvents, 'auto');
+  // jsdom does no hit-testing, so the test pins the structure that makes it right: the slot box spans the cell's width and
+  // inherits `none`; the wrapper that turns events back on draws no box, so only the slot's own content takes them.
+  const slot = band.querySelector<HTMLElement>('[data-column-slot]')!;
+  assert.equal(slot.style.pointerEvents, '');
+  const wrapper = slot.firstElementChild as HTMLElement;
+  assert.equal(wrapper.style.display, 'contents');
+  assert.equal(wrapper.style.pointerEvents, 'auto');
+  assert.ok(wrapper.querySelector('[data-workspace-neighbour="above"]'), 'the link is inside the wrapper');
 });
 
 test('a band with a size and a justify spreads its slots through it', async () => {

@@ -250,7 +250,7 @@ const aboveSafeBottom = (px: number): string => `calc(${px}px + env(safe-area-in
 
 const ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end' } as const;
 
-/** One band of one cell. The band lets clicks through to the row under it; only a slot's content takes them. @internal */
+/** One band of one cell. The band and each slot box let clicks through to the row under them; only a slot's own content takes them. @internal */
 export function Band({ side, band, inset, props }: { side: 'above' | 'below'; band: ColumnBand; inset: number; props: Omit<ColumnSlotProps, 'Default'> }): React.ReactElement {
   const edge = edgeOf(side, band);
   const justify = band.justify ?? (side === 'above' ? 'start' : 'end');
@@ -272,7 +272,8 @@ export function Band({ side, band, inset, props }: { side: 'above' | 'below'; ba
     >
       {band.slots.map(({ id, height, component: Slot, align, base }) => (
         <div key={id} {...{ [COLUMN_SLOT_ATTRIBUTE]: id }} style={{ flex: 'none', height, display: 'flex', alignItems: 'center', justifyContent: ALIGN[align ?? 'center'] }}>
-          <div style={{ pointerEvents: 'auto', display: 'flex', justifyContent: 'center', maxWidth: '100%', width: align === undefined || align === 'center' ? '100%' : undefined }}>
+          {/* No box of its own, so the slot box's empty width stays click-through; the slot's own content inherits `auto`. */}
+          <div style={{ display: 'contents', pointerEvents: 'auto' }}>
             <Slot {...props} Default={base} />
           </div>
         </div>
