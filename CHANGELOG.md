@@ -12,6 +12,7 @@
 
 ### Added
 
+- `addPanel(template, { place })` takes a function that picks where the new panel lands among the panels in view: a slot, what the panel in that slot does ('shift-left', 'shift-right' or 'close'), and optionally how the new panel enters. Without it a panel lands where its `placeOnAdd` says, by default at the far right, the leftmost panel in view leaving when there is no room. New types: `AddPanelOptions`, `PlaceOpen`, `OpenRow`, `OpenPlacement`, `OccupantMove`.
 - `PanelSizeControl`: one width control for every resizable panel. A header button shows the panel's own width and opens a View Size menu of the widths that fit (Phone to Ultrawide) and Fullscreen; a pick runs the same size glide as any resize. `Panel` draws it first among a titled, resizable panel's actions; `sizeControl={false}` leaves it to a view that places it in its own toolbar. New labels: `viewSize`, `sizeName`, `fullscreen`, `couldNotResize`, `couldNotFullscreen`.
 - A press outside every panel (between panels, or anywhere else on the page) leaves no panel active and moves keyboard focus out of the panel that had it, so keystrokes stop reaching it. With `tuning.shrinkUnfocused` on, the wide panel it leaves rests at one phone, kept in view.
 

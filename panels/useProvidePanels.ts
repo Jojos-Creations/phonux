@@ -24,7 +24,7 @@ import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, panelRectEvent, type PanelRectDeta
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
-import type { PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
+import type { AddPlacement, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
@@ -34,7 +34,7 @@ import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
-import { settleKeeping, type RowEnv } from './rowSettle.js';
+import { isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
@@ -183,6 +183,8 @@ function appendFromTemplate(
     fallbackTitle: string;
     /** True to put the panel at the end of the row whatever its `placeOnAdd` says. */
     rowEnd?: boolean;
+    /** Where this one open lands, in place of its `placeOnAdd`. */
+    place?: AddPlacement;
   },
 ): PanelWindow[] {
   const { value } = resolvePanelSettings({ ...(a.defaults !== undefined ? { workspace: a.defaults } : {}), template: a.template.settings, ...(a.settings !== undefined ? { instance: a.settings } : {}) }, { lenient: true });
@@ -203,7 +205,7 @@ function appendFromTemplate(
     a.id,
     a.rootId,
   );
-  const made = finishCreated({ row: next, id: a.id, settings: value, instance: a.settings ?? {}, name: a.name, callerPlaced: a.rowEnd === true, rootId: a.rootId, ...(a.order !== undefined ? { order: a.order } : {}) });
+  const made = finishCreated({ row: next, id: a.id, settings: value, instance: a.settings ?? {}, name: a.name, callerPlaced: a.rowEnd === true, rootId: a.rootId, ...(a.order !== undefined ? { order: a.order } : {}), ...(a.place !== undefined ? { place: a.place } : {}) });
   if (!a.declared) return made;
   return made.map((p) => {
     if (p.id !== a.id) return p;
@@ -606,6 +608,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
   useEffect(() => () => restWatcher.cancel(), [restWatcher]);
 
+  /** `row` with `leaves` parked when the row's live panels no longer fit, so the open's chosen panel goes rather than the cap's pick. */
+  const makeRoom = (row: PanelWindow[], leaves: string): PanelWindow[] => {
+    const live = row.filter(isParkLive);
+    if (rowPricing(settleEnv, row).settles(live) || !live.some((p) => p.id === leaves)) return row;
+    return row.map((p) => (p.id === leaves ? { ...p, live: false } : p));
+  };
   const createFromWorkspace = (req: CreateRequest): void => {
     const template = templateList().find((t) => t.id === req.templateId);
     if (template === undefined) return;
@@ -614,8 +622,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const carried = req.carried;
     const build = (prev: PanelWindow[]): PanelWindow[] => {
       if (prev.some((p) => panelKey(p) === req.id)) return prev;
-      const made = appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId), rowEnd: carried !== undefined });
-      const opened = req.openedBy === undefined ? made : made.map((p) => (p.id === req.engineId ? { ...p, openedBy: req.openedBy } : p));
+      const made = appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId), rowEnd: carried !== undefined, ...(req.place !== undefined ? { place: req.place } : {}) });
+      const roomed = req.leaves === undefined ? made : makeRoom(made, req.leaves);
+      const opened = req.openedBy === undefined ? roomed : roomed.map((p) => (p.id === req.engineId ? { ...p, openedBy: req.openedBy } : p));
       if (carried === undefined) return opened;
       // The panel keeps its identity, name and size; its place in the old row means nothing here.
       const kept = opened.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));

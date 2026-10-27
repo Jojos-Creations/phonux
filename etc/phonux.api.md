@@ -13,6 +13,15 @@ import { RefObject } from 'react';
 export const ACTIVE_ATTRIBUTE = "data-panel-active";
 
 // @public
+export interface AddPanelOptions<P extends JsonValue = JsonValue> {
+    id?: PanelId;
+    params?: P;
+    place?: PlaceOpen;
+    settings?: PanelSettings;
+    url?: string;
+}
+
+// @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
     before: PanelId;
 } | {
@@ -469,6 +478,21 @@ export interface NeighborWidths {
 
 // @public
 export const noopCaptureTrigger: CaptureTrigger;
+
+// @public
+export type OccupantMove = 'shift-left' | 'shift-right' | 'close';
+
+// @public
+export interface OpenPlacement {
+    enterFrom?: EnterFrom;
+    occupant?: OccupantMove;
+    slot: number;
+}
+
+// @public
+export interface OpenRow {
+    readonly inView: readonly PanelId[];
+}
 
 // @public
 export type Overflow = 'scroll' | 'park';
@@ -1107,6 +1131,9 @@ export function PhonuxThemeProvider(input: {
 }): React_2.ReactElement;
 
 // @public
+export type PlaceOpen = (row: OpenRow) => OpenPlacement;
+
+// @public
 export type PreviewExit = 'top' | 'bottom';
 
 // @public
@@ -1706,12 +1733,7 @@ export interface WorkspaceColumnProps {
 
 // @public
 export interface WorkspaceHandle {
-    addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: {
-        id?: PanelId;
-        settings?: PanelSettings;
-        params?: P;
-        url?: string;
-    }): PanelHandle<P>;
+    addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: AddPanelOptions<P>): PanelHandle<P>;
     dispose(): void;
     readonly id: string;
     readonly name: string;

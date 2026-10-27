@@ -12,7 +12,7 @@ import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle
 import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError, type PanelRefusal } from './panelManagerError.js';
 import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
-import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import type { AddPlacement, EnterFrom, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
 import type { PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
@@ -24,6 +24,7 @@ import type { SettingsPatch } from './settingsPatch.js';
 import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
 import { entryNamed } from './panelIds.js';
 import { familyIds } from './panelOpener.js';
+import { resolveOpen, type PlaceOpen } from './openPlacement.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
@@ -136,7 +137,7 @@ export interface WorkspaceHandle {
    * `duplicate-template` (a different template already holds that id), `instance-id-required`, `invalid-options` (a bad or
    * foreign `id`) or `invalid-settings` (a settings conflict, when the workspace is set to throw on one).
    */
-  addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P>;
+  addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: AddPanelOptions<P>): PanelHandle<P>;
   /**
    * Gives the auto-mounted host new values: only the members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`,
    * `labels`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
@@ -153,6 +154,23 @@ export interface WorkspaceHandle {
   registerTemplate(t: AnyPanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;
+}
+
+/** What `addPanel` takes besides the template. @public */
+export interface AddPanelOptions<P extends JsonValue = JsonValue> {
+  /** The panel's id; a `multiple` template's panel needs one before the workspace is ready. */
+  id?: PanelId;
+  /** The panel's own settings layer. */
+  settings?: PanelSettings;
+  /** Opaque data for the view. */
+  params?: P;
+  /** The page the panel shows. */
+  url?: string;
+  /**
+   * Picks where a panel this call creates lands among the panels in view, and what the panel in that slot does. Without it
+   * the panel lands where its `placeOnAdd` says. Ignored for a panel that already exists or is made before the workspace is ready.
+   */
+  place?: PlaceOpen;
 }
 
 /**
@@ -228,6 +246,10 @@ export interface CreateRequest {
   declared?: boolean;
   /** The engine id of the panel whose view asked for this one, recorded on the entry as its opener. */
   openedBy?: string;
+  /** Where this one open lands, in place of the panel's `placeOnAdd`. */
+  place?: AddPlacement;
+  /** The engine id of the panel that leaves view when the open leaves the row without room. */
+  leaves?: string;
   /** Set for a panel moved in from another workspace: it goes to the end of the row and keeps these fields of the entry it had; `sized` is whether the person chose its size. */
   carried?: Pick<PanelWindow, 'uid' | 'title' | 'slots'> & { sized: boolean };
 }
@@ -779,8 +801,20 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (problem !== undefined) throw new PanelManagerError('invalid-options', `panel id ${JSON.stringify(id)}: ${problem}`);
   };
 
+  /** What `place` asks of the row as `c` holds it, in engine terms; the panel it closes is closed here, before the open. */
+  const placeOpen = (c: EngineCommit, place: PlaceOpen): { place: AddPlacement; leaves?: string; enterFrom?: EnterFrom } => {
+    const inView = c.entries.filter((e) => e.live && e.collapsible && e.marker !== true);
+    const asked = place({ inView: inView.map(panelKey) });
+    const r = resolveOpen(inView.map(panelKey), asked);
+    const engineOf = (key: PanelId | undefined): string | undefined => inView.find((e) => panelKey(e) === key)?.id;
+    const closes = engineOf(r.closes);
+    if (closes !== undefined) c.ops.close(closes, 'code');
+    const leaves = engineOf(r.leaves);
+    return { place: r.place, ...(leaves !== undefined ? { leaves } : {}), ...(asked.enterFrom !== undefined ? { enterFrom: asked.enterFrom } : {}) };
+  };
+
   /** `addPanel` for the view of the panel drawn under `opener`, which a panel it creates records as its opener; undefined for the host's. */
-  const addPanelBy = (opener: string | undefined) => <P extends JsonValue>(given: PanelTemplate<P> | string, options?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P> => {
+  const addPanelBy = (opener: string | undefined) => <P extends JsonValue>(given: PanelTemplate<P> | string, options?: AddPanelOptions<P>): PanelHandle<P> => {
     if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
     let t: PanelTemplate;
     if (typeof given === 'string') {
@@ -818,7 +852,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     records.set(id, rec);
     if (ready && !over) {
       inflight.add(id);
-      commit!.create({ id, templateId: t.id, engineId: suffix ?? newId(), ...(opener !== undefined ? { openedBy: opener } : {}), ...(options?.settings !== undefined ? { settings: options.settings } : {}), ...(options?.params !== undefined ? { params: options.params } : {}), ...(options?.url !== undefined ? { url: options.url } : {}) });
+      const open = options?.place === undefined ? undefined : placeOpen(commit!, options.place);
+      const settings = open?.enterFrom === undefined ? options?.settings : { ...options?.settings, enterFrom: open.enterFrom };
+      commit!.create({ id, templateId: t.id, engineId: suffix ?? newId(), ...(opener !== undefined ? { openedBy: opener } : {}), ...(settings !== undefined ? { settings } : {}), ...(open?.place !== undefined ? { place: open.place } : {}), ...(open?.leaves !== undefined ? { leaves: open.leaves } : {}), ...(options?.params !== undefined ? { params: options.params } : {}), ...(options?.url !== undefined ? { url: options.url } : {}) });
     }
     if (!ready || over) refresh();
     return source.handleOf(id) as PanelHandle<P>;
