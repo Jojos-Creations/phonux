@@ -668,19 +668,23 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (shown !== undefined) requestAnimationFrame(() => requestScroll({ id: shown, kind: 'move', align: null, forced: false, fresh: false }));
   };
   // Read even with the tuning off, so turning it off never leaves a panel stuck at one phone.
-  const restoreWidth = (id: string): void => {
+  // A panel back at its width is centered as near as the row allows, a frame later for the same reason as the rest above.
+  const restoreWidth = (id: string): boolean => {
     const width = panels.find((p) => p.id === id)?.restoreSlots;
-    if (width === undefined) return;
+    if (width === undefined) return false;
     if (resizePanel(id, width, false)) {
       i.onPanelResize?.();
-      followPanel(id);
-    } else setPanels((prev) => prev.map((p) => (p.id === id ? { ...p, restoreSlots: undefined } : p)));
+      requestAnimationFrame(() => requestOpen(id, { align: 'center', forced: true }));
+      return true;
+    }
+    setPanels((prev) => prev.map((p) => (p.id === id ? { ...p, restoreSlots: undefined } : p)));
+    return false;
   };
   useLayoutEffect(() => {
     core.bindTouch((id) => {
       touchPanel(id);
-      restoreWidth(id);
-      restAtPhone(id);
+      // The centering of the panel in use wins over keeping the one it leaves in view.
+      restAtPhone(id, !restoreWidth(id));
     });
     return () => core.bindTouch(undefined);
   });
