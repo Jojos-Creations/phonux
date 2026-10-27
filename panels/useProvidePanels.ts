@@ -473,13 +473,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // A pointer down on the row until it is let go, the scrollbar thumb included: a rest is not called while it is held.
   const pointerHeldRef = useRef(false);
 
-  // When the last swap's enter and exit end. A swap started over one in flight reverses half-run animations, and a fast
-  // back-and-forth turns into panels growing and shrinking in place, so a swap waits for the one before it to land.
-  const swapEndsRef = useRef(0);
-  const swapLanded = (): boolean => {
+  // The last swap: when its enter and exit end, and its direction. A swap back over one in flight reverses half-run
+  // animations, and a fast back-and-forth turns into panels growing and shrinking in place, so a reversal waits for the
+  // swap before it to land. Swaps the same way stay as fast as the input.
+  const lastSwapRef = useRef<{ ends: number; direction: 'left' | 'right' } | null>(null);
+  const swapAllowed = (direction: 'left' | 'right'): boolean => {
     const now = performance.now();
-    if (now < swapEndsRef.current) return false;
-    swapEndsRef.current = reducedMotion ? 0 : now + tuning.slide.durationSec * 1000;
+    const last = lastSwapRef.current;
+    if (last !== null && last.direction !== direction && now < last.ends) return false;
+    lastSwapRef.current = { ends: reducedMotion ? 0 : now + tuning.slide.durationSec * 1000, direction };
     return true;
   };
 
@@ -494,7 +496,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     scroller.noteMove();
     const maxScroll = maxScrollOf(rowNumbers);
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
-      if (swapLanded()) scrollRow(direction);
+      if (swapAllowed(direction)) scrollRow(direction);
       return;
     }
     let liveBefore = 0;
@@ -516,7 +518,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       hidden,
     });
     if (step.kind === 'show') {
-      if (swapLanded()) activatePanel(step.id);
+      if (swapAllowed(direction)) activatePanel(step.id);
     }
     else if (step.kind === 'scroll') {
       scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });

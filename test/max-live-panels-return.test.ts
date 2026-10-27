@@ -265,7 +265,7 @@ test('History click: clicking a panel that is already live changes nothing', asy
   assert.equal(r.row(), BASE);
 });
 
-test('scrolling: a swap waits for the one before it to land, so a fast back-and-forth never reverses one half-run', async () => {
+test('scrolling: a swap back waits for the one before it to land, so a fast back-and-forth never reverses one half-run', async () => {
   const r = await capRig({ count: 5, cap: 2, width: 1920, reveal: 'edges' });
   mock.timers.enable({ apis: ['setTimeout'] });
   timersOn = true;
@@ -282,4 +282,18 @@ test('scrolling: a swap waits for the one before it to land, so a fast back-and-
   act(() => mock.timers.tick(160));
   await advanceFrames(200);
   assert.notEqual(r.row(), 'root w1* w2* w3 w4 w5*', 'once the slide has landed the step back swaps');
+});
+
+test('scrolling: swaps the same way take each step as it comes, inside the slide', async () => {
+  const r = await capRig({ count: 5, cap: 2, width: 1920, reveal: 'edges' });
+  mock.timers.enable({ apis: ['setTimeout'] });
+  timersOn = true;
+  wheel(r, { deltaX: -100 });
+  act(() => mock.timers.tick(160));
+  await advanceFrames(200);
+  assert.equal(r.row(), 'root w1* w2* w3 w4 w5*', 'control: the first step swaps w3 in');
+  wheel(r, { deltaX: -100 });
+  act(() => mock.timers.tick(160));
+  await advanceFrames(200);
+  assert.equal(r.row(), 'root w1* w2 w3 w4* w5*', 'the next step the same way swaps w2 in at once');
 });
