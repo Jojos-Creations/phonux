@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
-import { ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
+import { ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
@@ -367,7 +367,10 @@ export function PanelRowSlot({
       {...(label === undefined ? {} : { role: 'group', 'aria-label': label })}
       data-row-slot={leftOffset}
       data-row-id={panelId}
-      onPointerDownCapture={onActivate}
+      onPointerDownCapture={(e) => {
+        markPanelPress(e.nativeEvent);
+        onActivate?.();
+      }}
       onFocusCapture={onActivate}
       style={{
         position: 'absolute',

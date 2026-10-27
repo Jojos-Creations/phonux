@@ -125,6 +125,21 @@ test('a press or a focus inside a panel makes it the one active panel, until ano
   assert.equal(activeSeen, 'c1', 'useActivePanel reads the same id');
 });
 
+test('a press outside every panel leaves none active and takes keyboard focus out of the panel', async () => {
+  const m = mountRow(entries(3), 3000);
+  await advanceFrames(2000);
+  const body = m.container.querySelector<HTMLElement>('[data-body="c2"]')!;
+  press(body);
+  focusIn(body);
+  assert.deepEqual([activeIds(m), document.activeElement === body], [['c2'], true], 'control: c2 is active and holds focus');
+  press(m.container);
+  assert.deepEqual([activeIds(m), m.container.contains(document.activeElement)], [[], false], 'a press on the row between panels clears both');
+  press(body);
+  assert.deepEqual(activeIds(m), ['c2']);
+  press(document.body);
+  assert.deepEqual(activeIds(m), [], 'so does a press on the page outside the row');
+});
+
 test('History counts as a panel: a press inside it makes it the active one', async () => {
   const m = mountRow(entries(2), 3000);
   await advanceFrames(2000);
