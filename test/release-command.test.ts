@@ -20,6 +20,7 @@ const ROWS: ReadonlyArray<readonly [version: string, tagged: boolean]> = [
   ['0.2.0-rc.3', true],
   ['0.2.0-rc.4', true],
   ['0.2.0-rc.5', true],
+  ['0.2.0-rc.6', true],
   ['1.0.0-beta.2', true],
   ['0.2.0', false],
   ['0.1.1', false],
