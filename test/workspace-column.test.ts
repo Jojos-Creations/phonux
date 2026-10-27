@@ -372,8 +372,13 @@ test('topInset clears chrome the app draws: the controls start below it', async 
   const top = (el: Element): string => getComputedStyle(el).top;
   // jsdom garbles env() inside calc(), so the px term and the inset are read apart.
   const below = (value: string, px: number): boolean => value.startsWith(`calc(${px}px + `) && value.includes('safe-area-inset-top');
-  assert.ok(below(top(neighbour(cell, 'above')), 32), top(neighbour(cell, 'above')));
-  assert.ok(below(top(cell.querySelector('[data-workspace-name-input]')!.parentElement!), 56));
+  const band = cell.querySelector('[data-column-band="above"]')!;
+  assert.ok(below(top(band), 32), top(band));
+  // The band stacks its 24 px slots from that top: the link, then the name input 24 px under it.
+  const slotsInBand = [...band.querySelectorAll<HTMLElement>(':scope > [data-column-slot]')];
+  assert.deepEqual(slotsInBand.map((el) => [el.dataset.columnSlot, el.style.height]), [['neighbour-above', '24px'], ['workspace-name', '24px']]);
+  assert.ok(slotsInBand[0]!.contains(neighbour(cell, 'above')));
+  assert.ok(slotsInBand[1]!.contains(cell.querySelector('[data-workspace-name-input]')));
 });
 
 test('each control the column draws is exactly 24 px high: the neighbour buttons, the empty-column button and the name input', async () => {

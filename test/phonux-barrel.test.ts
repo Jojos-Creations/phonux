@@ -106,9 +106,18 @@ const VALUE_EXPORTS = [
   // The workspace name control a column draws, for a host to size and style around.
   'WORKSPACE_NAME_CONTROL_HEIGHT',
   'WORKSPACE_NAME_INPUT_ATTRIBUTE',
+  // A column's bands and their default slots, for a host to replace, hide or add to by id.
+  'COLUMN_BAND_ATTRIBUTE',
+  'COLUMN_SLOT_ATTRIBUTE',
+  'columnBandRoom',
+  'DEFAULT_COLUMN_BANDS',
+  'NeighbourAboveSlot',
+  'NeighbourBelowSlot',
+  'WorkspaceNameSlot',
+  'withSlotChanges',
 ].sort();
 
-test('the phonux barrel exports exactly the 93 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 101 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
