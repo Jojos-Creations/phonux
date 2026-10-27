@@ -37,6 +37,8 @@ export interface DragScroll {
   readonly insetRight?: number;
   /** Where a drag stops on the left when a panel no drag may cross starts the row: that panel's right edge plus the row gap, in screen px. The left band ends there. */
   readonly barrierRight?: () => number | undefined;
+  /** Draws that panel `px` left of its rest, easing there, so a drag pushing against it shows the band is near; 0 eases it home. */
+  readonly nudgeBarrier?: (px: number) => void;
   /** Swaps the nearest hidden panel on that side in, as a scroll step does, keeping `keepId` live; true when one came in. */
   readonly cycle?: (direction: 'left' | 'right', keepId: string) => boolean;
 }
