@@ -9,6 +9,8 @@
 - A drag held at the row's edge where the row cannot scroll further, a row that fits its window included, swaps the nearest hidden panel on that side in, one per slide, as a scroll step does; the dragged panel stays under the pointer and is never parked. When the root is not `crossable` and starts the row, a drag stops at the root's right edge, and the left band starts there instead of at the window's edge.
 ### Added
 
+- A press outside every panel (between panels, or anywhere else on the page) leaves no panel active and moves keyboard focus out of the panel that had it, so keystrokes stop reaching it. With `tuning.shrinkUnfocused` on, the wide panel it leaves rests at one phone, kept in view.
+
 - `exitTo: 'shrink'` scales the panel down about its right edge, which rides one gap before the neighbor closing up from the right, so the panel shrinks away in front of it. It used to scale about its center. `expand` is unchanged.
 
 - `tuning.shrinkUnfocused` (boolean, default false): a panel wider than one phone rests at one phone width while another panel is active and after the person scrolls the row, and goes back to its own width the next time a press or focus lands in it. `PanelWindow.restoreSlots` holds that width while it rests, and the workspace file saves it as the panel's `slots`. A launch starts every restored wide panel resting at one phone.

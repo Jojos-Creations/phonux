@@ -270,6 +270,10 @@ export interface EngineBinding {
   touch(engineId: string): void;
   /** The attached hook binds (or, with undefined, unbinds) where touches go. */
   bindTouch(sink: ((engineId: string) => void) | undefined): void;
+  /** The row tells the workspace a press landed outside every panel, so no panel is in use; ignored while no hook is bound. */
+  blur(): void;
+  /** The attached hook binds (or, with undefined, unbinds) what such a press runs. */
+  bindBlur(sink: (() => void) | undefined): void;
   /** A drag held at the row's edge swaps the nearest hidden panel on that side in, keeping `keepId` live; false while no hook is bound or nothing came in. */
   cycle(direction: 'left' | 'right', keepId: string): boolean;
   /** The attached hook binds (or, with undefined, unbinds) what a swap at the edge runs. */
@@ -483,6 +487,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
 
   let noteSink: ((note: SettingNote) => void) | undefined;
   let touchSink: ((engineId: string) => void) | undefined;
+  let blurSink: (() => void) | undefined;
   let cycleSink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined;
   const notesBeforeSink: SettingNote[] = [];
 
@@ -1197,6 +1202,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       }
     },
     touch: (engineId) => touchSink?.(engineId),
+    blur: () => blurSink?.(),
+    bindBlur: (sink) => {
+      blurSink = sink;
+    },
     bindTouch: (sink) => {
       touchSink = sink;
     },

@@ -40,6 +40,17 @@ test('moving the row rests every wide panel at one phone, the active one too, an
   assert.deepEqual([widths(r, 'b'), widths(r, 'c')], [[1, 2], [3, undefined]], 'c active again is three wide; b still rests');
 });
 
+test('a press outside every panel rests the wide panel in use', async () => {
+  const r = await rig();
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  press(r, 'b');
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'control: b in use stays wide');
+  r.turn(() => void document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
+  assert.deepEqual(widths(r, 'b'), [1, 2]);
+  press(r, 'b');
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'and a press inside brings it back');
+});
+
 test('the saved file keeps the width a resting panel goes back to', async () => {
   const r = await rig();
   r.turn(() => r.h.b!.setSlots(2, 'person'));

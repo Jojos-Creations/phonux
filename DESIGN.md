@@ -634,7 +634,9 @@ as any size change does.
 ## Unfocused panels rest at one phone
 
 With `tuning.shrinkUnfocused` on, a panel wider than one phone is drawn one phone wide whenever it is not the panel in use.
-Two things rest it: another panel becoming active (a press or a focus inside it, the same moment `useActivePanel` changes),
+Three things rest it: another panel becoming active (a press or a focus inside it, the same moment `useActivePanel` changes),
+a press outside every panel, which leaves none active and takes keyboard focus out of the row's panels (the panel rests in
+view),
 and the person moving the row (a step of the row gesture, a dot press or a drag of the dot bar). A move rests every wide
 panel, the active one included; a scroll the library makes itself, such as following a resize or opening a panel, rests
 none. A resting panel keeps the count it goes back to in `restoreSlots`, and the next press or focus inside it resizes it

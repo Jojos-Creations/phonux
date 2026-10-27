@@ -21,7 +21,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
 import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
-import { ChromeStoreContext, createChromeStore, type DrawnPin } from './panelChrome.js';
+import { ChromeStoreContext, createChromeStore, isPanelPress, type DrawnPin } from './panelChrome.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { ROW_GAP } from './rowConstants.js';
@@ -311,6 +311,22 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     },
     [],
   );
+  // A press outside every panel leaves none in use: keystrokes stop going to the panel that had focus. Read in the bubble
+  // phase on the window, after every slot has marked its own presses.
+  React.useEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const onPress = (event: PointerEvent): void => {
+      if (isPanelPress(event)) return;
+      chromeStore.setActive(null);
+      const focused = container.ownerDocument.activeElement;
+      if (focused instanceof HTMLElement && container.contains(focused) && focused.closest('[data-row-slot]') !== null) focused.blur();
+      binding?.blur();
+    };
+    const view = container.ownerDocument.defaultView ?? window;
+    view.addEventListener('pointerdown', onPress);
+    return () => view.removeEventListener('pointerdown', onPress);
+  }, [overflowContainerRef, chromeStore, binding]);
   // A press on the row is a person choosing where it rests, even if it moves nothing.
   React.useEffect(() => {
     const container = overflowContainerRef.current;
