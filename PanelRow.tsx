@@ -317,15 +317,33 @@ export function PanelRow({
   const boxRef = React.useRef<HTMLDivElement>(null);
   // A root no drag may cross that starts the strip is where a drag stops and its left band ends; a held root is already the inset.
   const rootEntry = present[0]?.id === rootId ? present[0] : undefined;
-  const barrierRight =
+  const barrierEl = (): HTMLElement | null | undefined => boxRef.current?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rootId)}"]`);
+  // The root's nudge is added back, so the band stays where the root rests.
+  const nudged = React.useRef(0);
+  const nudgeAnim = React.useRef<Animation | null>(null);
+  const barrier =
     rootEntry === undefined || effective(rootEntry).crossable
       ? undefined
-      : (): number | undefined => {
-          const root = boxRef.current?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rootId)}"]`);
-          return root == null ? undefined : root.getBoundingClientRect().right + gap;
+      : {
+          barrierRight: (): number | undefined => {
+            const root = barrierEl();
+            return root == null ? undefined : root.getBoundingClientRect().right + nudged.current + gap;
+          },
+          nudgeBarrier: (px: number): void => {
+            const root = barrierEl();
+            if (root == null || px === nudged.current) return;
+            // Its own `translate`, which Motion's writes of `transform` never touch, by the Web Animations API, because the theme
+            // turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
+            const from = getComputedStyle(root).translate;
+            nudgeAnim.current?.cancel();
+            const anim = root.animate([{ translate: from === 'none' ? '0px' : from }, { translate: `${-px}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards' });
+            nudgeAnim.current = anim;
+            if (px === 0) anim.onfinish = () => anim.cancel();
+            nudged.current = px;
+          },
         };
   // A row that fits its window still drags to its edges: there the band swaps hidden panels in rather than scrolling.
-  const dragScroll: DragScroll = { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll: rowScroll ? maxScroll : 0, stops: rowScroll ? stops : [], settleStops: rowScroll && rowNumbers !== undefined ? rowNumbers.stops : [], settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0, ...(barrierRight === undefined ? {} : { barrierRight }), cycle: binding.cycle };
+  const dragScroll: DragScroll = { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll: rowScroll ? maxScroll : 0, stops: rowScroll ? stops : [], settleStops: rowScroll && rowNumbers !== undefined ? rowNumbers.stops : [], settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0, ...barrier, cycle: binding.cycle };
   // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
   const [dragging, setDragging] = React.useState<{ id: string; steps: number } | null>(null);
   // A dragged panel that left the row (closed by other means) takes its preview with it.

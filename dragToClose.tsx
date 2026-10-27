@@ -179,7 +179,11 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
   const cap = (wanted: number): number => {
     const h = hold.current;
     const scrolled = h === null ? scrollX.get() : h.scroller.scrollLeft() - h.startScroll;
-    return Math.max(Math.min(wanted, slack.current - scrolled), floor.current);
+    // Pushing past the root nudges it left, up to half the band at a push of the band's width, and the box stays against it.
+    const zone = latest.current.dragScroll?.zonePx ?? 0;
+    const nudge = Math.min(Math.max(floor.current - wanted, 0), zone) / 2;
+    if (Number.isFinite(floor.current)) latest.current.dragScroll?.nudgeBarrier?.(nudge);
+    return Math.max(Math.min(wanted, slack.current - scrolled), floor.current - nudge);
   };
   function unwatch(): void {
     window.removeEventListener('pointerup', onLift.current, true);
@@ -204,6 +208,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     hold.current = null;
     const moved = travel(h);
     slotStart.current = null;
+    if (Number.isFinite(floor.current)) latest.current.dragScroll?.nudgeBarrier?.(0);
     endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
     return moved;
   };
