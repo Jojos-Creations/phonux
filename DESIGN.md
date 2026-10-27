@@ -809,7 +809,37 @@ radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being
 **Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not current are `inert` and
 `aria-hidden`. When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
 
-**Vertical budget.** Each cell is as tall as the column. The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. Every control is 24 px high, the least pointer target. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the workspace above at 0 to 24 px, the name input at 24 to 48 px, the headers from 48 px, the bodies, then the bottom button 24 px high ending 2 px above the bottom edge (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`): at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 830, so nothing overlaps and 832 is the least window height for that. With a `topInset` the least height is the inset plus 830: at 832 with an inset of 32 the input ends at 80 over headers that start at 68. At 1080 the row is centered in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom button 1054 to 1078. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
+**Vertical budget.** Each cell is as tall as the column. The numbers below are the default bands' (see "Column bands and slots"). The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. Every control is 24 px high, the least pointer target. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the workspace above at 0 to 24 px, the name input at 24 to 48 px, the headers from 48 px, the bodies, then the bottom button 24 px high ending 2 px above the bottom edge (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`): at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 830, so nothing overlaps and 832 is the least window height for that. With a `topInset` the least height is the inset plus 830: at 832 with an inset of 32 the input ends at 80 over headers that start at 68. At 1080 the row is centered in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom button 1054 to 1078. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
+
+## Column bands and slots
+
+Every cell of a column draws two bands, one between the column's `topInset` and the row and one between the row and the
+window's foot (`columnBands.tsx`). A band is an ordered list of named slots (`ColumnSlot`: `id`, `height`, `component`,
+`align`), and the column takes its bands once, from `ColumnOptions.bands`; unset, it draws `DEFAULT_COLUMN_BANDS`: the link
+to the workspace above and the name input above the row, the link to the workspace below under it. Those three are exported as
+components (`NeighbourAboveSlot`, `WorkspaceNameSlot`, `NeighbourBelowSlot`) so an app can wrap one rather than redraw it.
+
+**Changing them.** An app never edits a default. `withSlotChanges(bands, { replace, hide, add, above, below })` returns new
+bands: `replace` swaps a slot's component by id (and optionally its height), keeping the old component as `base`, which the
+slot receives as its `Default` prop; `hide` takes slots out; `add` puts new ones `before` or `after` an id, or last in their
+band; `above` and `below` set a band's `size` and `justify`. The ids are the contract: markup, attribute names and styles
+inside a default may change in any release. An id that names no slot is skipped with one console warning per id, never
+thrown, so a default renamed upstream leaves an app's change undone instead of breaking the app. A slot that should differ
+between workspaces reads `workspace`, `index` or `active` from its props and returns null, or its `Default`, where it does
+not apply.
+
+**Room.** A slot's height is declared, not measured, so the room the row keeps is known before anything paints and cannot
+move when a slot's content changes. `columnBandRoom(bands)` is each band's `edge` (its distance from its window edge: 0 above,
+under the column's `topInset`, and 2 below by default) plus its slots' heights, plus 28 px between the band above and the
+row: 76 and 26 for the defaults, which are still `COLUMN_TOP_BAND` and `COLUMN_BOTTOM_BAND`. The library's
+own row takes `room.above` as its column top, and a band below taller than the default's adds the difference to the row's
+bottom padding and to the phone fit's reserve (`Workspace.bottomPadding`, `usePhoneFit`'s `bottomInset`). An app that draws
+its own row reads `columnBandRoom` itself. A band given a `size` (a CSS length such as `var(--row-above)`) spreads its slots
+through that height by `justify`; the room is still the slots' sum, the least the band needs.
+
+**Clicks.** A band is laid over the cell and passes pointer events through; only a slot's content box takes them, so a
+band's empty width never blocks the row under it. Each band carries `COLUMN_BAND_ATTRIBUTE` and each slot's box
+`COLUMN_SLOT_ATTRIBUTE`, set to its id.
 
 ## Naming rules R1-R4
 

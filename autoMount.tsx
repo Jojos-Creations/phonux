@@ -14,6 +14,7 @@ import { Workspace } from './Workspace.js';
 import { createDefaultTheme, muiThemeFor, type PhonuxTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
+import { rowBottomReservePx } from './panelChromeSize.js';
 import { hostPanelsOf } from './hostPanels.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
@@ -97,11 +98,11 @@ function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void
   return made.theme;
 }
 
-export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspace: WorkspaceHandle; columnTop?: number; themed?: boolean }): React.ReactElement {
+export function AutoRoot({ workspace, columnTop = 0, columnBottom = 0, themed = true }: { workspace: WorkspaceHandle; columnTop?: number; columnBottom?: number; themed?: boolean }): React.ReactElement {
   const binding = bindingOf(workspace);
   const theme = useMountTheme(binding.theme, binding.reportError);
   const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
-  const body = <AutoBody workspace={workspace} columnTop={columnTop} />;
+  const body = <AutoBody workspace={workspace} columnTop={columnTop} columnBottom={columnBottom} />;
   return (
     <AutoMountContext.Provider value={workspace}>
       {themed ? (
@@ -117,7 +118,7 @@ export function AutoRoot({ workspace, columnTop = 0, themed = true }: { workspac
 }
 
 /** Inside the mount's ThemeProvider, so the phone fit and the row read the one theme. */
-function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; columnTop: number }): React.ReactElement {
+function AutoBody({ workspace, columnTop, columnBottom }: { workspace: WorkspaceHandle; columnTop: number; columnBottom: number }): React.ReactElement {
   const binding = bindingOf(workspace);
   React.useSyncExternalStore(binding.live.subscribe, binding.live.version);
   const values = binding.live.latest();
@@ -129,7 +130,9 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
   // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
   const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
-  const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding);
+  // A column's band below that outgrows the default pushes the row up by the difference.
+  const bottomPadding = columnBottom > 0 ? rowBottomReservePx(tuning.rowGap) + columnBottom : undefined;
+  const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding, bottomPadding);
   const phoneWidth = phone.width;
   const provided = useProvidePanels({
     ...panelsInputOf(workspace, stand.current),
@@ -149,7 +152,7 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...workspaceProps(provided, workspace)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...(bottomPadding !== undefined ? { bottomPadding } : {})} {...workspaceProps(provided, workspace)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );

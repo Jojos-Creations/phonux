@@ -4,6 +4,8 @@
 
 ### Added
 
+- Column bands: `ColumnOptions.bands` sets what every cell draws above and below its row, as ordered lists of named slots (`ColumnBands`, `ColumnBand`, `ColumnSlot`, `ColumnSlotProps`). `DEFAULT_COLUMN_BANDS` is the link above, the name input and the link below, also exported as `NeighbourAboveSlot`, `WorkspaceNameSlot` and `NeighbourBelowSlot`. `withSlotChanges` replaces (handing the replacement the default as `Default`), hides and adds slots by id, and skips an unknown id with a warning. `columnBandRoom` gives the room the bands need; the library row keeps it clear. `COLUMN_BAND_ATTRIBUTE` and `COLUMN_SLOT_ATTRIBUTE` mark a band and a slot's box.
+- `Workspace` takes `bottomPadding`, and `usePhoneFit` a `bottomInset`, for chrome under the row.
 - `usePanelSizeGlide()`: inside a `PanelSizeBox` (or the default frame's box), the box's size glide (`PanelSizeGlide`: `from` and `to` sizes) from the commit that starts it until it lands, and null at rest.
 - `PanelSizeBox` takes `reveal`: while the box glides, its content is laid out once at the larger of the start and end widths and clipped at the eased box's sides, so a grow resizes it at its start and a shrink at its end rather than on every frame. Content in another process, such as a webview, then lays out twice per glide instead of about 34 times. The height follows the box, and nothing above or below the box is clipped, so a frame's header and footer stay visible.
 - A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
@@ -22,6 +24,7 @@
 
 ### Breaking
 
+- The column's neighbour links and name input sit inside a band's slot box instead of being positioned themselves, so a stylesheet that placed them by `top`, `bottom` or a child selector on the cell must place the slot box or replace the slot instead.
 - Standalone (no column), `topInset` no longer sets the row's top room: `tuning.rowTop` is the only control for it. In a column the cell's `topInset` still clears its links, as before.
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.
 - `PhonuxThemeProvider` draws the row's styling for a hand-rendered row (`mount: false`), in place of an app's own MUI `ThemeProvider`.
