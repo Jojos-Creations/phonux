@@ -8,6 +8,23 @@ import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { centreScroll, dotLayout, dotMap, dragScroll } from './rowDots.js';
 import { maxScrollOf, snapToStop } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
+import { stepRowIn } from './rowStep.js';
+/** A press that moves this far across the bar drags the oval; a shorter one is a click. */
+const DRAG_THRESHOLD_PX = 4;
+/** Track px a drag travels past the row's end for one step: about one phone dot and its gap. */
+const OVERSHOOT_STEP_PX = 30;
+/** Wheel travel over the bar for one step, and the quiet that ends a wheel gesture. */
+const WHEEL_STEP_PX = 100;
+const WHEEL_QUIET_MS = 200;
+/** The bar's cursor for a pointer at `x` across the bar (null when off it), the oval as drawn now, and `side`, how far the oval reaches past its dots. */
+function ovalCursor(x, oval, side, dragging, overDot) {
+    if (dragging)
+        return 'grabbing';
+    if (x === null)
+        return 'default';
+    // The dots lie over the oval, so a cursor set per dot would leave the part of a dot that straddles the oval's edge as a pointer.
+    return x >= oval.left && x <= oval.left + oval.width + 2 * side ? 'grab' : overDot ? 'pointer' : 'default';
+}
 /**
  * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` carries each drawn panel's
  * settings (the hollow dot is the panel setting `hollowDot`); `scroller` is the row's scroll container (the element
@@ -17,7 +34,7 @@ import { rowScrollerFor } from './rowScroller.js';
  * @public
  */
 export function usePanelDots(i) {
-    const { rowNumbers: n, entries, scroller, tuning } = i;
+    const { rowNumbers: n, entries, scroller, tuning, ovalSide = 0 } = i;
     const systemReduced = useReducedMotion();
     const configReduced = useReducedMotionConfig();
     const reduced = systemReduced === true || configReduced === true;
@@ -83,5 +100,110 @@ export function usePanelDots(i) {
             },
         };
     };
-    return { dots: layout.dots, oval: layout.oval, width: map.width, selectDot, startOvalDrag };
+    // Worked out each render from the pointer's last place and the oval as drawn now, so a redraw that moves the oval under a still pointer reads true.
+    const [pointer, setPointer] = React.useState(null);
+    const [dragging, setDragging] = React.useState(false);
+    const drag = React.useRef(null);
+    // `moved` latches once the press passes the threshold: that press drags and never selects. `edgeX` is where the pointer was when
+    // the drag last met the row's end (or last stepped), so travel beyond it steps the row.
+    const press = React.useRef(null);
+    const wheel = React.useRef({ travel: 0, at: 0 });
+    const step = (direction) => {
+        const el = scroller.current;
+        if (el)
+            stepRowIn(el, direction);
+    };
+    const cursor = ovalCursor(pointer?.x ?? null, layout.oval, ovalSide, dragging, pointer?.overDot === true);
+    const stop = () => {
+        drag.current?.end();
+        drag.current = null;
+        setDragging(false);
+    };
+    const dotOf = (target) => (target instanceof Element ? target.closest('[data-dot]') : null);
+    const barProps = {
+        onPointerDown: (e) => {
+            if (e.button !== 0)
+                return;
+            press.current = { x: e.clientX, id: dotOf(e.target)?.dataset.dot ?? null, moved: false, edgeX: null };
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+        },
+        onPointerMove: (e) => {
+            setPointer({ x: e.clientX - e.currentTarget.getBoundingClientRect().left, overDot: dotOf(e.target) !== null });
+            const p = press.current;
+            if (!p)
+                return;
+            const dx = e.clientX - p.x;
+            if (!p.moved && Math.abs(dx) > DRAG_THRESHOLD_PX) {
+                p.moved = true;
+                drag.current = startOvalDrag();
+                setDragging(true);
+            }
+            if (!p.moved)
+                return;
+            drag.current?.drag(dx);
+            // Past the end, or on a row that cannot scroll at all, the drag steps the row instead.
+            const el = scroller.current;
+            const at = el?.scrollLeft ?? 0;
+            const atEnd = drag.current === null || maxScroll <= 0 || (dx > 0 ? at >= maxScroll - 0.5 : at <= 0.5);
+            if (!atEnd) {
+                p.edgeX = null;
+                return;
+            }
+            p.edgeX ??= e.clientX;
+            const past = e.clientX - p.edgeX;
+            if (Math.abs(past) < OVERSHOOT_STEP_PX)
+                return;
+            p.edgeX = e.clientX;
+            // A step may hand the row to its glide; the drag picks up again from wherever that leaves it.
+            drag.current?.end();
+            drag.current = null;
+            step(past > 0 ? 'right' : 'left');
+        },
+        onPointerUp: () => {
+            const p = press.current;
+            press.current = null;
+            stop();
+            if (p && !p.moved && p.id !== null)
+                selectDot(p.id);
+        },
+        onPointerLeave: () => setPointer(null),
+        onWheel: (e) => {
+            const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            if (raw === 0)
+                return;
+            const w = wheel.current;
+            if (e.timeStamp - w.at > WHEEL_QUIET_MS || Math.sign(raw) !== Math.sign(w.travel))
+                w.travel = 0;
+            // The first event of a gesture steps at once, so one notch moves the row.
+            const first = w.travel === 0;
+            w.travel += e.deltaMode === 1 ? raw * 16 : raw;
+            w.at = e.timeStamp;
+            if (!first && Math.abs(w.travel) < WHEEL_STEP_PX)
+                return;
+            if (!first)
+                w.travel = Math.sign(w.travel) * 0.001;
+            step(raw > 0 ? 'right' : 'left');
+        },
+        onPointerCancel: () => {
+            press.current = null;
+            stop();
+        },
+        style: { touchAction: 'none', cursor },
+    };
+    const ovalProps = {
+        role: 'slider',
+        tabIndex: 0,
+        'aria-valuemin': 0,
+        'aria-valuemax': 100,
+        'aria-valuenow': Math.round((layout.oval.left / Math.max(1, map.width - layout.oval.width)) * 100),
+    };
+    const dotProps = (id) => ({
+        'data-dot': id,
+        // A pointer press is handled on the bar; only a keyboard activation (detail 0) reaches this click.
+        onClick: (e) => {
+            if (e.detail === 0)
+                selectDot(id);
+        },
+    });
+    return { dots: layout.dots, oval: layout.oval, width: map.width, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
 }

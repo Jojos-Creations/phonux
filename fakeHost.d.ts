@@ -138,3 +138,5 @@ export interface FakePanel<P extends JsonValue = JsonValue> {
 export declare function createFakePanel<P extends JsonValue = JsonValue>(state?: Partial<Omit<PanelState, 'params'>> & {
     params?: P;
 }): FakePanel<P>;
+export { reportMaximized } from './maximizedStore.js';
+export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';

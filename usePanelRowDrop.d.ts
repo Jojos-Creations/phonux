@@ -26,6 +26,14 @@ export interface PanelRowDrop {
     end(): PanelResult;
     /** Ends the drag and leaves the row exactly as it was. Does nothing when no drag is in progress. */
     cancel(): void;
+    /**
+     * Follows a drag of panel `id` that began inside another panel, such as a tile dragged out of a list panel: `from` is any element
+     * inside that panel (the pressed element). While the pointer is inside that panel's box nothing happens and the answer is
+     * `'inside'`. Once the pointer leaves the box sideways and is level with it, the drag begins if it has not and follows the pointer:
+     * `'row'`. Sideways but above or below the box, or back inside, the drag is cancelled: `'beside'` or `'inside'`. Pair it with `end`
+     * on release (which drops only when the answer was `'row'`) and `cancel`.
+     */
+    follow(id: string, from: Element | null, clientX: number, clientY: number): 'inside' | 'row' | 'beside';
 }
 /**
  * The row drop of the PanelRow above: `begin`, `update`, `end` and `cancel`, the same object on every render. Outside a

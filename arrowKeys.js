@@ -9,12 +9,13 @@ const EDITABLE_ROLES = '[role="textbox"],[role="searchbox"],[role="combobox"],[r
  * A repeated key is not judged here: the column ignores it and the row steps on it.
  * @internal
  */
-export function arrowKeyBelongsElsewhere(e, doc) {
+export function arrowKeyBelongsElsewhere(e, doc, key = e.key, chord = false) {
     if (e.defaultPrevented || e.isComposing || e.keyCode === 229)
         return true;
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)
+    // A host's own chord carries modifiers by design; only a bare arrow is judged on them.
+    if (!chord && (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey))
         return true;
-    const move = ARROW_MOVES[e.key];
+    const move = ARROW_MOVES[key];
     for (const node of [e.target, doc.activeElement]) {
         if (!(node instanceof Element))
             continue;

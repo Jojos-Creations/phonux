@@ -218,3 +218,4 @@ export function createFakePanel(state = {}) {
     };
     return { props: { panel, handle, manager }, handle, manager, calls };
 }
+export { reportMaximized } from './maximizedStore.js';

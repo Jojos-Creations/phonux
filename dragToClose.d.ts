@@ -182,6 +182,11 @@ export declare function DragToClose(input: {
      */
     onDragEnd?: (end: GrabDragEnd) => void;
     /**
+     * Called once when a drag ends without a release: the Escape key, a native pan that takes the pointer, or the box going away
+     * mid-drag. Every drag that called `onDragMove` ends in exactly one of `onDragEnd` or this.
+     */
+    onDragCancel?: () => void;
+    /**
      * When set, a vertical drag past `PREVIEW_OUT_PX` grabs a tile-size preview instead of moving the box, and the box stays in its slot.
      * Pair with `exitFor` to say where a dropped preview's panel leaves to.
      */

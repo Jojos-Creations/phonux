@@ -11,3 +11,19 @@ export const FOOTER_ROOM_PX = HEADER_GAP_PX + BAR_HEIGHT_PX;
 export const rowBottomReservePx = (gap) => Math.max(gap, FOOTER_ROOM_PX);
 /** Px the row leaves above its frames. A dev's `tuning.rowTop` is taken as given; without it, never less than the header's room, so a header drawn above a frame that fills the height stays on screen. @internal */
 export const rowTopReservePx = (asked, rowTop, gap) => rowTop !== null ? (asked ?? rowTop) : Math.max(asked ?? gap, FOOTER_ROOM_PX);
+/**
+ * Px tall a panel's header and footer bars are, in every theme. A host lays out around the row with it rather than a copy.
+ * @public
+ */
+export const PANEL_BAR_HEIGHT_PX = BAR_HEIGHT_PX;
+/**
+ * Px from a frame's bottom edge to its footer's bottom edge: the room the footer takes under a frame.
+ * @public
+ */
+export const PANEL_FOOTER_ROOM_PX = FOOTER_ROOM_PX;
+/**
+ * Px the row leaves under its frames for row gap `gap`: the gap, or the footer's room when that is more. The phone fit's height
+ * budget counts it, so a host centering the row in its page counts it the same way.
+ * @public
+ */
+export const rowFootReserve = (gap) => rowBottomReservePx(gap);

@@ -313,7 +313,7 @@ export function DragToClose(input) {
     // autoScroll off: dnd-kit would write scrollLeft itself, and the row's scroll claim is the one writer.
     return (_jsx(DndContext, { sensors: sensors, autoScroll: false, ...(announcements === undefined ? {} : { accessibility: { announcements } }), children: _jsx(DragToCloseBox, { ...input }) }));
 }
-function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, onDragEnd, previewOut, exitFor, children, }) {
+function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, onDragEnd, onDragCancel, previewOut, exitFor, children, }) {
     const draggable = useDraggable({ id: React.useId() });
     // Where the pointer went down and where it is: read from the events themselves, because dnd-kit reports a move only after its
     // activation distance and a release right after the activating move would otherwise read no offset.
@@ -353,6 +353,10 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
     // Read by the window listener, which is made once and outlives the render that made it.
     const dragMoveRef = React.useRef(onDragMove);
     dragMoveRef.current = onDragMove;
+    const dragCancelRef = React.useRef(onDragCancel);
+    dragCancelRef.current = onDragCancel;
+    // True from a drag's first reported move until its release is reported; still true when the drag mark ends means no release came.
+    const reportedDrag = React.useRef(false);
     const previewOutRef = React.useRef(previewOut);
     previewOutRef.current = previewOut;
     const exitForRef = React.useRef(exitFor);
@@ -403,6 +407,10 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
         for (const [el, previous] of locked.current.splice(0))
             el.style.overflowY = previous;
         slotRef.current?.setDragging?.(false);
+        if (reportedDrag.current) {
+            reportedDrag.current = false;
+            dragCancelRef.current?.();
+        }
     };
     // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
     // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
@@ -489,8 +497,10 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
         }
         if (event.type === 'pointermove') {
             latestMove.current();
-            if (engaged.current)
+            if (engaged.current) {
+                reportedDrag.current = true;
                 dragMoveRef.current?.({ x: clientX - pointer.current.downX, y: clientY - pointer.current.downY, clientX, clientY });
+            }
             return;
         }
         pressedDoc.current = null;
@@ -583,8 +593,10 @@ function DragToCloseBox({ onClose, reorder, closeOnRelease = true, onDragMove, o
             axisLock.current = null;
             const dx = pointer.current.x - pointer.current.downX;
             const dy = pointer.current.y - pointer.current.downY;
-            if (wasEngaged)
+            if (wasEngaged && reportedDrag.current) {
+                reportedDrag.current = false;
                 onDragEnd?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y });
+            }
             const cancelled = reorder ? edge.release() : false;
             if (reorder && lockedAxis === 'x') {
                 // The claim goes back before the hop is reported: the move the hop causes may ask the row to scroll, and a held claim would drop that request.

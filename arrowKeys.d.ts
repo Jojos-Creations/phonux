@@ -4,7 +4,7 @@
  * A repeated key is not judged here: the column ignores it and the row steps on it.
  * @internal
  */
-export declare function arrowKeyBelongsElsewhere(e: KeyboardEvent, doc: Document): boolean;
+export declare function arrowKeyBelongsElsewhere(e: KeyboardEvent, doc: Document, key?: string, chord?: boolean): boolean;
 /**
  * Whether `from` or an ancestor below the row's own scroller is a scroller of the panel's content that can still move along
  * `axis` in `direction`: the browser scrolls that first, so the row or column must leave the input alone.
