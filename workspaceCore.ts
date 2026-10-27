@@ -270,6 +270,10 @@ export interface EngineBinding {
   touch(engineId: string): void;
   /** The attached hook binds (or, with undefined, unbinds) where touches go. */
   bindTouch(sink: ((engineId: string) => void) | undefined): void;
+  /** A drag held at the row's edge swaps the nearest hidden panel on that side in, keeping `keepId` live; false while no hook is bound or nothing came in. */
+  cycle(direction: 'left' | 'right', keepId: string): boolean;
+  /** The attached hook binds (or, with undefined, unbinds) what a swap at the edge runs. */
+  bindCycle(sink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined): void;
   /** The workspace's own templates, the root's included. */
   templates(): readonly PanelTemplate[];
   /** The template this workspace holds under `id`, or undefined: what its row renders a panel of `id` with. */
@@ -479,6 +483,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
 
   let noteSink: ((note: SettingNote) => void) | undefined;
   let touchSink: ((engineId: string) => void) | undefined;
+  let cycleSink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined;
   const notesBeforeSink: SettingNote[] = [];
 
   const reportConflicts = (id: PanelId, res: PanelSettingsResolution): void => {
@@ -1194,6 +1199,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     touch: (engineId) => touchSink?.(engineId),
     bindTouch: (sink) => {
       touchSink = sink;
+    },
+    cycle: (direction, keepId) => cycleSink?.(direction, keepId) ?? false,
+    bindCycle: (sink) => {
+      cycleSink = sink;
     },
     bindNotes: (sink) => {
       noteSink = sink;

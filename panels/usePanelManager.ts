@@ -86,8 +86,9 @@ export interface UsePanelManagerResult {
    * The row gesture: 'right' brings the first parked panel after the rightmost live one and parks the LEFTMOST live
    * one ('left' mirrors), then parks more on that side until the row settles, never an acted-on panel. Does nothing,
    * with no `setPanels`, when nothing is parked on that side or when that panel's `revealOnScroll` is 'never'.
+   * `keep` (a dragged panel) is never parked. True when a panel came in.
    */
-  scrollRow: (direction: 'left' | 'right') => void;
+  scrollRow: (direction: 'left' | 'right', keep?: string) => boolean;
   /** Moves `id` `by` row-slots (negative: left; 'left' and 'right' are one slot); see `movePanel` for the no-op contract, and `movePanelBy` for a count that runs out at an edge. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
   reorderPanel: (id: string, by: number | 'left' | 'right', record?: boolean) => boolean;
   /** `setSlots` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
@@ -510,10 +511,10 @@ export function usePanelManager(
   };
 
   /** See `UsePanelManagerResult.scrollRow`'s own doc comment. */
-  const scrollRow = (direction: 'left' | 'right'): void => {
+  const scrollRow = (direction: 'left' | 'right', keep?: string): boolean => {
     const reveal = direction === 'right' ? firstParkedAfter(panels, rightmostLiveIndex(panels)) : lastParkedBefore(panels, leftmostLiveIndex(panels));
-    if (!reveal || effective(reveal).revealOnScroll === 'never') return;
-    const kept = keptIds();
+    if (!reveal || effective(reveal).revealOnScroll === 'never') return false;
+    const kept = keep === undefined ? keptIds() : new Set([...keptIds(), keep]);
     markKeepLive(reveal.id);
     // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow. A pin change the panel waits with lands first, so the gesture parks against the row it makes.
     const waiting = reveal.deferredPin !== undefined;
@@ -538,6 +539,7 @@ export function usePanelManager(
     forgetCollapsed(reveal.id);
     releaseHold(reveal.id);
     setPanels((prev) => (waiting ? landOn(flip(prev), reveal.id, 'in-place').row : flip(prev)));
+    return true;
   };
 
   /** Pinned follows position, so under a cap a move that changes the row can change whether `id` counts: the park it causes leaves `id` live, as a pin does. */

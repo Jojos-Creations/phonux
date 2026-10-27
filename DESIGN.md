@@ -1323,7 +1323,12 @@ reported, so the scroll the hop causes is not dropped; a `pointercancel`, which 
 no hop. A touch drag never edge-scrolls: the handle is `touch-action: pan-x`, so a touch swipe is a native pan.
 The hold keeps the mode and the three edge numbers (`zonePx`, `maxPxPerSec`, `reducedStepMs`) the drag locked with,
 so a `configure` made while the pointer is down reaches the next drag; the bound and the panel stops are
-read again every frame, and the hold ends when the row stops scrolling.
+read again every frame. Where the row cannot scroll further toward the band (a row that fits its window has a bound of 0),
+the band swaps instead: every `slide.durationSec` the pointer stays in it, the nearest hidden panel on that side comes in
+by the scroll gesture's swap (`scrollRow`, which honors `revealOnScroll`), with the dragged panel kept live. The box rides
+its slot's own travel on screen, not the scroll distance alone, so a swap that moves the slot leaves the box under the
+pointer and the release counts hops from where the box is. A root that is not `crossable` and starts the strip is a wall:
+the box stops at its right edge plus the gap, and the left band ends there rather than at the window's edge.
 
 **Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
 the same `onClose`, as History's trash buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`

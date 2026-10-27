@@ -22,15 +22,19 @@ export interface EdgeHold {
   waitedMs: number;
   /** The pointer has lifted or been cancelled: no further frame may move the row before the release reads the distance. */
   stopped: boolean;
+  /** The dragged panel's engine id: a swap at the edge never parks it. */
+  keepId: string | undefined;
+  /** How long the pointer has stayed in a band the row cannot scroll toward since the last swap. */
+  cycleWaitMs: number;
 }
 
 /** Takes the claim on `scrollerEl`'s scroller for a drag that counts its scroll from `startScroll`; null while another drag holds it. */
-export function openEdgeHold(scrollerEl: HTMLElement, startScroll: number, slot: DragScroll): EdgeHold | null {
+export function openEdgeHold(scrollerEl: HTMLElement, startScroll: number, slot: DragScroll, keepId?: string): EdgeHold | null {
   const scroller = rowScrollerFor(scrollerEl);
   const claim = scroller.claim();
   if (claim === null) return null;
   claim.setMaxScroll(slot.maxScroll);
-  return { scroller, scrollerEl, claim, startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false };
+  return { scroller, scrollerEl, claim, startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false, keepId, cycleWaitMs: 0 };
 }
 
 /** One frame: scrolls the row for a pointer at `pointerX`, by speed or, under reduced motion, by a jump to the next stop after the wait. */
@@ -41,8 +45,21 @@ export function stepEdgeHold(h: EdgeHold, nowMs: number, pointerX: number, slot:
   h.claim.setMaxScroll(bound);
   const rect = h.scrollerEl.getBoundingClientRect();
   // The band is the strip's window: a held panel's edge group covers the scroller's ends, so a pointer over it does not scroll the row.
-  const speed = edgeScrollSpeed({ pointerX, left: rect.left + (slot.insetLeft ?? 0), right: rect.right - (slot.insetRight ?? 0), zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
+  // A panel no drag may cross at the row's start (the root) moves the left band onto its own right edge.
+  const left = Math.max(rect.left + (slot.insetLeft ?? 0), (slot.barrierRight?.() ?? Number.NEGATIVE_INFINITY) - h.began.zonePx);
+  const speed = edgeScrollSpeed({ pointerX, left, right: rect.right - (slot.insetRight ?? 0), zonePx: h.began.zonePx, maxPxPerSec: h.began.maxPxPerSec });
   const at = h.scroller.scrollLeft();
+  const stuck = speed < 0 ? at <= 0.5 : speed > 0 && at >= bound - 0.5;
+  // Past the scroll's end, the band swaps hidden panels in, one per slide, so each lands before the next starts.
+  if (stuck && slot.cycle !== undefined && h.keepId !== undefined) {
+    h.cycleWaitMs += dt;
+    if (h.cycleWaitMs >= slot.settleSec * 1000) {
+      h.cycleWaitMs = 0;
+      slot.cycle(speed < 0 ? 'left' : 'right', h.keepId);
+    }
+    return;
+  }
+  h.cycleWaitMs = 0;
   if (reduceMotion) {
     h.waitedMs = speed === 0 ? 0 : h.waitedMs + dt;
     if (h.waitedMs >= h.began.reducedStepMs) {
@@ -51,7 +68,8 @@ export function stepEdgeHold(h: EdgeHold, nowMs: number, pointerX: number, slot:
       if (to !== null) h.claim.write(to);
     }
   } else if (speed !== 0) {
-    h.claim.write(at + edgeScrollStep({ speed, dtMs: dt, scrollLeft: at, maxScroll: bound }));
+    const step = edgeScrollStep({ speed, dtMs: dt, scrollLeft: at, maxScroll: bound });
+    if (step !== 0) h.claim.write(at + step);
   }
 }
 

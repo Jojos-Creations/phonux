@@ -9,8 +9,8 @@ import type { ViewHandle } from './panelTemplate.js';
 import type { SlotTuning } from './panelTuning.js';
 
 /**
- * What a drag of this panel needs to scroll the row at its edge. Absent outside a row and when the row does not
- * scroll, so a drag there never claims a scroller.
+ * What a drag of this panel needs to scroll the row at its edge, or, where the row cannot scroll further that way, to
+ * swap a hidden panel in. Absent outside a row.
  */
 export interface DragScroll {
   /** 'none' when the panel's `scrollOnDrag` is off. */
@@ -35,6 +35,10 @@ export interface DragScroll {
   readonly insetLeft?: number;
   /** The width the right edge group takes, which an edge-scroll band does not reach into. Default 0. */
   readonly insetRight?: number;
+  /** Where a drag stops on the left when a panel no drag may cross starts the row: that panel's right edge plus the row gap, in screen px. The left band ends there. */
+  readonly barrierRight?: () => number | undefined;
+  /** Swaps the nearest hidden panel on that side in, as a scroll step does, keeping `keepId` live; true when one came in. */
+  readonly cycle?: (direction: 'left' | 'right', keepId: string) => boolean;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */
