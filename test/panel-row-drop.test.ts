@@ -43,7 +43,7 @@ const HALF = 195;
 const slotOf = (m: MountedRow, id: string): HTMLElement => {
   const grab = m.container.querySelector<HTMLElement>(`[data-grab="${id}"]`);
   assert.ok(grab, `${id} rendered`);
-  const slot = grab.closest<HTMLElement>('[data-drag-to-close]')?.parentElement;
+  const slot = grab.closest<HTMLElement>('[data-drag-to-close]')?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `${id} sits in a slot`);
   return slot;
 };

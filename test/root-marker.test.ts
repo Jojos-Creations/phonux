@@ -38,7 +38,7 @@ registerTestView('marker-probe', ({ panel }) => {
 const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], rootId: string): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
-const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.parentElement ?? null;
+const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 /** The row root: the parent of the panel's hold line, which every panel has (the host is `display: contents` unless held). */
 const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold-line]')!.parentElement!;
 const slotIds = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);

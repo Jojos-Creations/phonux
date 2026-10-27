@@ -35,7 +35,7 @@ const translateX = (el: HTMLElement): number => {
 test('a slot that a reorder moves in the DOM slides to its new rest', async () => {
   const mounted = mount(React.createElement(Hosted));
   const slotOf = (id: string): HTMLElement => {
-    const slot = mounted.container.querySelector<HTMLElement>(`[data-slot="${id}"]`)?.parentElement;
+    const slot = mounted.container.querySelector<HTMLElement>(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
     assert.ok(slot, `${id} rendered`);
     return slot;
   };

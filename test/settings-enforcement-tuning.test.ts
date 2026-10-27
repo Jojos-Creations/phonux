@@ -95,7 +95,7 @@ function SettledRow(props: { entries: PanelWindow[]; tuning?: WorkspaceTuning })
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
   withHost(React.createElement(SettledRow, { entries, ...(tuning === undefined ? {} : { tuning }) }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
-  const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+  const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
   return slot as HTMLElement;
 };
@@ -332,15 +332,15 @@ function motionPropsOf(el: Element, key: string): Record<string, unknown> {
 let boxWidth = 390;
 for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r']) registerTestView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
 
-/** How long, in ms, the PanelSizeBox in what `render` draws takes to reach its new width after `boxWidth` grows from 390 to 780. */
-async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
+/** How long, in ms, the first size box in what `render` draws takes to reach `to` px after `boxWidth` grows from 390 to 780. */
+async function sizeGlideMs(render: () => React.ReactElement, to = 780): Promise<number> {
   boxWidth = 390;
   const mounted = mount(render());
   boxWidth = 780;
   mounted.rerender(render());
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   let frames = 0;
-  while (box.style.width !== '780px' && frames < 200) {
+  while (box.style.width !== `${to}px` && frames < 200) {
     await advanceFrames(16);
     frames += 1;
   }
@@ -349,16 +349,20 @@ async function sizeGlideMs(render: () => React.ReactElement): Promise<number> {
   return frames * 16;
 }
 
-test("slide: PanelSizeBox's glide is the panel's resolved slide inside a slot and the shared one outside", async () => {
+/** One panel the row widens from one slot to two when `boxWidth` grows, which its own box glides over. */
+const growing = (view: string): PanelWindow => entry('a', { view, slots: boxWidth === 780 ? 2 : 1 });
+const TWO_SLOTS = 2 * 390 + 16;
+
+test("slide: a size box's glide is the panel's resolved slide inside a slot and the shared one outside", async () => {
   const near = (actual: number, seconds: number, what: string): void => assert.ok(Math.abs(actual - seconds * 1000) <= 48, `${what}: ${actual} ms for ${seconds} s`);
-  near(await sizeGlideMs(() => rowOf([entry('a', { view: 'tune-size' })], { slide: { durationSec: 0.8 } })), 0.8, "the workspace's slide");
+  near(await sizeGlideMs(() => rowOf([growing('tune-size')], { slide: { durationSec: 0.8 } }), TWO_SLOTS), 0.8, "the workspace's slide");
   near(await sizeGlideMs(() => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') })), PANEL_TRANSITION.duration, 'outside a slot, the shared transition');
 });
 
-test('PanelSizeBox snaps under Reduce Motion and glides otherwise', async () => {
+test('a size box snaps under Reduce Motion and glides otherwise', async () => {
   const slide = { slide: { durationSec: 0.8 } };
-  assert.ok((await sizeGlideMs(() => rowOf([entry('a', { view: 'snap-size' })], slide))) > 500, 'positive control: the resize glides');
-  assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([entry('a', { view: 'snap-size-r' })], slide))), 0, 'Reduce Motion snaps');
+  assert.ok((await sizeGlideMs(() => rowOf([growing('snap-size')], slide), TWO_SLOTS)) > 500, 'positive control: the resize glides');
+  assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([growing('snap-size-r')], slide)), TWO_SLOTS), 0, 'Reduce Motion snaps');
 });
 
 /** A Workspace shell over one PanelRow, both reading one workspace made with `tuning`. */

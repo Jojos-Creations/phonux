@@ -848,7 +848,7 @@ test('matrix:showWhenClosed', async () => {
   assert.equal(letter(r.turn(() => r.h.c!.show())), 'T', 'C, U: a record configured while closed is used');
 });
 
-const slotAt = (r: MatrixRig, engineId: string): HTMLElement | null => r.m.container.querySelector<HTMLElement>(`[data-slot="${engineId}"]`)?.parentElement ?? null;
+const slotAt = (r: MatrixRig, engineId: string): HTMLElement | null => r.m.container.querySelector<HTMLElement>(`[data-slot="${engineId}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axisOf = (el: HTMLElement | null, name: 'X' | 'Y'): number => {
   const match = el === null ? null : new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(el.style.transform);
   return match === null ? 0 : Number(match[1]);
@@ -898,6 +898,16 @@ test('matrix:placeOnShow', async () => {
   r.turn(() => r.h.b!.show());
   await r.settle();
   assert.equal(r.order().join(' '), 'b root a c', 'the next show uses the new placement');
+});
+
+test('matrix:resize', async () => {
+  probe('resize');
+  const r = await matrixRig();
+  await r.settle();
+  const revealed = (name: string): boolean => slotAt(r, r.entry(name).id)?.querySelector('[data-panel-size-reveal]') != null;
+  assert.deepEqual([revealed('b'), revealed('c')], [false, false], 'before: both reflow');
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ resize: 'reveal' }))), { now: ['resize'], later: [], shadowed: [] });
+  assert.deepEqual([revealed('b'), revealed('c')], [true, false], 'after, in that commit: only b reveals');
 });
 
 test('matrix:layer', async () => {
@@ -1673,13 +1683,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'resize', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused'];
 
-test('the probes ran every catalog name once: 57 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 58 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 57);
-  assert.equal(probesExecuted().size, 57);
+  assert.equal(CATALOG_NAMES.length, 58);
+  assert.equal(probesExecuted().size, 58);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

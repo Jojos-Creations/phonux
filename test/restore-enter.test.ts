@@ -65,7 +65,7 @@ function restoring(all: readonly PanelWindow[]): { workspace: WorkspaceHandle; s
 const rowOf = (workspace: WorkspaceHandle, entries: PanelWindow[]): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, workspace }));
 
-const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector(`[data-slot="${id}"]`)!.parentElement!;
+const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector(`[data-slot="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const xOf = (container: HTMLElement, id: string): number => {
   const match = /translateX\((-?[\d.]+)px\)/.exec(slotOf(container, id).style.transform);
   return match === null ? 0 : Number(match[1]);

@@ -97,6 +97,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   overflow: ['scroll', 'park'],
   revealOnScroll: ['edges', 'any', 'never'],
   edgeHold: ['off', 'left', 'right', 'both'],
+  resize: ['reveal', 'reflow'],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],
@@ -163,7 +164,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 57 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 58 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());

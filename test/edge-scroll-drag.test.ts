@@ -505,7 +505,7 @@ test('the last panel dragged to the right edge is drawn no further than the row 
 test('held at the right edge the row previews exactly the hops the release then reports, scroll distance included', async () => {
   const m = mountEdgeRow();
   const slotX = (id: string): number => {
-    const slot = handleOf(m, id).closest<HTMLElement>('[data-drag-to-close]')!.parentElement!;
+    const slot = handleOf(m, id).closest<HTMLElement>('[data-drag-to-close]')!.closest<HTMLElement>('[data-row-slot]')!;
     return Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
   };
   const ids = Array.from({ length: 9 }, (_, k) => `s${k + 2}`);

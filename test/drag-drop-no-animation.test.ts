@@ -56,7 +56,7 @@ function View({ id }: { id: string }): React.ReactElement {
 registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
 const boxOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!;
-const slotOf = (container: HTMLElement, id: string): HTMLElement => boxOf(container, id).parentElement!;
+const slotOf = (container: HTMLElement, id: string): HTMLElement => boxOf(container, id).closest<HTMLElement>('[data-row-slot]')!;
 const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));
 const boxX = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(boxOf(container, id).style.transform)?.[1] ?? 0);
 const SPAN = 406;

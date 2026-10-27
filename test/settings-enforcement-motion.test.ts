@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the motion settings it owns: layer and enterFrom. One
+ * The engine's reading of the motion settings it owns: layer, enterFrom and resize. One
  * differential per name through a mounted PanelRow, then literal rows for each precedence the catalog states. Entries
  * are built the way a creation path builds them: appendPanel's skeleton, then applyTemplate over a resolved layer.
  * Slot positions are read from the transform each slot carries right after a render, before any frame has run.
@@ -20,7 +20,7 @@ import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } f
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['layer', 'enterFrom'];
+const OWNED = ['layer', 'enterFrom', 'resize'];
 const SPAN = 390 + GAP;
 
 registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
@@ -64,7 +64,7 @@ const row = (entries: PanelWindow[], p: Props = {}, workspace?: WorkspaceHandle)
       enterSideById: p.sides ?? new Map(),
     }),
   );
-const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.parentElement ?? null;
+const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axis = (slot: HTMLElement, name: 'X' | 'Y'): number => {
   const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slot.style.transform);
   return match === null ? 0 : Number(match[1]);
@@ -203,6 +203,19 @@ test('differential layer: the resolved layer decides the slot stacking', () => {
 test('differential enterFrom: the resolved setting decides which side a new slot starts from', () => {
   differential('enterFrom', (run) => {
     for (const value of ['left', 'right'] as const) run(value, () => enterX({ enterFrom: value }));
+  });
+});
+
+test('differential resize: the resolved setting decides whether the row\'s size box reveals the content or reflows it', () => {
+  differential('resize', (run) => {
+    for (const value of ['reveal', 'reflow'] as const) {
+      run(value, () => {
+        const mounted = mount(row([rootEntry(), made('b', { resize: value })]));
+        const revealed = slotOf(mounted.container, 'b')!.querySelector('[data-panel-size-reveal]') !== null;
+        mounted.unmount();
+        return revealed;
+      });
+    }
   });
 });
 

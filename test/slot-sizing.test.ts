@@ -46,7 +46,7 @@ const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning, available = 0, 
   React.createElement(RowHeightContext.Provider, { value: available }, withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, maxLiveWidth, ...(tuning === undefined ? {} : { seed: { tuning } }) })));
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
-  const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+  const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
   return slot as HTMLElement;
 };
