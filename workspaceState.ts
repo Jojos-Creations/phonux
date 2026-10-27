@@ -308,7 +308,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
           if (p.applied !== undefined) extras.applied = { placeOnAdd: p.applied.placeOnAdd };
           if (!p.settings.closable) extras.closable = false;
         }
-        const savedSlots = p.restoreSlots ?? p.slots;
+        const savedSlots = p.savedSlots ?? p.slots;
         return {
           ...(p.uid !== undefined ? { uid: p.uid } : {}),
           view: p.view,
@@ -326,7 +326,7 @@ export function projectWorkspaceState(panels: readonly PanelWindow[], rootId: st
       }),
     ...(dismissed.length > 0 ? { dismissed: [...dismissed] } : {}),
     ...(root?.settings !== undefined && root.key !== undefined ? { root: root.key } : {}),
-    ...(root !== undefined && (root.restoreSlots ?? slotsOf(root)) > 1 ? { rootSlots: root.restoreSlots ?? slotsOf(root) } : {}),
+    ...(root !== undefined && (root.savedSlots ?? slotsOf(root)) > 1 ? { rootSlots: root.savedSlots ?? slotsOf(root) } : {}),
     ...(scroll !== undefined ? { scroll: { panel: nameOf(scroll.panel), offset: scroll.offset } } : {}),
   };
 }

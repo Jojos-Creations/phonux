@@ -1073,7 +1073,7 @@ test('matrix:tuning.shrinkUnfocused', async () => {
   const r = await matrixRig();
   await r.settle();
   const press = (id: string): void => r.turn(() => void r.slot(id)!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
-  const widths = (id: string): unknown[] => [r.entry(id).slots, r.entry(id).restoreSlots];
+  const widths = (id: string): unknown[] => [r.entry(id).slots, r.entry(id).savedSlots];
   r.turn(() => r.h.b!.setSlots(2, 'person'));
   press('c');
   assert.deepEqual(widths('b'), [2, undefined], 'control: off by default, b stays two wide while c is active');

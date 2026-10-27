@@ -654,7 +654,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const grown = new Map(panels.filter((p) => p.id !== except && p.marker !== true && slotsOf(p) > 1).map((p) => [p.id, slotsOf(p)]));
     if (grown.size === 0) return;
     for (const id of grown.keys()) resizePanel(id, 1, false);
-    setPanels((prev) => prev.map((p) => (grown.has(p.id) && slotsOf(p) === 1 ? { ...p, restoreSlots: grown.get(p.id)! } : p)));
+    setPanels((prev) => prev.map((p) => (grown.has(p.id) && slotsOf(p) === 1 ? { ...p, savedSlots: grown.get(p.id)! } : p)));
     // A wide panel shrinks toward its left edge, which may be past the window's: the row glides with it so it rests in view.
     const el = i.overflowContainerRef.current;
     if (!keepInView || el === null) return;
@@ -670,14 +670,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Read even with the tuning off, so turning it off never leaves a panel stuck at one phone.
   // A panel back at its width is centered as near as the row allows, a frame later for the same reason as the rest above.
   const restoreWidth = (id: string): boolean => {
-    const width = panels.find((p) => p.id === id)?.restoreSlots;
+    const width = panels.find((p) => p.id === id)?.savedSlots;
     if (width === undefined) return false;
     if (resizePanel(id, width, false)) {
       i.onPanelResize?.();
       requestAnimationFrame(() => requestOpen(id, { align: 'center', forced: true }));
       return true;
     }
-    setPanels((prev) => prev.map((p) => (p.id === id ? { ...p, restoreSlots: undefined } : p)));
+    setPanels((prev) => prev.map((p) => (p.id === id ? { ...p, savedSlots: undefined } : p)));
     return false;
   };
   useLayoutEffect(() => {

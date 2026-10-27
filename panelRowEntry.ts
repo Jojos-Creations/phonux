@@ -53,9 +53,10 @@ export interface NeighborWidths {
  * function, so no view ever sees a layout field; `slots` is forwarded and the row adds the drawn `size`.
  * @internal
  */
-export const summarisePanel = ({ id, key, url, title, live, params, slots, settings }: PanelRowEntry): PanelSummary => ({
+export const summarisePanel = ({ id, key, url, title, live, params, slots, savedSlots, settings }: PanelRowEntry): PanelSummary => ({
   id: key ?? id, url, title, live, params,
   // Absent, not undefined, when the record lacks them: a summary never lists a key its record never had.
   ...(slots !== undefined ? { slots } : {}),
+  ...(savedSlots !== undefined ? { savedSlots } : {}),
   ...(settings !== undefined ? { maxSlots: settings.maxSlots } : {}),
 });

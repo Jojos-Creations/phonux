@@ -24,7 +24,7 @@ const rig = async (shrinkUnfocused = true): Promise<MatrixRig> => {
   return r;
 };
 const press = (r: MatrixRig, id: string): void => r.turn(() => void r.slot(id)!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
-const widths = (r: MatrixRig, id: string): unknown[] => [r.entry(id).slots, r.entry(id).restoreSlots];
+const widths = (r: MatrixRig, id: string): unknown[] => [r.entry(id).slots, r.entry(id).savedSlots];
 
 test('moving the row rests every wide panel at one phone, the active one too, and a press brings it back', async () => {
   const r = await rig();
@@ -58,6 +58,18 @@ test('the saved file keeps the width a resting panel goes back to', async () => 
   assert.deepEqual(widths(r, 'b'), [1, 2]);
   const saved = projectWorkspaceState(r.provided().entries, r.ws.rootId);
   assert.deepEqual(saved.panels.map((p) => p.slots), [undefined, 2, undefined], 'b is saved two wide while it rests at one');
+});
+
+test('a view reads the width a resting panel goes back to on its summary, and nothing once it is back', async () => {
+  const r = await rig();
+  const summary = () => r.provided().panelList.find((s) => s.id === r.entry('b').key)!;
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  press(r, 'b');
+  assert.deepEqual([summary().slots, 'savedSlots' in summary()], [2, false], 'control: in use, no saved width is listed');
+  press(r, 'a');
+  assert.deepEqual([summary().slots, summary().savedSlots], [1, 2]);
+  press(r, 'b');
+  assert.deepEqual([summary().slots, 'savedSlots' in summary()], [2, false]);
 });
 
 test('a width set while a panel rests replaces the one it goes back to', async () => {

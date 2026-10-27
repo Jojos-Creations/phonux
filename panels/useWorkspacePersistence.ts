@@ -49,7 +49,7 @@ export function useWorkspacePersistence(i: {
   onError?: (e: unknown) => void;
   /** True for a workspace: the declared panels are created at mount even with no storage, and the restore settles after them. Read once, at mount. */
   replay?: boolean;
-  /** Read when a restore lands: true starts every restored panel wider than one phone at one phone, keeping its saved width in `restoreSlots`. */
+  /** Read when a restore lands: true starts every restored panel wider than one phone at one phone, keeping its saved width in `savedSlots`. */
   restAtPhone?: () => boolean;
 }): {
   restoreSettled: boolean;
@@ -165,7 +165,7 @@ export function useWorkspacePersistence(i: {
       setScroll(mark ?? null);
       // Appended after what is already there, so a panel created while load() was pending survives. The root's saved size goes through setSlots, so a root that cannot resize ignores it.
       const adopt = adoptedUids.current;
-      const resting = i.restAtPhone?.() === true ? restored.map((p) => (slotsOf(p) > 1 ? { ...p, slots: 1, restoreSlots: slotsOf(p) } : p)) : restored;
+      const resting = i.restAtPhone?.() === true ? restored.map((p) => (slotsOf(p) > 1 ? { ...p, slots: 1, savedSlots: slotsOf(p) } : p)) : restored;
       if (resting.length > 0 || rootSlots !== undefined || adopt.size > 0) {
         setPanels((prev) => {
           const adoptedRow = adopt.size === 0 ? prev : prev.map((p) => (adopt.has(p.id) ? { ...p, uid: adopt.get(p.id)! } : p));

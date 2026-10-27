@@ -82,6 +82,8 @@ export interface PanelSummary<P = JsonValue> {
   readonly slots?: number;
   /** The most slots the panel may take. */
   readonly maxSlots?: number;
+  /** The width a panel resting at one phone (`tuning.shrinkUnfocused`) goes back to when it is next active, while it rests; absent otherwise. A panel's own size is `savedSlots ?? slots`. */
+  readonly savedSlots?: number;
   /** The slots the row draws the panel at now: `slots` capped at what fits the window. A summary a view receives from the row carries it. */
   readonly drawnSlots?: number;
   /** The most slots that fit the window now, at the row's gap: what a resize control may offer, whatever `maxSlots` allows. A summary a view receives from the row carries it. */

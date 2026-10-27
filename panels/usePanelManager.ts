@@ -606,7 +606,7 @@ export function usePanelManager(
       // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
       // A width set now replaces the one a panel resting at one phone would go back to.
-      const settled = settledKeeping(own, keep).map((p) => (p.id === id && p.restoreSlots !== undefined ? { ...p, restoreSlots: undefined } : p));
+      const settled = settledKeeping(own, keep).map((p) => (p.id === id && p.savedSlots !== undefined ? { ...p, savedSlots: undefined } : p));
       return record ? recordOverride(settled, 'slots', [id], rootId) : settled;
     });
     return true;

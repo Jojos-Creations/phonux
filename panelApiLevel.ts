@@ -36,6 +36,7 @@ export const NEWEST_SHAPE: { readonly [K in keyof NewestViewProps]-?: ShapeOf<Ne
     params: { kind: 'any', optional: true },
     slots: { kind: 'number', optional: true },
     maxSlots: { kind: 'number', optional: true },
+    savedSlots: { kind: 'number', optional: true },
     drawnSlots: { kind: 'number', optional: true },
     fitSlots: { kind: 'number', optional: true },
     size: { kind: 'object', optional: true },

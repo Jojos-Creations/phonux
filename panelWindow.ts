@@ -47,7 +47,7 @@ export interface PanelWindow {
   /** How many phone-panel widths wide this entry is set to. Absent on a hand-built entry, which reads as one slot. */
   slots?: number;
   /** The slot count a panel rested at one phone by `tuning.shrinkUnfocused` goes back to when it is next active; absent otherwise. Saved as its `slots`. */
-  restoreSlots?: number;
+  savedSlots?: number;
   /** The resolved settings this entry was created under, whose mirror fields (`collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`) were written from them. Absent for a hand-built entry. */
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */

@@ -976,6 +976,7 @@ export interface PanelSummary<P = JsonValue> {
     readonly live: boolean;
     readonly maxSlots?: number;
     readonly params?: P;
+    readonly savedSlots?: number;
     readonly size?: PanelSize;
     readonly slots?: number;
     readonly title?: string;
@@ -1034,7 +1035,7 @@ export interface PanelWindow {
         parkable?: boolean;
     };
     params?: JsonValue;
-    restoreSlots?: number;
+    savedSlots?: number;
     settings?: ResolvedPanelSettings;
     slots?: number;
     title?: string;

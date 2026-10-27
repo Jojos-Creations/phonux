@@ -403,6 +403,7 @@ export interface PanelSummary<P = JsonValue> {
     readonly live: boolean;
     readonly maxSlots?: number;
     readonly params?: P;
+    readonly savedSlots?: number;
     readonly size?: PanelSize;
     readonly slots?: number;
     readonly title?: string;
