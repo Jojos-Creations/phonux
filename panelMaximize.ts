@@ -187,14 +187,15 @@ function activeRoot(): Element | null {
 
 /**
  * Grows or shrinks one panel, for a host's keyboard shortcut: the panel that fills the window if one does, else the maximizable
- * panel holding `target`, else the active panel (the one last pressed or focused). False when none of them can be maximized or the
- * browser refused.
+ * panel holding `target`, else the active panel (the one last pressed or focused). True when it found such a panel, so the key is
+ * the host's to claim, even if the browser then refused (that panel's `onRefused` hears of it); false when there was none.
  * @public
  */
 export function toggleMaximize(target?: EventTarget | null): boolean {
   const root = panelRootOf(target ?? null) ?? panelRootOf(activeRoot());
   const panel = maximizedPanel() ?? (root === null ? undefined : maximizablePanels().find((candidate) => candidate.root() === root));
-  return panel?.toggle() ?? false;
+  panel?.toggle();
+  return panel !== undefined;
 }
 
 /**
@@ -215,10 +216,11 @@ export interface PanelMaximize {
  * back the same way (Reduce Motion jumps). While it fills the window, Escape shrinks it unless something inside already used the key,
  * and focus goes back to `anchor` on the way out. A panel unmounted while maximized goes back to its slot at once.
  *
- * `topInset` is the height of a bar the page keeps drawn along the window's top edge, which the panel stops below.
+ * `topInset` is the height of a bar the page keeps drawn along the window's top edge, which the panel stops below. `onRefused` is
+ * called when the browser refuses to lift the panel (no popover support), however the grow was asked for.
  * @public
  */
-export function usePanelMaximize(anchor: React.RefObject<HTMLElement | null>, options?: { readonly topInset?: () => number }): PanelMaximize {
+export function usePanelMaximize(anchor: React.RefObject<HTMLElement | null>, options?: { readonly topInset?: () => number; readonly onRefused?: () => void }): PanelMaximize {
   const systemReduced = useReducedMotion();
   const configReduced = useReducedMotionConfig();
   const tuning = usePanelTuning();
@@ -227,6 +229,8 @@ export function usePanelMaximize(anchor: React.RefObject<HTMLElement | null>, op
   timing.current = systemReduced === true || configReduced === true ? null : slideToTransition(tuning.slide);
   const topInset = React.useRef(options?.topInset);
   topInset.current = options?.topInset;
+  const onRefused = React.useRef(options?.onRefused);
+  onRefused.current = options?.onRefused;
   const [phase, setPhase] = React.useState<MaximizePhase>('home');
   const maximizer = React.useRef<Maximizer | null>(null);
   const maximized = phase === 'growing' || phase === 'maximized';
@@ -272,6 +276,7 @@ export function usePanelMaximize(anchor: React.RefObject<HTMLElement | null>, op
       else maximizer.current.grow();
       return true;
     } catch {
+      onRefused.current?.();
       return false;
     }
   };

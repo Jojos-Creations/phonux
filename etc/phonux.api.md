@@ -1652,6 +1652,7 @@ export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
 // @public
 export function usePanelMaximize(anchor: React_2.RefObject<HTMLElement | null>, options?: {
     readonly topInset?: () => number;
+    readonly onRefused?: () => void;
 }): PanelMaximize;
 
 // @public
