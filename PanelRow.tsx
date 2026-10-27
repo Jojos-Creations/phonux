@@ -59,10 +59,12 @@ export function enterDirectionOf(from: EnterFrom, anchoredEnter: boolean, mark: 
 
 /**
  * How an entry leaves. The panel's own `exitTo` wins over the workspace's `tuning.defaultExitTo` unless it is 'auto'; when
- * both are 'auto' a close drops down on the close timing and a park leaves by the side the row marked, else the left.
+ * both are 'auto' a close drops down on the close timing and a park leaves by the side the row marked, else the left. A
+ * 'shrink' park shrinks toward that same side; a 'shrink' close shrinks into its center.
  */
 export function exitStyleOf(own: ExitTo, workspace: ExitTo, closing: boolean, parkRight: boolean): SlotExit {
   const chosen = own === 'auto' ? workspace : own;
+  if (chosen === 'shrink' && !closing) return parkRight ? 'shrink-right' : 'shrink-left';
   if (chosen !== 'auto') return chosen;
   return closing ? FIXED.closeExit : parkRight ? 'right' : 'left';
 }

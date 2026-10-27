@@ -94,8 +94,9 @@ export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' 
  * How a panel leaves the row, when it parks and when it closes. 'auto' takes the workspace's `tuning.defaultExitTo`, whose own
  * 'auto' parks off the side the row picks and closes downward along `slide.closeExitSeconds` and `slide.closeExitEase`.
  * 'left', 'right', 'top' and 'bottom' slide out to that side, 'fade' fades out where it rests, and 'shrink' scales
- * the panel down to its center point, width and height together, while its neighbours close up; the center keeps to
- * where they meet, so in a centered row it holds still. Those take the workspace's `slide` timing.
+ * the panel down, width and height together, while its neighbours close up: a close shrinks to its center point, which
+ * keeps to where they meet, and a park shrinks into the edge on the side it leaves by, which holds still. Those take the
+ * workspace's `slide` timing.
  * @public
  */
 export type ExitTo = 'auto' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';

@@ -1,7 +1,7 @@
 /**
  * Every entrance and exit style a panel may take: the cascade from the panel's own `enterFrom` and `exitTo` to the
  * workspace's `tuning.defaultEnterFrom` and `tuning.defaultExitTo`, the slot values each style starts from and leaves to,
- * and the scale an `expand` grows about its center and a `shrink` takes about its right edge, read from the slot's own style through a mounted PanelRow.
+ * and the scale an `expand` grows about its center and a `shrink` takes about its center (a close) or the edge it parks toward, read from the slot's own style through a mounted PanelRow.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -112,11 +112,16 @@ test('enterDirectionOf: the panel wins unless auto, the workspace default applie
 });
 
 test("exitStyleOf: the panel wins unless auto, the workspace default applies at auto, and both auto keep today's park and close", () => {
-  for (const style of ['left', 'right', 'top', 'bottom', 'fade', 'shrink'] as const) {
+  for (const style of ['left', 'right', 'top', 'bottom', 'fade'] as const) {
     assert.equal(exitStyleOf(style, 'auto', true, false), style, `an explicit ${style} governs a close`);
     assert.equal(exitStyleOf(style, 'auto', false, true), style, `and a park`);
     assert.equal(exitStyleOf('auto', style, false, false), style, `a workspace ${style} applies to a panel at auto`);
   }
+  assert.deepEqual(
+    [exitStyleOf('shrink', 'auto', true, true), exitStyleOf('shrink', 'auto', false, true), exitStyleOf('shrink', 'auto', false, false), exitStyleOf('auto', 'shrink', false, true)],
+    ['shrink', 'shrink-right', 'shrink-left', 'shrink-right'],
+    'shrink: a close shrinks into its center, a park toward the side it leaves by, from the panel or the workspace',
+  );
   assert.equal(exitStyleOf('fade', 'shrink', false, false), 'fade', "the panel's own value wins over the workspace's");
   assert.equal(exitStyleOf('auto', 'auto', true, true), 'down', 'both auto: a close drops down');
   assert.equal(exitStyleOf('auto', 'auto', false, true), 'right', 'both auto: a park leaves by its mark');
@@ -141,10 +146,12 @@ test('entrances: top and bottom start one row height off at the rest, fade start
 
 test('exits: top and bottom slide out one row height from the rest, fade fades at the rest and shrink scales to 0 on the slide timing, and auto keeps the close timing', () => {
   const at = (exit: 'top' | 'bottom' | 'fade' | 'shrink' | 'down') => panelRowSlotMotion(REST, WIDTH, 700, 'right', exit).exit;
+  const at2 = (exit: 'shrink-left' | 'shrink-right') => panelRowSlotMotion(REST, WIDTH, 700, 'right', exit).exit;
   assert.deepEqual(at('top'), { x: REST, y: -700, opacity: 0 });
   assert.deepEqual(at('bottom'), { x: REST, y: 700, opacity: 0 });
   assert.deepEqual(at('fade'), { x: REST, opacity: 0 });
-  assert.deepEqual(at('shrink'), { x: REST, scale: 0, opacity: 0 }, 'shrink stays at its rest, scaling into its right edge');
+  assert.deepEqual(at('shrink'), { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'a close shrink keeps its center where the neighbours meet');
+  assert.deepEqual([at2('shrink-left'), at2('shrink-right')], [{ x: REST, scale: 0, opacity: 0 }, { x: REST, scale: 0, opacity: 0 }], 'a park shrink stays at its rest, scaling into an edge');
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
 });
 
@@ -213,7 +220,7 @@ test('expand: the growing slot starts in the same commit as the neighbours parti
   }
 });
 
-test('shrink: a leaving slot scales to 0 about its right edge, which stays put, drawn over the neighbour closing up, and keeps its width', async () => {
+test('shrink: a slot parked to the left scales to 0 about its left edge, which stays put, drawn over the neighbour closing up, and keeps its width', async () => {
   const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), made('c')];
   const workspace = settledWorkspace(base);
   const mounted = mount(row(base, workspace));
@@ -224,9 +231,9 @@ test('shrink: a leaving slot scales to 0 about its right edge, which stays put, 
   assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-shrink (scale ${scaleOf(b)})`);
   assert.equal(widthOf(b), WIDTH, 'its box keeps its full width');
   assert.equal(b.style.overflowX, '', 'and is never clipped');
-  assert.match(b.style.transformOrigin, /^100% 50%/, `it scales about its right edge (${b.style.transformOrigin})`);
+  assert.match(b.style.transformOrigin, /^0% 50%/, `it scales about its left edge (${b.style.transformOrigin})`);
   assert.ok(axis(c, 'X') > REST && axis(c, 'X') < REST + SPAN, 'c is closing up');
-  assert.equal(axis(b, 'X'), REST, "b stays at its rest, so its right edge stays where it was");
+  assert.equal(axis(b, 'X'), REST, 'b stays at its rest, so its left edge stays where it was');
   assert.ok(Number(b.style.zIndex) > Number(c.style.zIndex), `b is drawn over c (${b.style.zIndex} over ${c.style.zIndex})`);
   mounted.unmount();
 });

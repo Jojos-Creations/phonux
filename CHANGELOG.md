@@ -11,7 +11,7 @@
 
 - A press outside every panel (between panels, or anywhere else on the page) leaves no panel active and moves keyboard focus out of the panel that had it, so keystrokes stop reaching it. With `tuning.shrinkUnfocused` on, the wide panel it leaves rests at one phone, kept in view.
 
-- `exitTo: 'shrink'` scales the panel down into its right edge, which stays where it was, drawn over the neighbor closing up from the right, so the panel shrinks away in front of it. It used to scale about its center. `expand` is unchanged.
+- `exitTo: 'shrink'` on a park now shrinks the panel into the edge on the side it leaves by, and a close still shrinks it into its center. Either way it is drawn over the neighbors closing up, so it shrinks away in front of them. `expand` is unchanged.
 
 - `tuning.shrinkUnfocused` (boolean, default false): a panel wider than one phone rests at one phone width while another panel is active and after the person scrolls the row, and goes back to its own width the next time a press or focus lands in it. `PanelWindow.savedSlots` holds that width while it rests, and `PanelSummary.savedSlots` shows it to views, and the workspace file saves it as the panel's `slots`. A launch starts every restored wide panel resting at one phone.
 - `usePanelSizeGlide()`: inside a `PanelSizeBox` (or the default frame's box), the box's size glide (`PanelSizeGlide`: `from` and `to` sizes) from the commit that starts it until it lands, and null at rest.

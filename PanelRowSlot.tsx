@@ -65,14 +65,14 @@ function slideStart(): number {
 export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expand';
 
 /**
- * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
- * scales it to 0 about its right edge, which stays where it was, drawn over the neighbour closing up from the right.
+ * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing. 'shrink' (a close)
+ * scales it to 0 about its center, and 'shrink-left' / 'shrink-right' (a park) about the edge on the side it leaves by.
  * @internal
  */
-export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
+export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink' | 'shrink-left' | 'shrink-right';
 
-/** The transform origin a 'shrink' exit scales about: the slot's right edge. */
-const SHRINK_ORIGIN_X = 1;
+/** The transform origin each shrink scales about, as a fraction of the slot's width. */
+const SHRINK_ORIGIN_X: Readonly<Partial<Record<SlotExit, number>>> = { shrink: 0.5, 'shrink-left': 0, 'shrink-right': 1 };
 
 /**
  * The pure values behind one PanelRowSlot render, split out so a test can assert exact motion
@@ -122,9 +122,12 @@ export function panelRowSlotMotion(
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
             : exitDirection === 'shrink'
-              ? // Scaled about its right edge (SHRINK_ORIGIN_X), which stays put: moving the slot would move the point it shrinks into.
-                { x: rest, scale: 0, opacity: 0 }
-              : { x: rest, opacity: 0 };
+              ? // The mirror of 'expand': half a span left keeps the center where the neighbours meet as they close up.
+                { x: rest - ownSpan / 2, scale: 0, opacity: 0 }
+              : exitDirection === 'shrink-left' || exitDirection === 'shrink-right'
+                ? // Stays at its rest: moving the slot would move the edge it shrinks into.
+                  { x: rest, scale: 0, opacity: 0 }
+                : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
 }
 
@@ -277,8 +280,9 @@ export function PanelRowSlot({
   restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
-  // A shrink stays where it was while the neighbour closes up under it, so it is drawn on top to be seen shrinking away.
-  const shrinking = !present && exitDirection === 'shrink';
+  // Neighbours close up over a shrinking slot, so it is drawn on top to be seen shrinking away.
+  const shrinkOrigin = present ? undefined : SHRINK_ORIGIN_X[exitDirection];
+  const shrinking = shrinkOrigin !== undefined;
   // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
   // shrink and the neighbours closing up over it count from the same moment however late the commit runs.
   if (shrinking) startable.startTime = slideStart();
@@ -382,7 +386,7 @@ export function PanelRowSlot({
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
         zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : shrinking ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED) : (zIndex ?? 0),
-        ...(shrinking ? { originX: SHRINK_ORIGIN_X } : {}),
+        ...(shrinking ? { originX: shrinkOrigin } : {}),
       }}
     >
       {framed && <TabSentinel end={false} />}
