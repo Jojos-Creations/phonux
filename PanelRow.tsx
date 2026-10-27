@@ -398,10 +398,12 @@ export function PanelRow({
     const stripStart = rowNumbers?.stripStart ?? 0;
     // A right hold's group starts where the strip's row box ends (the row box is the strip's first item).
     const spacer = h !== undefined ? (h.side === 'left' ? h.offset : stripStart + reservedWidth + gapSpan + h.offset) : stuckAt !== undefined ? stripStart + rest.leftOffset : 0;
+    const summary = renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow);
     return (
       <PanelSlotContext.Provider
         key={p.id}
         value={{
+          summary,
           collapsible: p.collapsible,
           closable,
           movable: movable && !held,
@@ -456,7 +458,7 @@ export function PanelRow({
           {/* Every panel resizes through this one box, so a view that draws a bare Panel glides like any other. */}
           <SizeBox reveal={resize === 'reveal'}>
             <useViewState.Provider value={panelKey(p)}>
-              <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
+              <Component panel={summary} />
             </useViewState.Provider>
           </SizeBox>
         </PanelRowSlot>

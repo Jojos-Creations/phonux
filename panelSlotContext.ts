@@ -3,6 +3,7 @@
  * PanelRow (PanelRow imports PanelRowSlot, which imports dragToClose: an import there would be a cycle).
  */
 import * as React from 'react';
+import type { PanelSummary } from './hostApi.js';
 import type { NeighborWidths } from './panelRowEntry.js';
 import type { GlideEase, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
@@ -59,6 +60,8 @@ export interface HeaderButtonsSlot {
 export interface PanelSlotValue {
   /** The panel's id. Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly id?: string | undefined;
+  /** The summary the row hands the panel's view, so the panel's own controls read the widths it offers. Absent outside a row. */
+  readonly summary?: PanelSummary | undefined;
   /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
   readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;

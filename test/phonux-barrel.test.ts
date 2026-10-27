@@ -50,6 +50,7 @@ const VALUE_EXPORTS = [
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
+  'PanelSizeControl',
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderSteps',

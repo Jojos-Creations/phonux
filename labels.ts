@@ -80,7 +80,19 @@ export interface PhonuxLabels {
   workspaceEmpty: string;
   /** Shown in a workspace grid when the search matches no panel. Default `No panels match.`. */
   workspaceNoMatches: string;
+  /** The name of a panel's width control and of the group of widths it opens. Default `View Size`. */
+  viewSize: string;
+  /** The name of the width that is `slots` phones wide. Default `Phone`, `Fold`, `Tablet`, `Desktop`, `Ultrawide`, then `<slots> phones`. */
+  sizeName: (slots: number) => string;
+  /** The name of the width control's entry that grows the panel to fill the window. Default `Fullscreen`. */
+  fullscreen: string;
+  /** Said when a width picked in the width control was refused. Default `Could not resize this panel`. */
+  couldNotResize: string;
+  /** Said when the browser refused to grow the panel to fill the window. Default `Could not make this panel fullscreen`. */
+  couldNotFullscreen: string;
 }
+
+const SIZE_NAMES = ['Phone', 'Fold', 'Tablet', 'Desktop', 'Ultrawide'] as const;
 
 /** The English text every label takes when a host overrides none. @public */
 export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
@@ -122,6 +134,11 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   workspaceUntitled: 'Untitled',
   workspaceEmpty: 'No panels yet.',
   workspaceNoMatches: 'No panels match.',
+  viewSize: 'View Size',
+  sizeName: (slots) => SIZE_NAMES[slots - 1] ?? `${slots} phones`,
+  fullscreen: 'Fullscreen',
+  couldNotResize: 'Could not resize this panel',
+  couldNotFullscreen: 'Could not make this panel fullscreen',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

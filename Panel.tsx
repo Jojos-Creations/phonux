@@ -17,6 +17,7 @@ import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { PANEL_ROOT_ATTRIBUTE } from './rowDom.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
+import { PanelSizeControl, drawsSizeControl } from './panelSizeControl.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import { GRAB_HANDLE_PX } from './rowConstants.js';
@@ -64,6 +65,11 @@ export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'titl
    * `usePanelHeaderButtons` or `PanelHeaderButtons` still can. Default: they are drawn with the title.
    */
   headerButtons?: boolean;
+  /**
+   * `false` keeps the library's width control (`PanelSizeControl`) out of the header, for a view that places it itself among
+   * its own `actions`. Default: a resizable panel with a title shows it first among the actions.
+   */
+  sizeControl?: boolean;
   /** Extra styles for the panel's root box, merged over the width and positioning it sets itself. */
   sx?: CssStyle;
   /** The panel's content, rendered inside the root box below the header. */
@@ -84,7 +90,7 @@ export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'titl
  * optional header above it, an optional grab handle and an optional overlay.
  * @public
  */
-export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
+export function Panel({ title, actions, headerProps, headerButtons = true, sizeControl = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const phoneSize = usePhoneSize();
   useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
@@ -96,6 +102,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
   const buttons = usePanelHeaderButtons();
   const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
   const untitled = headerButtons && declared !== undefined && title === undefined && buttons.some((b) => !b.hidden);
+  const sized = sizeControl && title !== undefined && drawsSizeControl(slot);
   const active = usePanelActive();
   const dragging = usePanelDragging();
   const { visible, handlers } = useChromeVisibility();
@@ -160,10 +167,11 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
           ref={fadeHeader}
           {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.header }}
           title={title}
-          actions={drawn ? (
+          actions={drawn || sized ? (
             <>
+              {sized ? <PanelSizeControl /> : null}
               {actions}
-              <PanelHeaderButtons side="end" />
+              {drawn ? <PanelHeaderButtons side="end" /> : null}
             </>
           ) : actions}
           {...headerProps}
