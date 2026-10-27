@@ -695,10 +695,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return false;
   };
   useLayoutEffect(() => {
-    core.bindTouch((id) => {
+    core.bindTouch((id, control) => {
       touchPanel(id);
+      // A header button acts on the panel as it is drawn (a close must not grow it first), so only its content brings the width back.
       // The centering of the panel in use wins over keeping the one it leaves in view.
-      restAtPhone(id, !restoreWidth(id));
+      restAtPhone(id, control || !restoreWidth(id));
     });
     return () => core.bindTouch(undefined);
   });

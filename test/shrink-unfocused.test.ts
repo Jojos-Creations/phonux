@@ -40,6 +40,22 @@ test('moving the row rests every wide panel at one phone, the active one too, an
   assert.deepEqual([widths(r, 'b'), widths(r, 'c')], [[1, 2], [3, undefined]], 'c active again is three wide; b still rests');
 });
 
+test("a press on a resting panel's own header button keeps it at one phone; a press on its content brings it back", async () => {
+  const r = await rig();
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  press(r, 'a');
+  assert.deepEqual(widths(r, 'b'), [1, 2], 'control: b rests');
+  const header = document.createElement('div');
+  header.setAttribute('data-panel-chrome-part', 'header');
+  const close = header.appendChild(document.createElement('button'));
+  r.slot('b')!.appendChild(header);
+  r.turn(() => void close.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
+  r.turn(() => close.focus());
+  assert.deepEqual(widths(r, 'b'), [1, 2], 'a close or size button acts on the panel as drawn, without growing it first');
+  press(r, 'b');
+  assert.deepEqual(widths(r, 'b'), [2, undefined]);
+});
+
 test('a press outside every panel rests the wide panel in use', async () => {
   const r = await rig();
   r.turn(() => r.h.b!.setSlots(2, 'person'));

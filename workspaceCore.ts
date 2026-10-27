@@ -266,10 +266,10 @@ export interface EngineBinding {
   reportNote(note: SettingNote): void;
   /** The attached hook binds (or, with undefined, unbinds) where runtime notes go. */
   bindNotes(sink: ((note: SettingNote) => void) | undefined): void;
-  /** The row tells the workspace the panel drawn under `engineId` was just focused or pressed; the attached hook counts that as a touch. Ignored while no hook is bound. */
-  touch(engineId: string): void;
+  /** The row tells the workspace the panel drawn under `engineId` was just focused or pressed, `control` when on its chrome's own controls; the attached hook counts that as a touch. Ignored while no hook is bound. */
+  touch(engineId: string, control?: boolean): void;
   /** The attached hook binds (or, with undefined, unbinds) where touches go. */
-  bindTouch(sink: ((engineId: string) => void) | undefined): void;
+  bindTouch(sink: ((engineId: string, control: boolean) => void) | undefined): void;
   /** The row tells the workspace a press landed outside every panel, so no panel is in use; ignored while no hook is bound. */
   blur(): void;
   /** The attached hook binds (or, with undefined, unbinds) what such a press runs. */
@@ -486,7 +486,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
-  let touchSink: ((engineId: string) => void) | undefined;
+  let touchSink: ((engineId: string, control: boolean) => void) | undefined;
   let blurSink: (() => void) | undefined;
   let cycleSink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined;
   const notesBeforeSink: SettingNote[] = [];
@@ -1201,7 +1201,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         // A reporter that throws must not break the slot that raised the note.
       }
     },
-    touch: (engineId) => touchSink?.(engineId),
+    touch: (engineId, control = false) => touchSink?.(engineId, control),
     blur: () => blurSink?.(),
     bindBlur: (sink) => {
       blurSink = sink;
