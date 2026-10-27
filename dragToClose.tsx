@@ -15,6 +15,7 @@ import { resolveLabels } from './labels.js';
 import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { useInsideSizeBox } from './PanelRowSlot.js';
 import type { CssStyle } from './cssStyle.js';
 import type { DragToCloseTuning } from './panelSettings.js';
 import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, PREVIEW_OUT_PX, ROW_LAYER_Z, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
@@ -575,6 +576,7 @@ function DragToCloseBox({
   // Set once the first `DIRECTION_LOCK_PX` of movement decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
   const snapBack = DRAG_CLOSE.snapBack;
+  const boxed = useInsideSizeBox();
 
   // overflow-y: hidden while a drag is live: the transformed box would otherwise add a scrollbar.
   const lockScrollParents = () => {
@@ -934,7 +936,8 @@ function DragToCloseBox({
           draggable.setNodeRef(el);
         }}
         data-drag-to-close=""
-        style={reorder ? { x, y, translate: scrollTranslate } : { y }}
+        // Below a size box it fills the box, so a Panel inside it has a height to fill.
+        style={{ ...(reorder ? { x, y, translate: scrollTranslate } : { y }), ...(boxed ? { height: '100%' } : {}) }}
       >
         {children(handle)}
       </motion.div>
