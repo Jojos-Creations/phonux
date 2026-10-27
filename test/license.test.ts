@@ -44,7 +44,7 @@ test('THIRD_PARTY_NOTICES.md names DevExpress/device-specs and carries the MIT t
   assert.match(notices, /Permission is hereby granted, free of charge/);
 });
 
-test('the licence, README and notices text carries no placeholder or TODO', () => {
+test('the license, README and notices text carries no placeholder or TODO', () => {
   for (const name of ['LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md']) {
     assert.doesNotMatch(read(name), /placeholder|TODO/i, `${name} has placeholder text`);
   }
@@ -52,7 +52,7 @@ test('the licence, README and notices text carries no placeholder or TODO', () =
 
 test('the README tells a reader which versions are MIT, which are not, and where to ask about commercial use', () => {
   const readme = read('README.md');
-  assert.match(readme, /0\.1\.0 and 0\.2\.0-rc\.2 were published under the MIT licence/);
+  assert.match(readme, /0\.1\.0 and 0\.2\.0-rc\.2 were published under the MIT license/);
   assert.match(readme, /PolyForm Noncommercial/);
   assert.match(readme, /https:\/\/github\.com\/Jojos-Creations/);
 });

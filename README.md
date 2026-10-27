@@ -1,8 +1,9 @@
 # phonux
 
 A phone-shaped view host for React: write each view as a component, give phonux a template for it, and it lays the panels
-out in a scrolling row of phone-sized columns, with a title bar, drag to reorder and drag to close. A view never touches
-`localStorage` or anything else app-internal (see `DESIGN.md` in this folder for why).
+out in a row of phone-sized columns that steps one phone width at a time, each panel with a header, a width control and a grab
+bar (drag sideways to reorder, down to close; a touch never drags it). A view never touches `localStorage` or anything else
+app-internal (see `DESIGN.md` in this folder for why).
 
 ## Install
 
@@ -47,12 +48,30 @@ bottom of every panel made from it (it gets the same props as `view`, and scroll
 the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
 drag to close, reorder). Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
-Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `history`, `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
-component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => Theme` for its own MUI theme (the mount draws it with one `CssBaseline`; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
+Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
+component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
 A view unmounts when its panel parks or closes, so audio, a web view or a socket started inside a view stops with it. Start those in the `wrap` component instead, which stays mounted for the workspace's life, and let the panel render controls for them (see `DESIGN.md`, "A parked view unmounts").
+
+## The row
+
+The row is a strip of slots one phone width apart; a panel is a whole number of slots wide. The row steps one phone width per
+scroll step and rests with its whole slots centered in the window, at the ends too; a sideways wheel or Shift+wheel anywhere
+on the row steps it (Option held gives the gesture to the content), a vertical wheel goes to the content, and ArrowLeft and
+ArrowRight on the page step it (`stepRow(event, direction)` gives a host's own chord the same answer). A panel that no longer
+fits parks, and a scroll at the row's end brings a parked panel back. Motion follows one rule set: a new panel grows from its
+center, a closing one shrinks into its center, a parking one shrinks into the edge it leaves by and a returning one grows out of
+that edge, all on one 0.6 s in-out clock (`DESIGN.md`, "Motion").
+
+Where a new panel lands is the template's `placeOnAdd` (default: the far right, the leftmost panel in view leaving when there is
+no room) or the caller's `addPanel(template, { place })` function, which picks the slot among the panels in view, what the
+panel there does (shift left, shift right or close) and the entrance. `usePanelDots` gives a host the dots and the oval of a
+dot bar in place of a scrollbar, parked panels included; `usePanelMaximize` and `toggleMaximize` grow a panel to fill the window;
+`whenAccepted`, `whenPanel`, `showPanels` and `whenColumnReady` wait on the row instead of a timer; `rowDom.ts` exports the
+`data-*` attribute names the library draws; `useRowFrameBand`, `PANEL_BAR_HEIGHT_PX`, `PANEL_FOOTER_ROOM_PX` and
+`rowFootReserve` give a host the numbers to lay its page out around the row. Each has a section in `DESIGN.md`.
 
 ## Several workspaces
 
@@ -68,7 +87,7 @@ column.addWorkspace({ name: 'Reading' }); // or give it a name
 column.removeWorkspace(0); // takes it out and disposes it; false for the last one
 ```
 
-The column renders itself. A button at the top and bottom centre names the neighbour and moves there, `column.step('up' | 'down')`
+The column renders itself. A button at the top and bottom center names the neighbor and moves there, `column.step('up' | 'down')`
 moves by one (bind a key to it; the column binds none), and where there is none it reads "Create new workspace" and calls
 `addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
 workspace; the column has one content (`root`, `templates`, `defaults`, `order`), `addWorkspace` takes only `id`, `name` and `index`, and a
@@ -148,7 +167,7 @@ A panel is a whole number of slots wide: one slot is the phone width, and each a
 `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE`, and the part values as `CHROME_PARTS`, so a host imports them and repeats no string. `tuning.chrome` with `mode: 'hover-or-active'` fades
 those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "Panel chrome").
 
-A stepping row shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
+A stepping row shows the neighbor at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
 end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
@@ -198,9 +217,9 @@ panel-view registry, and what stays out of a view's reach on purpose.
 
 ## License
 
-phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid licence. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
+phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
 
-Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT licence and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
+Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 
 `npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on). `npm run phone:webkit` runs the iPhone profile in WebKit, which needs WebKit installed; `PHONE_PROJECTS` picks any set of them.
 
