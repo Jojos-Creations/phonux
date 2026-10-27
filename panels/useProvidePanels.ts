@@ -648,7 +648,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return () => core.bindNotes(undefined);
   });
   // tuning.shrinkUnfocused: every panel wider than one phone but `except` rests at one phone, and keeps the width it goes back to.
-  const restAtPhone = (except: string | null): void => {
+  // A move of the row picks its own rest; a blur keeps the panel it shrinks in view.
+  const restAtPhone = (except: string | null, keepInView = except !== null): void => {
     if (!tuning.shrinkUnfocused) return;
     const grown = new Map(panels.filter((p) => p.id !== except && p.marker !== true && slotsOf(p) > 1).map((p) => [p.id, slotsOf(p)]));
     if (grown.size === 0) return;
@@ -656,7 +657,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     setPanels((prev) => prev.map((p) => (grown.has(p.id) && slotsOf(p) === 1 ? { ...p, restoreSlots: grown.get(p.id)! } : p)));
     // A wide panel shrinks toward its left edge, which may be past the window's: the row glides with it so it rests in view.
     const el = i.overflowContainerRef.current;
-    if (except === null || el === null) return;
+    if (!keepInView || el === null) return;
     const shown = [...grown.keys()].find((id) => {
       const k = rowNumbers.ids.indexOf(id);
       if (k < 0) return false;
@@ -682,6 +683,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       restAtPhone(id);
     });
     return () => core.bindTouch(undefined);
+  });
+  useLayoutEffect(() => {
+    core.bindBlur(() => restAtPhone(null, true));
+    return () => core.bindBlur(undefined);
   });
   useLayoutEffect(() => {
     core.bindCycle((direction, keepId) => scrollRow(direction, keepId));

@@ -88,6 +88,18 @@ export interface ChromeStore {
   engineOf(key: string): PanelId;
 }
 
+const PANEL_PRESSES = new WeakSet<Event>();
+
+/** Marks `event` as a press inside a panel; a portal a panel opens counts, since React carries its events through the panel. */
+export function markPanelPress(event: Event): void {
+  PANEL_PRESSES.add(event);
+}
+
+/** Whether `event` was marked by `markPanelPress`. */
+export function isPanelPress(event: Event): boolean {
+  return PANEL_PRESSES.has(event);
+}
+
 export function createChromeStore(): ChromeStore {
   let active: PanelId | null = null;
   let dragging: PanelId | null = null;
@@ -190,7 +202,7 @@ const NO_SUBSCRIBE = (): (() => void) => () => {};
 
 /**
  * The id (key) of the active panel and a setter that takes one: the panel the person last pressed or focused inside, until another
- * panel is used, or the one the host set. Outside a Workspace it is `[null, no-op]`.
+ * panel is used or a press lands outside every panel, or the one the host set. Outside a Workspace it is `[null, no-op]`.
  * @public
  */
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void] {
