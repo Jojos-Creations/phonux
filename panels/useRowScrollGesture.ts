@@ -41,6 +41,8 @@ function cancel(e: WheelEvent): void {
  * @param from - An element inside the row, usually the webview or iframe.
  * @param wheel - The wheel's deltas, `deltaMode` as `WheelEvent` reports it (0 pixels, 1 lines, 2 pages).
  * @returns True when the row took the wheel, so the content must not scroll by it.
+ *
+ * @public
  */
 export function feedRowWheel(from: Element, wheel: { deltaX: number; deltaY?: number; deltaMode?: number; shiftKey?: boolean; altKey?: boolean }): boolean {
   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, composed: true, deltaY: 0, deltaMode: 0, ...wheel });
