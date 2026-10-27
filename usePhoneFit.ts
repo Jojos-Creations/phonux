@@ -52,7 +52,7 @@ export interface PhoneFitResult {
  * height is as tall as the row's room, never shorter than the fit. A new fit is drawn only after the
  * container's width and height have held still for the resize settle (`tuning.resizeSettleSlides` slide durations), and at once
  * under Reduce Motion, so a window held at a breakpoint does not flip the count. `topInset` is the room the row leaves above
- * itself, as `Workspace`'s `topPadding`; omitted, the row gap; either way never less than a header's room unless `tuning.rowTop` is
+ * itself, as `Workspace`'s `topPadding`, and `bottomInset` the room under it, as its `bottomPadding`; omitted, the row gap; either way never less than a header's room unless `tuning.rowTop` is
  * set, which is taken as given. `containerWidth` is the measured width; pass the settled `containerWidth` and `heightBudget` this
  * returns on to the row.
  * Hand it a `tuning` that is the one the workspace is priced with (`ProvidedPanels.tuning`, or `WorkspaceHandle.tuning`).
@@ -64,12 +64,13 @@ export function usePhoneFit(
   preferred: { readonly width: number; readonly height: number },
   tuning: ResolvedWorkspaceTuning,
   topInset?: number,
+  bottomInset?: number,
 ): PhoneFitResult {
   const motionReduced = useReducedMotionConfig() === true;
   const osReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const reduced = motionReduced || osReduced;
   const on = tuning.phoneFit === 'fit';
-  const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset, tuning.rowTop, tuning.rowGap), rowBottomReservePx(tuning.rowGap));
+  const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset, tuning.rowTop, tuning.rowGap), rowBottomReservePx(tuning.rowGap, bottomInset));
   const settled = useSettledSize(containerWidth, budget, resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides), reduced);
   const previous = React.useRef<number | undefined>(undefined);
   const fit = on ? fitPhone({ windowWidth: settled.width, heightBudget: settled.height, rowCount: 1, preferred, gap: tuning.rowGap, edge: tuning.rowGap, min: tuning.phoneFitMin, max: tuning.phoneFitMax, ...(previous.current !== undefined ? { previousCount: previous.current } : {}) }) : undefined;

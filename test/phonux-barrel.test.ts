@@ -127,9 +127,18 @@ const VALUE_EXPORTS = [
   'whenAccepted',
   'whenColumnReady',
   'whenPanel',
+  // A column's bands and their default slots, for a host to replace, hide or add to by id.
+  'COLUMN_BAND_ATTRIBUTE',
+  'COLUMN_SLOT_ATTRIBUTE',
+  'columnBandRoom',
+  'DEFAULT_COLUMN_BANDS',
+  'NeighbourAboveSlot',
+  'NeighbourBelowSlot',
+  'WorkspaceNameSlot',
+  'withSlotChanges',
 ].sort();
 
-test('the phonux barrel exports exactly the 117 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 125 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

@@ -35,7 +35,12 @@ const openWith = async (place: PlaceOpen | undefined) => {
   assert.equal(r.row(), 'root w1* w2* w3 w4 w5');
   let seen: readonly string[] = [];
   act(() => {
-    r.ws.addPanel('w6', place === undefined ? undefined : { place: (row) => ((seen = row.inView), place(row)) });
+    r.ws.addPanel('w6', place === undefined ? undefined : {
+            place: (row) => {
+              seen = row.inView;
+              return place(row);
+            },
+          });
   });
   await r.settle();
   return { row: r.row(), seen };

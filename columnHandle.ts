@@ -11,6 +11,7 @@ import { cleanWorkspaceName } from './workspaceName.js';
 import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
 import type { PhonuxTheme } from './defaultTheme.js';
 import type { WorkspaceStorage } from './workspaceState.js';
+import type { ColumnBands } from './columnBands.js';
 
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
 export interface ColumnState {
@@ -52,6 +53,11 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
   storage?: ColumnStorage;
   /** Where the column renders itself, as `WorkspaceOptions.mount` says for a workspace. */
   mount?: HTMLElement | false;
+  /**
+   * What every cell draws above and below its row, fixed for the column's life. Unset: `DEFAULT_COLUMN_BANDS`. Build a variant with
+   * `withSlotChanges`; the row keeps `columnBandRoom(bands)` clear of them.
+   */
+  bands?: ColumnBands;
 };
 
 /** What `addWorkspace` takes: everything is optional. @public */
@@ -161,6 +167,8 @@ interface ColumnCore {
   readonly autoMounted: boolean;
   /** The theme function every cell is drawn under, if the app gave one. */
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
+  /** The bands every cell draws, if the app gave them. */
+  readonly bands: ColumnBands | undefined;
   /** Reports an error the column swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
 }
@@ -195,7 +203,7 @@ const isColumnState = (v: unknown): v is ColumnState => {
  * @public
  */
 export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHandle {
-  const { storage, mount, ...shared } = o;
+  const { storage, mount, bands, ...shared } = o;
   let tuningInput = o.tuning;
   let live: WorkspaceLive = {
     ...(o.device !== undefined ? { device: o.device } : {}),
@@ -379,6 +387,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     snapshot,
     autoMounted: mount !== false && typeof document !== 'undefined',
     theme: o.theme,
+    bands,
     reportError,
   });
 
