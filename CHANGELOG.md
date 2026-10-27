@@ -8,6 +8,8 @@
 - `usePhoneFit` returns a `PhoneFitResult`: the phone size plus the settled `containerWidth` and `heightBudget` it was fitted to. Hand those to `useProvidePanels` and `Workspace`. `Workspace` takes `heightBudget`; given, its row's vertical place glides, its margin glides past the first measurement, and panels that fill the row's height read that budget. The settle is counted on animation frames, so `phonux/testing/row` steps it.
 ### Added
 
+- `exitTo: 'shrink'` scales the panel down about its right edge, which rides one gap before the neighbor closing up from the right, so the panel shrinks away in front of it. It used to scale about its center. `expand` is unchanged.
+
 - `tuning.shrinkUnfocused` (boolean, default false): a panel wider than one phone rests at one phone width while another panel is active and after the person scrolls the row, and goes back to its own width the next time a press or focus lands in it. `PanelWindow.restoreSlots` holds that width while it rests, and the workspace file saves it as the panel's `slots`.
 - `usePanelSizeGlide()`: inside a `PanelSizeBox` (or the default frame's box), the box's size glide (`PanelSizeGlide`: `from` and `to` sizes) from the commit that starts it until it lands, and null at rest.
 - `PanelSizeBox` takes `reveal`: while the box glides, its content is laid out once at the larger of the start and end widths and clipped at the eased box's sides, so a grow resizes it at its start and a shrink at its end rather than on every frame. Content in another process, such as a webview, then lays out twice per glide instead of about 34 times. The height follows the box, and nothing above or below the box is clipped, so a frame's header and footer stay visible.
