@@ -15,6 +15,7 @@ import { type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { PANEL_ROOT_ATTRIBUTE } from './rowDom.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
@@ -132,6 +133,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
       sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...sx }}
+      {...{ [PANEL_ROOT_ATTRIBUTE]: '' }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}

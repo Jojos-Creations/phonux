@@ -240,6 +240,15 @@ export type ListFilter = {
 };
 
 // @public
+export interface MaximizablePanel {
+    root(): Element | null;
+    toggle(): boolean;
+}
+
+// @public
+export type MaximizePhase = 'home' | 'growing' | 'maximized' | 'shrinking';
+
+// @public
 export interface MemoryWorkspaceStorage extends WorkspaceStorage {
     readonly saved: WorkspaceState | null;
 }
@@ -510,6 +519,9 @@ export type PinResult = PanelResult & {
 
 // @public
 export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
+
+// @public
+export function reportMaximized(panel: MaximizablePanel, phase: MaximizePhase, register?: boolean): () => void;
 
 // @public
 export type ResolvedPanelSettings = {

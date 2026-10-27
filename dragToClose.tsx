@@ -449,6 +449,11 @@ export function DragToClose(input: {
    */
   onDragEnd?: (end: GrabDragEnd) => void;
   /**
+   * Called once when a drag ends without a release: the Escape key, a native pan that takes the pointer, or the box going away
+   * mid-drag. Every drag that called `onDragMove` ends in exactly one of `onDragEnd` or this.
+   */
+  onDragCancel?: () => void;
+  /**
    * When set, a vertical drag past `PREVIEW_OUT_PX` grabs a tile-size preview instead of moving the box, and the box stays in its slot.
    * Pair with `exitFor` to say where a dropped preview's panel leaves to.
    */
@@ -486,6 +491,7 @@ function DragToCloseBox({
   closeOnRelease = true,
   onDragMove,
   onDragEnd,
+  onDragCancel,
   previewOut,
   exitFor,
   children,
@@ -495,6 +501,7 @@ function DragToCloseBox({
   closeOnRelease?: boolean;
   onDragMove?: (move: GrabDragMove) => void;
   onDragEnd?: (end: GrabDragEnd) => void;
+  onDragCancel?: () => void;
   previewOut?: PreviewOut;
   exitFor?: (end: GrabDragEnd) => PreviewExit | null;
   children: (handle: DragHandleProps) => React.ReactNode;
@@ -542,6 +549,10 @@ function DragToCloseBox({
   // Read by the window listener, which is made once and outlives the render that made it.
   const dragMoveRef = React.useRef(onDragMove);
   dragMoveRef.current = onDragMove;
+  const dragCancelRef = React.useRef(onDragCancel);
+  dragCancelRef.current = onDragCancel;
+  // True from a drag's first reported move until its release is reported; still true when the drag mark ends means no release came.
+  const reportedDrag = React.useRef(false);
   const previewOutRef = React.useRef(previewOut);
   previewOutRef.current = previewOut;
   const exitForRef = React.useRef(exitFor);
@@ -591,6 +602,10 @@ function DragToCloseBox({
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
     slotRef.current?.setDragging?.(false);
+    if (reportedDrag.current) {
+      reportedDrag.current = false;
+      dragCancelRef.current?.();
+    }
   };
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
@@ -675,7 +690,10 @@ function DragToCloseBox({
     }
     if (event.type === 'pointermove') {
       latestMove.current();
-      if (engaged.current) dragMoveRef.current?.({ x: clientX - pointer.current.downX, y: clientY - pointer.current.downY, clientX, clientY });
+      if (engaged.current) {
+        reportedDrag.current = true;
+        dragMoveRef.current?.({ x: clientX - pointer.current.downX, y: clientY - pointer.current.downY, clientX, clientY });
+      }
       return;
     }
     pressedDoc.current = null;
@@ -757,7 +775,10 @@ function DragToCloseBox({
       axisLock.current = null;
       const dx = pointer.current.x - pointer.current.downX;
       const dy = pointer.current.y - pointer.current.downY;
-      if (wasEngaged) onDragEnd?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y });
+      if (wasEngaged && reportedDrag.current) {
+        reportedDrag.current = false;
+        onDragEnd?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y });
+      }
       const cancelled = reorder ? edge.release() : false;
       if (reorder && lockedAxis === 'x') {
         // The claim goes back before the hop is reported: the move the hop causes may ask the row to scroll, and a held claim would drop that request.

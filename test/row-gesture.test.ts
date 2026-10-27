@@ -390,7 +390,7 @@ function listenersFor(rowGesture: 'step' | 'off'): number {
     return spy.mock.calls.filter((c) => {
       const target = c.this as unknown;
       const type = c.arguments[0];
-      return (type === 'wheel' && target instanceof HTMLElement && target.hasAttribute('data-row-scroller')) || (type === 'keydown' && target === window);
+      return (type === 'wheel' && target instanceof HTMLElement && target.hasAttribute('data-row-scroller')) || (type === 'keydown' && target === window && c.arguments[2] !== true);
     }).length;
   } finally {
     spy.mock.restore();

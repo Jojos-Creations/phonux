@@ -334,3 +334,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
   };
   return { props: { panel, handle, manager }, handle, manager, calls };
 }
+
+export { reportMaximized } from './maximizedStore.js';
+export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';

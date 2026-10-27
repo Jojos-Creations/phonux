@@ -15,6 +15,7 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { arrowKeyBelongsElsewhere, contentScrolls } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
+import { registerRowKeys } from '../rowStep.js';
 
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
 const LINE_PX = 16;
@@ -136,7 +137,9 @@ export function useRowScrollGesture(
     container.addEventListener('touchend', onTouchEnd, { passive: true });
     container.addEventListener('touchcancel', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKeyDown);
+    const unregister = registerRowKeys(container, { step: (direction) => onStepRef.current(direction) });
     return () => {
+      unregister();
       container.removeEventListener('wheel', onWheel);
       container.removeEventListener('touchstart', onTouchStart);
       container.removeEventListener('touchmove', onTouchMove);
