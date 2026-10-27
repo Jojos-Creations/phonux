@@ -10,7 +10,7 @@ import type { PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, SettingNo
 import { createFakeHost } from '../../fakeHost.js';
 import { applyTemplate, resolvePanelSettings } from '../../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../../panelRowOrder.js';
-import { appendPanel, createHistoryPanel } from '../../panelWindow.js';
+import { appendPanel, createRootPanel } from '../../panelWindow.js';
 import { rowScrollerFor } from '../../rowScroller.js';
 import { mount, panelsInput, seededWorkspace, withHost, type SeedOptions } from './mount-harness.js';
 
@@ -22,7 +22,7 @@ export const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelW
   return { ...applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create'), instance: layer };
 };
 export const rootEntry = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
 /** The row in array order with every anchor read from it. */
 export const row = (...entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
 /** The row [root s1 ... s(count)]: panel k starts at 16 + 406k. */

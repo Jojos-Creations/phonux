@@ -1,5 +1,5 @@
 /**
- * `WorkspacePanel`: a ready-made panel view that lists panels as a grid of tiles, grouped as pinned, viewing and hidden.
+ * `WorkspacePanel`: a ready-made panel view that lists panels as a grid of tiles.
  * It is a view, so a template opts in with `definePanel({ id, view: WorkspacePanel })`.
  */
 
@@ -32,11 +32,9 @@ import { useViewSnapshot } from './snapshots.js';
 import { useWorkspace, usePanelStates } from './panels/usePanelStates.js';
 import { usePhoneSize } from './phoneFit.js';
 import {
-  filterWorkspaceTiles,
   reorderWorkspaceIds,
   workspaceTileRatio,
   workspaceTileSpan,
-  workspaceGroups,
   workspaceTileColumns,
   workspaceTileTitle,
   type WorkspacePanelEntry,
@@ -68,7 +66,7 @@ export interface WorkspacePanelProps {
   /** A class name for the root element, so the developer can set its spacing, type and colours. */
   readonly className?: string;
   /**
-   * The tiles to list, in the order they are given within each group. Given, the host owns the list and the panel reads
+   * The tiles to list, in the order they are given. Given, the host owns the list and the panel reads
    * no workspace state. Left out, the panel lists the workspace's live and parked panels that are `listed`.
    */
   readonly entries?: readonly WorkspacePanelEntry[];
@@ -87,7 +85,7 @@ export interface WorkspacePanelProps {
    */
   readonly onTrash?: (id: string) => void;
   /**
-   * Drawn above the panel's search field and outside the grid, for the host's own icons. Left out, no header is drawn.
+   * Drawn above the grid and outside it, for the host's own icons. Left out, no header is drawn.
    */
   readonly header?: React.ReactNode;
 }
@@ -104,11 +102,10 @@ export interface WorkspaceTrashProps {
 }
 
 /**
- * The workspace's panels as tiles, with a search field above them. Activating a tile shows that panel, or calls the
+ * The workspace's panels as tiles. Activating a tile shows that panel, or calls the
  * host's `onActivate`. Pass `entries` to list the host's own tiles, and `onReorder` or `onTrash` to make them draggable.
  *
- * It draws its structure only: the host's header, the search field, a heading per non-empty group, the tile grid, and
- * each tile's picture, icon and caption. It draws no padding, no gap, no type size and no scroll region. The developer sets those
+ * It draws its structure only: the host's header, the tile grid, and each tile's picture, icon and caption. It draws no padding, no gap, no type size and no scroll region. The developer sets those
  * by wrapping the panel or through `className`. Every visible string comes from the host's `labels` (the `workspace*`
  * keys, and the drag announcements shared with the panels).
  * Rendered inside a host's `DndContext`, the tiles join that context instead of opening their own: the host's sensors and
@@ -134,7 +131,6 @@ function WorkspaceOwnPanel(props: WorkspacePanelProps): React.JSX.Element {
     id: state.id,
     title: workspaceTileTitle(state.title, state.url, labels.workspaceUntitled),
     live: state.status === 'live',
-    pinned: state.pinned,
   }));
   return <WorkspaceView {...props} entries={entries} />;
 }
@@ -144,7 +140,6 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
   const labels = resolveLabels(useOptionalHost()?.labels);
   const workspace = useWorkspace();
   const columns = workspaceTileColumns(tileSize, tileCounts);
-  const [search, setSearch] = React.useState('');
   const [dragging, setDragging] = React.useState<string | undefined>(undefined);
   const [announcement, setAnnouncement] = React.useState('');
   const draggable = onReorder !== undefined || onTrash !== undefined;
@@ -156,9 +151,7 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
     if (onActivate !== undefined) onActivate(id);
     else workspace?.panels.get(id)?.show('person');
   };
-  const tiles = filterWorkspaceTiles(entries, search);
-  const groups = workspaceGroups(tiles, labels);
-  const message = entries.length === 0 ? labels.workspaceEmpty : tiles.length === 0 ? labels.workspaceNoMatches : undefined;
+  const message = entries.length === 0 ? labels.workspaceEmpty : undefined;
   const hasHeader = header !== undefined && header !== null;
   // Inside a host's context the panel cannot set that context's announcements, so it writes the tile drag's own, from the labels.
   const listener: DndMonitorListener = {
@@ -185,16 +178,6 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
       <WorkspaceDragListener listener={listener} />
       <Box data-workspace-panel="" className={className} sx={{ display: 'flex', flexDirection: 'column' }}>
         {hasHeader && <Box data-workspace-header="">{header}</Box>}
-        <Box
-          component="input"
-          type="search"
-          data-workspace-search=""
-          aria-label={labels.workspaceSearch}
-          placeholder={labels.workspaceSearch}
-          value={search}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-          sx={{ width: '100%', boxSizing: 'border-box', font: 'inherit', color: 'text.primary' }}
-        />
         {message !== undefined && (
           <Box role="status" data-workspace-empty="" sx={{ color: 'text.secondary', textAlign: 'center' }}>
             {message}
@@ -205,18 +188,11 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
             {announcement}
           </Box>
         )}
-        {groups.map((group) => (
-          <React.Fragment key={group.key}>
-            <Box role="heading" aria-level={3} data-workspace-group={group.key} sx={{ color: 'text.disabled', textTransform: 'uppercase' }}>
-              {group.label}
-            </Box>
-            <Box data-workspace-tiles="" data-columns={columns} sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-              {group.tiles.map((tile) => (
-                <WorkspaceTileButton key={tile.id} tile={tile} span={workspaceTileSpan(tile.slots, columns)} draggable={draggable} onActivate={activate} />
-              ))}
-            </Box>
-          </React.Fragment>
-        ))}
+        <Box data-workspace-tiles="" data-columns={columns} sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {entries.map((tile) => (
+            <WorkspaceTileButton key={tile.id} tile={tile} span={workspaceTileSpan(tile.slots, columns)} draggable={draggable} onActivate={activate} />
+          ))}
+        </Box>
       </Box>
       {typeof document !== 'undefined' &&
         createPortal(

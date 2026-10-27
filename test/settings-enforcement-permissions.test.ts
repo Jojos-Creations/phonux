@@ -18,7 +18,7 @@ import {
 import type { CaptureTrigger, PanelSettings, PanelWindow, PanelsInput, ProvidedPanels, ResolvedPanelSettings } from '../index.js';
 import { applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { appendPanel, closePanel, createHistoryPanel, movePanel, reanchorPanel, restorePanel, setSlots } from '../panelWindow.js';
+import { appendPanel, closePanel, createRootPanel, movePanel, reanchorPanel, restorePanel, setSlots } from '../panelWindow.js';
 import { hydrateWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
@@ -31,13 +31,13 @@ const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePan
 
 /** An entry as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, ...over }, resolve(layer), 'create');
 }
 
 /** History: the root resolves closable false and parkable false by rule, whatever the layers ask. */
 const rootEntry = (): PanelWindow =>
-  applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 
 /** A hand-built 0.1.0 entry: no settings, no key. */
 const hand = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => ({ id, url: `https://${id}.example`, title: id.toUpperCase(), live: true, view: 'web', collapsible: true, listed: true, ...over });
@@ -426,7 +426,7 @@ test('create over 300 resolver-random entries writes every mirror field from the
   let checked = 0;
   for (let n = 0; n < 300; n += 1) {
     const resolved = resolvePanelSettings({ template: randomLayer(rng), instance: randomLayer(rng) }, { root: chance(rng, 0.1) }).value;
-    const skeleton = appendPanel([], { url: 'https://x.example', title: 'X' }, `id${n}`, ROOT)[0]!;
+    const skeleton = appendPanel([], { view: 'web', url: 'https://x.example', title: 'X' }, `id${n}`, ROOT)[0]!;
     const entry = applyTemplate(skeleton, resolved, 'create');
     assert.equal(entry.collapsible, resolved.parkable, `#${n} collapsible`);
     assert.equal(entry.listed, resolved.listed, `#${n} listed`);
@@ -442,7 +442,7 @@ test('create over 300 resolver-random entries writes every mirror field from the
 });
 
 test("create over the library defaults equals appendPanel's literals", () => {
-  const skeleton = appendPanel([], { url: 'https://x.example', title: 'X' }, 'a', ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: 'https://x.example', title: 'X' }, 'a', ROOT)[0]!;
   const created = applyTemplate(skeleton, resolvePanelSettings().value, 'create');
   const { settings, key, ...rest } = created;
   assert.ok(settings !== undefined && key === 'a');
@@ -451,7 +451,7 @@ test("create over the library defaults equals appendPanel's literals", () => {
 });
 
 test("create writes key from the entry's own key when it has one, else its id, and never touches the input", () => {
-  const skeleton = appendPanel([], { url: 'https://x.example' }, 'a', ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: 'https://x.example' }, 'a', ROOT)[0]!;
   const frozen = Object.freeze({ ...skeleton });
   assert.equal(applyTemplate(frozen, resolve(), 'create').key, 'a');
   assert.equal(applyTemplate({ ...skeleton, key: 'named' }, resolve(), 'create').key, 'named');
@@ -493,7 +493,7 @@ test('reconfigure never writes the key a create wrote', () => {
 });
 
 test("appendPanel, restorePanel and hydrateWorkspaceState never write a key, and a hand-built entry's key is its id", () => {
-  const appended = appendPanel([], { url: 'https://a.example' }, 'a', ROOT);
+  const appended = appendPanel([], { view: 'web', url: 'https://a.example' }, 'a', ROOT);
   assert.equal('key' in appended[0]!, false);
   const closed = closePanel(appended, 'a', ROOT)!;
   assert.equal('key' in restorePanel(closed.remaining, closed.closed, closed.index, ROOT)[0]!, false);

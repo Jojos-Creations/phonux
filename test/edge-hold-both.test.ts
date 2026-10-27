@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
 import { registerTestView } from './support/test-views.js';
 
@@ -24,7 +24,7 @@ function made(id: string, layer: PanelSettings = {}): PanelWindow {
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 }
 const scrollRoot = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'both-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel(ROOT), view: 'both-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
 
 const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = false): RowNumbers => computeRowNumbers({ entries, phoneWidth: PHONE, containerWidth, gap: GAP, wholePanels });
 

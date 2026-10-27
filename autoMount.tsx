@@ -144,8 +144,6 @@ function AutoBody({ workspace, columnTop }: { workspace: WorkspaceHandle; column
   const host: HostInput = {
     panels: hostPanelsOf(provided),
     ...(values.device !== undefined ? { device: values.device } : {}),
-    ...(values.settings !== undefined ? { settings: values.settings } : {}),
-    ...(values.history !== undefined ? { history: values.history } : {}),
     ...(values.snapshots !== undefined ? { snapshots: values.snapshots } : {}),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
   };

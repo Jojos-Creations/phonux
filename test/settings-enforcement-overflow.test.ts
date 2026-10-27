@@ -13,7 +13,7 @@ import { definePanel, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { computeRowLayout } from '../panelRowLayout.js';
 import { applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { panelRowSlotMotion, parkExitTarget, } from '../PanelRowSlot.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, useSeededInput, type SeedOptions, type SeededOver } from './support/mount-harness.js';
@@ -27,8 +27,8 @@ registerTestView('ov-view', ({ panel }) => React.createElement('i', { 'data-slot
 afterEach(() => cleanup());
 
 const scrollRoot = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'ov-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
-const legacyRoot = (): PanelWindow => ({ ...createHistoryPanel(ROOT), view: 'ov-view' });
+  applyTemplate({ ...createRootPanel(ROOT), view: 'ov-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+const legacyRoot = (): PanelWindow => ({ ...createRootPanel(ROOT), view: 'ov-view' });
 function made(id: string, layer: PanelSettings = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'ov-view' }, id, ROOT)[0]!;
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');

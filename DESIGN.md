@@ -154,7 +154,7 @@ A saved workspace never held a size, and a hand-built entry that still carries o
 ### Where a panel's size comes from
 
 `panelWindow.ts` is part of this folder: the `PanelWindow` record and every pure transition over a
-`PanelWindow[]` (`appendPanel`, `createHistoryPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
+`PanelWindow[]` (`appendPanel`, `createRootPanel`, `closePanel`, `restorePanel`, ...). It sits inside the
 import boundary above, so it imports only its siblings and never the desktop app. The main barrel exports
 `PanelWindow` and `reorderStepsForOffset` from it; every other name stays `@internal`, reached by no
 entry point, and the package's own tests import `panelWindow.ts` by relative path.
@@ -1909,11 +1909,11 @@ What stays at module level, and why none of it is a workspace's data:
 ## Workspace options, wrap and update
 
 An auto-mounted workspace needs no hand-built `Host`: what an app hands `HostProvider`, `Workspace` and `useProvidePanels` is an
-option on `createWorkspace`. The members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`,
+option on `createWorkspace`. The members of `WorkspaceLive` (`device`, `snapshots`, `labels`, `topInset`,
 `panels`) are the starting values and the only ones `workspace.update(live)` can change; `root`, `templates`, `storage`, `mount`,
 `wrap` and the other options are fixed for the workspace's life, and `update` naming one throws `invalid-options` and applies
 nothing, not even the live members named beside it. The option names are the `Host` member names, so an option and the same value in
-a hand-built `Host` give the same view result; `settingsColumn` is `settings.settingsColumn`. `panels` is `Partial<PanelsInput>`
+a hand-built `Host` give the same view result. `panels` is `Partial<PanelsInput>`
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a

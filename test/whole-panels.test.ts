@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
 import { workspaceShellStyle } from '../Workspace.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -25,7 +25,7 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'scroll-row-view' }, id, ROOT)[0]!;
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
-const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+const root = (): PanelWindow => applyTemplate({ ...createRootPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
 const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels });
 const six = () => [root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))];
 

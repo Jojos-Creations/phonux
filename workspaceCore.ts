@@ -17,7 +17,7 @@ import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, Res
 import { definePanel } from './panelTemplate.js';
 import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
-import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
+import { createRootPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
@@ -482,7 +482,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const autoMounted = o.mount !== false && typeof document !== 'undefined';
-  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.settings !== undefined ? { settings: o.settings } : {}), ...(o.history !== undefined ? { history: o.history } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
+  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
   let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
@@ -774,7 +774,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const rootEntry = (): PanelWindow => {
     if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
     const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
-    return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
+    return applyTemplate({ ...createRootPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
 
   const instanceKeys = (templateId: string): Set<PanelId> => {

@@ -3,7 +3,7 @@
  * `createFakeHost({ panels: { panelList: [...] } })`, render under `<HostProvider>`, interact, then assert on
  * `host.calls`. Every method records `{ api, method, args }` in call order and does nothing else (async ones
  * resolve). The fakes hold no state: a test wanting a different live value re-renders with new overrides. An
- * override replaces a whole member (a nested object such as `closedPagesViewer` too), and an overridden
+ * override replaces a whole member, and an overridden
  * method no longer records. `createFakePanel` is the one exception: it holds the single panel state it was given.
  * Why it lives here: DESIGN.md, "Testing without a host".
  */
@@ -12,11 +12,9 @@ import { PHONE_MODELS } from './phoneModels.js';
 import {
   DEFAULT_PHONE_SIZE,
   type CreatePanelOptions,
-  type HistoryAPI,
   type Host,
   type PanelsAPI,
   type PhoneDeviceAPI,
-  type SettingsAPI,
 } from './hostApi.js';
 import type { SnapshotsAPI } from './snapshots.js';
 import type { ConfigureResult, PanelResult, PinResult } from './panelManager.js';
@@ -28,7 +26,7 @@ import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 import { ROOT_MARKER_ID } from './workspaceCore.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
-export type { Host, PhoneSize, ClosedPageEntry, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
+export type { Host, PhoneSize, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
 export type { PhonuxLabels } from './labels.js';
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
@@ -50,14 +48,14 @@ export type { InstancePatch } from './settingsPatch.js';
 export interface FakeCall {
   /** Which `Host` member the method belongs to, e.g. 'panels'; 'handle' for a call on a `createFakePanel` handle. */
   api: keyof Host | 'handle';
-  /** The method's name; a method of a nested object is dotted, e.g. 'settingsColumn.show'. */
+  /** The method's name; a method of a nested object is dotted. */
   method: string;
   /** The arguments the method received, in order. */
   args: unknown[];
 }
 
 /** The `Host` members a host may leave out, which `FakeOverrides.absent` can leave out of a fake. @public */
-export type AbsentHostMember = 'history' | 'snapshots';
+export type AbsentHostMember = 'snapshots';
 
 /**
  * Replacement members, per API. `absent` leaves the named optional members out of the fake altogether, so a view test renders
@@ -82,31 +80,6 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const calls: FakeCall[] = [];
   const log = (api: keyof Host, method: string, args: unknown[]): void => {
     calls.push({ api, method, args });
-  };
-
-  const settings: SettingsAPI = {
-    settingsColumn: {
-      visible: false,
-      show: () => log('settings', 'settingsColumn.show', []),
-      hide: () => log('settings', 'settingsColumn.hide', []),
-    },
-  };
-
-  const history: HistoryAPI = {
-    loadClosedPages: async () => {
-      log('history', 'loadClosedPages', []);
-      return [];
-    },
-    closedPagesViewer: {
-      isOpen: false,
-      loading: false,
-      entries: [],
-      open: () => log('history', 'closedPagesViewer.open', []),
-      close: () => log('history', 'closedPagesViewer.close', []),
-    },
-    locked: true,
-    closed: false,
-    close: () => log('history', 'close', []),
   };
 
   const panels: PanelsAPI = {
@@ -141,8 +114,6 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
 
   const absent = new Set<AbsentHostMember>(overrides.absent);
   return {
-    settings: { ...settings, ...overrides.settings },
-    ...(absent.has('history') ? {} : { history: { ...history, ...overrides.history } }),
     panels: { ...panels, ...overrides.panels },
     device: { ...device, ...overrides.device },
     ...(absent.has('snapshots') ? {} : { snapshots: { ...snapshots, ...overrides.snapshots } }),

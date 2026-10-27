@@ -17,7 +17,7 @@ import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { frameClock } from '../testingClock.js';
 import { panelWidthOf } from '../panelTiers.js';
-import { appendPanel, createHistoryPanel, leastRecentlyTouchedId, parkLevers, promoteToLive } from '../panelWindow.js';
+import { appendPanel, createRootPanel, leastRecentlyTouchedId, parkLevers, promoteToLive } from '../panelWindow.js';
 import { fewestParksThatSettle, type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
@@ -43,13 +43,13 @@ const resolve = (layer: PanelSettings = {}): ResolvedPanelSettings => resolvePan
 
 /** An entry as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, instance: layer, ...over }, resolve(layer), 'create');
 }
 /** A panel the row may park for room. */
 const park = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => made(id, { overflow: 'park', ...layer }, over);
 const rootEntry = (): PanelWindow =>
-  applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 /** The row in array order with every anchor read from it, as the engine keeps it. */
 const row = (...entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
 const idsOf = (panels: readonly PanelWindow[]): string[] => panels.map((p) => p.id);
@@ -547,7 +547,7 @@ test('hiding A and B on a row of [A B] with no fixed column empties it', () => {
 // ---------------------------------------------------------------------------
 
 test("applyTemplate('create') writes live from startVisibility: parked parks the entry, live leaves a live one live", () => {
-  const skeleton = appendPanel([], { url: 'https://x.example' }, 'x', ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: 'https://x.example' }, 'x', ROOT)[0]!;
   assert.equal(skeleton.live, true, 'control: the skeleton is live');
   assert.equal(applyTemplate(skeleton, resolve({ startVisibility: 'parked' }), 'create').live, false);
   assert.equal(applyTemplate(skeleton, resolve({ startVisibility: 'live' }), 'create').live, true);
@@ -555,7 +555,7 @@ test("applyTemplate('create') writes live from startVisibility: parked parks the
 });
 
 test("applyTemplate('reconfigure') never writes live: a later startVisibility change moves nothing", () => {
-  const skeleton = appendPanel([], { url: 'https://x.example' }, 'x', ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: 'https://x.example' }, 'x', ROOT)[0]!;
   assert.equal(applyTemplate(skeleton, resolve({ startVisibility: 'parked' }), 'reconfigure').live, true);
 });
 

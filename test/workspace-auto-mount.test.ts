@@ -190,13 +190,11 @@ test('the mount hands the row and the workspace shell each value useProvidePanel
 // 4. HostProvider fills in what a host leaves out
 // ---------------------------------------------------------------------------
 
-test('HostProvider given a host without device and settings still gives every reader a value, the same object each render', () => {
-  const seen: { device: unknown; settings: unknown; width: number; visible: boolean }[] = [];
+test('HostProvider given a host without a device still gives every reader one, the same object each render', () => {
+  const seen: { device: unknown; width: number }[] = [];
   function Reader(): null {
     const host = useHost();
-    seen.push({ device: host.device, settings: host.settings, width: host.device.size.width, visible: host.settings.settingsColumn.visible });
-    host.settings.settingsColumn.show();
-    host.settings.settingsColumn.hide();
+    seen.push({ device: host.device, width: host.device.size.width });
     return null;
   }
   const panels = { panelList: [], create() {}, activate() {}, move() {}, setFormFactor() {}, reanchor() {}, close() {}, recentlyClosed: null, undoClose() {}, clearAll() {} };
@@ -205,20 +203,17 @@ test('HostProvider given a host without device and settings still gives every re
   m.rerender(ui());
   assert.equal(seen.length, 2);
   assert.equal(seen[0]!.width, 390);
-  assert.equal(seen[0]!.visible, false);
   assert.equal(seen[0]!.device, seen[1]!.device, 'the default device is one object across renders');
-  assert.equal(seen[0]!.settings, seen[1]!.settings, 'the default settings are one object across renders');
 });
 
-test('HostProvider hands a host that names both members through as it is', () => {
+test('HostProvider hands a host that names its device through as it is', () => {
   const device = { size: { modelId: 'x', width: 300, height: 600 } };
-  const settings = { settingsColumn: { visible: true, show() {}, hide() {} } };
   let seen: unknown;
   function Reader(): null {
     seen = useHost();
     return null;
   }
-  const host = { device, settings, panels: {} as never };
+  const host = { device, panels: {} as never };
   mount(provide(host, React.createElement(Reader)));
   assert.equal(seen, host);
 });

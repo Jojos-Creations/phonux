@@ -18,7 +18,7 @@ import { FRAME_MS } from './support/jsdom-globals.js';
 afterEach(() => cleanup());
 
 const h = React.createElement;
-const entry = (id: string, over: Partial<WorkspacePanelEntry> = {}): WorkspacePanelEntry => ({ id, title: `Title ${id}`, live: true, pinned: false, ...over });
+const entry = (id: string, over: Partial<WorkspacePanelEntry> = {}): WorkspacePanelEntry => ({ id, title: `Title ${id}`, live: true, ...over });
 
 function render(props: WorkspacePanelProps): Mounted {
   return mount(withHost(h(WorkspacePanel, props)));
@@ -26,40 +26,14 @@ function render(props: WorkspacePanelProps): Mounted {
 
 const tileIds = (container: HTMLElement): string[] => [...container.querySelectorAll<HTMLElement>('[data-workspace-tile]')].map((t) => t.dataset.workspaceTile ?? '');
 
-function setSearch(container: HTMLElement, value: string): void {
-  const input = container.querySelector<HTMLInputElement>('[data-workspace-search]');
-  assert.ok(input, 'the search field rendered');
-  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-  assert.ok(set, 'the input value setter exists');
-  act(() => {
-    set.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-}
-
-test('the host entries render as tiles in the groups they fall in, pinned then viewing then hidden', () => {
-  const m = render({
-    entries: [entry('parked', { live: false }), entry('open'), entry('kept', { pinned: true, live: false })],
-  });
-  const groups = [...m.container.querySelectorAll<HTMLElement>('[data-workspace-group]')].map((heading) => ({
-    key: heading.dataset.workspaceGroup,
-    ids: [...(heading.nextElementSibling?.querySelectorAll<HTMLElement>('[data-workspace-tile]') ?? [])].map((t) => t.dataset.workspaceTile),
-  }));
-  assert.deepEqual(groups, [
-    { key: 'pinned', ids: ['kept'] },
-    { key: 'viewing', ids: ['open'] },
-    { key: 'hidden', ids: ['parked'] },
-  ]);
-  m.unmount();
-});
-
-test('the library search filters the host entries by title, and says when nothing matches', () => {
-  const m = render({ entries: [entry('a', { title: 'Inbox' }), entry('b', { title: 'Calendar' })] });
-  setSearch(m.container, 'cal');
-  assert.deepEqual(tileIds(m.container), ['b']);
-  setSearch(m.container, 'zzz');
-  assert.deepEqual(tileIds(m.container), []);
-  assert.equal(m.container.querySelector('[data-workspace-empty]')?.textContent, 'No panels match.');
+test('the host entries render as one grid in the order given, with no headings and no search field', () => {
+  const m = render({ entries: [entry('parked', { live: false }), entry('open'), entry('kept', { live: false })] });
+  assert.deepEqual(tileIds(m.container), ['parked', 'open', 'kept']);
+  assert.equal(m.container.querySelectorAll('[data-workspace-tiles]').length, 1);
+  assert.equal(m.container.querySelector('[data-workspace-group]'), null);
+  assert.equal(m.container.querySelector('input'), null);
+  assert.equal(m.container.querySelector('[data-workspace-tile="open"]')?.getAttribute('data-live'), 'true');
+  assert.equal(m.container.querySelector('[data-workspace-tile="parked"]')?.getAttribute('data-live'), null);
   m.unmount();
 });
 

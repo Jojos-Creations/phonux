@@ -199,8 +199,6 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
   let tuningInput = o.tuning;
   let live: WorkspaceLive = {
     ...(o.device !== undefined ? { device: o.device } : {}),
-    ...(o.settings !== undefined ? { settings: o.settings } : {}),
-    ...(o.history !== undefined ? { history: o.history } : {}),
     ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}),
     ...(o.labels !== undefined ? { labels: o.labels } : {}),
     ...(o.topInset !== undefined ? { topInset: o.topInset } : {}),

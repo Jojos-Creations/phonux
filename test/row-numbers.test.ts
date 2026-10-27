@@ -12,7 +12,7 @@ import { HostProvider, Workspace } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
 import { StaticRow } from './support/seed-workspace.js';
 import { registerTestView } from './support/test-views.js';
@@ -28,8 +28,8 @@ function made(id: string, layer: PanelSettings = {}): PanelWindow {
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 }
 const scrollRoot = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'rn-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
-const legacyRoot = (): PanelWindow => ({ ...createHistoryPanel(ROOT), view: 'rn-view' });
+  applyTemplate({ ...createRootPanel(ROOT), view: 'rn-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+const legacyRoot = (): PanelWindow => ({ ...createRootPanel(ROOT), view: 'rn-view' });
 const legacyPanel = (id: string): PanelWindow => appendPanel([], { url: `https://${id}.example`, title: id, view: 'rn-view' }, id, ROOT)[0]!;
 const numbers = (entries: PanelWindow[], containerWidth = 1000) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: GAP });
 const eleven = (): PanelWindow[] => [scrollRoot(), ...[1, 2, 3, 4, 5].map((k) => made(`pin${k}`, { parkable: false })), ...[1, 2, 3, 4, 5].map((k) => made(`web${k}`))];

@@ -12,7 +12,7 @@ import type { PanelSettings, PanelWindow } from '../index.js';
 import { enterDirectionOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import type { WorkspaceHandle } from '../index.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
@@ -31,7 +31,7 @@ function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'motion-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel(ROOT), view: 'motion-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 
 interface Props {
   closing?: ReadonlySet<string>;

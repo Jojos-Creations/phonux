@@ -8,7 +8,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { useProvidePanels, type PanelWindow, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
-import { createHistoryPanel } from '../panelWindow.js';
+import { createRootPanel } from '../panelWindow.js';
 import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
@@ -52,7 +52,7 @@ function mountProvider(load: () => Promise<WorkspaceState | null>, over: Partial
   };
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createRootPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
     return React.createElement('output');
   }
   const mounted = mount(strict ? React.createElement(React.StrictMode, null, React.createElement(Probe)) : React.createElement(Probe));

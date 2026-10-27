@@ -9,13 +9,10 @@ export {
 } from './hostApi.js';
 export type {
   PhoneSize,
-  ClosedPageEntry,
   JsonValue,
   PanelSize,
   PanelSummary,
   CreatePanelOptions,
-  SettingsAPI,
-  HistoryAPI,
   PanelsAPI,
   PhoneDeviceAPI,
   Host,
@@ -98,14 +95,7 @@ export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox, usePanelSizeGlide, type PanelSizeGlide } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 export { PanelSizeControl, type PanelSizeControlProps } from './panelSizeControl.js';
-export { PanelHeaderMenu, type HeaderMenuAction, type HeaderMenuEntry, type HeaderMenuGroup, type PanelHeaderMenuProps } from './PanelHeaderMenu.js';
 export { PanelFooter } from './panelFooter.js';
-export { useClosedPages } from './closedPagesList.js';
-export type { ClosedPagesList, ClosedPagesStorage, UseClosedPagesOptions } from './closedPagesList.js';
-export { ClosedPagesPanel } from './ClosedPagesPanel.js';
-export type { ClosedPagesPanelProps } from './ClosedPagesPanel.js';
-export { createClosedPagesTemplate } from './closedPagesTemplate.js';
-export type { ClosedPagesTemplateOptions } from './closedPagesTemplate.js';
 export type { PanelHeaderButtonItem, PanelHeaderButtonItemBase, PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
 export { Workspace } from './Workspace.js';
 export type { WorkspaceProps } from './Workspace.js';

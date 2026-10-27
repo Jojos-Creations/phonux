@@ -13,7 +13,7 @@ import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
@@ -26,12 +26,12 @@ const ROOT = 'root';
 const W = (n: number): number => 422 + 406 * n;
 
 const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create');
 };
 const park = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => made(id, { overflow: 'park' }, over);
 const rootEntry = (): PanelWindow =>
-  applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 const row = (...entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
 const liveIds = (panels: readonly PanelWindow[]): string[] => panels.filter((p) => p.collapsible && p.live).map((p) => p.id);
 

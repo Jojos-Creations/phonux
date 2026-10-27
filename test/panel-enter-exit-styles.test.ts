@@ -13,7 +13,7 @@ import type { PanelSettings, PanelWindow, WorkspaceHandle, WorkspaceTuning } fro
 import { enterDirectionOf, exitStyleOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion, slotDriver } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
@@ -42,7 +42,7 @@ function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'style-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel(ROOT), view: 'style-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 
 /** A row holds its slots' moves until its workspace's restore has settled, so every case here mounts over one that has. */
 function settledWorkspace(entries: readonly PanelWindow[], tuning: WorkspaceTuning = {}): WorkspaceHandle {
