@@ -145,16 +145,19 @@ export interface FullDotLayout extends DotLayout {
 }
 
 /**
- * Sets the parked dots among the drawn ones. Every drawn dot, and the oval over them, moves right by the parked dots ahead of it,
- * so the oval still marks what is on screen and the parked dots show where the rest of the row lies.
+ * Sets the parked dots beside the drawn ones, which stay together under the oval: an always-shown panel such as the Workspace
+ * never moves, so its dot stays in the oval's end slot and the panels parked between it and the rest wait outside the oval.
  */
 export function withParked(layout: DotLayout, map: DotMap, parked: readonly ParkedDot[]): FullDotLayout {
   const dots: DotPlace[] = [];
   const shifts: number[] = [];
   let at = 0;
+  const n = layout.dots.length;
+  // A parked panel inside the drawn run waits on the side of it nearer its place in the row.
+  const sideOf = (before: number): number => (before <= 0 || before >= n ? Math.min(Math.max(before, 0), n) : before <= n - before ? 0 : n);
   const park = (k: number): void => {
     for (const p of parked) {
-      if (Math.min(p.before, map.lefts.length) !== k) continue;
+      if (sideOf(p.before) !== k) continue;
       const width = dotWidthOf(Math.max(1, Math.round(p.slots)));
       dots.push({ id: p.id, left: at, width, hollow: p.hollow });
       at += width + DOT_GAP_PX;
@@ -168,19 +171,6 @@ export function withParked(layout: DotLayout, map: DotMap, parked: readonly Park
   });
   park(layout.dots.length);
   if (layout.dots.length === 0) return { dots, oval: { left: 0, width: 0 }, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
-  const right = layout.oval.left + layout.oval.width;
-  const last = segmentOf(map.lefts, Math.max(layout.oval.left, right - 1e-6));
-  let first = segmentOf(map.lefts, layout.oval.left);
-  // Parked dots between two drawn ones on screen (an always-shown column, then the panels a scroll brought in past the parked ones)
-  // must not fall inside the oval: it starts at the run of drawn dots that ends where it ends.
-  let start = layout.oval.left + shifts[first]!;
-  for (let k = last; k > first; k--) {
-    if (shifts[k] !== shifts[k - 1]) {
-      first = k;
-      start = dots.find((d) => d.id === layout.dots[k]!.id)!.left;
-      break;
-    }
-  }
-  const oval = { left: start, width: right + shifts[last]! - start };
+  const oval = { left: layout.oval.left + shifts[0]!, width: layout.oval.width };
   return { dots, oval, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
 }

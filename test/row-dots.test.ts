@@ -102,17 +102,11 @@ test('parked panels get dots at their places in the row order, and the oval move
   assert.deepEqual(none.oval, drawn.oval);
 });
 
-test('parked dots between an always-shown panel and the panels on screen stay outside the oval', () => {
-  const drawn = dotLayout({ ...row, hollow: [], map, scrollLeft: 602 });
-  const bar = withParked(drawn, map, [{ id: 'p0', before: 1, slots: 1, hollow: false }, { id: 'p1', before: 1, slots: 1, hollow: false }]);
-  assert.deepEqual(bar.dots.map((d) => d.id), ['a', 'p0', 'p1', 'b', 'c']);
-  const p1 = bar.dots.find((d) => d.id === 'p1')!;
-  const c = bar.dots.find((d) => d.id === 'c')!;
-  assert.ok(bar.oval.left >= p1.left + p1.width, 'the oval starts past the parked dots');
-  near(bar.oval.left + bar.oval.width, c.left + c.width, 'and ends at the last dot, as the drawn oval does at the row end');
-
-  // The window over the always-shown panel and the one after it: the parked dots that sit between them in row order cut the oval to the run on the right.
-  const both = withParked(dotLayout({ ...row, hollow: [], map, scrollLeft: 0 }), map, [{ id: 'p0', before: 1, slots: 1, hollow: false }]);
-  const p0 = both.dots.find((d) => d.id === 'p0')!;
-  assert.ok(both.oval.left >= p0.left + p0.width || both.oval.left + both.oval.width <= p0.left, 'no parked dot inside the oval');
+test('parked dots between an always-shown panel and the panels on screen wait outside the oval, the always-shown dot inside it', () => {
+  const drawn = dotLayout({ ...row, hollow: [true, false, false], map, scrollLeft: 0 });
+  const bar = withParked(drawn, map, [{ id: 'p0', before: 1, slots: 1, hollow: false }, { id: 'p1', before: 1, slots: 1, hollow: false }, { id: 'p9', before: 3, slots: 1, hollow: false }]);
+  assert.deepEqual(bar.dots.map((d) => d.id), ['p0', 'p1', 'a', 'b', 'c', 'p9']);
+  const a = bar.dots.find((d) => d.id === 'a')!;
+  near(bar.oval.left, a.left, 'the oval starts at the always-shown dot');
+  assert.ok(bar.oval.left >= bar.dots[1]!.left + bar.dots[1]!.width, 'no parked dot inside the oval');
 });
