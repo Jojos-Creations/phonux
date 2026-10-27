@@ -10,6 +10,8 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup } from './support/mount-harness.js';
 import { matrixRig, type MatrixRig } from './support/configure-matrix.js';
 import { rowScrollerFor } from './support/workspace-row.js';
+import { act } from 'react';
+import { memoryWorkspaceStorage } from '../fakeHost.js';
 
 afterEach(() => {
   cleanup();
@@ -66,6 +68,32 @@ test('turning the tuning off leaves no panel stuck: the next activation still br
   assert.deepEqual(widths(r, 'b'), [2, undefined]);
   press(r, 'a');
   assert.deepEqual(widths(r, 'b'), [2, undefined], 'off: another panel active leaves b wide');
+});
+
+test('a launch starts every saved wide panel at one phone, and a press brings back its saved width', async () => {
+  const settleSave = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
+  const store = memoryWorkspaceStorage();
+  const launch = async (shrinkUnfocused: boolean): Promise<MatrixRig> => {
+    const r = await matrixRig({ workspace: { storage: store, tuning: { saveQuietMs: 5, shrinkUnfocused } } });
+    await settleSave();
+    return r;
+  };
+  let r = await launch(true);
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  press(r, 'b');
+  await settleSave();
+  r.m.unmount();
+  assert.equal((await store.load())!.panels.find((p) => p.key === 'b')?.slots, 2, 'control: b was saved two wide');
+  r = await launch(true);
+  assert.deepEqual(widths(r, 'b'), [1, 2], 'the next launch starts b at one phone, keeping two');
+  await settleSave();
+  assert.equal((await store.load())!.panels.find((p) => p.key === 'b')?.slots, 2, 'the file still holds two');
+  press(r, 'b');
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'pressed: back to two');
+  r.m.unmount();
+  r = await launch(false);
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'off: a launch restores b two wide');
+  r.m.unmount();
 });
 
 test('differential tuning.shrinkUnfocused: using another panel rests a wide one only when it is on', async () => {

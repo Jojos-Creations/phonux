@@ -556,6 +556,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
   useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap);
 
+  const shrinkUnfocusedRef = useRef(tuning.shrinkUnfocused);
+  shrinkUnfocusedRef.current = tuning.shrinkUnfocused;
   const { restoreSettled, dismiss, undismiss, isDismissed, scroll, setScroll } = useWorkspacePersistence({
     storage: core.storage,
     panels,
@@ -572,6 +574,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     panelTitle: labels.panelTitle,
     onError: core.reportError,
     replay: true,
+    restAtPhone: () => shrinkUnfocusedRef.current,
   });
 
   // A row a person moves is saved where it comes to rest. A wheel or pointer-down on the row and a step (a key or a
