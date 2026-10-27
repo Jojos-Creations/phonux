@@ -186,6 +186,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
       if (claimed) return null;
       stop();
       claimed = true;
+      // Visible on the element, so a row that refuses every step can be told apart from one that never got the input.
+      el.setAttribute('data-row-held', '');
       replayable = options?.replayScroll === true;
       deferred = null;
       let max: number | null = null;
@@ -204,6 +206,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
           if (released) return;
           released = true;
           claimed = false;
+          el.removeAttribute('data-row-held');
         },
       };
     },

@@ -116,7 +116,7 @@ export function panelRowSlotMotion(
       : enterDirection === 'top' || enterDirection === 'bottom'
         ? { initial: { x: rest, y: enterDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }, animate: { x: rest, y: 0, opacity: 1 } }
         : enterDirection === 'expand'
-          ? // Starts half a span left, where its neighbours part from, so the center rides the opening gap.
+          ? // Starts half a span left, where its neighbors part from, so the center rides the opening gap.
             { initial: { x: rest - ownSpan / 2, scale: 0, opacity: 0 }, animate: { x: rest, scale: 1, opacity: 1 } }
           : enterDirection === 'expand-left' || enterDirection === 'expand-right'
             ? // Stays at its rest: moving the slot would move the edge it grows out of.
@@ -135,7 +135,7 @@ export function panelRowSlotMotion(
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
             : exitDirection === 'shrink'
-              ? // The mirror of 'expand': half a span left keeps the center where the neighbours meet as they close up.
+              ? // The mirror of 'expand': half a span left keeps the center where the neighbors meet as they close up.
                 { x: rest - ownSpan / 2, scale: 0, opacity: 0 }
               : exitDirection === 'shrink-left' || exitDirection === 'shrink-right'
                 ? // Stays at its rest: moving the slot would move the edge it shrinks into.
@@ -250,8 +250,9 @@ export function PanelRowSlot({
 }) {
   // The entrance is read once, as the slot mounts: an enter in progress keeps its style whatever the settings say later.
   const [entrance] = React.useState(enterDirection);
-  // A reveal grows where the neighbour it replaces is still sliding away, so it is drawn on top until it has grown, on either side.
-  const [growing, setGrowing] = React.useState(EXPAND_ORIGIN_X[entrance] !== undefined);
+  // A reveal grows where the neighbor it replaces is still sliding away, so it is drawn on top until it has grown, on either side.
+  // A new open grows from its center while the panel in its slot slides out, so it is drawn beneath until it has grown.
+  const [growing, setGrowing] = React.useState(entrance === 'expand' || EXPAND_ORIGIN_X[entrance] !== undefined);
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
   // What a report and the frame loop read: the row's store and this slot's panel id, as of this render.
@@ -271,7 +272,7 @@ export function PanelRowSlot({
   // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
   const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
   const reducedMotion = useReducedMotionConfig();
-  // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
+  // The drag box reads the system preference itself, so the neighbors that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
   // A press or key inside an iframe never reaches the page's own handlers; the page's window loses focus to the iframe element instead.
   const activate = React.useRef(onActivate);
@@ -299,7 +300,7 @@ export function PanelRowSlot({
   const shrinkOrigin = present ? undefined : SHRINK_ORIGIN_X[exitDirection];
   const shrinking = shrinkOrigin !== undefined;
   // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
-  // shrink and the neighbours closing up over it count from the same moment however late the commit runs.
+  // shrink and the neighbors closing up over it count from the same moment however late the commit runs.
   if (shrinking) startable.startTime = slideStart();
   React.useLayoutEffect(() => {
     if (!present) delete startable.startTime;
@@ -322,7 +323,7 @@ export function PanelRowSlot({
       delete startable.startTime;
     }
   });
-  // An expand's scale and its neighbours' parting must share one clock, or the gap it grows into lags it by a frame.
+  // An expand's scale and its neighbors' parting must share one clock, or the gap it grows into lags it by a frame.
   React.useLayoutEffect(() => {
     if ((entrance !== 'expand' && EXPAND_ORIGIN_X[entrance] === undefined) || snapping || tracking || el.current === null) return;
     startable.startTime = slideStart();
@@ -401,7 +402,13 @@ export function PanelRowSlot({
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
-        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : shrinking || (growing && present) ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED) : (zIndex ?? 0),
+        zIndex: lifted
+          ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED)
+          : shrinking || (growing && present && entrance !== 'expand')
+            ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED)
+            : growing && present
+              ? Math.min(zIndex ?? 0, ROW_LAYER_Z.BASE) - 1
+              : (zIndex ?? 0),
         ...(shrinking ? { originX: shrinkOrigin } : EXPAND_ORIGIN_X[entrance] !== undefined ? { originX: EXPAND_ORIGIN_X[entrance] } : {}),
       }}
     >
