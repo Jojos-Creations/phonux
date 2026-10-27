@@ -19,6 +19,14 @@ import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { usePanelMaximize } from './panelMaximize.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
+import { panelRootOf } from './rowDom.js';
+
+/** Grows from the button's edge toward the panel's middle and no wider than the panel, so the menu never covers the next panel. */
+function insidePanel(button: HTMLElement | null): { side: 'left' | 'right'; maxWidth: number | undefined } {
+  const icon = button?.getBoundingClientRect();
+  const panel = button ? panelRootOf(button)?.getBoundingClientRect() : undefined;
+  return { side: icon && panel && icon.left + icon.width / 2 > panel.left + panel.width / 2 ? 'right' : 'left', maxWidth: panel?.width };
+}
 
 /** Material has no ultrawide monitor: this is its outlined desktop monitor with the screen drawn wide and short. */
 const UltrawideIcon = createSvgIcon(<path d="M21 5H3c-1.1 0-2 .9-2 2v7c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 9H3V7h18v7z" />, 'Ultrawide');
@@ -60,6 +68,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const slot = React.useContext(PanelSlotContext);
   const button = React.useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
+  const place = insidePanel(anchor);
   const refused = (what: 'resize' | 'fullscreen'): void => {
     if (onRefused !== undefined) onRefused(what);
     else announce?.(what === 'resize' ? labels.couldNotResize : labels.couldNotFullscreen);
@@ -99,7 +108,15 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
         </IconButton>
       </Tooltip>
       {/* No restore on close: a dismissed menu leaves focus where it was, and a pick puts it back on the button itself. */}
-      <Menu anchorEl={anchor} open={anchor !== null} onClose={() => setAnchor(null)} disableRestoreFocus>
+      <Menu
+        anchorEl={anchor}
+        open={anchor !== null}
+        onClose={() => setAnchor(null)}
+        disableRestoreFocus
+        anchorOrigin={{ vertical: 'bottom', horizontal: place.side }}
+        transformOrigin={{ vertical: 'top', horizontal: place.side }}
+        slotProps={{ paper: { sx: { maxWidth: place.maxWidth } } }}
+      >
         <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ px: 2, pt: 1, pb: 0.5 }}>
           <Typography variant="caption" component="div" color="text.secondary">
             {labels.viewSize}
