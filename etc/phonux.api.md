@@ -316,6 +316,15 @@ export type ExitTo = 'auto' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'sh
 export type FadeEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
+export function feedRowWheel(from: Element, wheel: {
+    deltaX: number;
+    deltaY?: number;
+    deltaMode?: number;
+    shiftKey?: boolean;
+    altKey?: boolean;
+}): boolean;
+
+// @public
 export function findPhoneModel(id: string): PhoneModel | undefined;
 
 // @public @deprecated

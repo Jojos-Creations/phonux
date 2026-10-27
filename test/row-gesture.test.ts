@@ -233,18 +233,18 @@ test('a wheel that stops leaves the row where its last step put it', async () =>
   assert.equal(m.container.scrollLeft, stops[2]);
 });
 
-test('Shift+deltaY acts as horizontal and a plain deltaY does not; no wheel is ever cancelled, so the browser keeps it', () => {
+test('Shift+deltaY acts as horizontal and a plain deltaY does not; the row cancels the sideways wheels it takes and leaves the vertical one', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   const plain = m.wheel({ deltaY: 100 });
   assert.equal(plain.defaultPrevented, false);
   assert.equal(m.scroller.glideTarget(), null);
   const shifted = m.wheel({ deltaY: 100, shiftKey: true });
-  assert.equal(shifted.defaultPrevented, false);
+  assert.equal(shifted.defaultPrevented, true);
   assert.equal(m.scroller.glideTarget(), stops[1]);
   const horizontal = m.wheel({ deltaX: -100 });
-  assert.equal(horizontal.defaultPrevented, false);
-  assert.equal(m.scroller.glideTarget(), stops[0], 'a horizontal wheel steps without being cancelled');
+  assert.equal(horizontal.defaultPrevented, true);
+  assert.equal(m.scroller.glideTarget(), stops[0], 'a horizontal wheel steps and is cancelled');
 });
 
 test('ten ArrowRight repeats advance ten stops from the in-flight target', () => {
