@@ -1840,9 +1840,8 @@ is a constant that beats the engine's mark and the anchor formula.
 Exits. `auto` parks toward the exit-right marks, else left, and closes downward along `slide.closeExitSeconds` and
 `slide.closeExitEase`, the curve a drag close shares. `left`, `right`, `top` and `bottom` slide out to that side, `fade`
 fades out at the rest, and `shrink` scales the slot to 0 about its right edge, width and height together, while the
-neighbours close up. The slot keeps its full box and moves a full span left on the same clock, so its right edge stays
-one gap before the neighbour closing up from the right: it shrinks away in front of that neighbour and never overlaps
-it. An explicit `exitTo` is the same for a park and a close.
+neighbours close up. The slot keeps its full box and its rest, so it shrinks into its own right edge, and it is drawn
+over the neighbour closing up from the right on the same clock, so it shrinks away in front of that neighbour. An explicit `exitTo` is the same for a park and a close.
 
 Every entrance and exit but the `auto` close takes the workspace's `slide` timing: the transition is the shared
 `PANEL_TRANSITION` object itself while `slide` is at its defaults (0.6 s, in-out), and every one fades the opacity as

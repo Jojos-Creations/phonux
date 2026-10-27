@@ -144,7 +144,7 @@ test('exits: top and bottom slide out one row height from the rest, fade fades a
   assert.deepEqual(at('top'), { x: REST, y: -700, opacity: 0 });
   assert.deepEqual(at('bottom'), { x: REST, y: 700, opacity: 0 });
   assert.deepEqual(at('fade'), { x: REST, opacity: 0 });
-  assert.deepEqual(at('shrink'), { x: REST - SPAN, scale: 0, opacity: 0 }, 'shrink travels a full span, about its right edge, with the neighbour closing up');
+  assert.deepEqual(at('shrink'), { x: REST, scale: 0, opacity: 0 }, 'shrink stays at its rest, scaling into its right edge');
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
 });
 
@@ -213,7 +213,7 @@ test('expand: the growing slot starts in the same commit as the neighbours parti
   }
 });
 
-test('shrink: a leaving slot scales to 0 about its right edge, which stays one gap before the neighbour closing up, and keeps its width', async () => {
+test('shrink: a leaving slot scales to 0 about its right edge, which stays put, drawn over the neighbour closing up, and keeps its width', async () => {
   const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), made('c')];
   const workspace = settledWorkspace(base);
   const mounted = mount(row(base, workspace));
@@ -226,9 +226,8 @@ test('shrink: a leaving slot scales to 0 about its right edge, which stays one g
   assert.equal(b.style.overflowX, '', 'and is never clipped');
   assert.match(b.style.transformOrigin, /^100% 50%/, `it scales about its right edge (${b.style.transformOrigin})`);
   assert.ok(axis(c, 'X') > REST && axis(c, 'X') < REST + SPAN, 'c is closing up');
-  const right = axis(b, 'X') + WIDTH;
-  assert.ok(Math.abs(axis(c, 'X') - GAP - right) < 1, `b's right edge (${right}) rides one gap before c (${axis(c, 'X')})`);
-  assert.ok(right - scaleOf(b) * WIDTH >= REST - GAP - 0.5, 'and b never reaches past a');
+  assert.equal(axis(b, 'X'), REST, "b stays at its rest, so its right edge stays where it was");
+  assert.ok(Number(b.style.zIndex) > Number(c.style.zIndex), `b is drawn over c (${b.style.zIndex} over ${c.style.zIndex})`);
   mounted.unmount();
 });
 

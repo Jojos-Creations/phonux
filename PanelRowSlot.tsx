@@ -66,7 +66,7 @@ export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expan
 
 /**
  * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
- * scales it to 0 about its right edge, which rides the left edge of the neighbour closing up from the right.
+ * scales it to 0 about its right edge, which stays where it was, drawn over the neighbour closing up from the right.
  * @internal
  */
 export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
@@ -122,8 +122,8 @@ export function panelRowSlotMotion(
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
             : exitDirection === 'shrink'
-              ? // Scaled about its right edge (SHRINK_ORIGIN_X): a full span left keeps that edge one gap before the neighbour closing up over it.
-                { x: rest - ownSpan, scale: 0, opacity: 0 }
+              ? // Scaled about its right edge (SHRINK_ORIGIN_X), which stays put: moving the slot would move the point it shrinks into.
+                { x: rest, scale: 0, opacity: 0 }
               : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
 }
@@ -277,9 +277,11 @@ export function PanelRowSlot({
   restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
+  // A shrink stays where it was while the neighbour closes up under it, so it is drawn on top to be seen shrinking away.
+  const shrinking = !present && exitDirection === 'shrink';
   // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
   // shrink and the neighbours closing up over it count from the same moment however late the commit runs.
-  if (!present && exitDirection === 'shrink') startable.startTime = slideStart();
+  if (shrinking) startable.startTime = slideStart();
   React.useLayoutEffect(() => {
     if (!present) delete startable.startTime;
   });
@@ -379,8 +381,8 @@ export function PanelRowSlot({
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
-        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : (zIndex ?? 0),
-        ...(!present && exitDirection === 'shrink' ? { originX: SHRINK_ORIGIN_X } : {}),
+        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : shrinking ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED) : (zIndex ?? 0),
+        ...(shrinking ? { originX: SHRINK_ORIGIN_X } : {}),
       }}
     >
       {framed && <TabSentinel end={false} />}
