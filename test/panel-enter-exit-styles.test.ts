@@ -1,7 +1,7 @@
 /**
  * Every entrance and exit style a panel may take: the cascade from the panel's own `enterFrom` and `exitTo` to the
  * workspace's `tuning.defaultEnterFrom` and `tuning.defaultExitTo`, the slot values each style starts from and leaves to,
- * and the scale an `expand` grows and a `shrink` takes about its center, read from the slot's own style through a mounted PanelRow.
+ * and the scale an `expand` grows about its center and a `shrink` takes about its right edge, read from the slot's own style through a mounted PanelRow.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -144,7 +144,7 @@ test('exits: top and bottom slide out one row height from the rest, fade fades a
   assert.deepEqual(at('top'), { x: REST, y: -700, opacity: 0 });
   assert.deepEqual(at('bottom'), { x: REST, y: 700, opacity: 0 });
   assert.deepEqual(at('fade'), { x: REST, opacity: 0 });
-  assert.deepEqual(at('shrink'), { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'shrink ends on the point where its neighbours meet');
+  assert.deepEqual(at('shrink'), { x: REST - SPAN, scale: 0, opacity: 0 }, 'shrink travels a full span, about its right edge, with the neighbour closing up');
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
 });
 
@@ -213,7 +213,7 @@ test('expand: the growing slot starts in the same commit as the neighbours parti
   }
 });
 
-test('shrink: a leaving slot scales to 0 about its center, which keeps to the point where its neighbours meet, and keeps its width', async () => {
+test('shrink: a leaving slot scales to 0 about its right edge, which stays one gap before the neighbour closing up, and keeps its width', async () => {
   const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), made('c')];
   const workspace = settledWorkspace(base);
   const mounted = mount(row(base, workspace));
@@ -224,14 +224,11 @@ test('shrink: a leaving slot scales to 0 about its center, which keeps to the po
   assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-shrink (scale ${scaleOf(b)})`);
   assert.equal(widthOf(b), WIDTH, 'its box keeps its full width');
   assert.equal(b.style.overflowX, '', 'and is never clipped');
-  assert.ok(['', '50% 50%', '50% 50% 0px'].includes(b.style.transformOrigin), `it scales about its center (${b.style.transformOrigin})`);
+  assert.match(b.style.transformOrigin, /^100% 50%/, `it scales about its right edge (${b.style.transformOrigin})`);
   assert.ok(axis(c, 'X') > REST && axis(c, 'X') < REST + SPAN, 'c is closing up');
-  // a stays at its rest, so the neighbours meet midway between a's right edge and c's left edge.
-  const center = axis(b, 'X') + WIDTH / 2;
-  const meet = (REST - GAP + axis(c, 'X')) / 2;
-  assert.ok(Math.abs(center - meet) < 1, `b's center (${center}) is where a and c meet (${meet})`);
-  const half = (scaleOf(b) * WIDTH) / 2;
-  assert.ok(center - half >= REST - GAP - 0.5 && center + half <= axis(c, 'X') + 0.5, 'and b fits between them');
+  const right = axis(b, 'X') + WIDTH;
+  assert.ok(Math.abs(axis(c, 'X') - GAP - right) < 1, `b's right edge (${right}) rides one gap before c (${axis(c, 'X')})`);
+  assert.ok(right - scaleOf(b) * WIDTH >= REST - GAP - 0.5, 'and b never reaches past a');
   mounted.unmount();
 });
 

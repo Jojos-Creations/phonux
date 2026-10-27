@@ -66,10 +66,13 @@ export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expan
 
 /**
  * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
- * scales it to 0 about its center, which moves to where its neighbours meet.
+ * scales it to 0 about its right edge, which rides the left edge of the neighbour closing up from the right.
  * @internal
  */
 export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
+
+/** The transform origin a 'shrink' exit scales about: the slot's right edge. */
+const SHRINK_ORIGIN_X = 1;
 
 /**
  * The pure values behind one PanelRowSlot render, split out so a test can assert exact motion
@@ -119,8 +122,8 @@ export function panelRowSlotMotion(
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
             : exitDirection === 'shrink'
-              ? // The mirror of 'expand': half a span left keeps the center where the neighbours meet as they close up.
-                { x: rest - ownSpan / 2, scale: 0, opacity: 0 }
+              ? // Scaled about its right edge (SHRINK_ORIGIN_X): a full span left keeps that edge one gap before the neighbour closing up over it.
+                { x: rest - ownSpan, scale: 0, opacity: 0 }
               : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
 }
@@ -374,6 +377,7 @@ export function PanelRowSlot({
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
         zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : (zIndex ?? 0),
+        ...(!present && exitDirection === 'shrink' ? { originX: SHRINK_ORIGIN_X } : {}),
       }}
     >
       {framed && <TabSentinel end={false} />}
