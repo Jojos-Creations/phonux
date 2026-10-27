@@ -204,7 +204,7 @@ export function useRowDrop(input: RowDropInput): { preview: DropPreview | null; 
         const scrollerEl = row.boxRef.current === null ? null : closestRowScroller(row.boxRef.current);
         const slot = row.dragScroll;
         if (scrollerEl !== null && slot !== undefined && slot.mode === 'edge') {
-          a.hold = openEdgeHold(scrollerEl, scrollerEl.scrollLeft, slot);
+          a.hold = openEdgeHold(scrollerEl, scrollerEl.scrollLeft, slot, a.engineId);
           if (a.hold !== null) a.hold.frame = requestAnimationFrame(tick(a));
         }
         setPreview({ id: a.engineId, steps: 0, hidden: !a.live });

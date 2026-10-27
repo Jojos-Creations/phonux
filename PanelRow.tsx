@@ -314,9 +314,18 @@ export function PanelRow({
   const rowTuning = slotTuning(workspaceTuning);
   // The one hop rule: the header drag and a drag that starts outside the row both count their hops through it.
   const stepsFor = (entry: PanelRowEntry, offset: number): number => reorderStepsForOffset(offset, neighborWidthsAt(entry), gap, rowTuning.hopFraction);
-  const dragScroll: DragScroll | undefined = rowScroll
-    ? { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll, stops, settleStops: rowNumbers === undefined ? [] : rowNumbers.stops, settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0 }
-    : undefined;
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  // A root no drag may cross that starts the strip is where a drag stops and its left band ends; a held root is already the inset.
+  const rootEntry = present[0]?.id === rootId ? present[0] : undefined;
+  const barrierRight =
+    rootEntry === undefined || effective(rootEntry).crossable
+      ? undefined
+      : (): number | undefined => {
+          const root = boxRef.current?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rootId)}"]`);
+          return root == null ? undefined : root.getBoundingClientRect().right + gap;
+        };
+  // A row that fits its window still drags to its edges: there the band swaps hidden panels in rather than scrolling.
+  const dragScroll: DragScroll = { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll: rowScroll ? maxScroll : 0, stops: rowScroll ? stops : [], settleStops: rowScroll && rowNumbers !== undefined ? rowNumbers.stops : [], settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0, ...(barrierRight === undefined ? {} : { barrierRight }), cycle: binding.cycle };
   // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
   const [dragging, setDragging] = React.useState<{ id: string; steps: number } | null>(null);
   // A dragged panel that left the row (closed by other means) takes its preview with it.
@@ -326,7 +335,6 @@ export function PanelRow({
   }, [draggedGone]);
   const leftById = new Map(present.map((p, index) => [p.id, leftOffsets[index]!]));
   const widthFor = (entry: PanelRowEntry): number => widthById.get(entry.id) ?? panelWidthOf(entry, phoneWidth, maxLiveWidth, gap);
-  const boxRef = React.useRef<HTMLDivElement>(null);
   const dropRowOf = (entry: PanelRowEntry) => ({ entries, rowGap: gap, widthById, leftById, width: widthFor(entry), walk: neighborsAt(entry) });
   const { preview: drop, controller: rowDrop } = useRowDrop({
     workspace,

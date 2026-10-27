@@ -680,6 +680,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     });
     return () => core.bindTouch(undefined);
   });
+  useLayoutEffect(() => {
+    core.bindCycle((direction, keepId) => scrollRow(direction, keepId));
+    return () => core.bindCycle(undefined);
+  });
   const restAtPhoneRef = useRef(restAtPhone);
   restAtPhoneRef.current = restAtPhone;
   useEffect(() => {

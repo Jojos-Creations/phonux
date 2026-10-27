@@ -141,7 +141,7 @@ export interface ReorderHandle {
  * requestAnimationFrame loop that scrolls it while the pointer rests in a band, and the scroll distance the release
  * adds to the pointer offset. Reads only `dragScroll` from the slot, so what scrolls is decided by the row.
  */
-function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, x: MotionValue<number>, scrollX: MotionValue<number>) {
+function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, x: MotionValue<number>, scrollX: MotionValue<number>, panelId: string | undefined) {
   // The loop outlives the render that started it: the bound, the stops and `instant` come from the latest slot, while the
   // mode and the three edge numbers stay with the hold, because a drag in flight keeps what it locked with.
   const latest = React.useRef({ dragScroll, reduceMotion });
@@ -149,6 +149,14 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
   const pressed = React.useRef<{ scrollerEl: HTMLElement; startScroll: number; downX: number } | null>(null);
   const hold = React.useRef<EdgeHold | null>(null);
   const pointer = React.useRef({ x: 0, offset: 0 });
+  // The slot's x in the strip when the hold began: a swap at the edge slides the slot inside the strip, so the box rides that slide as well as the scroll.
+  const slotStart = React.useRef<{ el: HTMLElement; strip: HTMLElement; left: number } | null>(null);
+  const inStrip = (s: { el: HTMLElement; strip: HTMLElement }): number => s.el.getBoundingClientRect().left - s.strip.getBoundingClientRect().left;
+  const travel = (h: EdgeHold): number => {
+    const s = slotStart.current;
+    const scrolled = h.scroller.scrollLeft() - h.startScroll;
+    return s === null || !s.el.isConnected ? scrolled : scrolled + s.left - inStrip(s);
+  };
   const cancelled = React.useRef(false);
   // How far the box may be drawn right of its slot before it passes the row's end, in content px. A box drawn past the end
   // adds to the scroll container's scrollable width; Infinity when nothing is measured.
@@ -165,8 +173,14 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     }
     unwatch();
   });
-  /** The drawn offset for a wanted pointer offset: the box and the row's scroll distance together never carry it past the row's end. */
-  const cap = (wanted: number): number => Math.min(wanted, slack.current - scrollX.get());
+  // How far left the box may be drawn before it passes a panel no drag may cross (the root), in screen px; -Infinity when none.
+  const floor = React.useRef(Number.NEGATIVE_INFINITY);
+  /** The drawn offset for a wanted pointer offset: the box and the row's scroll distance together never carry it past the row's end, and the box stops at the root. */
+  const cap = (wanted: number): number => {
+    const h = hold.current;
+    const scrolled = h === null ? scrollX.get() : h.scroller.scrollLeft() - h.startScroll;
+    return Math.max(Math.min(wanted, slack.current - scrolled), floor.current);
+  };
   function unwatch(): void {
     window.removeEventListener('pointerup', onLift.current, true);
     window.removeEventListener('pointercancel', onLift.current, true);
@@ -179,16 +193,19 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     h.frame = null;
     if (h.stopped || slot === undefined) return;
     stepEdgeHold(h, nowMs, pointer.current.x, slot, latest.current.reduceMotion);
-    scrollX.set(h.scroller.scrollLeft() - h.startScroll);
+    scrollX.set(travel(h));
     h.frame = requestAnimationFrame(tick);
   };
 
-  /** Gives the claim back and returns how far the row scrolled since the pointer went down; 0 when no claim was held. */
+  /** Gives the claim back and returns how far the slot moved with the row (a scroll or a swap at the edge) since the pointer went down; 0 when no claim was held. */
   const end = (): number => {
     const h = hold.current;
     if (h === null) return 0;
     hold.current = null;
-    return endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
+    const moved = travel(h);
+    slotStart.current = null;
+    endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
+    return moved;
   };
 
   React.useEffect(
@@ -208,6 +225,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     press(event: React.PointerEvent<HTMLElement>): void {
       const scrollerEl = box.current === null ? null : closestRowScroller(box.current);
       slack.current = Number.POSITIVE_INFINITY;
+      floor.current = Number.NEGATIVE_INFINITY;
       // A touch swipe is a native pan that ends in pointercancel, so only a mouse or pen drags to the edge.
       pressed.current = scrollerEl === null || event.pointerType === 'touch' ? null : { scrollerEl, startScroll: rowScrollerFor(scrollerEl).scrollLeft(), downX: event.clientX };
       cancelled.current = false;
@@ -226,8 +244,14 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       // Rects and the translations drawn now are in the same screen px; both ends scroll together, so the gap holds as the row scrolls.
       slack.current = rowEnd === undefined || own === undefined || rowEnd.width === 0 ? Number.POSITIVE_INFINITY : rowEnd.right - (own.right - x.get() - scrollX.get());
       if (p === null || slot === undefined || slot.mode !== 'edge') return;
-      const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot);
+      const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot, panelId);
       if (opened === null) return;
+      const slotEl = box.current?.closest<HTMLElement>('[data-row-slot]') ?? null;
+      const strip = p.scrollerEl.querySelector<HTMLElement>(':scope > [data-row-strip]');
+      // A slot with no layout (no width) has no slide to ride.
+      slotStart.current = slotEl === null || strip === null || slotEl.getBoundingClientRect().width === 0 ? null : { el: slotEl, strip, left: inStrip({ el: slotEl, strip }) };
+      const barrier = slot.barrierRight?.();
+      floor.current = barrier === undefined || own === undefined ? Number.NEGATIVE_INFINITY : barrier - (own.left - x.get() - scrollX.get());
       pointer.current = { x: clientX, offset: clientX - p.downX };
       hold.current = opened;
       hold.current.frame = requestAnimationFrame(tick);
@@ -524,7 +548,7 @@ function DragToCloseBox({
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
-  const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX);
+  const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX, slot?.id);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
   const exitEase = slot?.tuning.slide.closeExitEase ?? CLOSE_EXIT_EASE;
   // Read again when the exit ends: a lock that lands mid-exit must stop the close.
