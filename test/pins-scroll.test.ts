@@ -89,16 +89,22 @@ test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: 
     p.wheel(1);
     assert.deepEqual(p.live(), ['c', 'd'], 'after the lock the travel steps again');
     p.wheel(-100);
-    assert.deepEqual(p.live(), ['b', 'c'], 'a reversal is a fresh gesture: the lock does not hold it');
+    assert.deepEqual(p.live(), ['c', 'd'], 'a reversal over a swap in flight waits for it to land');
+    tick(600);
+    p.wheel(-100);
+    assert.deepEqual(p.live(), ['b', 'c'], 'once it has landed the reversal is a fresh gesture: the lock does not hold it');
   } finally {
     mock.timers.reset();
   }
 });
 
-test('PIN arrow keys swap with no lock: ArrowRight then ArrowLeft at once undo each other', () => {
+test('PIN arrow keys swap with no lock, and ArrowLeft right after ArrowRight waits for its swap to land before undoing it', () => {
   const p = provide(row(rootEntry(), park('a'), park('b'), park('c', { live: false })), W(2));
   p.key('ArrowRight');
   assert.deepEqual(p.live(), ['b', 'c']);
+  p.key('ArrowLeft');
+  assert.deepEqual(p.live(), ['b', 'c'], 'the swap back inside the slide does nothing');
+  act(() => frameClock.skip(600));
   p.key('ArrowLeft');
   assert.deepEqual(p.live(), ['a', 'b']);
 });
