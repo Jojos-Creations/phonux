@@ -127,3 +127,60 @@ export function dragScroll(i: { startScroll: number; dx: number; map: DotMap; ma
   const at = toScroll(i.map, toTrack(i.map, i.startScroll) + i.dx);
   return Math.min(Math.max(at, 0), i.maxScroll);
 }
+
+/** A parked panel's dot: `before` is how many drawn panels come ahead of it in the row's order. */
+export interface ParkedDot {
+  readonly id: string;
+  readonly before: number;
+  readonly slots: number;
+  readonly hollow: boolean;
+}
+
+/** The whole bar: the drawn panels' layout with each parked panel's dot set at its place in the row's order. */
+export interface FullDotLayout extends DotLayout {
+  /** The bar's width in px. */
+  readonly width: number;
+  /** The ids of the parked dots, which a click brings in by stepping the row. */
+  readonly parked: ReadonlySet<string>;
+}
+
+/**
+ * Sets the parked dots among the drawn ones. Every drawn dot, and the oval over them, moves right by the parked dots ahead of it,
+ * so the oval still marks what is on screen and the parked dots show where the rest of the row lies.
+ */
+export function withParked(layout: DotLayout, map: DotMap, parked: readonly ParkedDot[]): FullDotLayout {
+  const dots: DotPlace[] = [];
+  const shifts: number[] = [];
+  let at = 0;
+  const park = (k: number): void => {
+    for (const p of parked) {
+      if (Math.min(p.before, map.lefts.length) !== k) continue;
+      const width = dotWidthOf(Math.max(1, Math.round(p.slots)));
+      dots.push({ id: p.id, left: at, width, hollow: p.hollow });
+      at += width + DOT_GAP_PX;
+    }
+  };
+  layout.dots.forEach((dot, k) => {
+    park(k);
+    shifts.push(at - dot.left);
+    dots.push({ ...dot, left: at });
+    at += dot.width + DOT_GAP_PX;
+  });
+  park(layout.dots.length);
+  if (layout.dots.length === 0) return { dots, oval: { left: 0, width: 0 }, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
+  const right = layout.oval.left + layout.oval.width;
+  const last = segmentOf(map.lefts, Math.max(layout.oval.left, right - 1e-6));
+  let first = segmentOf(map.lefts, layout.oval.left);
+  // Parked dots between two drawn ones on screen (an always-shown column, then the panels a scroll brought in past the parked ones)
+  // must not fall inside the oval: it starts at the run of drawn dots that ends where it ends.
+  let start = layout.oval.left + shifts[first]!;
+  for (let k = last; k > first; k--) {
+    if (shifts[k] !== shifts[k - 1]) {
+      first = k;
+      start = dots.find((d) => d.id === layout.dots[k]!.id)!.left;
+      break;
+    }
+  }
+  const oval = { left: start, width: right + shifts[last]! - start };
+  return { dots, oval, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
+}
