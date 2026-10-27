@@ -6,21 +6,17 @@
 import * as React from 'react';
 import { type WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspaceHandle } from './workspaceCore.js';
-/** The room above a workspace's row for the name of the workspace above and the name input, in px, below the column's `topInset`. @public */
-export declare const COLUMN_TOP_BAND = 76;
-/** The room below a workspace's row for the name of the workspace below, in px. @public */
-export declare const COLUMN_BOTTOM_BAND = 26;
-/** The height of a workspace name input and of the column's neighbour buttons, in px. @public */
-export declare const WORKSPACE_NAME_CONTROL_HEIGHT = 24;
-/** The attribute the workspace name input carries, so a stylesheet can select it without a class name. @public */
-export declare const WORKSPACE_NAME_INPUT_ATTRIBUTE = "data-workspace-name-input";
+/** The room above a workspace's row that the default bands keep, in px, below the column's `topInset`. With bands of its own, `columnBandRoom(bands).above`. @public */
+export declare const COLUMN_TOP_BAND: number;
+/** The room below a workspace's row that the default bands keep, in px. With bands of its own, `columnBandRoom(bands).below`. @public */
+export declare const COLUMN_BOTTOM_BAND: number;
 /** The props of `WorkspaceColumn`. @public */
 export interface WorkspaceColumnProps {
     /** The column to draw. */
     column: WorkspaceColumnHandle;
     /**
      * What fills a workspace's cell: the app's own hand-wired row for that workspace. Omitted: the row the library mounts itself, as
-     * `createWorkspace` does. A returned row puts the column's `topInset` plus `COLUMN_TOP_BAND` plus its row gap above its panels.
+     * `createWorkspace` does. A returned row puts the column's `topInset` plus its bands' room above (`columnBandRoom`) plus its row gap above its panels.
      */
     children?: (workspace: WorkspaceHandle) => React.ReactNode | undefined;
 }

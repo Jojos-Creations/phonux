@@ -106,7 +106,7 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: '1px', height: '1px', mar
  * @public
  */
 export function Workspace(props) {
-    const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, workspace, beforeRow, children, ...rest } = props;
+    const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, bottomPadding, workspace, beforeRow, children, ...rest } = props;
     const binding = workspace === undefined ? undefined : bindingOf(workspace);
     const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
     const gap = resolved.rowGap;
@@ -275,7 +275,7 @@ export function Workspace(props) {
     const style = workspaceShellStyle({ containerWidth, rowResizeSettled, panelResizing, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
     // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) applies no height limit.
     const topPad = rowTopReservePx(topPadding, resolved.rowTop, gap);
-    const bottomPad = rowBottomReservePx(gap);
+    const bottomPad = rowBottomReservePx(gap, bottomPadding);
     // A settled budget stands in for the measured one, so a panel that fills the row's height grows in the same glide.
     const measuredHeight = useRowHeightBudget(overflowContainerRef, topPad, bottomPad, heightBudget === undefined);
     const availableHeight = heightBudget ?? measuredHeight;

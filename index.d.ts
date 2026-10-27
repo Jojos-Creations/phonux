@@ -65,7 +65,9 @@ export type { OccupantMove, OpenPlacement, OpenRow, PlaceOpen } from './openPlac
 export { MAX_WORKSPACE_NAME } from './workspaceName.js';
 export { createWorkspaceColumn } from './columnHandle.js';
 export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
-export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WORKSPACE_NAME_CONTROL_HEIGHT, WORKSPACE_NAME_INPUT_ATTRIBUTE, WorkspaceColumn } from './WorkspaceColumn.js';
+export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WorkspaceColumn } from './WorkspaceColumn.js';
+export { COLUMN_BAND_ATTRIBUTE, COLUMN_SLOT_ATTRIBUTE, columnBandRoom, DEFAULT_COLUMN_BANDS, NeighbourAboveSlot, NeighbourBelowSlot, WORKSPACE_NAME_CONTROL_HEIGHT, WORKSPACE_NAME_INPUT_ATTRIBUTE, withSlotChanges, WorkspaceNameSlot, } from './columnBands.js';
+export type { AddedColumnSlot, ColumnBand, ColumnBands, ColumnSlot, ColumnSlotChanges, ColumnSlotProps } from './columnBands.js';
 export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
 export type { AddPanelOptions, MovePanelOptions, MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';

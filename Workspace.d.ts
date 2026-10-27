@@ -105,6 +105,8 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     rowNumbers?: RowNumbers;
     /** Clearance above the row, in px. Defaults to the row gap; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. Never less than the room a panel header takes, so the header stays on screen, unless the workspace sets `tuning.rowTop`: then it is taken as given, and the workspace's `rowTop` is used when this is omitted. */
     topPadding?: number;
+    /** Clearance under the row, in px. Defaults to the row gap; a host with its own chrome under the row passes more. Never less than the room a panel footer takes. */
+    bottomPadding?: number;
     /** The workspace this shell draws: its tuning (`rowGap`, `slide`, `resizeSettleSlides`, `rowGesture`) sizes the row's margin and glides. Omitted: the library's tuning defaults. */
     workspace?: WorkspaceHandle;
     /** Rendered as the scroll container's first child, ahead of the row -- a slot for host content (e.g. a

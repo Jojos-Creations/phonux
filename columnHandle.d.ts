@@ -8,6 +8,7 @@ import type { PanelId } from './panelSettings.js';
 import { type WorkspaceLive } from './workspaceLive.js';
 import type { PhonuxTheme } from './defaultTheme.js';
 import type { WorkspaceStorage } from './workspaceState.js';
+import type { ColumnBands } from './columnBands.js';
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
 export interface ColumnState {
     /** The shape of this record; a different version reads as nothing saved. */
@@ -49,6 +50,11 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
     storage?: ColumnStorage;
     /** Where the column renders itself, as `WorkspaceOptions.mount` says for a workspace. */
     mount?: HTMLElement | false;
+    /**
+     * What every cell draws above and below its row, fixed for the column's life. Unset: `DEFAULT_COLUMN_BANDS`. Build a variant with
+     * `withSlotChanges`; the row keeps `columnBandRoom(bands)` clear of them.
+     */
+    bands?: ColumnBands;
 };
 /** What `addWorkspace` takes: everything is optional. @public */
 export interface ColumnWorkspaceOptions {
@@ -153,6 +159,8 @@ interface ColumnCore {
     readonly autoMounted: boolean;
     /** The theme function every cell is drawn under, if the app gave one. */
     readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
+    /** The bands every cell draws, if the app gave them. */
+    readonly bands: ColumnBands | undefined;
     /** Reports an error the column swallowed: `onError`, else `console.error`. */
     reportError(e: unknown): void;
 }

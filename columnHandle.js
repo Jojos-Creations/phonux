@@ -40,7 +40,7 @@ const isColumnState = (v) => {
  * @public
  */
 export function createWorkspaceColumn(o = {}) {
-    const { storage, mount, ...shared } = o;
+    const { storage, mount, bands, ...shared } = o;
     let tuningInput = o.tuning;
     let live = {
         ...(o.device !== undefined ? { device: o.device } : {}),
@@ -245,6 +245,7 @@ export function createWorkspaceColumn(o = {}) {
         snapshot,
         autoMounted: mount !== false && typeof document !== 'undefined',
         theme: o.theme,
+        bands,
         reportError,
     });
     if (storage !== undefined) {

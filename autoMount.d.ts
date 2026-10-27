@@ -13,9 +13,10 @@ import type { WorkspaceColumnHandle } from './columnHandle.js';
 export declare function workspaceProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<WorkspaceProps, 'fixedColumnCount' | 'liveWidths' | 'rowScroll' | 'rowNumbers' | 'workspace'>;
 /** The `PanelRow` props the mount derives from what `useProvidePanels` returned. @internal */
 export declare function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'enterSideById' | 'maxLiveWidth' | 'rowNumbers' | 'workspace'>;
-export declare function AutoRoot({ workspace, columnTop, themed }: {
+export declare function AutoRoot({ workspace, columnTop, columnBottom, themed }: {
     workspace: WorkspaceHandle;
     columnTop?: number;
+    columnBottom?: number;
     themed?: boolean;
 }): React.ReactElement;
 /**

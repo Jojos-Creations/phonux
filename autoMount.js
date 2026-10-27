@@ -15,6 +15,7 @@ import { Workspace } from './Workspace.js';
 import { createDefaultTheme, muiThemeFor } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
+import { rowBottomReservePx } from './panelChromeSize.js';
 import { hostPanelsOf } from './hostPanels.js';
 import { useProvidePanels } from './panels/useProvidePanels.js';
 import { bindingOf } from './workspaceCore.js';
@@ -91,15 +92,15 @@ function useMountTheme(make, onError) {
     }, [made, onError]);
     return made.theme;
 }
-export function AutoRoot({ workspace, columnTop = 0, themed = true }) {
+export function AutoRoot({ workspace, columnTop = 0, columnBottom = 0, themed = true }) {
     const binding = bindingOf(workspace);
     const theme = useMountTheme(binding.theme, binding.reportError);
     const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
-    const body = _jsx(AutoBody, { workspace: workspace, columnTop: columnTop });
+    const body = _jsx(AutoBody, { workspace: workspace, columnTop: columnTop, columnBottom: columnBottom });
     return (_jsx(AutoMountContext.Provider, { value: workspace, children: themed ? (_jsxs(ThemeProvider, { theme: styling, children: [_jsx(CssBaseline, {}), body] })) : (body) }));
 }
 /** Inside the mount's ThemeProvider, so the phone fit and the row read the one theme. */
-function AutoBody({ workspace, columnTop }) {
+function AutoBody({ workspace, columnTop, columnBottom }) {
     const binding = bindingOf(workspace);
     React.useSyncExternalStore(binding.live.subscribe, binding.live.version);
     const values = binding.live.latest();
@@ -111,7 +112,9 @@ function AutoBody({ workspace, columnTop }) {
     const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
     // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
     const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
-    const phone = usePhoneFit(ref, measuredWidth, preferred, tuning, topPadding);
+    // A column's band below that outgrows the default pushes the row up by the difference.
+    const bottomPadding = columnBottom > 0 ? rowBottomReservePx(tuning.rowGap) + columnBottom : undefined;
+    const phone = usePhoneFit(ref, measuredWidth, preferred, tuning, topPadding, bottomPadding);
     const phoneWidth = phone.width;
     // The settled width, so the capacity, the row's place and the phone size change in the same commit.
     const containerWidth = phone.containerWidth;
@@ -130,7 +133,7 @@ function AutoBody({ workspace, columnTop }) {
         ...(values.labels !== undefined ? { labels: values.labels } : {}),
     };
     const Wrap = binding.wrap;
-    const row = (_jsx(Workspace, { overflowContainerRef: ref, rowRef: rowRef, containerWidth: containerWidth, phoneWidth: phoneWidth, phoneHeight: phone.height, heightBudget: phone.heightBudget, ...(topPadding !== undefined ? { topPadding } : {}), ...workspaceProps(provided, workspace), children: _jsx(PanelRow, { ...rowProps(provided, workspace) }) }));
+    const row = (_jsx(Workspace, { overflowContainerRef: ref, rowRef: rowRef, containerWidth: containerWidth, phoneWidth: phoneWidth, phoneHeight: phone.height, heightBudget: phone.heightBudget, ...(topPadding !== undefined ? { topPadding } : {}), ...(bottomPadding !== undefined ? { bottomPadding } : {}), ...workspaceProps(provided, workspace), children: _jsx(PanelRow, { ...rowProps(provided, workspace) }) }));
     const rowValue = React.useMemo(() => ({
         rowNumbers: provided.rowNumbers,
         entries: provided.entries,
