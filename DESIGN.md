@@ -1772,7 +1772,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 
 ## Panel boxes are reported, never drawn over
 
-A native view a host draws over a panel (a Simple Browser WebContentsView, a Capacitor webview) needs the panel's box
+A native view a host draws over a panel (an Electron WebContentsView, a Capacitor webview) needs the panel's box
 while it moves. phonux reports boxes and owns no native view; `PanelsInput.onPanelRect` is the one channel out.
 
 Each `PanelRowSlot` runs its own frame loop (`createRectReporter` in `panelChrome.ts`) only while its slot is moving:
