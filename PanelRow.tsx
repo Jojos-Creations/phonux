@@ -443,9 +443,9 @@ export function PanelRow({
           slide={own.slide}
           rowScroll={rowScroll}
           previewing={dragging !== null || drop !== null}
-          onActivate={() => {
+          onActivate={(control) => {
             chrome.setActive(p.id);
-            binding.touch(p.id);
+            binding.touch(p.id, control);
           }}
           dragged={dragging?.id === p.id}
         >

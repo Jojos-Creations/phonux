@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
-import { ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
+import { CHROME_ATTRIBUTE, ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
@@ -38,6 +38,12 @@ export interface PanelRowSlotMotion {
   readonly exit: TargetAndTransition;
   /** The timing the slot moves with. */
   readonly transition: typeof PANEL_TRANSITION;
+}
+
+/** Whether `target` is a button or grab bar in a panel's own header, grab bar or footer: using one is not using the panel's content. */
+function isChromeControl(target: EventTarget): boolean {
+  const control = target instanceof Element ? target.closest('button, [role="button"], [data-panel-grab-bar]') : null;
+  return control?.closest(`[${CHROME_ATTRIBUTE}]`) != null || control?.hasAttribute('data-panel-grab-bar') === true;
 }
 
 /** The same targets, no time taken: for Reduce Motion, snapping and width tracking. */
@@ -235,8 +241,8 @@ export function PanelRowSlot({
   rowScroll?: boolean;
   /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
   previewing?: boolean;
-  /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree). */
-  onActivate?: () => void;
+  /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree); `control` is true when it lands on a control of the panel's own chrome. */
+  onActivate?: (control: boolean) => void;
   /** True for the slot whose box is being dragged: its rest moving during the preview is the drop, which lands at once whatever the motion setting. */
   dragged?: boolean;
   /** The panel rendered inside the slot. */
@@ -273,7 +279,7 @@ export function PanelRowSlot({
   React.useEffect(() => {
     const onWindowBlur = (): void => {
       const focused = document.activeElement;
-      if (focused instanceof HTMLIFrameElement && el.current?.contains(focused)) activate.current?.();
+      if (focused instanceof HTMLIFrameElement && el.current?.contains(focused)) activate.current?.(false);
     };
     window.addEventListener('blur', onWindowBlur);
     return () => window.removeEventListener('blur', onWindowBlur);
@@ -385,9 +391,9 @@ export function PanelRowSlot({
       data-row-id={panelId}
       onPointerDownCapture={(e) => {
         markPanelPress(e.nativeEvent);
-        onActivate?.();
+        onActivate?.(isChromeControl(e.target));
       }}
-      onFocusCapture={onActivate}
+      onFocusCapture={(e) => onActivate?.(isChromeControl(e.target))}
       style={{
         position: 'absolute',
         top: top ?? 0,
