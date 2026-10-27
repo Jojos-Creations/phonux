@@ -46,13 +46,18 @@ function focusInHeaderRow(panelId: string): boolean {
 
 /**
  * How an entry enters. The panel's own `enterFrom` (or the `anchoredEnter` flag, read as 'anchor') wins over the
- * workspace's `tuning.defaultEnterFrom` unless it is 'auto'. A side, 'fade' or 'expand' is a constant that beats every mark.
+ * workspace's `tuning.defaultEnterFrom` unless it is 'auto'. A side or 'fade' is a constant that beats every mark; 'expand'
+ * grows out of the edge on the side a reveal comes in from (its mark, else the anchor formula) and from its center otherwise.
  * Otherwise an explicit mark from the engine wins, then the anchor formula for an entry that always uses it ('anchor')
  * or is entering via an anchor, then the right.
  */
 export function enterDirectionOf(from: EnterFrom, anchoredEnter: boolean, mark: EnterDirection | undefined, viaAnchor: boolean, formula: () => EnterDirection, workspace: EnterFrom = 'auto'): SlotEntrance {
   const own = from === 'auto' && anchoredEnter ? 'anchor' : from;
   const chosen = own === 'auto' ? workspace : own;
+  if (chosen === 'expand') {
+    const side = mark ?? (viaAnchor ? formula() : undefined);
+    return side === undefined ? 'expand' : side === 'left' ? 'expand-left' : 'expand-right';
+  }
   if (chosen !== 'auto' && chosen !== 'anchor') return chosen;
   return mark ?? (chosen === 'anchor' || viaAnchor ? formula() : 'right');
 }

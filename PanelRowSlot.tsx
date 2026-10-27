@@ -59,10 +59,14 @@ function slideStart(): number {
 }
 
 /**
- * How a slot enters: a slide from one side, a fade where it rests, or a scale up from 0 about its center.
+ * How a slot enters: a slide from one side, a fade where it rests, or a scale up from 0: about its center for 'expand'
+ * (an open), and about the edge on the side it comes in from for 'expand-left' / 'expand-right' (a reveal).
  * @internal
  */
-export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expand';
+export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expand' | 'expand-left' | 'expand-right';
+
+/** The transform origin each side expand grows about, as a fraction of the slot's width. */
+const EXPAND_ORIGIN_X: Readonly<Partial<Record<SlotEntrance, number>>> = { 'expand-left': 0, 'expand-right': 1 };
 
 /**
  * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing. 'shrink' (a close)
@@ -108,6 +112,9 @@ export function panelRowSlotMotion(
         : enterDirection === 'expand'
           ? // Starts half a span left, where its neighbours part from, so the center rides the opening gap.
             { initial: { x: rest - ownSpan / 2, scale: 0, opacity: 0 }, animate: { x: rest, scale: 1, opacity: 1 } }
+          : enterDirection === 'expand-left' || enterDirection === 'expand-right'
+            ? // Stays at its rest: moving the slot would move the edge it grows out of.
+              { initial: { x: rest, scale: 0, opacity: 0 }, animate: { x: rest, scale: 1, opacity: 1 } }
           : { initial: { x: rest, opacity: 0 }, animate: { x: rest, opacity: 1 } };
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
   // `onClose` after its own `y` animation, so this ramps in under a box already off-screen). 'left'/'right': a
@@ -309,7 +316,7 @@ export function PanelRowSlot({
   });
   // An expand's scale and its neighbours' parting must share one clock, or the gap it grows into lags it by a frame.
   React.useLayoutEffect(() => {
-    if (entrance !== 'expand' || snapping || tracking || el.current === null) return;
+    if ((entrance !== 'expand' && EXPAND_ORIGIN_X[entrance] === undefined) || snapping || tracking || el.current === null) return;
     startable.startTime = slideStart();
     slotDriver.startPending(el.current);
     delete startable.startTime;
@@ -386,7 +393,7 @@ export function PanelRowSlot({
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
         zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : shrinking ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED) : (zIndex ?? 0),
-        ...(shrinking ? { originX: shrinkOrigin } : {}),
+        ...(shrinking ? { originX: shrinkOrigin } : EXPAND_ORIGIN_X[entrance] !== undefined ? { originX: EXPAND_ORIGIN_X[entrance] } : {}),
       }}
     >
       {framed && <TabSentinel end={false} />}

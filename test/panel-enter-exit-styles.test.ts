@@ -52,8 +52,8 @@ function settledWorkspace(entries: readonly PanelWindow[], tuning: WorkspaceTuni
   assert.equal(workspace.panels.getSnapshot().status, 'ready', 'the workspace did not settle, so every slot would start at its rest');
   return workspace;
 }
-const row = (entries: PanelWindow[], workspace: WorkspaceHandle, reduced = false): React.ReactElement => {
-  const ui = React.createElement(StaticRow, { workspace, entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, exitRightIds: NONE, enterSideById: new Map() });
+const row = (entries: PanelWindow[], workspace: WorkspaceHandle, reduced = false, enterSideById: ReadonlyMap<string, 'left' | 'right'> = new Map()): React.ReactElement => {
+  const ui = React.createElement(StaticRow, { workspace, entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, exitRightIds: NONE, enterSideById });
   return withHost(reduced ? React.createElement(MotionConfig, { reducedMotion: 'always' }, ui) : ui);
 };
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
@@ -100,7 +100,12 @@ test('validation: enterFrom takes the four new entrances and exitTo the six exit
 
 test('enterDirectionOf: the panel wins unless auto, the workspace default applies at auto, and the new styles beat every mark', () => {
   const formula = (side: 'left' | 'right') => () => side;
-  for (const style of ['top', 'bottom', 'fade', 'expand'] as const) {
+  assert.deepEqual(
+    [enterDirectionOf('expand', false, 'left', true, formula('right')), enterDirectionOf('expand', false, undefined, true, formula('right')), enterDirectionOf('auto', false, 'left', false, formula('right'), 'expand'), enterDirectionOf('expand', false, undefined, false, formula('left'))],
+    ['expand-left', 'expand-right', 'expand-left', 'expand'],
+    'expand: a reveal grows out of the side it comes in from (its mark, else the formula), an open from its center',
+  );
+  for (const style of ['top', 'bottom', 'fade'] as const) {
     assert.equal(enterDirectionOf(style, false, 'left', true, formula('left')), style, `${style} beats a mark and the formula`);
     assert.equal(enterDirectionOf('auto', false, 'left', true, formula('left'), style), style, `a workspace ${style} beats a mark too`);
     assert.equal(enterDirectionOf('right', false, undefined, false, formula('left'), style), 'right', `the panel's own right wins over a workspace ${style}`);
@@ -140,6 +145,9 @@ test('entrances: top and bottom start one row height off at the rest, fade start
   assert.equal(fade.width, WIDTH, 'a fade keeps its width');
   assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'left').initial, { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'expand starts on the point its neighbours part from');
   assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'left').animate, { x: REST, scale: 1, opacity: 1 });
+  for (const side of ['expand-left', 'expand-right'] as const) {
+    assert.deepEqual([panelRowSlotMotion(REST, WIDTH, 700, side, 'left').initial, panelRowSlotMotion(REST, WIDTH, 700, side, 'left').animate], [{ x: REST, scale: 0, opacity: 0 }, { x: REST, scale: 1, opacity: 1 }], `${side} grows at its rest, out of an edge`);
+  }
   assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'top', 'left').animate, { x: REST, y: 0, opacity: 1 }, 'a vertical entrance comes to rest at y 0');
   assert.equal(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'shrink').transition, PANEL_TRANSITION, 'every style takes the shared slide transition');
 });
@@ -153,6 +161,21 @@ test('exits: top and bottom slide out one row height from the rest, fade fades a
   assert.deepEqual(at('shrink'), { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'a close shrink keeps its center where the neighbours meet');
   assert.deepEqual([at2('shrink-left'), at2('shrink-right')], [{ x: REST, scale: 0, opacity: 0 }, { x: REST, scale: 0, opacity: 0 }], 'a park shrink stays at its rest, scaling into an edge');
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
+});
+
+test('expand: a reveal from the left grows out of its left edge at its rest, and one from the right out of its right edge', async () => {
+  for (const [side, origin] of [['left', /^0% 50%/], ['right', /^100% 50%/]] as const) {
+    const base = [rootEntry(), made('a')];
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, workspace));
+    mounted.rerender(row([...base, made('b', { enterFrom: 'expand' })], workspace, false, new Map([['b', side]])));
+    await advanceFrames(250);
+    const b = slotOf(mounted.container, 'b')!;
+    assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-expand (scale ${scaleOf(b)})`);
+    assert.match(b.style.transformOrigin, origin, `from the ${side} it grows about that edge (${b.style.transformOrigin})`);
+    assert.equal(axis(b, 'X'), REST, 'at its rest');
+    mounted.unmount();
+  }
 });
 
 test('expand: the slot scales up from 0 about its center, at its full width, on the slide duration and easing', async () => {

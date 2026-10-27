@@ -1834,8 +1834,10 @@ Entrances. `auto` is the row's order: a mark, then the formula for an entry ente
 `anchor` takes the formula at every enter. `left`, `right`, `top` and `bottom` slide in from that side (a vertical
 slide travels the row's height), `fade` fades in at the slot's rest, and `expand` scales the slot up from 0 about its
 center, width and height together, while the neighbours to its right slide apart to make room; it starts half a span
-left and reaches its rest on the same clock, so its center stays where the neighbours part. Every value but `auto` and `anchor`
-is a constant that beats the engine's mark and the anchor formula.
+left and reaches its rest on the same clock, so its center stays where the neighbours part. That is an open; a reveal
+(an entry with a mark, or entering via its anchor) instead grows about the edge on the side it comes in from and stays at
+its rest, mirroring a park's shrink. Every other value but `auto` and `anchor` is a constant that beats the engine's mark
+and the anchor formula.
 
 Exits. `auto` parks toward the exit-right marks, else left, and closes downward along `slide.closeExitSeconds` and
 `slide.closeExitEase`, the curve a drag close shares. `left`, `right`, `top` and `bottom` slide out to that side, `fade`
