@@ -22,6 +22,8 @@ import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit
 import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, isPanelPress, type DrawnPin } from './panelChrome.js';
+import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
+import { focusEdgePanel, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { ROW_GAP } from './rowConstants.js';
@@ -327,6 +329,25 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     view.addEventListener('pointerdown', onPress);
     return () => view.removeEventListener('pointerdown', onPress);
   }, [overflowContainerRef, chromeStore, binding]);
+  // A bare arrow while the panel in use is out of view focuses the panel at the view's far edge instead of stepping. Capture, so
+  // the row's own listener sees the key taken.
+  React.useEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return undefined;
+    const edge = (direction: 'left' | 'right', target: EventTarget | null): boolean => focusEdgePanel(container, chromeStore.active(), direction, target);
+    const onKey = (event: KeyboardEvent): void => {
+      if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || arrowKeyBelongsElsewhere(event, container.ownerDocument)) return;
+      if (container.closest('[inert]') !== null) return;
+      if (edge(event.key === 'ArrowLeft' ? 'left' : 'right', event.target)) event.preventDefault();
+    };
+    const view = container.ownerDocument.defaultView ?? window;
+    view.addEventListener('keydown', onKey, true);
+    const unregister = registerRowKeys(container, { edge });
+    return () => {
+      view.removeEventListener('keydown', onKey, true);
+      unregister();
+    };
+  }, [overflowContainerRef, chromeStore]);
   // A press on the row is a person choosing where it rests, even if it moves nothing.
   React.useEffect(() => {
     const container = overflowContainerRef.current;
