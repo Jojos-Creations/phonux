@@ -93,3 +93,26 @@ test("a dot click glides with the workspace's slide: duration and glide ease, no
   const cubic = await quarter({ slide: { durationSec: 1.6, glideEase: 'cubic-out' } });
   assert.ok(cubic > 0.5, `the same quarter along cubic-out has covered most of it, got ${cubic}`);
 });
+
+test('a bar that unmounts mid-drag releases its claim, so the row still takes steps', async () => {
+  const out: { dots?: PanelDots } = {};
+  const Bar = ({ scroller }: { scroller: React.RefObject<HTMLDivElement | null> }) => {
+    out.dots = usePanelDots({ rowNumbers: numbers, entries, scroller, tuning: resolveWorkspaceTuning({}) });
+    return null;
+  };
+  const Row = ({ bar }: { bar: boolean }) => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } }, bar ? React.createElement(Bar, { scroller }) : null);
+  };
+  const m = mount(React.createElement(Row, { bar: true }));
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const bar = { setPointerCapture() {}, getBoundingClientRect: () => ({ left: 0 }) };
+  out.dots!.barProps.onPointerDown({ button: 0, clientX: 0, target: el, currentTarget: bar, pointerId: 1 } as never);
+  out.dots!.barProps.onPointerMove({ clientX: 60, target: el, currentTarget: bar } as never);
+  assert.equal(rowScrollerFor(el).claimHeld(), true, 'control: the drag holds the row');
+  assert.ok(el.hasAttribute('data-row-held'), 'and the row says so');
+  m.rerender(React.createElement(Row, { bar: false }));
+  await advanceFrames(20);
+  assert.equal(rowScrollerFor(el).claimHeld(), false, 'the unmount released it');
+  assert.ok(!el.hasAttribute('data-row-held'));
+});

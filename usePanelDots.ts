@@ -168,6 +168,8 @@ export function usePanelDots(i: {
     drag.current = null;
     setDragging(false);
   };
+  // A bar that unmounts mid-drag (the row stops overflowing) gets no pointerup: its claim would hold the row against every later step.
+  React.useEffect(() => () => drag.current?.end(), []);
   const dotOf = (target: EventTarget): HTMLElement | null => (target instanceof Element ? target.closest<HTMLElement>('[data-dot]') : null);
   const barProps: PanelDots['barProps'] = {
     onPointerDown: (e) => {
