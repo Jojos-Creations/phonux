@@ -163,7 +163,7 @@ test('exits: top and bottom slide out one row height from the rest, fade fades a
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
 });
 
-test('expand: a reveal from the left grows out of its left edge at its rest, and one from the right out of its right edge', async () => {
+test('expand: a reveal from the left grows out of its left edge at its rest, and one from the right out of its right edge, drawn on top while it grows', async () => {
   for (const [side, origin] of [['left', /^0% 50%/], ['right', /^100% 50%/]] as const) {
     const base = [rootEntry(), made('a')];
     const workspace = settledWorkspace(base);
@@ -174,6 +174,10 @@ test('expand: a reveal from the left grows out of its left edge at its rest, and
     assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-expand (scale ${scaleOf(b)})`);
     assert.match(b.style.transformOrigin, origin, `from the ${side} it grows about that edge (${b.style.transformOrigin})`);
     assert.equal(axis(b, 'X'), REST, 'at its rest');
+    const a = slotOf(mounted.container, 'a')!;
+    assert.ok(Number(b.style.zIndex) > Number(a.style.zIndex), `drawn over its neighbour while it grows from the ${side} (${b.style.zIndex} over ${a.style.zIndex})`);
+    await advanceFrames(600);
+    assert.equal(b.style.zIndex, a.style.zIndex, 'and back in line once grown');
     mounted.unmount();
   }
 });

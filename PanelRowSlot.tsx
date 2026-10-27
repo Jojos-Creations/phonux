@@ -244,6 +244,8 @@ export function PanelRowSlot({
 }) {
   // The entrance is read once, as the slot mounts: an enter in progress keeps its style whatever the settings say later.
   const [entrance] = React.useState(enterDirection);
+  // A reveal grows where the neighbour it replaces is still sliding away, so it is drawn on top until it has grown, on either side.
+  const [growing, setGrowing] = React.useState(EXPAND_ORIGIN_X[entrance] !== undefined);
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
   // What a report and the frame loop read: the row's store and this slot's panel id, as of this render.
@@ -375,6 +377,7 @@ export function PanelRowSlot({
       }}
       onAnimationComplete={() => {
         setSliding(false);
+        if (growing) setGrowing(false);
         reporter.current?.settle();
       }}
       {...(label === undefined ? {} : { role: 'group', 'aria-label': label })}
@@ -392,7 +395,7 @@ export function PanelRowSlot({
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
-        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : shrinking ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED) : (zIndex ?? 0),
+        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : shrinking || (growing && present) ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED) : (zIndex ?? 0),
         ...(shrinking ? { originX: shrinkOrigin } : EXPAND_ORIGIN_X[entrance] !== undefined ? { originX: EXPAND_ORIGIN_X[entrance] } : {}),
       }}
     >

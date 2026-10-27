@@ -12,7 +12,7 @@
 - A press outside every panel (between panels, or anywhere else on the page) leaves no panel active and moves keyboard focus out of the panel that had it, so keystrokes stop reaching it. With `tuning.shrinkUnfocused` on, the wide panel it leaves rests at one phone, kept in view.
 
 - A scroll step that swaps a hidden panel in the other way from the last swap waits for that swap to land, so scrolling quickly back and forth no longer reverses half-run enters and exits. Steps the same way stay as fast as the input.
-- `enterFrom: 'expand'` on a reveal now grows the panel out of the edge on the side it comes in from, mirroring a park's shrink; an open still grows from its center.
+- `enterFrom: 'expand'` on a reveal now grows the panel out of the edge on the side it comes in from, drawn over the neighbor sliding off that spot on either side, mirroring a park's shrink; an open still grows from its center.
 - `exitTo: 'shrink'` on a park now shrinks the panel into the edge on the side it leaves by, and a close still shrinks it into its center. Either way it is drawn over the neighbors closing up, so it shrinks away in front of them. `expand` is unchanged.
 
 - `tuning.shrinkUnfocused` (boolean, default false): a panel wider than one phone rests at one phone width while another panel is active and after the person scrolls the row, and goes back to its own width the next time a press or focus lands in it. `PanelWindow.savedSlots` holds that width while it rests, and `PanelSummary.savedSlots` shows it to views, and the workspace file saves it as the panel's `slots`. A launch starts every restored wide panel resting at one phone.
