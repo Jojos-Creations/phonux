@@ -90,7 +90,7 @@ export function focusEdgePanel(container: HTMLElement, active: string | null, di
  * a keyboard drag, a key already handled) or no row is in view. Modifier keys are not judged: the chord is the host's.
  * @public
  */
-export function stepRow(event: KeyboardEvent, direction: Direction): boolean {
+export function stepRow(event: KeyboardEvent, direction: 'left' | 'right'): boolean {
   if (arrowKeyBelongsElsewhere(event, document, direction === 'left' ? 'ArrowLeft' : 'ArrowRight', true)) return false;
   const cell = event.target instanceof Element ? event.target.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`) : null;
   for (const [container, keys] of rows) {

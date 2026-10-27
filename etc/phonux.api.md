@@ -278,6 +278,7 @@ export function DragToClose(input: {
     closeOnRelease?: boolean;
     onDragMove?: (move: GrabDragMove) => void;
     onDragEnd?: (end: GrabDragEnd) => void;
+    onDragCancel?: () => void;
     previewOut?: PreviewOut;
     exitFor?: (end: GrabDragEnd) => PreviewExit | null;
     children: (handle: DragHandleProps) => React_2.ReactNode;
@@ -496,6 +497,21 @@ export type ListFilter = {
 export const MAX_WORKSPACE_NAME = 60;
 
 // @public
+export interface MaximizablePanel {
+    root(): Element | null;
+    toggle(): boolean;
+}
+
+// @public
+export const MAXIMIZED_ATTRIBUTE = "data-panel-maximized";
+
+// @public
+export const maximizedPanel: () => MaximizablePanel | null;
+
+// @public
+export type MaximizePhase = 'home' | 'growing' | 'maximized' | 'shrinking';
+
+// @public
 export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
 
 // @public
@@ -559,7 +575,16 @@ export function Panel(input: PanelProps): React_2.JSX.Element;
 export const PANEL_API: PanelApiLevel;
 
 // @public
+export const PANEL_BAR_HEIGHT_PX: number;
+
+// @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
+
+// @public
+export const PANEL_FOOTER_ROOM_PX: number;
+
+// @public
+export const PANEL_ROOT_ATTRIBUTE = "data-panel-root";
 
 // @public
 export const PANEL_SETTINGS_CATALOG: readonly SettingDescriptor[];
@@ -585,6 +610,23 @@ export const panelCornerRadiusPx: (theme: PhonuxTheme) => number;
 
 // @public
 export interface PanelDots {
+    readonly barProps: {
+        readonly onPointerDown: (e: React_2.PointerEvent<HTMLElement>) => void;
+        readonly onPointerMove: (e: React_2.PointerEvent<HTMLElement>) => void;
+        readonly onPointerUp: (e: React_2.PointerEvent<HTMLElement>) => void;
+        readonly onPointerLeave: () => void;
+        readonly onPointerCancel: () => void;
+        readonly onWheel: (e: React_2.WheelEvent<HTMLElement>) => void;
+        readonly style: {
+            readonly touchAction: 'none';
+            readonly cursor: string;
+        };
+    };
+    readonly cursor: string;
+    dotProps(id: string): {
+        readonly 'data-dot': string;
+        readonly onClick: (e: React_2.MouseEvent<HTMLElement>) => void;
+    };
     readonly dots: readonly {
         readonly id: string;
         readonly left: number;
@@ -594,6 +636,13 @@ export interface PanelDots {
     readonly oval: {
         readonly left: number;
         readonly width: number;
+    };
+    readonly ovalProps: {
+        readonly role: 'slider';
+        readonly tabIndex: 0;
+        readonly 'aria-valuemin': 0;
+        readonly 'aria-valuemax': 100;
+        readonly 'aria-valuenow': number;
     };
     selectDot(id: string): void;
     startOvalDrag(): {
@@ -739,6 +788,13 @@ export class PanelManagerError extends Error {
 export type PanelManagerErrorCode = 'invalid-template' | 'duplicate-template' | 'unknown-template' | 'root-mismatch' | 'invalid-options' | 'invalid-settings' | 'instance-id-required' | 'already-attached' | 'disposed';
 
 // @public
+export interface PanelMaximize {
+    readonly maximized: boolean;
+    readonly phase: MaximizePhase;
+    toggle(): boolean;
+}
+
+// @public
 export interface PanelPresence {
     readonly reason: PanelPresenceReason;
     readonly shown: boolean;
@@ -812,6 +868,9 @@ export type PanelResult = {
 };
 
 // @public
+export function panelRootOf(target: EventTarget | null): HTMLElement | null;
+
+// @public
 export function PanelRow(input: {
     entries: readonly PanelRowEntry[];
     rootId: string;
@@ -829,6 +888,7 @@ export interface PanelRowDrop {
     begin(id: string, source?: 'code' | 'person'): boolean;
     cancel(): void;
     end(): PanelResult;
+    follow(id: string, from: Element | null, clientX: number, clientY: number): 'inside' | 'row' | 'beside';
     update(clientX: number): void;
 }
 
@@ -1260,11 +1320,32 @@ export type ResolvedWorkspaceTuning = {
 };
 
 // @public
+export const ROW_ID_ATTRIBUTE = "data-row-id";
+
+// @public
 export const ROW_LAYER_Z: Readonly<{
     BASE: 1;
     RAISED: 2;
     DRAGGED: 3;
 }>;
+
+// @public
+export const ROW_SCROLLER_ATTRIBUTE = "data-row-scroller";
+
+// @public
+export const ROW_SLOT_ATTRIBUTE = "data-row-slot";
+
+// @public
+export const ROW_STRIP_ATTRIBUTE = "data-row-strip";
+
+// @public
+export const rowFootReserve: (gap: number) => number;
+
+// @public
+export interface RowFrameBand {
+    readonly above: number;
+    readonly below: number;
+}
 
 // @public
 export interface RowLayoutInput {
@@ -1319,6 +1400,9 @@ export interface RowNumbers {
     widths: readonly number[];
     windowWidth: number;
 }
+
+// @public
+export function rowPanelIdOf(target: EventTarget | null): string | null;
 
 // @public
 export type ScrollAlign = 'into-view' | 'start' | 'center';
@@ -1430,6 +1514,9 @@ export type SettingValues = {
 };
 
 // @public
+export function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe'>, show: readonly PanelId[], hide?: readonly PanelId[], options?: WaitOptions): Promise<readonly PanelResult[]>;
+
+// @public
 export function slideToTransition(slide: SlideTuning): {
     duration: number;
     ease: [number, number, number, number];
@@ -1452,6 +1539,9 @@ export interface SnapshotsAPI {
 
 // @public
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
+
+// @public
+export function stepRow(event: KeyboardEvent, direction: 'left' | 'right'): boolean;
 
 // @public
 export interface TileCapture extends CaptureRegistry, CaptureTrigger, SnapshotsAPI {
@@ -1504,6 +1594,9 @@ export interface TileRequest {
 }
 
 // @public
+export function toggleMaximize(target?: EventTarget | null): boolean;
+
+// @public
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];
 
 // @public
@@ -1517,6 +1610,12 @@ export interface UseClosedPagesOptions {
 
 // @public
 export function useHost(): Host;
+
+// @public
+export function useMaximizedPanel(): {
+    readonly maximized: boolean;
+    readonly settled: boolean;
+};
 
 // @public
 export function usePanelActive(): boolean;
@@ -1535,6 +1634,7 @@ export function usePanelDots(i: {
     }[];
     scroller: React_2.RefObject<HTMLElement | null>;
     tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
+    ovalSide?: number;
 }): PanelDots;
 
 // @public
@@ -1548,6 +1648,11 @@ export function usePanelDragProps(): {
 
 // @public
 export function usePanelHeaderButtons(): readonly PanelHeaderButtonItem[];
+
+// @public
+export function usePanelMaximize(anchor: React_2.RefObject<HTMLElement | null>, options?: {
+    readonly topInset?: () => number;
+}): PanelMaximize;
 
 // @public
 export const usePanelNeighborWidths: () => NeighborWidths;
@@ -1602,6 +1707,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels;
 
 // @public
 export function useRecaptureOnSettle(trigger: CaptureTrigger, options: RecaptureOnSettleOptions): void;
+
+// @public
+export function useRowFrameBand(page: React_2.RefObject<HTMLElement | null>, scroller: React_2.RefObject<HTMLElement | null>, onBand: (band: RowFrameBand) => void): void;
 
 // @public
 export function useViewSnapshot(viewId: ViewId): ViewSnapshot | null;
@@ -1673,6 +1781,25 @@ export interface ViewWorkspace {
 }
 
 // @public
+export interface WaitOptions {
+    readonly timeoutMs?: number;
+}
+
+// @public
+export function whenAccepted<R extends {
+    readonly ok: true;
+} | {
+    readonly ok: false;
+    readonly code: PanelRefusal;
+}>(panels: Pick<PanelManager, 'subscribe'>, op: () => R, options?: WaitOptions): Promise<R>;
+
+// @public
+export function whenColumnReady(column: WorkspaceColumnHandle, options?: WaitOptions): Promise<boolean>;
+
+// @public
+export function whenPanel(panels: Pick<PanelManager, 'get' | 'subscribe'>, id: PanelId, test?: (state: PanelState) => boolean, options?: WaitOptions): Promise<PanelState | undefined>;
+
+// @public
 export function WindowOverlay(input: WindowOverlayProps): React_2.JSX.Element | null;
 
 // @public
@@ -1684,6 +1811,12 @@ export interface WindowOverlayProps {
 
 // @public
 export function Workspace(props: WorkspaceProps): React_2.ReactElement;
+
+// @public
+export const WORKSPACE_CELL_ATTRIBUTE = "data-workspace-cell";
+
+// @public
+export const WORKSPACE_COLUMN_ATTRIBUTE = "data-workspace-column";
 
 // @public
 export const WORKSPACE_NAME_CONTROL_HEIGHT = 24;

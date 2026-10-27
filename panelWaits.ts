@@ -39,7 +39,7 @@ export interface WaitOptions {
  * of the turn, until it is accepted, refused for good, or the wait runs out. Resolves with the last answer.
  * @public
  */
-export function whenAccepted<R extends Answer>(panels: Pick<PanelManager, 'subscribe'>, op: () => R, options?: WaitOptions): Promise<R> {
+export function whenAccepted<R extends { readonly ok: true } | { readonly ok: false; readonly code: PanelRefusal }>(panels: Pick<PanelManager, 'subscribe'>, op: () => R, options?: WaitOptions): Promise<R> {
   return new Promise((resolve) => {
     let last = op();
     if (!passes(last)) {

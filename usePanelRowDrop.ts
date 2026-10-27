@@ -72,11 +72,15 @@ export function usePanelRowDrop(): PanelRowDrop {
       // Whether this hook's own drag is on; the handlers run outside React's render, so it is a closure, not state.
       let begun = false;
       const cancel = (): void => {
-        if (begun) controller.cancel();
+        controller.cancel();
         begun = false;
       };
       return {
-        begin: (id, source = 'person') => (begun = controller.begin(id, source)),
+        begin: (id, source = 'person') => {
+          const ok = controller.begin(id, source);
+          if (ok) begun = true;
+          return ok;
+        },
         update: (x) => controller.update(x),
         end: () => {
           begun = false;
@@ -86,7 +90,7 @@ export function usePanelRowDrop(): PanelRowDrop {
         follow: (id, from, x, y) => {
           const side = sidewaysOf(from, x, y);
           if (side === null || !side.level) {
-            cancel();
+            if (begun) cancel();
             return side === null ? 'inside' : 'beside';
           }
           if (!begun) begun = controller.begin(id, 'person');

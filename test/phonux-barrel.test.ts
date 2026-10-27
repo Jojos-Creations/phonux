@@ -106,9 +106,33 @@ const VALUE_EXPORTS = [
   // The workspace name control a column draws, for a host to size and style around.
   'WORKSPACE_NAME_CONTROL_HEIGHT',
   'WORKSPACE_NAME_INPUT_ATTRIBUTE',
+  // Row mechanics a host would otherwise rebuild on the library's DOM.
+  'MAXIMIZED_ATTRIBUTE',
+  'PANEL_BAR_HEIGHT_PX',
+  'PANEL_FOOTER_ROOM_PX',
+  'PANEL_ROOT_ATTRIBUTE',
+  'ROW_ID_ATTRIBUTE',
+  'ROW_SCROLLER_ATTRIBUTE',
+  'ROW_SLOT_ATTRIBUTE',
+  'ROW_STRIP_ATTRIBUTE',
+  'WORKSPACE_CELL_ATTRIBUTE',
+  'WORKSPACE_COLUMN_ATTRIBUTE',
+  'maximizedPanel',
+  'panelRootOf',
+  'rowFootReserve',
+  'rowPanelIdOf',
+  'showPanels',
+  'stepRow',
+  'toggleMaximize',
+  'useMaximizedPanel',
+  'usePanelMaximize',
+  'useRowFrameBand',
+  'whenAccepted',
+  'whenColumnReady',
+  'whenPanel',
 ].sort();
 
-test('the phonux barrel exports exactly the 93 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 116 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
@@ -123,7 +147,8 @@ test('module identity: the context-bearing exports of the barrel are the very ob
   assert.ok(second.CaptureRegistryProvider !== undefined && second.CaptureRegistryProvider !== CaptureRegistryProvider, 'control: a second module instance must yield a distinct provider');
 });
 
-const scrollerNames = (names: readonly string[]): string[] => names.filter((name) => /scroller/i.test(name));
+// An attribute name the row draws is not the scroller itself.
+const scrollerNames = (names: readonly string[]): string[] => names.filter((name) => /scroller/i.test(name) && !name.endsWith('_ATTRIBUTE'));
 
 test('the barrel exports nothing named for the row scroller: it stays internal', () => {
   const names = Object.keys(phonux);
