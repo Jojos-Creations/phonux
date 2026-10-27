@@ -65,7 +65,7 @@ function refusingSlot(onRefused?: (what: 'resize' | 'fullscreen') => void): { sa
       return { ok: false };
     },
   } as unknown as NonNullable<PanelSlotValue['handle']>;
-  const value: PanelSlotValue = { collapsible: true, closable: true, movable: true, resizable: true, maxSlots: 4, neighborWidths: { left: [], right: [] }, pinned: false, tuning: slotTuning(LIBRARY_TUNING_DEFAULTS), handle, summary: { id: 'p', live: true, slots: 1, fitSlots: 4 } };
+  const value: PanelSlotValue = { collapsible: true, closable: true, movable: true, resizable: true, maxSlots: 4, neighborWidths: { left: [], right: [] }, tuning: slotTuning(LIBRARY_TUNING_DEFAULTS), handle, summary: { id: 'p', live: true, slots: 1, fitSlots: 4 } };
   const props: PanelSizeControlProps = onRefused === undefined ? {} : { onRefused };
   const control = createElement(PanelSizeControl as (p: PanelSizeControlProps) => ReactElement | null, props);
   const tree = createElement(AnnounceContext.Provider, { value: (text: string) => void said.push(text) }, createElement(PanelSlotContext.Provider, { value }, control));

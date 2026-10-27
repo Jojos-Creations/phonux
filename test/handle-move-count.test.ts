@@ -1,5 +1,5 @@
 /**
- * handle.move(by): a signed slot count as one gated call, and the default frame's drag and `usePanelPinned` built on the handle.
+ * handle.move(by): a signed slot count as one gated call, and the default frame's drag built on the handle.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
