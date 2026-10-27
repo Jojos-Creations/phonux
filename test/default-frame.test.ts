@@ -359,8 +359,9 @@ test('a header button the template declares is drawn in the library header, pres
   const r = await rig([t], ['bare']);
   await settle();
   const slot = r.m.container.querySelector('[data-body="bare"]')!.closest('[data-row-slot]')!;
-  const buttons = [...slot.querySelectorAll<HTMLButtonElement>('[data-header-buttons-row] button')];
-  assert.deepEqual(buttons.map((b) => b.getAttribute('aria-label')), ['First', 'Second']);
+  const all = [...slot.querySelectorAll<HTMLButtonElement>('[data-header-buttons-row] button')];
+  assert.deepEqual(all.map((b) => b.getAttribute('aria-label')), ['View Size', 'First', 'Second'], 'the width control leads, as on every resizable panel');
+  const buttons = all.slice(1);
   await act(async () => buttons[0]!.click());
   assert.deepEqual(presses, ['First']);
   await act(async () => {

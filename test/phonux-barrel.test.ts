@@ -50,6 +50,7 @@ const VALUE_EXPORTS = [
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
+  'PanelSizeControl',
   'GAP',
   'PANEL_TRANSITION',
   'usePanelReorderSteps',
@@ -132,7 +133,7 @@ const VALUE_EXPORTS = [
   'whenPanel',
 ].sort();
 
-test('the phonux barrel exports exactly the 116 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 117 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
