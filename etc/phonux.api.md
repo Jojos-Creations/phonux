@@ -817,6 +817,7 @@ export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'titl
     };
     overlay?: React_2.ReactNode;
     size?: PanelSize;
+    sizeControl?: boolean;
     sx?: CssStyle;
     title?: React_2.ReactNode;
     viewId?: ViewId;
@@ -989,6 +990,17 @@ export function PanelSizeBox(input: {
 }): React_2.JSX.Element;
 
 // @public
+export function PanelSizeControl(input?: PanelSizeControlProps): React_2.JSX.Element | null;
+
+// @public
+export interface PanelSizeControlProps {
+    readonly fullscreenKeys?: string;
+    readonly fullscreenShortcut?: string;
+    readonly onRefused?: (what: 'resize' | 'fullscreen') => void;
+    readonly topInset?: () => number;
+}
+
+// @public
 export interface PanelSizeGlide {
     from: {
         width: number;
@@ -1153,8 +1165,11 @@ export interface PhonuxLabels {
     closedPagesShowMore: string;
     closedPagesTitle: string;
     closedPagesUntitled: string;
+    couldNotFullscreen: string;
+    couldNotResize: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
+    fullscreen: string;
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
     historyTitle: string;
@@ -1168,11 +1183,13 @@ export interface PhonuxLabels {
     pin: string;
     pinFailed: string;
     row: string;
+    sizeName: (slots: number) => string;
     unlock: string;
     unpin: string;
     unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
+    viewSize: string;
     workspaceEmpty: string;
     workspaceHidden: string;
     workspaceName: string;

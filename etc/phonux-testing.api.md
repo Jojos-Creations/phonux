@@ -461,8 +461,11 @@ export interface PhonuxLabels {
     closedPagesShowMore: string;
     closedPagesTitle: string;
     closedPagesUntitled: string;
+    couldNotFullscreen: string;
+    couldNotResize: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
+    fullscreen: string;
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
     historyTitle: string;
@@ -476,11 +479,13 @@ export interface PhonuxLabels {
     pin: string;
     pinFailed: string;
     row: string;
+    sizeName: (slots: number) => string;
     unlock: string;
     unpin: string;
     unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
+    viewSize: string;
     workspaceEmpty: string;
     workspaceHidden: string;
     workspaceName: string;

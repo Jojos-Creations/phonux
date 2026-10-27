@@ -9,6 +9,7 @@
 - A drag held at the row's edge where the row cannot scroll further, a row that fits its window included, swaps the nearest hidden panel on that side in, one per slide, as a scroll step does; the dragged panel stays under the pointer and is never parked. When the root is not `crossable` and starts the row, a drag stops at the root's right edge, and the left band starts there instead of at the window's edge.
 ### Added
 
+- `PanelSizeControl`: one width control for every resizable panel. A header button shows the panel's own width and opens a View Size menu of the widths that fit (Phone to Ultrawide) and Fullscreen; a pick runs the same size glide as any resize. `Panel` draws it first among a titled, resizable panel's actions; `sizeControl={false}` leaves it to a view that places it in its own toolbar. New labels: `viewSize`, `sizeName`, `fullscreen`, `couldNotResize`, `couldNotFullscreen`.
 - A press outside every panel (between panels, or anywhere else on the page) leaves no panel active and moves keyboard focus out of the panel that had it, so keystrokes stop reaching it. With `tuning.shrinkUnfocused` on, the wide panel it leaves rests at one phone, kept in view.
 
 - A scroll step that swaps a hidden panel in the other way from the last swap waits for that swap to land, so scrolling quickly back and forth no longer reverses half-run enters and exits. Steps the same way stay as fast as the input.
