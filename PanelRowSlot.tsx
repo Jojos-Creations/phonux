@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { animate, motion, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { animate, motion, PresenceContext, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { CHROME_ATTRIBUTE, ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -252,7 +252,9 @@ export function PanelRowSlot({
   const [entrance] = React.useState(enterDirection);
   // A reveal grows where the neighbor it replaces is still sliding away, so it is drawn on top until it has grown, on either side.
   // A new open grows from its center while the panel in its slot slides out, so it is drawn beneath until it has grown.
-  const [growing, setGrowing] = React.useState(entrance === 'expand' || EXPAND_ORIGIN_X[entrance] !== undefined);
+  // A slot mounted with the row (AnimatePresence initial={false}) never animates in, so it never grows.
+  const presence = React.useContext(PresenceContext);
+  const [growing, setGrowing] = React.useState(presence?.initial !== false && (entrance === 'expand' || EXPAND_ORIGIN_X[entrance] !== undefined));
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
   // What a report and the frame loop read: the row's store and this slot's panel id, as of this render.
