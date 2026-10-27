@@ -640,7 +640,7 @@ view),
 and the person moving the row (a step of the row gesture, a dot press or a drag of the dot bar). A move rests every wide
 panel, the active one included; a scroll the library makes itself, such as following a resize or opening a panel, rests
 none. A resting panel keeps the count it goes back to in `restoreSlots`, and the next press or focus inside it resizes it
-back, with the same capacity rule as `setSlots`. Any `setSlots` while it rests replaces that count. The workspace file
+back, with the same capacity rule as `setSlots`, and centers it in the row as near as the ends allow. Any `setSlots` while it rests replaces that count. The workspace file
 saves the count it goes back to, never the resting one, so a reload never loses a chosen width, and a launch
 starts every restored wide panel resting, so it comes back at its saved width the first time it is used. The rest is a resize from
 code, so the person's recorded `overrides.slots` stays as it was. The next activation brings a resting panel back even
