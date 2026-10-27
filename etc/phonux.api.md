@@ -1586,12 +1586,7 @@ export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" 
 // @public
 export function usePanelDots(i: {
     rowNumbers: RowNumbers;
-    entries: readonly {
-        readonly id: string;
-        readonly settings?: {
-            readonly hollowDot: boolean;
-        };
-    }[];
+    entries: readonly WorkspaceRowEntry[];
     scroller: React_2.RefObject<HTMLElement | null>;
     tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
     ovalSide?: number;
@@ -1958,9 +1953,13 @@ export interface WorkspaceRow {
 // @public
 export interface WorkspaceRowEntry {
     readonly id: string;
+    readonly live?: boolean;
+    readonly marker?: true;
     readonly settings?: {
         readonly hollowDot: boolean;
+        readonly revealOnScroll?: 'edges' | 'any' | 'never';
     };
+    readonly slots?: number;
     readonly uid?: string;
 }
 

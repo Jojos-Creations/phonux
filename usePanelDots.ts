@@ -6,20 +6,21 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
-import { centreScroll, dotLayout, dotMap, dragScroll } from './rowDots.js';
+import { centreScroll, dotLayout, dotMap, dragScroll, withParked, type ParkedDot } from './rowDots.js';
 import { maxScrollOf, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 import { stepRowIn } from './rowStep.js';
+import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
 export interface PanelDots {
-  /** Each drawn panel's dot in track px, in row order. `hollow` is the panel setting `hollowDot`. */
+  /** Each panel's dot in track px, in row order: the drawn panels and the parked ones a scroll can bring in. `hollow` is the panel setting `hollowDot`. */
   readonly dots: readonly { readonly id: string; readonly left: number; readonly width: number; readonly hollow: boolean }[];
-  /** The window oval in track px. */
+  /** The window oval in track px, over the dots of the panels on screen. */
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
   readonly width: number;
-  /** Centres the panel `id` in the window. Does nothing when the row cannot scroll, or while a drag holds the row. */
+  /** Centres the panel `id` in the window, or for a parked panel steps the row until it is drawn. Does nothing while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
   startOvalDrag(): { drag(dx: number): void; end(): void } | null;
@@ -70,9 +71,23 @@ function ovalCursor(x: number | null, oval: { left: number; width: number }, sid
   return x >= oval.left && x <= oval.left + oval.width + 2 * side ? 'grab' : overDot ? 'pointer' : 'default';
 }
 
+/** The parked panels of `entries` a scroll can bring in, each placed after the drawn panels ahead of it in the row's order. */
+function parkedOf(entries: readonly WorkspaceRowEntry[], drawn: readonly string[]): ParkedDot[] {
+  const shown = new Set(drawn);
+  const parked: ParkedDot[] = [];
+  let before = 0;
+  for (const e of entries) {
+    if (shown.has(e.id)) before += 1;
+    else if (e.live === false && e.marker !== true && e.settings?.revealOnScroll !== 'never') {
+      parked.push({ id: e.id, before, slots: e.slots ?? 1, hollow: e.settings?.hollowDot === true });
+    }
+  }
+  return parked;
+}
+
 /**
- * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` carries each drawn panel's
- * settings (the hollow dot is the panel setting `hollowDot`); `scroller` is the row's scroll container (the element
+ * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` is every panel in row order, drawn or
+ * parked (the hollow dot is the panel setting `hollowDot`); `scroller` is the row's scroll container (the element
  * with `data-row-scroller`). A dot's width comes from its panel's size, and the bar grows and shrinks with the
  * panels; the app sets no width for it. A dot click glides with the workspace's `slide` (`tuning` is `useProvidePanels(...).tuning`).
  * Reduce Motion snaps it, under either the OS query or `MotionConfig`.
@@ -80,7 +95,7 @@ function ovalCursor(x: number | null, oval: { left: number; width: number }, sid
  */
 export function usePanelDots(i: {
   rowNumbers: RowNumbers;
-  entries: readonly { readonly id: string; readonly settings?: { readonly hollowDot: boolean } }[];
+  entries: readonly WorkspaceRowEntry[];
   scroller: React.RefObject<HTMLElement | null>;
   tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
   /** How far the drawn oval reaches past the dots it encloses on each side, in px, so the cursor reads the oval as drawn. Default 0. */
@@ -111,10 +126,40 @@ export function usePanelDots(i: {
     // The track starts at the strip's first panel, not at scroll 0.
     scrollLeft: scrollLeft - n.stripStart,
   });
+  const parked = parkedOf(entries, n.ids);
+  const bar = withParked(layout, map, parked);
   const maxScroll = maxScrollOf(n);
+  const step = (direction: 'left' | 'right'): void => {
+    const el = scroller.current;
+    if (el) stepRowIn(el, direction);
+  };
+
+  // A click on a parked dot steps the row toward it, one step each time the parked set changes, until it is drawn. A step that
+  // only scrolls a row toward its end changes no parked panel, so the wait for the next step also ends after one slide.
+  const [seek, setSeek] = React.useState<{ id: string; direction: 'left' | 'right'; steps: number } | null>(null);
+  const parkedKey = parked.map((p) => p.id).join(' ');
+  React.useEffect(() => {
+    if (seek === null) return undefined;
+    if (!bar.parked.has(seek.id) || seek.steps <= 0) {
+      setSeek(null);
+      return undefined;
+    }
+    step(seek.direction);
+    const next = window.setTimeout(() => setSeek((s) => (s === null ? s : { ...s, steps: s.steps - 1 })), tuning.slide.durationSec * 1000 + 50);
+    return () => window.clearTimeout(next);
+  }, [seek?.id, seek?.steps, parkedKey]);
 
   const selectDot = (id: string): void => {
     const el = scroller.current;
+    if (bar.parked.has(id)) {
+      const dot = bar.dots.find((d) => d.id === id);
+      if (!el || dot === undefined || rowScrollerFor(el).claimHeld()) return;
+      // One step per parked dot between the window and this one, and one more for a row that must first scroll to its end.
+      const left = dot.left < bar.oval.left;
+      const between = bar.dots.filter((d) => bar.parked.has(d.id) && (left ? d.left >= dot.left && d.left < bar.oval.left : d.left <= dot.left && d.left > bar.oval.left)).length;
+      setSeek({ id, direction: left ? 'left' : 'right', steps: between + 1 });
+      return;
+    }
     const index = n.ids.indexOf(id);
     if (!el || index < 0) return;
     rowScrollerFor(el).noteInput();
@@ -158,11 +203,7 @@ export function usePanelDots(i: {
   // the drag last met the row's end (or last stepped), so travel beyond it steps the row.
   const press = React.useRef<{ x: number; id: string | null; moved: boolean; edgeX: number | null } | null>(null);
   const wheel = React.useRef<{ travel: number; at: number }>({ travel: 0, at: 0 });
-  const step = (direction: 'left' | 'right'): void => {
-    const el = scroller.current;
-    if (el) stepRowIn(el, direction);
-  };
-  const cursor = ovalCursor(pointer?.x ?? null, layout.oval, ovalSide, dragging, pointer?.overDot === true);
+  const cursor = ovalCursor(pointer?.x ?? null, bar.oval, ovalSide, dragging, pointer?.overDot === true);
   const stop = (): void => {
     drag.current?.end();
     drag.current = null;
@@ -235,7 +276,7 @@ export function usePanelDots(i: {
     tabIndex: 0,
     'aria-valuemin': 0,
     'aria-valuemax': 100,
-    'aria-valuenow': Math.round((layout.oval.left / Math.max(1, map.width - layout.oval.width)) * 100),
+    'aria-valuenow': Math.round((bar.oval.left / Math.max(1, bar.width - bar.oval.width)) * 100),
   };
   const dotProps = (id: string) => ({
     'data-dot': id,
@@ -245,5 +286,5 @@ export function usePanelDots(i: {
     },
   });
 
-  return { dots: layout.dots, oval: layout.oval, width: map.width, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
+  return { dots: bar.dots, oval: bar.oval, width: bar.width, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
 }

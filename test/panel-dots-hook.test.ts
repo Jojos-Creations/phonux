@@ -13,6 +13,7 @@ import type { WorkspaceTuning } from '../panelSettings.js';
 import { usePanelDots, type PanelDots } from '../usePanelDots.js';
 import type { RowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
+import { registerRowKeys } from '../rowStep.js';
 
 afterEach(() => cleanup());
 
@@ -92,4 +93,23 @@ test("a dot click glides with the workspace's slide: duration and glide ease, no
   assert.ok(Math.abs(linear - 0.25) < 0.02, `a quarter of a linear 1.6 s glide has covered a quarter, got ${linear}`);
   const cubic = await quarter({ slide: { durationSec: 1.6, glideEase: 'cubic-out' } });
   assert.ok(cubic > 0.5, `the same quarter along cubic-out has covered most of it, got ${cubic}`);
+});
+
+test('parked entries get dots in row order, and a click on one steps the row toward it', () => {
+  const out: { dots?: PanelDots } = {};
+  const steps: string[] = [];
+  const all = [{ id: 'p0', live: false }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'p1', live: false }, { id: 'p2', live: false, settings: { hollowDot: false, revealOnScroll: 'never' as const } }];
+  const Probe = () => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => registerRowKeys(scroller.current!, { step: (d) => steps.push(d) }), []);
+    out.dots = usePanelDots({ rowNumbers: numbers, entries: all, scroller, tuning: resolveWorkspaceTuning({}) });
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });
+  };
+  mount(React.createElement(Probe));
+  assert.deepEqual(out.dots!.dots.map((d) => d.id), ['p0', 'a', 'b', 'c', 'p1'], 'a panel no scroll can bring in has no dot');
+  assert.ok(out.dots!.oval.left >= 30, 'the oval is past the parked dot on the left');
+  React.act(() => out.dots!.selectDot('p1'));
+  assert.deepEqual(steps, ['right']);
+  React.act(() => out.dots!.selectDot('p0'));
+  assert.equal(steps.at(-1), 'left');
 });
