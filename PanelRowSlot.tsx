@@ -415,8 +415,9 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 
 /**
  * The box a resize animates. Its real width and height ease from the size on screen to the new one over the slide, in step with
- * the neighbouring slots, so its content reflows as it goes and is never stretched. A view renders it inside its own slot.
- * Under Reduce Motion, or while a host holds a width, the resize snaps.
+ * the neighbouring slots, so its content reflows as it goes and is never stretched. A row already draws one around every panel,
+ * which follows the panel's `resize` setting; a `PanelSizeBox` inside it is a plain div that fills it. Under Reduce Motion, or
+ * while a host holds a width, the resize snaps.
  * @public
  */
 export function PanelSizeBox({
@@ -468,7 +469,7 @@ const missingHost = (): never => {
   throw new HostMissingProviderError();
 };
 
-/** True below a `SizeBox`: a box inside another is a plain div, because two glides of one size would fight. */
+/** True below a `SizeBox`: a box inside another is a plain div filling it, because two glides of one size would fight. */
 const SizeBoxContext = React.createContext(false);
 
 /** True below a `SizeBox`: the panel and its frame fill the box, so they take each eased frame's size, not the target's. @internal */
@@ -529,7 +530,8 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
     });
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
-  if (nested) return <div data-panel-size-plain="" style={{ width, height }}>{children}</div>;
+  // It fills the box above, so it eases with that box rather than snapping to its own size.
+  if (nested) return <div data-panel-size-plain="" style={{ width: '100%', height: '100%' }}>{children}</div>;
   // The larger width, so a grow lays the content out once at its start and a shrink once at its end. The height follows the box,
   // and the clip is sideways only: a frame's header and footer are drawn above and below the box.
   const content = reveal ? (

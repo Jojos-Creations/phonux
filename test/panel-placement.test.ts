@@ -612,7 +612,7 @@ function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote
     settle: () => advanceFrames(600),
     /** Which way `id`'s slot starts from its rest position: -1 left of it, 1 right of it. Read straight after the act that mounted it. */
     entersFrom: async (id: string): Promise<number> => {
-      const slot = mounted.container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+      const slot = mounted.container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
       assert.ok(slot, `slot ${id} is mounted`);
       const initial = translateX(slot);
       await advanceFrames(600);
@@ -702,7 +702,7 @@ for (const c of SIDE_CASES) {
     act(() => provided!.activate('B'));
     assert.equal(provided!.enterSideById.get('B'), c.side, 'the explicit mark');
     assert.equal(provided!.enterSideById.get('B'), sideOfLiveRange([...provided!.entries], 'B'), 'equals sideOfLiveRange of the landing slot');
-    const slot = mounted.container.querySelector('[data-slot="B"]')?.parentElement;
+    const slot = mounted.container.querySelector('[data-slot="B"]')?.closest<HTMLElement>('[data-row-slot]');
     assert.ok(slot, 'the new slot is mounted');
     const initial = Number(/translateX\((-?[\d.]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
     await advanceFrames(600);

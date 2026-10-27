@@ -123,7 +123,7 @@ test('a mounted scrolling row: the container pads 16 on the left, the end elemen
   assert.match(markup, /padding-left:16px/);
   assert.match(markup, /padding-right:0px/, 'the right edge space is the end element, so every engine counts it');
   assert.match(markup, new RegExp(`data-row-end-pad="" style="flex:0 0 ${n.endPad + GAP}px`), 'the end element is endPad plus the row gap');
-  const slotWidths = [...markup.matchAll(/style="[^"]*?width:(\d+)px/g)].map((m) => Number(m[1]));
+  const slotWidths = [...markup.matchAll(/data-panel-size-box="" style="width:(\d+)px/g)].map((m) => Number(m[1]));
   assert.equal(slotWidths.length, 11);
   assert.equal(slotWidths.reduce((sum, w) => sum + w, 0) + 10 * GAP, n.stripWidth);
   assert.equal(n.stripWidth, 4450);

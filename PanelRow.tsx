@@ -20,7 +20,7 @@ import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
 import type { EnterFrom, ExitTo, ResolvedPanelSettings, ResolvedWorkspaceTuning } from './panelSettings.js';
-import { PanelRowSlot, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
+import { PanelRowSlot, SizeBox, type SlotEntrance, type SlotExit } from './PanelRowSlot.js';
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
@@ -351,7 +351,7 @@ export function PanelRow({
   // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
   const slotFor = (p: PanelRowEntry, rest: { leftOffset: number; width: number }, held: boolean): React.ReactElement => {
     const Component = resolveViewIn(templateOf, p.view);
-    const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
+    const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons, resize } = effective(p);
     const own = rowTuning;
     const handle = viewContext.handleFor(panelKey(p));
     const report = binding.reportError;
@@ -420,9 +420,12 @@ export function PanelRow({
               never the internal record. */}
           {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
               initial) call needs no id argument. */}
-          <useViewState.Provider value={panelKey(p)}>
-            <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
-          </useViewState.Provider>
+          {/* Every panel resizes through this one box, so a view that draws a bare Panel glides like any other. */}
+          <SizeBox reveal={resize === 'reveal'}>
+            <useViewState.Provider value={panelKey(p)}>
+              <Component panel={renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow)} />
+            </useViewState.Provider>
+          </SizeBox>
         </PanelRowSlot>
         </PanelHold>
       </PanelSlotContext.Provider>

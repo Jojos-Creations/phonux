@@ -235,6 +235,8 @@ export type SettingValues = {
   revealOnScroll: 'edges' | 'any' | 'never';
   /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' is in the strip while it is in view, and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
   edgeHold: 'off' | 'left' | 'right' | 'both';
+  /** How the panel's content follows a size glide. 'reveal' lays it out once at the glide's larger width and the panel's eased edge clips its sides, so the content is resized when a grow starts and when a shrink ends. 'reflow' lays it out at the eased width on every frame. */
+  resize: 'reveal' | 'reflow';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
   /** Whether the row follows the panel when it is moved, placed, resized, pinned, unpinned or its layout reset. */
@@ -817,6 +819,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
+    name: 'resize',
+    group: 'motion',
+    values: 'reveal, reflow',
+    default: 'reflow',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-engine-placement-and-motion-settings',
+    configure: { cls: 'NOW', doors: ['instance'] },
+  },
+  {
     name: 'scrollOnOpen',
     group: 'scrolling',
     values: 'into-view, start, center, none',
@@ -1302,6 +1315,7 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   overflow: 'scroll' as Overflow,
   revealOnScroll: 'edges' as const,
   edgeHold: 'off' as const,
+  resize: 'reflow' as const,
   scrollOnOpen: 'into-view' as ScrollOnOpen,
   scrollOnMove: 'follow' as ScrollOnMove,
   toggleWhenClosed: 'ignore' as const,
@@ -1596,6 +1610,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   overflow: oneOf('scroll', 'park'),
   revealOnScroll: oneOf('edges', 'any', 'never'),
   edgeHold: oneOf('off', 'left', 'right', 'both'),
+  resize: oneOf('reveal', 'reflow'),
   scrollOnOpen: oneOf('into-view', 'start', 'center', 'none'),
   scrollOnMove: oneOf('follow', 'none'),
   toggleWhenClosed: oneOf('ignore', 'reopen'),

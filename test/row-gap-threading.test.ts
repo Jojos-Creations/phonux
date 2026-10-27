@@ -45,7 +45,7 @@ const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { seed: { tuning } }) }));
 const slotX = (container: HTMLElement, id: string): number => {
-  const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+  const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
   const match = /translateX\((-?[\d.]+)px\)/.exec(slot.style.transform);
   return match === null ? 0 : Number(match[1]);

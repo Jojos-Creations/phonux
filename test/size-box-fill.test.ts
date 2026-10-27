@@ -80,7 +80,7 @@ test('in a mounted row the size box has the slot\'s pixels and the Panel and Pan
   ws.addPanel('sized');
   const m = mountWorkspace(ws, { width: 4000 });
   await flush();
-  const box = boxOf(m.container);
+  const box = frameOf(m.container).closest<HTMLElement>('[data-panel-size-box]')!;
   assert.equal(box.style.width, `${2 * PHONE_WIDTH + 16}px`);
   const panel = box.firstElementChild as HTMLElement;
   const frame = frameOf(box);

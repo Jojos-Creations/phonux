@@ -597,6 +597,7 @@ export type SettingValues = {
     overflow: Overflow;
     revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
+    resize: 'reveal' | 'reflow';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
