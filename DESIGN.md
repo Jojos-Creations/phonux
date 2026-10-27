@@ -479,7 +479,9 @@ With `rowGesture` `step` a sideways wheel, Shift+wheel or arrow key asks for a s
 wider than its window the step goes through `gestureTarget`: it shows the nearest hidden panel in the direction when
 its `revealOnScroll` allows and no live panel lies between the window's edge and its slot, and otherwise scrolls to
 the next stop (the next panel start in a row without stops), from the in-flight glide's target. A row with nothing to scroll toward keeps the 0.1.0 swap
-(`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held.
+(`scrollRow`), which swaps in no panel whose `revealOnScroll` is 'never'. The gesture does nothing while a claim is held. A step
+that would swap waits for the last swap to land (`slide.durationSec`): one started over a swap in flight reverses its
+enter and exit half-run, and a fast back-and-forth leaves panels growing and shrinking in place.
 
 The row's own overflow is `overflowY: hidden` for every rowGesture: a vertical wheel over the row or a plain panel does nothing to the row, so it cannot move up off its workspace. A panel's own inner scroller still scrolls, because the wheel reaches it first.
 
