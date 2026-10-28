@@ -424,18 +424,13 @@ export interface PhonuxLabels {
     fullscreen: string;
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
-    move: string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
     panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
-    pin: string;
-    pinFailed: string;
     row: string;
     sizeName: (slots: number) => string;
-    unpin: string;
-    unpinFailed: string;
     untitledHeader: string;
     untitledPanel: string;
     viewSize: string;
