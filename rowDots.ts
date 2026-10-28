@@ -145,6 +145,15 @@ export interface FullDotLayout extends DotLayout {
 }
 
 /**
+ * Whether a parked panel with `before` drawn panels ahead of it in the row waits on the bar's left, of `drawn` drawn panels: one
+ * inside the drawn run waits on the side nearer its place, a tie on the left. The row's step follows the same rule, so a step
+ * toward a dot always reaches it.
+ */
+export function waitsLeft(before: number, drawn: number): boolean {
+  return before <= 0 || (before < drawn && before <= drawn - before);
+}
+
+/**
  * Sets the parked dots beside the drawn ones, which stay together under the oval: an always-shown panel such as the Workspace
  * never moves, so its dot stays in the oval's end slot and the panels parked between it and the rest wait outside the oval.
  */
@@ -153,8 +162,7 @@ export function withParked(layout: DotLayout, map: DotMap, parked: readonly Park
   const shifts: number[] = [];
   let at = 0;
   const n = layout.dots.length;
-  // A parked panel inside the drawn run waits on the side of it nearer its place in the row.
-  const sideOf = (before: number): number => (before <= 0 || before >= n ? Math.min(Math.max(before, 0), n) : before <= n - before ? 0 : n);
+  const sideOf = (before: number): number => (waitsLeft(before, n) ? 0 : n);
   const park = (k: number): void => {
     for (const p of parked) {
       if (sideOf(p.before) !== k) continue;
