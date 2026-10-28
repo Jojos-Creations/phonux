@@ -1,0 +1,189 @@
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { createPanelList } from './panelList.js';
+import { flushSync } from 'react-dom';
+import { reportNotes, restorePlaced } from '../panelPlacement.js';
+import { FIXED, effective, panelKey } from '../panelSettings.js';
+import { closePanel, sideOfLiveRange } from '../panelWindow.js';
+/** `panel` carrying `hostData`; `undefined` leaves no `hostData` key at all, the same shape appendPanel produces. */
+function withHostData(panel, hostData) {
+    const next = { ...panel };
+    if (hostData === undefined)
+        delete next.hostData;
+    else
+        next.hostData = hostData;
+    return next;
+}
+/**
+ * A close (drag down, or History's trash) removes the view COMPLETELY, reports it through `onPanelsClosed` unless its
+ * `reportClose` is false, and offers Undo until the one shared window ends: it ends at the latest of the closes' own
+ * `undoWindowMs` after each close, and no close shortens it. Takes the CURRENT render's values, so nothing here may be memoised, and `close` reads the index from
+ * that render: two closes before one re-render would undo in the wrong order (discrete gestures re-render between
+ * events), so a caller that batches closes needs one setPanels for the lot. Log ids are `<closedAt>#<panel id>`: panel
+ * ids restart each launch, and a host undoing by id would otherwise also delete an older launch's entry.
+ */
+export function usePanelClosing(panels, setPanels, revealPanelProactively, rootId, 
+/**
+ * Called once per successful close with the id that just left and `closePanel`'s `remaining`, the array right
+ * after it, computed from THIS render's `panels` like everything else in `close()`.
+ */
+onAfterClose, 
+/**
+ * Called per panel `undoClose` restores LIVE (the branch that calls `revealPanelProactively`): with
+ * usePanelManager.ts's `revealMostRecentlyCollapsed`, one of the two paths that enter from the anchor's side.
+ * `side` is set when its `undoPlacement` moved it: the side of the row it landed on, which the anchor cannot say.
+ */
+onRestoreLive, 
+/**
+ * Called with the panels the undo window's NATURAL elapse just finalized (Undo calls stopWindow() instead), and
+ * at once with a panel whose `undoWindowMs` is 0, so a caller can tell a restored close from one nothing will
+ * ever undo.
+ */
+onWindowElapsed, 
+/** Called once per successful close with the log entry: `id` is the log id, `title` is the panel's own, the empty string when it has none: the host decides what to show for that. */
+onPanelsClosed, 
+/** Called once per `undoClose` batch with the log ids of the closes it restores that were reported, in close order; not called when there are none. */
+onPanelsRestored, 
+/**
+ * Called once per restored panel with the `hostData` it closed carrying; its return value is what the panel comes
+ * back with (`undefined` drops the key). Unset leaves `hostData` exactly as it closed: only the host knows what
+ * the opaque blob pointed at, and whether that outlived the close.
+ */
+resetHostDataOnRestore, 
+/** Receives each note an undo raises (a placement that fell back); whatever it throws is swallowed. */
+onNote, 
+/** The developer's panel order, read by an undo whose `undoPlacement` is `'order'`. */
+order, 
+/**
+ * Rebuilds a closed entry at undo: the entry to restore and where to put it. Unset, the entry comes back as it
+ * closed and `undoPlacement` is the one it carries, which for an entry with no settings is 'old-slot'.
+ */
+reapply) {
+    // Plain stores: a read in the timer below sees every entry the window holds, whichever closure made the last write.
+    const [closedStore] = useState(() => createPanelList([]));
+    const closed = useSyncExternalStore(closedStore.subscribe, closedStore.get, closedStore.get);
+    const [closingStore] = useState(() => createPanelList(new Set()));
+    const closingIds = useSyncExternalStore(closingStore.subscribe, closingStore.get, closingStore.get);
+    const timer = useRef(null);
+    // When the open window ends, ms since the epoch: a later close may move it later, never earlier.
+    const windowEnd = useRef(null);
+    // Ids closed in the current window: a second close of the same id (a gesture callback that outlived a trash click) is ignored.
+    const claimed = useRef(new Set());
+    useEffect(() => () => {
+        if (timer.current)
+            clearTimeout(timer.current);
+    }, []);
+    const stopWindow = () => {
+        if (timer.current)
+            clearTimeout(timer.current);
+        timer.current = null;
+        windowEnd.current = null;
+        claimed.current.clear();
+    };
+    const close = (id) => {
+        const found = closePanel(panels, id, rootId);
+        // The root's close is a no-op: the one gate every close goes through.
+        if (!found || claimed.current.has(id) || id === rootId)
+            return false;
+        claimed.current.add(id);
+        const settings = effective(found.closed);
+        // Commits ALONE, before the removal: AnimatePresence takes an exiting child's `exit` from its LAST props
+        // before it left, and a plain setState would batch with the setPanels below into one commit that never
+        // has the panel both present AND marked.
+        flushSync(() => closingStore.set((prev) => new Set(prev).add(id)));
+        const closedAt = new Date().toISOString();
+        const logId = `${closedAt}#${id}`;
+        setPanels((prev) => closePanel(prev, id, rootId)?.remaining ?? prev);
+        onAfterClose?.(id, found.remaining);
+        if (FIXED.reportClose)
+            onPanelsClosed?.({ id: logId, title: found.closed.title ?? '', url: found.closed.url, closedAt });
+        if (FIXED.undoWindowMs === 0) {
+            onWindowElapsed?.([found.closed]);
+            return true;
+        }
+        closedStore.set([...closedStore.get(), { panel: found.closed, index: found.index, logId, reported: FIXED.reportClose }]);
+        const now = Date.now();
+        const end = Math.max(windowEnd.current ?? 0, now + FIXED.undoWindowMs);
+        windowEnd.current = end;
+        if (timer.current)
+            clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+            timer.current = null;
+            windowEnd.current = null;
+            claimed.current.clear();
+            const elapsed = closedStore.get().map((e) => e.panel);
+            closedStore.set([]);
+            onWindowElapsed?.(elapsed);
+        }, end - now);
+        return true;
+    };
+    const forgetClosed = (key) => {
+        const dropped = closedStore.get().filter((e) => panelKey(e.panel) === key);
+        if (dropped.length === 0)
+            return false;
+        const kept = closedStore.get().filter((e) => panelKey(e.panel) !== key);
+        closedStore.set(kept);
+        if (kept.length === 0)
+            stopWindow();
+        // Nothing can undo these any more, so their pictures go as they do when the window elapses.
+        onWindowElapsed?.(dropped.map((e) => e.panel));
+        return true;
+    };
+    const undoClose = () => {
+        // The ref, not this render's `closed`: a second call in the same handler must find the batch already taken.
+        const batch = closedStore.get();
+        if (batch.length === 0)
+            return;
+        stopWindow();
+        closedStore.set([]);
+        // Last closed first: each index was taken from the array as it was when THAT view closed, so undoing in reverse re-creates it.
+        let working = panels;
+        const restoredIds = new Set();
+        for (const { panel, index, reset } of [...batch].reverse()) {
+            if (working.some((p) => p.id === panel.id || panelKey(p) === panelKey(panel)))
+                continue;
+            const { panel: rebuilt, placeAs: ownPlacement } = reapply === undefined ? { panel, placeAs: FIXED.undoPlacement } : reapply(panel);
+            const placeAt = reset === true ? effective(rebuilt).placeOnAdd : ownPlacement;
+            // restorePanel is a pure spread and phonux never reads inside hostData, so the host's own reset runs
+            // here, once per panel, and its result is what every call below restores.
+            const restoringPanel = resetHostDataOnRestore ? withHostData(rebuilt, resetHostDataOnRestore(rebuilt.hostData, rebuilt)) : rebuilt;
+            const at = { rootId, fallback: FIXED.placeFallback, ...(order !== undefined ? { order } : {}) };
+            const restoreInto = (row) => restorePlaced(row, restoringPanel, index, placeAt, at).row;
+            const landed = restorePlaced(working, restoringPanel, index, placeAt, at);
+            reportNotes(onNote, landed.notes);
+            if (rebuilt.live) {
+                // This restore is one of the two "reappearance" paths that enters from the anchor's side -- mark it
+                // BEFORE revealPanelProactively's own setPanels call, same ordering reasoning as usePanelManager.ts's
+                // own markEnteringViaAnchor call site.
+                onRestoreLive?.(panel.id, placeAt === 'old-slot' ? undefined : sideOfLiveRange(landed.row, panel.id));
+                // Through the same room-making rule as opening a view: the live view touched longest ago is parked if the row is full.
+                revealPanelProactively(working, restoreInto);
+            }
+            else {
+                setPanels(restoreInto);
+            }
+            working = landed.row;
+            restoredIds.add(panel.id);
+        }
+        // A restored id is no longer closing: a stale mark would slide a LATER park of it down instead of left. An
+        // id never restored keeps its mark, harmlessly: ids never repeat in a session (useProvidePanels.ts's nextWindowId).
+        closingStore.set((prev) => {
+            const ids = batch.map((e) => e.panel.id).filter((restoredId) => prev.has(restoredId));
+            if (ids.length === 0)
+                return prev;
+            const next = new Set(prev);
+            for (const restoredId of ids)
+                next.delete(restoredId);
+            return next;
+        });
+        const restoredLogIds = batch.filter((e) => e.reported && restoredIds.has(e.panel.id)).map((e) => e.logId);
+        if (restoredLogIds.length > 0)
+            onPanelsRestored?.(restoredLogIds);
+    };
+    const markReset = (id, reset) => {
+        if (!closedStore.get().some((e) => e.panel.id === id))
+            return false;
+        closedStore.set(closedStore.get().map((e) => (e.panel.id === id ? { ...e, panel: reset(e.panel), reset: true } : e)));
+        return true;
+    };
+    return { close, forgetClosed, closedIds: () => closedStore.get().map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
+}
