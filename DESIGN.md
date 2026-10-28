@@ -2148,6 +2148,29 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
   the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
   touch for 250 ms.
 
+## `phonux/sync`: user-owned storage, encrypted on the device
+
+The library never stores app data itself; `phonux/sync` is the one place it talks to storage, and only to storage the
+user owns. It is its own entry with no React and no panel code, so an app that does not sync bundles none of it, and
+any phonux app (or none) can sync its own shapes through it.
+
+- **Documents, not schemas.** The app names text documents and pushes them whole. Sync never parses them, so
+  validation stays with the app, as it does for `WorkspaceStorage`.
+- **Three provider calls.** A `SyncProvider` lists, reads and writes whole files in one app folder, with an opaque
+  revision. Dropbox enforces the revision on upload; Drive cannot, so its `write` checks just before writing.
+- **No server.** OAuth 2 with PKCE: the host opens `signInUrl()` and hands the redirect's URL to `finishSignIn`, so a
+  page redirect, a popup, an Electron window or a Capacitor deep link all work. Google requires its public client
+  secret at the token endpoint, so `googleDrive` takes one.
+- **Encryption.** One random data key per account, wrapped by PBKDF2-SHA256 (600,000 iterations, stored in the key
+  file) of the passphrase. HKDF splits it into an AES-256-GCM file key and an HMAC name key. File names are the
+  HMAC of the document name; the remote name is the GCM AAD, so a file moved to another name fails to open. The
+  unlocked data key is kept on the device beside its tokens, so the passphrase is asked once per device. A lost
+  passphrase cannot be recovered; the device's own data is untouched.
+- **Newest edit wins, per document.** A push carries the revision this device last saw. On a conflict the remote
+  copy is read; when its `updatedAt` is newer, it is returned to the host and nothing is uploaded, else the push
+  overwrites it. Device clocks decide, which is enough for one person's devices. There is no delete yet: without
+  tombstones a delete would race another device's push.
+
 ## Doc comments
 
 An export reachable from `index.ts` or `fakeHost.ts` is documented with TSDoc, the `/** */` syntax API Extractor already
