@@ -23,6 +23,7 @@
     "*.tsx",
     "panels/**/*.ts",
     "panels/**/*.tsx",
+    "cli/**/*.ts",
     "test/**/*.ts"
   ],
   "exclude": [

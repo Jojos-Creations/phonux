@@ -71,6 +71,14 @@ for (const [key, sourcePath] of Object.entries(srcPkg.exports)) {
   }
 }
 
+const bin = {};
+for (const [name, sourcePath] of Object.entries(srcPkg.bin ?? {})) {
+  bin[name] = distExportPaths(sourcePath).js;
+  if (!existsSync(join(DIST_DIR, bin[name]))) fail(`generated bin['${name}'] points at ${bin[name]}, which tsc did not emit`);
+  // npm links a bin without a shebang, and the shell then runs it as a shell script.
+  if (!readFileSync(join(DIST_DIR, bin[name]), 'utf8').startsWith('#!/usr/bin/env node')) fail(`${bin[name]} lost its #!/usr/bin/env node line`);
+}
+
 // Gates consumer tree-shaking; a silent undefined default could drop a real side effect.
 if (!('sideEffects' in srcPkg)) fail("source package.json is missing 'sideEffects'");
 
@@ -94,6 +102,7 @@ const distPkg = {
   dependencies: srcPkg.dependencies,
   peerDependencies: srcPkg.peerDependencies,
   ...(srcPkg.peerDependenciesMeta === undefined ? {} : { peerDependenciesMeta: srcPkg.peerDependenciesMeta }),
+  ...(Object.keys(bin).length === 0 ? {} : { bin }),
   exports,
 };
 

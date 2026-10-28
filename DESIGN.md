@@ -718,6 +718,37 @@ check the local `dist/` in its place. `npm run release:check` confirms that `nam
 the `npm publish` command for the maintainer to run with their own login (a prerelease version prints `npm publish --tag next`); it never publishes. `npm publish --dry-run` is not
 evidence, because it accepts a `private: true` manifest.
 
+## `phonux build`: one command for every device
+
+The build tool is a `bin` in this package rather than a second package, so it versions in lockstep with the library and
+an app gets it by installing phonux. It lives in `cli/`, outside `index.ts`, and imports nothing from the library, so no
+consumer bundle ever carries it.
+
+**One build per platform.** Apple and Google each ship one app file for phones and tablets, so the list offers devices
+but the plan makes one Android job and one iOS job. Picking only iPhone or only iPad sets Xcode's
+`TARGETED_DEVICE_FAMILY` on the command line, leaving the project file alone. Android tablets need no different build.
+
+**Checks before work.** Each platform is checked first (Capacitor packages and config, the web script, Java 21 and the
+Android SDK, a Mac with Xcode 26). A platform that fails is skipped with plain sentences saying what to install, and the
+rest still build; the exit code is non-zero, so a skip is never mistaken for a pass. The check looks inside Android
+Studio for its bundled JDK and in each OS's default SDK folder, so a developer who only installed Android Studio needs
+nothing else.
+
+**Scheduling.** Jobs form a small graph: the web build first, then Android and iOS (each `cap add` once, `cap sync`, then
+Gradle or `xcodebuild`), with desktop alongside from the start. At most one job per two cores runs, capped at three, and
+the jobs' rough memory peaks must fit in half the machine's memory, except that one job always runs, so a small machine
+builds in sequence. `--jobs` lowers the cap for a machine shared with other work. Each job writes a log under
+`.phonux/build/logs/`, and the terminal shows one line per start and finish, because interleaved Gradle and Xcode output
+cannot be read.
+
+**Test builds first, release when signed.** With no signing in `package.json` the result is a debug APK and a simulator
+app, which need no accounts. With signing the same command makes an AAB through `cap build` and an App Store export
+through `xcodebuild archive`. Printed command lines hide keystore passwords.
+
+**Publish slots in later.** Every list entry carries `stage: 'build'`. A publish entry (an app store, Flathub, Snap) will
+carry `stage: 'publish'` and name the build it uploads, and becomes a job that depends on that build's job, so the
+scheduler needs no change.
+
 ## `index.ts` splits values from types on purpose
 
 TypeScript's `interface` and `type` declarations produce no JavaScript: they are erased before a module
