@@ -26,9 +26,10 @@ import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { focusEdgePanel, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
-import { ROW_GAP } from './rowConstants.js';
-import { maxScrollOf, nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
+import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
+import { screenBoxOf } from './slotMover.js';
 import { OverlaySlot } from './windowOverlay.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
@@ -378,7 +379,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // A row that stops scrolling must not keep the offset it had: the margin that centers it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
-    if (scrolls || container === null || container.scrollLeft === 0) return;
+    if (scrolls || container === null || rowScrollerFor(container).scrollLeft() === 0) return;
     const scroller = rowScrollerFor(container);
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
@@ -398,24 +399,28 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     sizedRef.current = `${containerWidth}x${phoneWidth}`;
     slideRef.current = { numbers: slideRef.current.numbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
   }
-  // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
+  // Reach is written straight to the slots at every move of the row, since a state update per frame of a glide would re-render the whole row.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     const strip = rowRef.current;
     if (container === null || strip === null || rowNumbers === undefined) return;
+    const scroller = rowScrollerFor(container);
+    // Measured once per commit: every frame after is arithmetic over the strip's translate and each slot's pose, so judging reach
+    // never lays the row out mid-glide.
+    const view = container.getBoundingClientRect();
+    const boxes = [...strip.querySelectorAll<HTMLElement>('[data-row-slot]')].map((slot) => ({ slot, box: screenBoxOf(slot, scroller.stripX) }));
     const apply = (): void => {
-      const scroller = rowScrollerFor(container);
       const held = scroller.claimHeld();
-      const view = container.getBoundingClientRect();
       // While the row holds for the new width, each slot keeps what it drew, so nothing appears or vanishes before the row moves.
       const still = holding(container);
-      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
+      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - scroller.scrollLeft()) <= EDGE_TOLERANCE_PX);
       const seen = new Set<string>();
-      for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+      for (const { slot, box } of boxes) {
         // A stepping row cuts the neighbor of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
-        const rect = slot.getBoundingClientRect();
+        const b = box();
+        const rect = { left: b.x, right: b.x + b.width, width: b.width };
         const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
-        // Published here, not in PanelRow: this loop is the only place that measures a slot against the window.
+        // Published here, not in PanelRow: this loop is the only place that judges a slot against the window.
         const id = slot.dataset.rowId;
         if (id !== undefined) {
           seen.add(id);
@@ -428,11 +433,12 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         // or a panel leaving the window would vanish at its first pixel instead of sliding out.
         const cut = rect.left < view.left - EDGE_TOLERANCE_PX || rect.right > view.right + EDGE_TOLERANCE_PX;
         const wholeOnly = atRest && cut && rect.width <= phoneWidth + EDGE_TOLERANCE_PX;
-        if (!still) slot.style.visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
+        const visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
+        if (!still && slot.style.visibility !== visibility) slot.style.visibility = visibility;
         if (held) continue;
-        slot.style.pointerEvents = away ? 'none' : '';
-        // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
-        slot.toggleAttribute('inert', away);
+        if (slot.style.pointerEvents !== (away ? 'none' : '')) slot.style.pointerEvents = away ? 'none' : '';
+        // Inert too: Tab or find-in-page would otherwise move the row off its stop to reveal a panel the window does not reach.
+        if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
       }
       awayStore.retain(seen);
     };
@@ -450,10 +456,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       });
     };
     follow();
-    container.addEventListener('scroll', apply, { passive: true });
+    const unsubscribe = rowScrollerFor(container).subscribe(apply);
     container.addEventListener('pointermove', follow, { passive: true });
     container.addEventListener('keydown', follow);
-    // A click or focus in the cut-off neighbor makes the browser scroll it into view off a stop; the row settles back onto one.
+    // A click or focus in the cut-off neighbor reveals it off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
       // A held panel is in view at every scroll, so focusing it moves nothing.
@@ -464,8 +470,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       requestAnimationFrame(() => {
         const scroller = rowScrollerFor(container);
         if (scroller.claimHeld() || n.stops.length === 0) return;
-        const to = k < 0 ? nearestStop(n, container.scrollLeft) : snapToStop(n, k, container.scrollLeft);
-        if (Math.abs(to - container.scrollLeft) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+        const at = scroller.scrollLeft();
+        const to = k < 0 ? nearestStop(n, at) : snapToStop(n, k, at);
+        if (Math.abs(to - at) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
       });
     };
     container.addEventListener('focusin', onFocus);
@@ -474,81 +481,22 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       cancelAnimationFrame(frame);
       container.removeEventListener('pointermove', follow);
       container.removeEventListener('keydown', follow);
-      container.removeEventListener('scroll', apply);
+      unsubscribe();
     };
-  });
-  // A close or a narrower window can end the row left of where it is scrolled. The browser would clamp the scroll in the same frame,
-  // a jump, so the end element keeps the old range in that commit and gives it back frame by frame as the row's glide carries it home.
-  const scrolledRef = React.useRef(0);
-  const endPadRef = React.useRef<HTMLDivElement>(null);
-  // The scroll before the window moved: the clamp's own scroll event arrives before the observer that undoes it.
-  const heldScrollRef = React.useRef(0);
-  const before = drawn.current.numbers;
-  // Measured from where the row's end is drawn, which for a row that fits is left of 0 (`maxScrollOf` would floor it there), and
-  // the strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
-  const drawnEnd = rowNumbers === undefined ? 0 : rowNumbers.stripStart + rowNumbers.stripWidth + rowNumbers.rightInset + rowNumbers.endPad - rowNumbers.windowWidth - Math.max(0, rowNumbers.rowMarginLeft - (before?.rowMarginLeft ?? rowNumbers.rowMarginLeft));
-  const endHold = scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' && scrolledRef.current > maxScrollOf(rowNumbers) ? scrolledRef.current - drawnEnd : 0;
-  React.useLayoutEffect(() => {
-    const container = overflowContainerRef.current;
-    if (container === null) return undefined;
-    const scroller = rowScrollerFor(container);
-    const follow = (): void => {
-      scrolledRef.current = container.scrollLeft;
-      if (!holding(container)) heldScrollRef.current = container.scrollLeft;
-      const pad = endPadRef.current;
-      if (pad === null || pad.style.minWidth === '') return;
-      const need = container.scrollLeft + container.clientWidth - pad.offsetLeft;
-      pad.style.minWidth = (scroller.glideTarget() !== null || holding(container)) && need > 0 ? `${need}px` : '';
-    };
-    scrolledRef.current = container.scrollLeft;
-    heldScrollRef.current = container.scrollLeft;
-    return scroller.subscribe(follow);
-  }, [overflowContainerRef]);
-  // A wider window shortens the scroll range at once, and the browser would clamp the scroll before the row has moved: the end element keeps
-  // the range while the row holds. An observer runs after layout and before paint, so the clamp is undone before it is ever drawn.
-  React.useLayoutEffect(() => {
-    const container = overflowContainerRef.current;
-    if (container === null || heightBudget === undefined || typeof ResizeObserver === 'undefined') return undefined;
-    const keep = (): void => {
-      const pad = endPadRef.current;
-      const strip = rowRef.current;
-      if (pad === null || strip === null || !holding(container)) return;
-      // Measured from the strip's end, not the pad's: once the row fits, the strip's auto right margin pushes the pad out.
-      const need = heldScrollRef.current + container.clientWidth - (pad.offsetLeft - Number.parseFloat(getComputedStyle(strip).marginRight));
-      if (need <= pad.offsetWidth) return;
-      pad.style.minWidth = `${need}px`;
-      container.scrollLeft = heldScrollRef.current;
-    };
-    // The scroller notifies on its own glides; a scroll by the person or the browser is read here.
-    const read = (): void => {
-      if (!holding(container)) heldScrollRef.current = container.scrollLeft;
-    };
-    const observer = new ResizeObserver(keep);
-    observer.observe(container);
-    container.addEventListener('scroll', read, { passive: true });
-    return () => {
-      observer.disconnect();
-      container.removeEventListener('scroll', read);
-    };
-  }, [overflowContainerRef, heightBudget === undefined]);
-  // The row has taken the window's width: a range the hold kept is given back once nothing glides through it.
-  React.useLayoutEffect(() => {
-    const container = overflowContainerRef.current;
-    const pad = endPadRef.current;
-    if (container === null || pad === null || pad.style.minWidth === '' || holding(container) || rowScrollerFor(container).glideTarget() !== null || endHold > 0) return;
-    pad.style.minWidth = '';
-  }, [containerWidth]);
-  // Nothing glided the row home (a drag holds it, or motion is off): the range is given back at once.
-  React.useEffect(() => {
-    const container = overflowContainerRef.current;
-    const pad = endPadRef.current;
-    if (endHold > 0 && container !== null && pad !== null && rowScrollerFor(container).glideTarget() === null) pad.style.minWidth = '';
   });
   // Each edge element is a plain spacer as wide as its group, so the strip starts after the left one and ends before the right one.
   // The held panels themselves sit in the strip and are positioned from here (see PanelRow's PanelHold), so these hold no content.
   // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
   const holdsLeft = rowNumbers?.held.some((h) => h.side === 'left') === true;
   const holdsRight = rowNumbers?.held.some((h) => h.side === 'right') === true;
+  const marginTransition = style.transition;
+  React.useLayoutEffect(() => {
+    const container = overflowContainerRef.current;
+    if (container === null) return;
+    const glides = !reduced && marginTransition.duration > 0;
+    const ease = 'ease' in marginTransition ? marginTransition.ease : resolved.slide.ease;
+    rowScrollerFor(container).setMargin(style.marginLeft, { durationSec: marginTransition.duration, instant: !glides, ease: [ease[0], ease[1], ease[2], ease[3]] });
+  });
   const leftEdgeStyle = { width: `${rowNumbers?.leftInset ?? 0}px`, flexShrink: 0 } as const;
   const rightEdgeStyle = { width: `${rowNumbers?.rightInset ?? 0}px`, flexShrink: 0 } as const;
   return (
@@ -575,7 +523,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           pt: `${topPad}px`,
           pb: `${bottomPad}px`,
           pl: `${gap}px`,
-          // A scrolling row's end space is the end element's (below); a row that does not scroll centers in this padding.
+          // A scrolling row's range ends at its numbers, not this padding; a right edge hold counts its inset from the row's edge.
           pr: scrolls ? 0 : `${gap}px`,
           overflowX: style.overflowX,
           // The row never scrolls vertically: a panel scrolls its own content, and a wheel over the row must not move it off its workspace.
@@ -586,25 +534,21 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         }}
       >
         {beforeRow}
+        {/* Outside the strip: the strip's transform would make a fixed overlay inside it fixed to the strip. */}
+        <OverlaySlot name="dialog" />
         {holdsLeft ? <div data-row-edge="left" style={leftEdgeStyle} /> : null}
-        {/* margin:'auto', not the container's justify-content/align-items:center, so an overflowing row
-            stays reachable by scroll. marginLeft is Motion-animated (not written directly) so the row
-            recenter and each panel's own slide-in read as one motion instead of two; only left needs to
-            move over time, so top/bottom/right stay plain 'auto'. */}
+        {/* The row's scroller owns the strip's transform: its centering margin and its offset are one translate. The transform
+            makes the strip one stacking context, so it takes the slots' own base layer, or a later positioned sibling would cover them. */}
         <motion.div
           ref={rowRef}
           data-row-strip=""
-          style={{ display: 'flex', gap: `${gap}px`, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
-          animate={{ marginLeft: style.marginLeft, ...(marginTop === undefined ? {} : { marginTop }) }}
-          transition={reduced ? { duration: 0 } : marginTop === undefined ? style.transition : { ...style.transition, marginTop: rowResizeSettled ? slideToTransition(resolved.slide) : { duration: 0 } }}
+          style={{ display: 'flex', gap: `${gap}px`, position: 'relative', zIndex: ROW_LAYER_Z.BASE, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
+          animate={marginTop === undefined ? {} : { marginTop }}
+          transition={reduced || !rowResizeSettled ? { duration: 0 } : slideToTransition(resolved.slide)}
         >
-          <OverlaySlot name="dialog" />
           {children}
         </motion.div>
-        {/* A non-empty element is in every engine's scroll range; WebKit leaves a flex item's end margin out and Firefox an empty box,
-            which clamps the last stop short. Outside the strip so a drag's end cap stays at the last panel. */}
         {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}
-        {scrolls ? <div ref={endPadRef} aria-hidden data-row-end-pad="" style={{ flex: `0 0 ${(rowNumbers?.endPad ?? 0) + gap}px`, ...(endHold > 0 ? { minWidth: `${(rowNumbers?.endPad ?? 0) + gap + endHold}px` } : {}) }} /> : null}
       </Box>
       </RowHeightContext.Provider>
 

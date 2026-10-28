@@ -60,11 +60,11 @@ test("source: PanelRow's zIndex and enterDirection do not read `collapsible` -- 
   assert.ok(enterLine.includes('enterFrom'), 'enterDirection must read enterFrom');
 });
 
-test('source: PanelRowSlot has one motion element, the slot, which owns exit, and the size box is not a layout animation', () => {
+test('source: PanelRowSlot draws its slot as a plain element whose mover runs every move, exit included, and the size box is not a layout animation', () => {
   const source = stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx');
-  const openings = [...source.matchAll(/<motion\.div\b[\s\S]*?>\s*\n/g)].map((m) => m[0]);
-  assert.equal(openings.length, 1, 'one motion element: the slot');
-  assert.match(openings[0]!, /\bexit=\{/, 'it owns exit');
+  assert.equal([...source.matchAll(/<motion\./g)].length, 0, 'no motion element: one clock for every slot move');
+  assert.match(source, /\busePresence\(/, 'the exit is held open through presence');
+  assert.match(source, /\bcreateSlotMover\(/);
   assert.doesNotMatch(source, /\blayout=|layoutDependency/, "no layout animation: the size box's scale starts in the commit, on the slot's clock");
 });
 
@@ -459,8 +459,7 @@ test('source: rowSettle.ts, usePanelManager.ts and useProvidePanels.ts take maxL
   for (const file of ['panels/rowSettle.ts', 'panels/useProvidePanels.ts']) assert.match(read(file), /\bcomputeRowNumbers\b/, `${file} prices from computeRowNumbers`);
 });
 
-test('source: PanelRowSlot keeps its one motion element, and PanelRow passes zIndex and enterDirection on lines of their own', () => {
-  assert.equal([...stripComments(read('PanelRowSlot.tsx'), 'PanelRowSlot.tsx').matchAll(/<motion\.div\b/g)].length, 1);
+test('source: PanelRow passes zIndex and enterDirection on lines of their own', () => {
   const lines = read('PanelRow.tsx').split('\n');
   assert.ok(lines.find((l) => l.includes('zIndex={')), 'zIndex={ is findable by line');
   assert.ok(lines.find((l) => l.includes('enterDirection={')), 'enterDirection={ is findable by line');

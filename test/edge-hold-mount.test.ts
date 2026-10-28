@@ -54,8 +54,8 @@ test('a left-held panel is drawn in the strip, pinned by its own host, and its v
   const slot = m.container.querySelector<HTMLElement>(`[data-row-strip] [data-row-id="${aId}"]`);
   assert.ok(slot, 'the held panel is in the strip, at its React place');
   const host = slot.closest<HTMLElement>('[data-row-hold]');
-  assert.equal(host?.style.position, 'sticky', 'the host holds it at its edge');
-  assert.equal(host?.style.left, '0px', 'the left hold is its offset in the left group');
+  assert.equal(host?.style.position, 'relative', 'the host holds it at its edge');
+  assert.equal(host?.dataset.holdLeft, '0px', 'the left hold is its offset in the left group');
   assert.equal(probeOf(m.container, 'a').dataset.movable, 'false', 'a held panel cannot be moved by a person');
   assert.equal(probeOf(m.container, 'b').dataset.movable, 'true', 'a strip panel still can');
 });
@@ -85,11 +85,11 @@ test('the edge elements are spacers as wide as their groups, and the held panels
   assert.ok(left && right);
   assert.equal(left.style.width, '406px', 'the left group and its gap');
   assert.equal(right.style.width, '406px', 'the right group and its gap');
-  assert.equal(left.style.position, '', 'a spacer, not a sticky element');
+  assert.equal(left.style.position, '', 'a spacer, not a held element');
   const aHost = slotOf(m.container, 'a')!.closest<HTMLElement>('[data-row-hold]');
   const cHost = slotOf(m.container, 'c')!.closest<HTMLElement>('[data-row-hold]');
-  assert.equal(aHost?.style.left, '0px');
-  assert.equal(cHost?.style.right, '16px', 'the right group: its gap, less the panel offset and width');
+  assert.equal(aHost?.dataset.holdLeft, '0px');
+  assert.equal(cHost?.dataset.holdRight, '16px', 'the right group: its gap, less the panel offset and width');
 });
 
 test('a held panel keeps its view when its hold starts and when it lets go, for left, right and both', () => {
@@ -123,10 +123,10 @@ test('two both panels stack: each host is pinned at its stacked inset, and neith
   const hostOf = (id: string) => slotOf(m.container, id)!.closest<HTMLElement>('[data-row-hold]');
   const outer = hostOf(entries[1]!.id);
   const inner = hostOf(entries[3]!.id);
-  assert.equal(outer?.style.left, `${stuck[0]!.left}px`, 'the outer panel is pinned at the window edge');
-  assert.equal(inner?.style.left, `${stuck[1]!.left}px`, 'the inner panel is pinned a panel and a gap in');
-  assert.equal(inner?.style.left, '406px');
-  assert.equal(outer?.style.right, `${stuck[0]!.right}px`);
+  assert.equal(outer?.dataset.holdLeft, `${stuck[0]!.left}px`, 'the outer panel is pinned at the window edge');
+  assert.equal(inner?.dataset.holdLeft, `${stuck[1]!.left}px`, 'the inner panel is pinned a panel and a gap in');
+  assert.equal(inner?.dataset.holdLeft, '406px');
+  assert.equal(outer?.dataset.holdRight, `${stuck[0]!.right}px`);
   const first = [counted.get(entries[1]!.id), counted.get(entries[3]!.id)];
   assert.ok(first.every((n) => n !== undefined), 'both views mounted');
   m.rerender(300);

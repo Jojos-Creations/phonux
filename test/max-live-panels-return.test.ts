@@ -7,6 +7,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import { act } from 'react';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -49,9 +50,9 @@ test('scrolling: wheel steps move the strip end to end and reveal nothing, where
   const right = (): void => wheel(r, { deltaX: 100 });
   const left = (): void => wheel(r, { deltaX: -100 });
   await steps([right, right, right, right, right, right]);
-  assert.ok(r.m.container.scrollLeft > 0, 'the strip scrolled');
+  assert.ok(rowOffsetOf(r.m.container) > 0, 'the strip scrolled');
   await steps([left, left, left, left, left, left, left, left]);
-  assert.equal(r.m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(r.m.container), 0);
   assert.equal(r.row(), BASE, 'the same five panels are live and the three hidden ones are where they were');
   fresh();
 
@@ -63,7 +64,7 @@ test('scrolling: wheel steps move the strip end to end and reveal nothing, where
   assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'control: one phone width back from 812 lands on 406 and reveals w3, since w4 is cut by the window edge at 812');
   await steps([back]);
   await advanceFrames(300);
-  assert.equal(control.m.container.scrollLeft, 0, 'control: the next step back reaches the first stop');
+  assert.equal(rowOffsetOf(control.m.container), 0, 'control: the next step back reaches the first stop');
   assert.equal(control.row(), 'root w1* w2* w3 w4* w5 w6 w7 w8', 'control: the revealed row stays as it is');
 });
 
@@ -110,7 +111,7 @@ test('scrolling: a native scroll, as a touch swipe makes, reveals nothing', asyn
   const r = await rigOf();
   for (const scrollLeft of [300, 900, 1218, 400, 0]) {
     act(() => {
-      r.m.container.scrollLeft = scrollLeft;
+      setRowOffset(r.m.container, scrollLeft);
       r.m.container.dispatchEvent(new Event('scroll'));
     });
     await advanceFrames(100);
@@ -132,7 +133,7 @@ test('scrolling: a panel dragged against the right edge scrolls the strip, moves
   await act(async () => void grab.dispatchEvent(event('pointerdown', 960)));
   await act(async () => void document.dispatchEvent(event('pointermove', 1000)));
   await advanceFrames(3000);
-  assert.ok(r.m.container.scrollLeft > 0, 'the held edge scrolled the strip');
+  assert.ok(rowOffsetOf(r.m.container) > 0, 'the held edge scrolled the strip');
   await act(async () => void document.dispatchEvent(event('pointerup', 1000)));
   await advanceFrames(3000);
   assert.deepEqual([r.parked(), r.unpinnedLive().length], [['w1', 'w2', 'w3'], 5], 'still the three that were hidden, and five live');
@@ -230,7 +231,7 @@ test('scrollTo: a live panel scrolls into view, and a hidden one is refused and 
   const live = r.turn(() => r.h.w8!.scrollTo());
   assert.equal(live.ok, true);
   await r.settle();
-  assert.ok(r.m.container.scrollLeft > 0, 'the strip moved to w8');
+  assert.ok(rowOffsetOf(r.m.container) > 0, 'the strip moved to w8');
   const hidden = r.turn(() => r.h.w2!.scrollTo());
   assert.equal(hidden.ok, false);
   assert.equal(hidden.ok === false && hidden.code, 'not-live');

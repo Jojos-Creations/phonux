@@ -5,6 +5,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { cubicBezier } from 'motion/react';
 import { act } from 'react';
@@ -112,14 +113,14 @@ test('closeExitEase: a button close takes the same leaf as a drag close, and the
 async function glidePositions(ease: SlideTuning['glideEase']): Promise<number[]> {
   const el = document.createElement('div');
   document.body.appendChild(el);
-  el.scrollLeft = 0;
+  setRowOffset(el, 0);
   rowScrollerFor(el).glideTo(1600, { durationSec: 1.6, instant: false, ease });
   const seen: number[] = [];
   let elapsed = 0;
   for (const frames of [25, 25, 25]) {
     await advanceFrames(frames * 16);
     elapsed += frames;
-    seen.push(el.scrollLeft);
+    seen.push(rowOffsetOf(el));
   }
   assert.equal(elapsed, 75);
   el.remove();
@@ -157,12 +158,12 @@ const SLOW = (glideEase: SlideTuning['glideEase']): { slide: Partial<SlideTuning
 /** How far a glide has gone, as a fraction, a quarter of its duration after it started. */
 async function quarterOfGlide(start: (m: ReturnType<typeof mountRow>) => void, glideEase: SlideTuning['glideEase']): Promise<number> {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
-  const from = m.container.scrollLeft;
+  const from = rowOffsetOf(m.container);
   act(() => start(m));
   const target = m.scroller.glideTarget();
   assert.notEqual(target, null, 'control: a glide is under way');
   await advanceFrames(25 * 16);
-  const fraction = (m.container.scrollLeft - from) / (target! - from);
+  const fraction = (rowOffsetOf(m.container) - from) / (target! - from);
   cleanup();
   return fraction;
 }
@@ -187,7 +188,7 @@ test('glideEase: the settle after a resize that moves the stops glides along the
     const target = m.scroller.glideTarget();
     assert.equal(target, 1218, 'control: the row is brought to the new last stop, 133 + 2420 + 133 - 1468');
     await advanceFrames(25 * 16);
-    const fraction = (1624 - m.container.scrollLeft) / (1624 - 1218);
+    const fraction = (1624 - rowOffsetOf(m.container)) / (1624 - 1218);
     cleanup();
     return fraction;
   };

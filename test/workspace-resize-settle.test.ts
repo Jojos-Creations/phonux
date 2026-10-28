@@ -5,6 +5,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { Workspace, createWorkspace } from '../index.js';
@@ -92,7 +93,7 @@ function workspaceAt(width: number, liveWidths: number[] = [], extra: Record<str
     ),
   );
 }
-const marginOf = (container: HTMLElement): number => Number.parseFloat((container.querySelector('[data-row-strip]') as HTMLElement).style.marginLeft);
+const marginOf = (container: HTMLElement): number => stripMarginOf(container);
 
 /**
  * Whether the row's margin glides when a panel joins: true when, 32 ms after the change, the margin is neither where it

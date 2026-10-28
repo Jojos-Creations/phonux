@@ -6,6 +6,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { stripMarginOf } from './support/strip.js';
 import { act } from 'react';
 import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../Workspace.js';
 import { PANEL_TRANSITION } from '../index.js';
@@ -36,7 +37,7 @@ test('workspaceShellStyle: while a panel is being resized the margin glides with
 
 // Three slots in a window of four: the fitting margin is wider than the centering an overflowing row keeps.
 const THREE = () => row(rootEntry(), ...[1, 2].map((k) => made(`s${k}`, { slots: 1, maxSlots: 64 })));
-const marginOf = (container: HTMLElement): number => Number.parseFloat(container.querySelector<HTMLElement>('[data-row-strip]')!.style.marginLeft);
+const marginOf = (container: HTMLElement): number => stripMarginOf(container);
 
 async function openedAt1800(): Promise<ReturnType<typeof mountRow>> {
   const m = mountRow(THREE(), 1800, { tuning: { rowGesture: 'step' } });

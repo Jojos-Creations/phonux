@@ -1,10 +1,10 @@
 /**
- * Maximize: a panel grows from its slot to fill the window and shrinks back, on the glide a panel resize uses. The browser's
+ * Maximize: a panel grows from its slot to fill the window and shrinks back, on the slide timing. The browser's
  * own fullscreen is not used: its transition is the operating system's (a swipe to a new space on macOS), which no page can change.
  */
 import * as React from 'react';
-import { animate } from 'motion';
-import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
+import { cubicBezier, useReducedMotion, useReducedMotionConfig } from 'motion/react';
+import { animateShared, sharedStartTime } from './rowClock.js';
 import { slideToTransition } from './directionalTransition.js';
 import { ACTIVE_ATTRIBUTE } from './panelChrome.js';
 import { PHONE_FRAME_ATTRIBUTE } from './PanelFrame.js';
@@ -54,32 +54,56 @@ function restoreStyle(el: HTMLElement, style: string | null): void {
   else el.setAttribute('style', style);
 }
 
+/** The transform that draws a box laid out at `to` where `from` is. */
+const inverseOf = (from: Box, to: Box): { x: number; y: number; sx: number; sy: number } => ({
+  x: from.left - to.left,
+  y: from.top - to.top,
+  sx: to.width === 0 ? 1 : from.width / to.width,
+  sy: to.height === 0 ? 1 : from.height / to.height,
+});
+
+// The compositor runs the eased curve as linear steps this far apart: sampled, the corner radius can be corrected for the scale.
+const SAMPLE_MS = 1000 / 60;
+
 /**
- * Grows `root`'s box in width and height until it fills the window, and back. The root goes to the top layer through the
- * popover attribute, so no ancestor's transform, clip or stacking order can hold it and it never leaves its place in the DOM,
- * which a web view inside it would answer by reloading.
+ * Grows `root` from its slot until it fills the window, and back. The root goes to the top layer through the popover attribute, so
+ * no ancestor's transform, clip or stacking order can hold it and it never leaves its place in the DOM, which a web view inside it
+ * would answer by reloading. Its box is set to the window once; the grow and the shrink are a transform from the slot's box, so no
+ * frame of either lays the panel out again.
  */
 function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phase: MaximizePhase) => void, topInset: () => number): Maximizer {
   let phase: MaximizePhase = 'home';
   // 0 is the panel in its slot, 1 the panel filling the window.
   let progress = 0;
-  let run: { stop: () => void } | undefined;
+  let run: { from: number; to: number; startMs: number; durationMs: number; curve: (t: number) => number; anims: Animation[]; done: () => void } | undefined;
+  let tick: number | null = null;
   let frame: HTMLElement | null = null;
   let frameRadius = 0;
   let saved: { root: string | null; frame: string | null } = { root: null, frame: null };
+  // Read once per grow or shrink: the slot keeps its own size while the root is out of it, so its box is where the root belongs.
+  let slot: Box = { top: 0, left: 0, width: 0, height: 0 };
+  let full: Box = slot;
 
-  // The slot keeps its own size while the root is out of it, so its box is where the root belongs, wherever the row has moved to.
   const slotBox = (): Box => boxOf((root.parentElement ?? root).getBoundingClientRect());
+
+  const styleAt = (p: number): { transform: string; radius: string } => {
+    const inv = inverseOf(slot, full);
+    const sx = lerp(inv.sx, 1, p);
+    const sy = lerp(inv.sy, 1, p);
+    // The radius is drawn scaled with the box, so it is set larger by the scale for the corner to read as `r` on screen.
+    const r = lerp(frameRadius, 0, p);
+    return { transform: `translate(${lerp(inv.x, 0, p)}px, ${lerp(inv.y, 0, p)}px) scale(${sx}, ${sy})`, radius: `${r / sx}px / ${r / sy}px` };
+  };
 
   const paint = (p: number): void => {
     progress = p;
-    const from = slotBox();
-    const to = windowBox(topInset());
-    root.style.top = `${lerp(from.top, to.top, p)}px`;
-    root.style.left = `${lerp(from.left, to.left, p)}px`;
-    root.style.width = `${lerp(from.width, to.width, p)}px`;
-    root.style.height = `${lerp(from.height, to.height, p)}px`;
-    if (frame !== null) frame.style.borderRadius = `${lerp(frameRadius, 0, p)}px`;
+    const { transform, radius } = styleAt(p);
+    root.style.transform = transform;
+    if (frame !== null) frame.style.borderRadius = radius;
+  };
+
+  const place = (box: Box): void => {
+    Object.assign(root.style, { top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, height: `${box.height}px`, transformOrigin: '0 0' });
   };
 
   const setPhase = (next: MaximizePhase): void => {
@@ -91,6 +115,7 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     // Checked first: a root left with a popover attribute that never opened would not draw at all.
     if (typeof root.showPopover !== 'function') throw new Error('popover is not supported');
     saved = { root: root.getAttribute('style'), frame: null };
+    slot = slotBox();
     root.setAttribute('popover', 'manual');
     try {
       root.showPopover();
@@ -103,18 +128,20 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     if (frame !== null) {
       saved.frame = frame.getAttribute('style');
       frameRadius = Number.parseFloat(getComputedStyle(frame).borderTopLeftRadius) || 0;
-      // The frame's own pixel size would hold it at the slot's size while the root grows.
+      // The frame's own pixel size would hold it at the slot's size inside the window's box.
       frame.style.width = '100%';
       frame.style.height = '100%';
     }
+    full = windowBox(topInset());
+    place(full);
     paint(0);
   };
 
-  // Once full, the stylesheet takes over from the animated pixels, so a resized window is followed.
+  // Once full, the stylesheet takes over from the set box, so a resized window is followed.
   const settle = (): void => {
     root.setAttribute(MAXIMIZED_ATTRIBUTE, '');
-    // Longhands: the animation's last frame left `top` behind, and a shorthand a test cannot read would hide a wrong inset.
-    Object.assign(root.style, { top: `${topInset()}px`, left: '0', right: '0', bottom: '0' });
+    // Longhands: a shorthand a test cannot read would hide a wrong inset.
+    Object.assign(root.style, { top: `${topInset()}px`, left: '0', right: '0', bottom: '0', transform: '', transformOrigin: '' });
     root.style.width = 'auto';
     root.style.height = 'auto';
     root.style.background = '';
@@ -125,7 +152,10 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
   const unsettle = (): void => {
     root.removeAttribute(MAXIMIZED_ATTRIBUTE);
     root.style.background = 'transparent';
-    if (frame !== null) frame.style.borderRadius = '0px';
+    Object.assign(root.style, { right: 'auto', bottom: 'auto' });
+    full = windowBox(topInset());
+    place(full);
+    slot = slotBox();
     paint(1);
   };
 
@@ -138,8 +168,24 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     progress = 0;
   };
 
+  const progressAt = (nowMs: number): number => {
+    if (run === undefined) return progress;
+    const t = Math.min(1, Math.max(0, (nowMs - run.startMs) / run.durationMs));
+    return lerp(run.from, run.to, run.curve(t));
+  };
+
+  const halt = (): void => {
+    if (tick !== null) cancelAnimationFrame(tick);
+    tick = null;
+    if (run === undefined) return;
+    const at = progressAt(performance.now());
+    for (const anim of run.anims) anim.cancel();
+    run = undefined;
+    paint(at);
+  };
+
   const drive = (to: 0 | 1, done: () => void): void => {
-    run?.stop();
+    halt();
     const from = progress;
     const glide = timing();
     if (glide === null || from === to) {
@@ -147,7 +193,40 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
       done();
       return;
     }
-    run = animate(0, 1, { duration: glide.duration, ease: [...glide.ease], onUpdate: (eased: number) => paint(lerp(from, to, eased)), onComplete: done });
+    const durationMs = glide.duration * 1000;
+    const curve = cubicBezier(glide.ease[0], glide.ease[1], glide.ease[2], glide.ease[3]);
+    const steps = Math.max(1, Math.ceil(durationMs / SAMPLE_MS));
+    const rootFrames: Keyframe[] = [];
+    const radiusFrames: Keyframe[] = [];
+    for (let k = 0; k <= steps; k += 1) {
+      const { transform, radius } = styleAt(lerp(from, to, curve(k / steps)));
+      rootFrames.push({ transform, offset: k / steps });
+      radiusFrames.push({ borderRadius: radius, offset: k / steps });
+    }
+    const anims = [animateShared(root, rootFrames, durationMs), frame === null ? null : animateShared(frame, radiusFrames, durationMs)].filter((a): a is Animation => a !== null);
+    // Under the animation, the box it lands on, so its end hands over without a frame of the old one.
+    if (anims.length > 0) paint(to);
+    run = { from, to, startMs: sharedStartTime(), durationMs, curve, anims, done };
+    progress = from;
+    const step = (): void => {
+      tick = null;
+      if (run === undefined) return;
+      const now = performance.now();
+      const p = progressAt(now);
+      if (now - run.startMs >= run.durationMs) {
+        const finished = run;
+        run = undefined;
+        paint(finished.to);
+        for (const anim of finished.anims) anim.cancel();
+        finished.done();
+        return;
+      }
+      // Without the Web Animations API the frame loop draws each frame itself.
+      if (run.anims.length === 0) paint(p);
+      else progress = p;
+      tick = requestAnimationFrame(step);
+    };
+    tick = requestAnimationFrame(step);
   };
 
   return {
@@ -170,7 +249,7 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
       });
     },
     dispose() {
-      run?.stop();
+      halt();
       if (phase === 'home') return;
       root.removeAttribute(MAXIMIZED_ATTRIBUTE);
       land();

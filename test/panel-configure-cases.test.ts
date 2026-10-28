@@ -6,6 +6,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import type { ConfigureResult } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
@@ -267,12 +268,12 @@ test('case B8: scrollOnOpen none on a live panel: the next open does not scroll'
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
       await r.settle();
-      assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls at configure');
+      assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls at configure');
     }
     r.turn(() => r.h.c!.close());
     r.turn(() => r.h.c!.open());
     await r.settle();
-    const at = r.m.container.scrollLeft;
+    const at = rowOffsetOf(r.m.container);
     r.m.unmount();
     return at;
   };
@@ -287,15 +288,15 @@ test('case B9: scrollOnMove follow to none: the next pin does not scroll, and no
     await r.settle();
     r.turn(() => r.h.a!.scrollTo('start'));
     await r.settle();
-    assert.equal(r.m.container.scrollLeft, 406, 'start lands on the stop nearest a\'s edge, 406, which shows a and b whole');
+    assert.equal(rowOffsetOf(r.m.container), 406, 'start lands on the stop nearest a\'s edge, 406, which shows a and b whole');
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
       await r.settle();
-      assert.equal(r.m.container.scrollLeft, 406, 'nothing scrolls at configure');
+      assert.equal(rowOffsetOf(r.m.container), 406, 'nothing scrolls at configure');
     }
     assert.equal(letter(r.turn(() => r.h.b!.place('row-start'))), 'T');
     await r.settle();
-    const at = r.m.container.scrollLeft;
+    const at = rowOffsetOf(r.m.container);
     r.m.unmount();
     return at;
   };
@@ -312,9 +313,9 @@ test('edge scroll 3: tuning.edgeScroll zonePx from the default to a quarter of i
   assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'positive control: under the default zone the pointer is inside the band');
   await r.settle();
   assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
-  const at = r.m.container.scrollLeft;
+  const at = rowOffsetOf(r.m.container);
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, at, 'nothing scrolls at configure');
+  assert.equal(rowOffsetOf(r.m.container), at, 'nothing scrolls at configure');
   assert.equal(await heldScroll(r, 's1', HALF_ZONE_POINTER), 0, 'after the change the same pointer is outside a quarter-width band');
   assert.equal(QUARTER, 12);
 });
@@ -323,12 +324,12 @@ test('edge scroll 4: a drag in flight keeps the edge numbers it began with', asy
   const r = await dragRig();
   await pressAndMove(r, 's1', HALF_ZONE_POINTER);
   await hold(1);
-  const a = r.m.container.scrollLeft;
+  const a = rowOffsetOf(r.m.container);
   await hold(10);
-  const b = r.m.container.scrollLeft;
+  const b = rowOffsetOf(r.m.container);
   done(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: QUARTER } })));
   await hold(10);
-  const c = r.m.container.scrollLeft;
+  const c = rowOffsetOf(r.m.container);
   assert.equal(b - a > 0, true, 'control: scrolling');
   assert.equal(Math.abs(c - b - (b - a)) < 1e-6, true, `the pace after the change equals the pace before it (${b - a} then ${c - b})`);
   await lift(HALF_ZONE_POINTER);

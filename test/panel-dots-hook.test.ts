@@ -3,6 +3,7 @@
  * and a dot click glides, or snaps under Reduce Motion from either source.
  */
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -55,7 +56,7 @@ test('an oval drag writes the row through its claim, and end releases the claim'
   assert.notEqual(drag, null);
   assert.equal(dots.startOvalDrag(), null, 'a second drag cannot take a held row');
   drag!.drag(50);
-  assert.ok(el.scrollLeft > 0, 'the drag moved the row');
+  assert.ok(rowOffsetOf(el) > 0, 'the drag moved the row');
   drag!.end();
   assert.notEqual(dots.startOvalDrag(), null, 'end released the claim');
 });
@@ -73,7 +74,7 @@ test('a dot click snaps at once under Reduce Motion', () => {
   const m = mount(probe(out, 'always'));
   out.dots!.selectDot('b');
   const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
-  assert.equal(el.scrollLeft, 406 + 195 - 300);
+  assert.equal(rowOffsetOf(el), 406 + 195 - 300);
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 
@@ -85,7 +86,7 @@ test("a dot click glides with the workspace's slide: duration and glide ease, no
     out.dots!.selectDot('b');
     const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
     await advanceFrames(25 * 16);
-    const at = el.scrollLeft;
+    const at = rowOffsetOf(el);
     cleanup();
     return at / target;
   };

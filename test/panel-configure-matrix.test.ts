@@ -7,6 +7,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import { act, createElement } from 'react';
 import { LIBRARY_PANEL_DEFAULTS } from '../index.js';
 import type { ConfigureResult, HeaderButton, PanelSettings, WorkspaceStorage } from '../index.js';
@@ -739,7 +740,7 @@ test('matrix:revealOnScroll', async () => {
     if (reveal !== undefined) {
       assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ revealOnScroll: reveal }))), { now: [], later: ['revealOnScroll'], shadowed: [] });
       assert.equal(r.live().join(' '), 'root c', 'nothing is revealed by configure');
-      assert.equal(r.m.container.scrollLeft, 0, 'and nothing scrolls');
+      assert.equal(rowOffsetOf(r.m.container), 0, 'and nothing scrolls');
     }
     swipeRight(r);
     await r.settle();
@@ -763,27 +764,27 @@ test('matrix:scrollOnOpen', async () => {
   probe('scrollOnOpen');
   const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(r.m.container), 0);
   assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'start' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0, 'no scroll happens at configure');
+  assert.equal(rowOffsetOf(r.m.container), 0, 'no scroll happens at configure');
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 1218, "scrollTo() defaults to the setting: c's left edge 1320 less the 16 gap is 1304, and the nearest stop that shows c is 1218");
+  assert.equal(rowOffsetOf(r.m.container), 1218, "scrollTo() defaults to the setting: c's left edge 1320 less the 16 gap is 1304, and the nearest stop that shows c is 1218");
   done(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' })));
   r.turn(() => r.h.a!.scrollTo('start'));
   await r.settle();
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 812, "none: scrollTo() falls back to into-view: c's right edge 1710 less the 984 visible is 726, and the stop that shows c whole is 812");
+  assert.equal(rowOffsetOf(r.m.container), 812, "none: scrollTo() falls back to into-view: c's right edge 1710 less the 984 visible is 726, and the stop that shows c whole is 812");
   const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
   done(hidden.turn(() => hidden.h.c!.configure({ scrollOnOpen: 'start' })));
-  assert.equal(hidden.m.container.scrollLeft, 0, 'K, H: stored, nothing scrolls');
+  assert.equal(rowOffsetOf(hidden.m.container), 0, 'K, H: stored, nothing scrolls');
   hidden.turn(() => hidden.h.c!.show());
   await hidden.settle();
-  assert.equal(hidden.m.container.scrollLeft, 1218, 'the next show of the hidden panel reads it');
+  assert.equal(rowOffsetOf(hidden.m.container), 1218, 'the next show of the hidden panel reads it');
 });
 
 test('matrix:scrollOnMove', async () => {
@@ -794,11 +795,11 @@ test('matrix:scrollOnMove', async () => {
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
       await r.settle();
-      assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls at configure');
+      assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls at configure');
     }
     r.turn(() => r.h.a!.setSlots(2));
     await r.settle();
-    const at = r.m.container.scrollLeft;
+    const at = rowOffsetOf(r.m.container);
     r.m.unmount();
     return at;
   };
@@ -1457,10 +1458,10 @@ test('matrix:tuning.rowGesture', async () => {
   await r.settle();
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'off' }))) }, { ok: true, changed: true, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
   assert.equal(r.live().length, 11, 'no panel moves');
-  const at = r.m.container.scrollLeft;
+  const at = rowOffsetOf(r.m.container);
   await r.settle();
   wheel();
-  assert.deepEqual([scroller.glideTarget(), r.m.container.scrollLeft], [null, at], 'after the next render: off installs no listener, so a swipe does nothing');
+  assert.deepEqual([scroller.glideTarget(), rowOffsetOf(r.m.container)], [null, at], 'after the next render: off installs no listener, so a swipe does nothing');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowGesture: 'free' } as never)), 'invalid-settings', "'free' is not a gesture: it throws like any other value outside the set");
 });
 
@@ -1470,14 +1471,14 @@ test('matrix:tuning.initialScroll', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const r = await matrixRig({ ids, width: 1000 });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0, 'before: the strip starts at the left');
+  assert.equal(rowOffsetOf(r.m.container), 0, 'before: the strip starts at the left');
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
+  assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
   // The row's end is 4450 plus 86 of centering at each end, less the 968 window: 3654, the last stop.
-  assert.equal(next.m.container.scrollLeft, 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
+  assert.equal(rowOffsetOf(next.m.container), 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 

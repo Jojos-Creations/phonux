@@ -7,7 +7,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { frameClock } from './support/jsdom-globals.js';
 import * as React from 'react';
-import { MotionConfig, visualElementStore } from 'motion/react';
+import { MotionConfig } from 'motion/react';
 import { PANEL_TRANSITION, createWorkspace } from '../index.js';
 import type { PanelSettings, PanelWindow, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { enterDirectionOf, exitStyleOf } from '../PanelRow.js';
@@ -241,10 +241,10 @@ test('expand: the neighbors to its right slide apart on the same clock, and the 
 
 test('expand: the growing slot starts in the same commit as the neighbors parting for it, so the two never run a frame apart', () => {
   const started: HTMLElement[] = [];
-  const original = slotDriver.startPending;
-  slotDriver.startPending = (el) => {
+  const original = slotDriver.glide;
+  slotDriver.glide = (el, ...rest) => {
     started.push(el);
-    original(el);
+    original(el, ...rest);
   };
   try {
     const base = [rootEntry(), made('a'), made('c')];
@@ -258,7 +258,7 @@ test('expand: the growing slot starts in the same commit as the neighbors partin
     assert.ok(started.includes(b), 'b starts its expand in the same commit, on the same clock');
     mounted.unmount();
   } finally {
-    slotDriver.startPending = original;
+    slotDriver.glide = original;
   }
 });
 
@@ -280,27 +280,50 @@ test('shrink: a slot parked to the left scales to 0 about its left edge, which s
   mounted.unmount();
 });
 
-test('shrink: the leaving slot and the neighbors closing up over it count from the same moment', async () => {
-  const startOf = (el: HTMLElement, key: string): number | undefined =>
-    (visualElementStore.get(el)?.getValue(key) as { animation?: { startTime?: number | null } } | undefined)?.animation?.startTime ?? undefined;
-  const c0 = made('c', {}, { view: 'slow-view' });
-  const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), c0];
-  const workspace = settledWorkspace(base);
-  const mounted = mount(row(base, workspace));
-  // The commit that removes b runs long between b's exit starting and c's slide starting.
-  slowCommits.on = true;
+test('shrink: the leaving slot and the neighbors closing up over it start at one startTime, however long the commit runs', async () => {
+  // jsdom has no Web Animations API: a stand-in records each animation's element and the startTime the row gives it.
+  const started: { el: Element; startTime: number | null }[] = [];
+  const proto = Element.prototype as unknown as { animate?: unknown };
+  const had = Object.hasOwn(proto, 'animate');
+  const original = proto.animate;
+  proto.animate = function (this: Element) {
+    const record = { el: this, startTime: null as number | null };
+    started.push(record);
+    return {
+      timeline: document.timeline,
+      cancel() {},
+      set startTime(value: number | null) {
+        record.startTime = value;
+      },
+      get startTime() {
+        return record.startTime;
+      },
+    };
+  };
   try {
-    mounted.rerender(row([rootEntry(), made('a'), c0], workspace));
+    const c0 = made('c', {}, { view: 'slow-view' });
+    const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), c0];
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, workspace));
+    started.length = 0;
+    // The commit that removes b runs long between b's exit starting and c's slide starting.
+    slowCommits.on = true;
+    try {
+      mounted.rerender(row([rootEntry(), made('a'), c0], workspace));
+    } finally {
+      slowCommits.on = false;
+    }
+    const b = slotOf(mounted.container, 'b')!;
+    const c = slotOf(mounted.container, 'c')!;
+    const of = (el: Element): number | null | undefined => started.find((s) => s.el === el)?.startTime;
+    assert.ok(typeof of(c) === 'number', 'control: c slides on an animation with a startTime');
+    assert.equal(of(b), of(c), 'b shrinks on the same startTime');
+    assert.ok(started.every((s) => s.startTime === of(c)), `every animation the commit started shares it (${started.length})`);
+    mounted.unmount();
   } finally {
-    slowCommits.on = false;
+    if (had) proto.animate = original;
+    else delete proto.animate;
   }
-  await advanceFrames(32);
-  const b = slotOf(mounted.container, 'b')!;
-  const c = slotOf(mounted.container, 'c')!;
-  const neighbor = startOf(c, 'x');
-  assert.ok(neighbor !== undefined, 'control: c is sliding, on the commit clock');
-  assert.equal(startOf(b, 'scale'), neighbor, 'b shrinks on the same clock');
-  mounted.unmount();
 });
 
 test('reduced motion: an expand lands at full size at once and a shrink at scale 0, as a slide lands at once', async () => {

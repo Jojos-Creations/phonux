@@ -29,6 +29,9 @@ import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
+import { ROW_STRIP_ATTRIBUTE } from './rowDom.js';
+import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { setHoldShift } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
@@ -99,18 +102,57 @@ export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(Pan
 const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
 /**
  * The host of every edgeHold panel, held or not, so the panel's React place never changes as its hold starts or lets go. A
- * held panel's host is a zero-height flex line that starts at the scroller's content origin (`lineLeft` is minus the strip's
- * start), holding a spacer and the panel's box, which is sticky. A sticky box clamps within its containing block, so the line
- * must span the whole content for the panel to reach either edge. A panel that is not held passes through unchanged.
+ * held panel's host is a zero-height flex line that starts at the strip's content origin (`lineLeft` is minus the strip's
+ * start), holding a spacer and the panel's box. The row moves by a transform, never a scroll, so the box sticks the way a
+ * sticky box would: kept `left` px inside the container's left edge and `right` px inside its right one, and never outside
+ * its line. A panel that is not held passes through unchanged.
  */
 function PanelHold({ sticky, spacer, lineLeft, lineWidth, width, children }: { sticky: { left?: number; right?: number } | null; spacer: number; lineLeft: number; lineWidth: number; width: number; children: React.ReactNode }): React.ReactElement {
   const held = sticky !== null;
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const shift = React.useRef(0);
+  React.useLayoutEffect(() => {
+    const box = boxRef.current;
+    const container = box === null ? null : closestRowScroller(box);
+    const strip = container?.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
+    if (!held || box === null || container == null || strip == null) {
+      if (box !== null) {
+        box.style.transform = '';
+        setHoldShift(box, 0);
+      }
+      shift.current = 0;
+      return undefined;
+    }
+    const scroller = rowScrollerFor(container);
+    // Measured once per commit: where the box sits in the strip, which no move of the row changes. Every frame after is arithmetic.
+    const inStrip = box.getBoundingClientRect().left - strip.getBoundingClientRect().left - shift.current;
+    // A sticky box keeps its insets inside the container's padding, so they count from the content box's edges.
+    const pad = getComputedStyle(container);
+    const padLeft = Number.parseFloat(pad.paddingLeft) || 0;
+    const contentRight = container.clientWidth - (Number.parseFloat(pad.paddingRight) || 0);
+    const place = (): void => {
+      const x = strip.offsetLeft + scroller.stripX() + inStrip;
+      let to = x;
+      if (sticky.right !== undefined) to = Math.min(to, contentRight - sticky.right - width);
+      if (sticky.left !== undefined) to = Math.max(to, padLeft + sticky.left);
+      const lineStart = x - spacer;
+      to = Math.min(Math.max(to, lineStart), lineStart + lineWidth - width);
+      shift.current = to - x;
+      setHoldShift(box, shift.current);
+      box.style.transform = shift.current === 0 ? '' : `translateX(${shift.current}px)`;
+    };
+    place();
+    return scroller.subscribe(place);
+  });
   return (
     <Box data-row-hold-line="" style={held ? { display: 'flex', height: 0, width: lineWidth, marginLeft: `${lineLeft}px`, flexShrink: 0 } : { display: 'contents' }}>
       <Box style={held ? { width: spacer, flexShrink: 0 } : { display: 'none' }} />
       <Box
+        ref={boxRef}
         data-row-hold=""
-        style={held ? { position: 'sticky', left: sticky.left === undefined ? undefined : `${sticky.left}px`, right: sticky.right === undefined ? undefined : `${sticky.right}px`, flexShrink: 0, height: 0, width, zIndex: ROW_LAYER_Z.DRAGGED } : { display: 'contents' }}
+        data-hold-left={held && sticky.left !== undefined ? `${sticky.left}px` : undefined}
+        data-hold-right={held && sticky.right !== undefined ? `${sticky.right}px` : undefined}
+        style={held ? { position: 'relative', flexShrink: 0, height: 0, width, zIndex: ROW_LAYER_Z.DRAGGED } : { display: 'contents' }}
       >
         {children}
       </Box>

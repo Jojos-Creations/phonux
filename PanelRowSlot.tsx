@@ -1,5 +1,7 @@
 import * as React from 'react';
-import { animate, motion, PresenceContext, useIsPresent, useReducedMotion, useReducedMotionConfig, visualElementStore, type TargetAndTransition } from 'motion/react';
+import { animate, PresenceContext, usePresence, useReducedMotion, useReducedMotionConfig, type TargetAndTransition } from 'motion/react';
+import { sharedStartTime } from './rowClock.js';
+import { NAMED_EASE, createSlotMover, shortTransform, type SlotMover, type SlotPose, type SlotTiming } from './slotMover.js';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { CHROME_ATTRIBUTE, ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -48,21 +50,6 @@ function isChromeControl(target: EventTarget): boolean {
 
 /** The same targets, no time taken: for Reduce Motion, snapping and width tracking. */
 const INSTANT_TRANSITION = { duration: 0 } as const;
-
-let commitClock: number | undefined;
-/**
- * The time a slide counts from: this task's commit. Motion counts from the moment the keyframes resolve when that is over 40 ms
- * later, which would start the slot and the size box's scale at different moments.
- */
-function slideStart(): number {
-  if (commitClock === undefined) {
-    commitClock = performance.now();
-    queueMicrotask(() => {
-      commitClock = undefined;
-    });
-  }
-  return commitClock;
-}
 
 /**
  * How a slot enters: a slide from one side, a fade where it rests, or a scale up from 0: about its center for 'expand'
@@ -161,24 +148,34 @@ export function parkExitTarget(rest: number, ownSpan: number, side: 'left' | 'ri
   return { x: rowScroll ? rest - ownSpan : -ownSpan, opacity: 0 };
 }
 
+/** A Motion target as the pose it names: what it leaves out is the slot at rest. */
+const poseOf = (t: TargetAndTransition, rest: number): SlotPose => ({
+  x: typeof t.x === 'number' ? t.x : rest,
+  y: typeof t.y === 'number' ? t.y : 0,
+  scale: typeof t.scale === 'number' ? t.scale : 1,
+  opacity: typeof t.opacity === 'number' ? t.opacity : 1,
+});
+
+/** A Motion transition's timing as a slot move's; a named curve is Motion's bezier for it. */
+function timingOf(t: { duration?: number; ease?: unknown } | undefined, fallback: SlotTiming): SlotTiming {
+  if (t === undefined) return fallback;
+  const ease = typeof t.ease === 'string' && t.ease in NAMED_EASE ? NAMED_EASE[t.ease as keyof typeof NAMED_EASE] : Array.isArray(t.ease) && t.ease.length === 4 ? (t.ease as unknown as SlotTiming['ease']) : fallback.ease;
+  return { duration: t.duration ?? fallback.duration, ease };
+}
+
 /**
  * The imperative moves a slot makes on its own element. An object so a test can wrap them and read the order of the
- * calls; `set` writes the motion values at once, which a zero-duration animation would not.
+ * calls; `set` draws at once, `glide` starts a move on the shared start time.
  * @internal
  */
 export const slotDriver = {
-  set(el: HTMLElement, values: SlotValues): void {
-    const visual = visualElementStore.get(el);
-    visual?.getValue('x')?.set(values.x);
-    visual?.getValue('opacity')?.set(values.opacity);
+  set(el: HTMLElement, mover: SlotMover, pose: SlotPose): void {
+    void el;
+    mover.set(pose);
   },
-  /** Starts the slide the element's `animate` prop already asks for, now, in the commit: Motion would start it in a passive effect. */
-  startPending(el: HTMLElement): void {
-    (visualElementStore.get(el) as { animationState?: { animateChanges(): void } } | undefined)?.animationState?.animateChanges();
-  },
-  animate(el: HTMLElement, values: SlotValues, transition: TargetAndTransition['transition']): void {
-    // Scale too: a restart that stopped an expand part way would otherwise leave the panel small.
-    animate(el, { x: values.x, opacity: values.opacity, scale: 1 }, transition as never);
+  glide(el: HTMLElement, mover: SlotMover, pose: SlotPose, timing: SlotTiming, done?: () => void): void {
+    void el;
+    mover.to(pose, timing, done);
   },
 };
 
@@ -227,7 +224,7 @@ export function PanelRowSlot({
    * AnimatePresence has no later render of a removed child to fix a wrong guess. */
   exitDirection: SlotExit;
   /**
-   * Each slot's `motion.div` carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
+   * Each slot carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
    * cannot compare against a SIBLING slot: stacking between slots (e.g. a raised column above a panel sliding
    * left behind it) must be set HERE, on the slot, not on what renders inside it. Defaults to 0.
    */
@@ -254,15 +251,17 @@ export function PanelRowSlot({
   // A new open grows from its center while the panel in its slot slides out, so it is drawn beneath until it has grown.
   // A slot mounted with the row (AnimatePresence initial={false}) never animates in, so it never grows.
   const presence = React.useContext(PresenceContext);
-  const [growing, setGrowing] = React.useState(presence?.initial !== false && (entrance === 'expand' || EXPAND_ORIGIN_X[entrance] !== undefined));
+  const mountedWithRow = presence?.initial === false;
+  const [growing, setGrowing] = React.useState(!mountedWithRow && (entrance === 'expand' || EXPAND_ORIGIN_X[entrance] !== undefined));
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
+  const mover = React.useRef<SlotMover | null>(null);
   // What a report and the frame loop read: the row's store and this slot's panel id, as of this render.
   const chrome = React.useContext(ChromeStoreContext);
   const live = React.useRef({ chrome, panelId });
   live.current = { chrome, panelId };
   const reporter = React.useRef<PanelRectReporter | null>(null);
-  // True between Motion's own start and completion of this slot's animation; the store mirrors it for usePanelSliding.
+  // True from the start of this slot's move until it lands; the store mirrors it for usePanelSliding.
   const sliding = React.useRef(false);
   const kickRect = React.useCallback((): void => reporter.current?.kick(), []);
   const setSliding = (on: boolean): void => {
@@ -271,8 +270,6 @@ export function PanelRowSlot({
     if (store !== undefined && id !== undefined) store.setSliding(id, on);
   };
   const framed = useHoldsFrame(el);
-  // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
-  const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
   const reducedMotion = useReducedMotionConfig();
   // The drag box reads the system preference itself, so the neighbors that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
@@ -287,59 +284,70 @@ export function PanelRowSlot({
     window.addEventListener('blur', onWindowBlur);
     return () => window.removeEventListener('blur', onWindowBlur);
   }, []);
-  const slideTransition = reducedMotion ? INSTANT_TRANSITION : transition;
   const snapping = previewing && (reducedMotion || systemReduced || dragged);
+  const instant = reducedMotion === true || snapping || tracking;
   // A drag of any axis lifts its slot above the row's others until it has settled; the slot is its own stacking context, so only its z can do it.
   const lifted = usePanelDragging();
-  // React 19.2 re-runs effect cleanup and setup for a keyed child a reorder moves, and Motion's cleanup stops the slide this
-  // slot was making toward its new rest; nothing then starts it again, so the slot stays where it was.
-  // A drop under Reduce Motion lands here too: the moved slot's own slide is re-started with the preview's instant transition.
-  const restNow = React.useRef({ leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition });
-  restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
-  const setUpBefore = React.useRef(false);
-  const present = useIsPresent();
+  const [present, safeToRemove] = usePresence();
   // Neighbors close up over a shrinking slot, so it is drawn on top to be seen shrinking away.
   const shrinkOrigin = present ? undefined : SHRINK_ORIGIN_X[exitDirection];
   const shrinking = shrinkOrigin !== undefined;
-  // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
-  // shrink and the neighbors closing up over it count from the same moment however late the commit runs.
-  if (shrinking) startable.startTime = slideStart();
+  const glide = (pose: SlotPose, timing: SlotTiming, done?: () => void): void => {
+    const node = el.current;
+    const m = mover.current;
+    if (node === null || m === null) return;
+    setSliding(true);
+    kickRect();
+    slotDriver.glide(node, m, pose, timing, () => {
+      setSliding(false);
+      done?.();
+      reporter.current?.settle();
+    });
+  };
+  // Every move starts in the commit's layout effect on the shared start time, so the slots, the strip and the size boxes a
+  // commit moves are sampled together.
+  const lastRest = React.useRef<number | null>(null);
+  const exiting = React.useRef(false);
   React.useLayoutEffect(() => {
-    if (!present) delete startable.startTime;
-  });
-  // The drop's new rest lands in the commit that changes it, in the same frame as the dragged box's own offset going to 0: a snap that waited
-  // for Motion's next frame would draw the box a frame at the old slot.
-  const lastRest = React.useRef(leftOffset);
-  React.useLayoutEffect(() => {
-    const moved = lastRest.current !== leftOffset;
-    lastRest.current = leftOffset;
-    if (moved && (snapping || tracking) && el.current !== null && present) slotDriver.set(el.current, { x: leftOffset, opacity: 1 });
-    else if (moved && el.current !== null && present) {
-      // Before the slide starts: a listener reads the box the panel still shows.
-      if (panelId !== undefined) {
-        const Ctor = el.current.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
-        el.current.dispatchEvent(new Ctor(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
-      }
-      startable.startTime = slideStart();
-      slotDriver.startPending(el.current);
-      delete startable.startTime;
-    }
-  });
-  // An expand's scale and its neighbors' parting must share one clock, or the gap it grows into lags it by a frame.
-  React.useLayoutEffect(() => {
-    if ((entrance !== 'expand' && EXPAND_ORIGIN_X[entrance] === undefined) || snapping || tracking || el.current === null) return;
-    startable.startTime = slideStart();
-    slotDriver.startPending(el.current);
-    delete startable.startTime;
-  }, []);
-  React.useEffect(() => {
-    if (!setUpBefore.current) {
-      setUpBefore.current = true;
+    const node = el.current;
+    if (node === null) return;
+    const rest = poseOf(animateTarget, leftOffset);
+    if (mover.current === null) {
+      const enters = !mountedWithRow && !instant;
+      mover.current = createSlotMover(node, enters ? poseOf(initial, leftOffset) : rest);
+      lastRest.current = leftOffset;
+      if (enters)
+        glide(rest, timingOf(transition, transition), () => {
+          setGrowing(false);
+        });
+      else setGrowing(false);
       return;
     }
-    if (el.current === null || !present) return;
-    slotDriver.animate(el.current, { x: restNow.current.leftOffset, opacity: 1 }, restNow.current.transition);
-  }, []);
+    const m = mover.current;
+    if (!present) {
+      if (exiting.current) return;
+      exiting.current = true;
+      const timing = reducedMotion === true ? { duration: 0, ease: transition.ease } : timingOf(exit.transition as { duration?: number; ease?: unknown } | undefined, transition);
+      glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
+      return;
+    }
+    const moved = lastRest.current !== leftOffset;
+    const returning = exiting.current;
+    exiting.current = false;
+    lastRest.current = leftOffset;
+    if (!moved && !returning) return;
+    if (instant) {
+      slotDriver.set(node, m, rest);
+      kickRect();
+      return;
+    }
+    // Before the slide starts: a listener reads the box the panel still shows.
+    if (panelId !== undefined && moved) {
+      const Ctor = node.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
+      node.dispatchEvent(new Ctor(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
+    }
+    glide(rest, transition);
+  });
   // A box that moves by its own motion, a drag, a resize or a row scroll is reported until it stops. A slot that mounts
   // reports its rest once; its reporter is recreated under StrictMode's second setup, so nothing here is shared.
   React.useLayoutEffect(() => {
@@ -349,6 +357,7 @@ export function PanelRowSlot({
     const rowMoving = (): boolean => row !== null && (rowScrollerFor(row).glideTarget() !== null || rowScrollerFor(row).claimHeld());
     const rep = createRectReporter(node, {
       id: () => live.current.panelId,
+      stripX: () => (row === null ? 0 : rowScrollerFor(row).stripX()),
       moving: () => {
         const { chrome: store, panelId: id } = live.current;
         const held = store !== undefined && id !== undefined && (store.dragging() === id || store.resizing() === id);
@@ -372,23 +381,16 @@ export function PanelRowSlot({
       for (const off of offs) off();
     };
   }, [chrome, panelId, kickRect]);
+  const origin = shrinking ? shrinkOrigin : EXPAND_ORIGIN_X[entrance];
+  // The first pose is in the markup, so a server render or the frame before the layout effect draws the slot in place. It never
+  // changes after, so React never writes over the mover's own transform.
+  const [firstPose] = React.useState(() => {
+    const p = mountedWithRow || instant ? poseOf(animateTarget, leftOffset) : poseOf(initial, leftOffset);
+    return { opacity: p.opacity, transform: shortTransform(p) };
+  });
   return (
-    <motion.div
+    <div
       ref={el}
-      // Enters from one own-width-plus-gap span beyond its destination, right or left per `enterDirection` above.
-      initial={snapping || tracking ? animateTarget : initial}
-      animate={snapping || tracking ? { ...animateTarget, transition: INSTANT_TRANSITION } : animateTarget}
-      exit={exit}
-      transition={startable as typeof transition}
-      onAnimationStart={() => {
-        setSliding(true);
-        kickRect();
-      }}
-      onAnimationComplete={() => {
-        setSliding(false);
-        if (growing) setGrowing(false);
-        reporter.current?.settle();
-      }}
       {...(label === undefined ? {} : { role: 'group', 'aria-label': label })}
       data-row-slot={leftOffset}
       data-row-id={panelId}
@@ -411,13 +413,14 @@ export function PanelRowSlot({
             : growing && present
               ? Math.min(zIndex ?? 0, ROW_LAYER_Z.BASE) - 1
               : (zIndex ?? 0),
-        ...(shrinking ? { originX: shrinkOrigin } : EXPAND_ORIGIN_X[entrance] !== undefined ? { originX: EXPAND_ORIGIN_X[entrance] } : {}),
+        ...firstPose,
+        ...(origin !== undefined ? { transformOrigin: `${origin * 100}% 50%` } : {}),
       }}
     >
       {framed && <TabSentinel end={false} />}
       {children}
       {framed && <TabSentinel end />}
-    </motion.div>
+    </div>
   );
 }
 
@@ -534,7 +537,7 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
   const run = React.useRef<SizeRun | undefined>(undefined);
   const laidOut = React.useRef<BoxSize | undefined>(undefined);
   const [glide, setGlide] = React.useState<PanelSizeGlide | null>(null);
-  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbor.
+  // Starts in the commit's layout effect, on the shared start time, so a commit that janks opens no gap to a neighbor.
   React.useLayoutEffect(() => {
     const node = box.current;
     if (node === null || nested) return;
@@ -551,7 +554,7 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
     }
     const start = { width: from.width, height: h0 };
     setGlide({ from: start, to });
-    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, slide === undefined ? PANEL_TRANSITION : slideToTransition(slide), slideStart(), () => {
+    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, slide === undefined ? PANEL_TRANSITION : slideToTransition(slide), sharedStartTime(), () => {
       run.current = undefined;
       setGlide(null);
     });

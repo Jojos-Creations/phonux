@@ -6,6 +6,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import { act } from 'react';
 import type { PanelSettings, WorkspaceTuning } from '../index.js';
 import { differential, differentialsCovered } from './support/differential.js';
@@ -40,11 +41,11 @@ test('differential revealOnScroll: an engine-parked panel with a live panel beyo
   });
 });
 
-/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, held by its sticky host when held. */
+/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, held by its host when held. */
 function drawnAt(edgeHold: PanelSettings['edgeHold']): 'held' | 'strip' | 'missing' {
   const m = mountRow(row(rootEntry(), made('b', { edgeHold }), made('c'), made('d')), 1000);
   const slot = m.container.querySelector<HTMLElement>('[data-row-strip] [data-row-id="b"]');
-  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.style.position === 'sticky' ? 'held' : 'strip';
+  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.hasAttribute('data-hold-left') ? 'held' : 'strip';
   cleanup();
   return where;
 }
@@ -66,7 +67,7 @@ async function openedAt(scrollOnOpen: PanelSettings['scrollOnOpen']): Promise<nu
   const m = mountRow(panelsOf(5, { scrollOnOpen }), 1000);
   act(() => void m.latest().scrollTo('s3'));
   await advanceFrames(900);
-  const at = m.container.scrollLeft;
+  const at = rowOffsetOf(m.container);
   cleanup();
   return at;
 }
@@ -88,7 +89,7 @@ async function movedTo(scrollOnMove: PanelSettings['scrollOnMove']): Promise<num
   const m = mountRow(panelsOf(5, { scrollOnMove }), 1000);
   act(() => m.latest().setSlots('s1', 2));
   await advanceFrames(900);
-  const at = m.container.scrollLeft;
+  const at = rowOffsetOf(m.container);
   cleanup();
   return at;
 }
@@ -123,7 +124,7 @@ test('differential tuning.rowGesture: step starts a glide on a swipe and off lea
 
 const initialOf = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>): number => {
   const m = mountRow(panelsOf(10), 1000, { tuning: { initialScroll } });
-  const at = m.container.scrollLeft;
+  const at = rowOffsetOf(m.container);
   cleanup();
   return at;
 };

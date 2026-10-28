@@ -5,6 +5,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelReorderSteps } from '../index.js';
@@ -152,7 +153,7 @@ test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-w
   await dragTo(m, 1000);
   await frames(100);
   const distance = walked(99);
-  assert.ok(Math.abs(m.container.scrollLeft - distance) < 1e-6, `scrollLeft ${m.container.scrollLeft}, expected ${distance} (99 x ${(EDGE.maxPxPerSec * FRAME_MS) / 1000})`);
+  assert.ok(Math.abs(rowOffsetOf(m.container) - distance) < 1e-6, `scrollLeft ${rowOffsetOf(m.container)}, expected ${distance} (99 x ${(EDGE.maxPxPerSec * FRAME_MS) / 1000})`);
   assert.equal(ends.length, 0, 'nothing hops during the drag');
   await liftAt(1000);
   await frames(GLIDE_FRAMES);
@@ -161,14 +162,14 @@ test('held at the right edge for 100 frames the row scrolls 99 steps; held mid-w
   assert.equal(ends[0]!.hops, hopsAt(40 + distance));
   assert.equal(hopsAt(40 + distance), 4, '1465.6 clears 1421 and not 1827');
   assert.equal(reorderStepsForOffset(ends[0]!.offset, FIVE_NEIGHBOURS, 16, LIBRARY_TUNING_DEFAULTS.hopFraction), 4);
-  assert.equal(m.container.scrollLeft, settledAt(distance), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
+  assert.equal(rowOffsetOf(m.container), settledAt(distance), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
   assert.notEqual(settledAt(distance), 0);
 
   cleanup();
   const mid = mountEdgeRow();
   await dragTo(mid, 500);
   await frames(100);
-  assert.equal(mid.container.scrollLeft, 0, 'the pointer is outside both bands');
+  assert.equal(rowOffsetOf(mid.container), 0, 'the pointer is outside both bands');
   await liftAt(500);
   await frames(30);
   assert.deepEqual(ends.map((e) => e.offset), [40], 'the pointer offset alone');
@@ -180,10 +181,10 @@ test('the drawn position is the pointer offset plus the scroll distance at every
   await dragTo(m, 1000);
   for (let frame = 0; frame < 100; frame += 1) {
     await frames(1);
-    const expected = 40 + m.container.scrollLeft;
+    const expected = 40 + rowOffsetOf(m.container);
     assert.ok(Math.abs(drawnX(box) - expected) < 1e-6, `frame ${frame}: drawn ${drawnX(box)}, expected ${expected}`);
   }
-  assert.ok(m.container.scrollLeft > 1000, 'the loop ran');
+  assert.ok(rowOffsetOf(m.container) > 1000, 'the loop ran');
 });
 
 test('the strip bounds the scroll: a scrollWidth inflated by the box never lifts scrollLeft past the row numbers', async () => {
@@ -192,9 +193,9 @@ test('the strip bounds the scroll: a scrollWidth inflated by the box never lifts
   Object.defineProperty(m.container, 'scrollWidth', { get: () => 4482 + drawnX(box), configurable: true });
   await dragTo(m, 1000);
   await frames(400);
-  assert.equal(m.container.scrollLeft, MAX_SCROLL);
+  assert.equal(rowOffsetOf(m.container), MAX_SCROLL);
   await frames(40);
-  assert.equal(m.container.scrollLeft, MAX_SCROLL, 'and stays there');
+  assert.equal(rowOffsetOf(m.container), MAX_SCROLL, 'and stays there');
   await liftAt(1000);
   await frames(30);
   assert.equal(ends[0]!.offset, 40 + MAX_SCROLL);
@@ -224,7 +225,7 @@ test('released with nothing to hop over, the box springs home as one: both trans
   assert.equal(settled(translates), settled(xs), 'both reach 0 in the same frame');
   assert.equal(box.style.transform, 'none');
   assert.ok(['', 'none', '0px 0px', '0px'].includes(box.style.translate), `translate settled at ${JSON.stringify(box.style.translate)}`);
-  assert.equal(m.container.scrollLeft, settledAt(walked(99)), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
+  assert.equal(rowOffsetOf(m.container), settledAt(walked(99)), 'the row is not snapped back: it settles on the stop nearest where the pointer left it');
   assert.notEqual(settledAt(walked(99)), 0);
 });
 
@@ -246,7 +247,7 @@ test('released with a scroll distance and no hop, the box still settles at rest'
   const box = boxOf(m);
   await dragTo(m, 1000);
   await frames(6);
-  assert.ok(m.container.scrollLeft > 0);
+  assert.ok(rowOffsetOf(m.container) > 0);
   await liftAt(1000);
   await frames(60);
   assert.equal(ends[0]!.hops, 0);
@@ -274,7 +275,7 @@ async function heldSeries(m: MountedRow, n: number): Promise<number[]> {
   const series: number[] = [];
   for (let frame = 0; frame < n; frame += 1) {
     await frames(1);
-    series.push(m.container.scrollLeft);
+    series.push(rowOffsetOf(m.container));
   }
   return series;
 }
@@ -304,7 +305,7 @@ test('reduced motion: a pointer that leaves the band before one interval causes 
   await frames(intervalFrames(EDGE.reducedStepMs) - 4);
   await moveTo(500);
   await frames(intervalFrames(EDGE.reducedStepMs) * 2);
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
 });
 
 test('reduced motion: half the interval doubles the jumps, and twelve intervals end at the strip bound and stop', async () => {
@@ -336,7 +337,7 @@ test('a vertical-locked drag held at the edge scrolls nothing and closes by the 
     await press(handleOf(m, 's1'), 995);
     await moveTo(1000, 100 + dy);
     await frames(100);
-    assert.equal(m.container.scrollLeft, 0, `dy ${dy}`);
+    assert.equal(rowOffsetOf(m.container), 0, `dy ${dy}`);
     await liftAt(1000, 100 + dy);
     await frames(60);
     assert.equal(ends.length, 0, 'no reorder');
@@ -361,7 +362,7 @@ test('a panel that cannot be closed still edge-scrolls and reorders', async () =
   const m = mountEdgeRow({ closable: false });
   await dragTo(m, 1000);
   await frames(100);
-  assert.ok(m.container.scrollLeft > 1000);
+  assert.ok(rowOffsetOf(m.container) > 1000);
   await liftAt(1000);
   await frames(30);
   assert.equal(ends[0]!.hops, 4);
@@ -486,15 +487,15 @@ test('the last panel dragged to the right edge is drawn no further than the row 
   const strip = m.container.querySelector('[data-row-strip]');
   assert.ok(strip, 'the row carries its strip mark');
   const rect = (right: number) => ({ left: right - 390, right, top: 0, bottom: 700, width: 390, height: 700, x: right - 390, y: 0, toJSON: () => ({}) });
-  strip.getBoundingClientRect = () => rect(ROW_END - m.container.scrollLeft) as DOMRect;
-  box.getBoundingClientRect = () => rect(ROW_END - m.container.scrollLeft + drawnX(box)) as DOMRect;
+  strip.getBoundingClientRect = () => rect(ROW_END - rowOffsetOf(m.container)) as DOMRect;
+  box.getBoundingClientRect = () => rect(ROW_END - rowOffsetOf(m.container) + drawnX(box)) as DOMRect;
   await dragTo(m, 1000, 's10');
   let furthest = Number.NEGATIVE_INFINITY;
   for (let frame = 0; frame < 400; frame += 1) {
     await frames(1);
     furthest = Math.max(furthest, drawnX(box));
   }
-  assert.equal(m.container.scrollLeft, MAX_SCROLL, 'the loop reached the strip end');
+  assert.equal(rowOffsetOf(m.container), MAX_SCROLL, 'the loop reached the strip end');
   assert.ok(furthest <= 0.5, `the box was drawn ${furthest} px past the row end`);
   await liftAt(1000);
   await frames(30);
@@ -512,7 +513,7 @@ test('held at the right edge the row previews exactly the hops the release then 
   await dragTo(m, 1000);
   await frames(100);
   const shifted = ids.filter((id, k) => slotX(id) < rest[k]! - 1).length;
-  assert.ok(m.container.scrollLeft > 1000, 'control: the row scrolled');
+  assert.ok(rowOffsetOf(m.container) > 1000, 'control: the row scrolled');
   assert.ok(shifted >= 4, `the preview counts the scroll distance, not only the ${1000 - 40} px of pointer travel (${shifted} shifted)`);
   await liftAt(1000);
   await frames(30);

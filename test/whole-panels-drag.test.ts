@@ -6,6 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
@@ -92,12 +93,12 @@ test('a drag held at the right edge and released settles the row on a stop', asy
   const m = mountEdgeRow();
   await dragTo(m, 1000);
   await frames(100);
-  assert.ok(m.container.scrollLeft > 1000 && !atAStop(m.container.scrollLeft), `positive control: the loop left the row between stops at ${m.container.scrollLeft}`);
-  const before = m.container.scrollLeft;
+  assert.ok(rowOffsetOf(m.container) > 1000 && !atAStop(rowOffsetOf(m.container)), `positive control: the loop left the row between stops at ${rowOffsetOf(m.container)}`);
+  const before = rowOffsetOf(m.container);
   await liftAt(1000);
   await frames(60);
-  assert.ok(atAStop(m.container.scrollLeft), `settled at ${m.container.scrollLeft}`);
-  assert.equal(m.container.scrollLeft, nearestStop(before), 'the nearest stop');
+  assert.ok(atAStop(rowOffsetOf(m.container)), `settled at ${rowOffsetOf(m.container)}`);
+  assert.equal(rowOffsetOf(m.container), nearestStop(before), 'the nearest stop');
 });
 
 test('under reduced motion a held edge jumps stop by stop, to 406 and not to the panel start 492', async () => {
@@ -105,9 +106,9 @@ test('under reduced motion a held edge jumps stop by stop, to 406 and not to the
   const m = mountEdgeRow();
   await dragTo(m, 1000);
   await frames(60);
-  assert.ok(atAStop(m.container.scrollLeft), `at ${m.container.scrollLeft}`);
-  assert.notEqual((m.container.scrollLeft - 86) % 406, 0, 'not on a panel start');
-  assert.ok(m.container.scrollLeft >= STOPS[1]!, 'positive control: it jumped');
+  assert.ok(atAStop(rowOffsetOf(m.container)), `at ${rowOffsetOf(m.container)}`);
+  assert.notEqual((rowOffsetOf(m.container) - 86) % 406, 0, 'not on a panel start');
+  assert.ok(rowOffsetOf(m.container) >= STOPS[1]!, 'positive control: it jumped');
 });
 
 test('a released drag settles along slide.glideEase: a quarter of the way through a slow settle a linear one has covered about a quarter and the default most of it', async () => {
@@ -115,12 +116,12 @@ test('a released drag settles along slide.glideEase: a quarter of the way throug
     const m = mountEdgeRow({ slide: { durationSec: 1.6, glideEase } });
     await dragTo(m, 1000);
     await frames(100);
-    const from = m.container.scrollLeft;
+    const from = rowOffsetOf(m.container);
     await liftAt(1000);
     await frames(25);
-    const mid = m.container.scrollLeft;
+    const mid = rowOffsetOf(m.container);
     await frames(150);
-    const to = m.container.scrollLeft;
+    const to = rowOffsetOf(m.container);
     assert.ok(Math.abs(to - from) > 20, `control: the settle moved the row, ${from} to ${to}`);
     cleanup();
     return (mid - from) / (to - from);

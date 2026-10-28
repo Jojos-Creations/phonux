@@ -5,6 +5,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import { act } from 'react';
 import type { PanelWindow } from '../index.js';
 import { rowScrollerFor } from '../rowScroller.js';
@@ -21,7 +22,7 @@ async function restingAt(id: string): Promise<number> {
   const m = mountRow(sixPanels(), 1000);
   act(() => void m.latest().scrollTo(id));
   await settle();
-  const at = m.container.scrollLeft;
+  const at = rowOffsetOf(m.container);
   cleanup();
   return at;
 }
@@ -37,11 +38,11 @@ test('a scroll asked for while a resize holds the row is kept, and runs once the
   });
   assert.equal(recorded, true, 'a scroll kept for the resize is accepted');
   await settle();
-  assert.equal(m.container.scrollLeft, 0, 'nothing moves while the resize holds the row');
+  assert.equal(rowOffsetOf(m.container), 0, 'nothing moves while the resize holds the row');
   claim.release();
   scroller.replayDeferred();
   await settle();
-  assert.equal(m.container.scrollLeft, expected, 'the kept scroll runs at the release');
+  assert.equal(rowOffsetOf(m.container), expected, 'the kept scroll runs at the release');
   assert.deepEqual(m.notes.map((n) => n.code), [], 'a kept scroll is not reported as dropped');
 });
 
@@ -59,7 +60,7 @@ test('two scrolls asked for during a resize hold replay only the last', async ()
   claim.release();
   scroller.replayDeferred();
   await settle();
-  assert.equal(m.container.scrollLeft, expected, 'only the last kept scroll runs');
+  assert.equal(rowOffsetOf(m.container), expected, 'only the last kept scroll runs');
 });
 
 test('with no scroll asked for during a resize hold, the release replays nothing', async () => {
@@ -71,7 +72,7 @@ test('with no scroll asked for during a resize hold, the release replays nothing
   scroller.replayDeferred();
   await settle();
   assert.equal(glides.mock.callCount(), 0, 'nothing is glided to');
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
 });
 
 test('a drag that holds the row still drops a scroll: only a resize claim keeps one', async () => {

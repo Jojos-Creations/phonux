@@ -7,6 +7,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelReorderSteps } from '../index.js';
@@ -108,19 +109,19 @@ test('a glide in flight stops at the pointer-down on the grab bar and writes not
   const m = mountCancelRow();
   assert.equal(m.scroller.glideTo(2000, { durationSec: 1, instant: false, ease: 'cubic-out' }), true);
   await frames(10);
-  const stopped = m.container.scrollLeft;
+  const stopped = rowOffsetOf(m.container);
   assert.ok(stopped > 0 && stopped < 2000, `mid-glide at ${stopped}`);
   await press(handleOf(m), 500);
   assert.equal(m.scroller.glideTarget(), null);
   await frames(60);
-  assert.equal(m.container.scrollLeft, stopped);
+  assert.equal(rowOffsetOf(m.container), stopped);
 });
 
 test('while the hold has the row, scrollTo, a created panel and a followed move are dropped with a note; the same scrollTo after the release runs', async () => {
   const m = mountCancelRow({ scrollOnOpen: 'start', scrollOnMove: 'follow' });
   await dragTo(m, 1000);
   await frames(6);
-  const held = m.container.scrollLeft;
+  const held = rowOffsetOf(m.container);
   assert.ok(held > 0);
   let accepted = true;
   act(() => {
@@ -135,14 +136,14 @@ test('while the hold has the row, scrollTo, a created panel and a followed move 
   assert.deepEqual([dropped[0]!.panelId, dropped[2]!.panelId], ['s8', 's1']);
   await liftAt(1000);
   await frames(30);
-  const after = m.container.scrollLeft;
+  const after = rowOffsetOf(m.container);
   act(() => {
     accepted = m.latest().scrollTo('s8');
   });
   assert.equal(accepted, true);
   await frames(80);
-  assert.equal(m.container.scrollLeft, 8 * 406, 's8 starts at 3334, after the 86 centering margin; the start align lands on the stop that shows it, 3248')
-  assert.notEqual(m.container.scrollLeft, after);
+  assert.equal(rowOffsetOf(m.container), 8 * 406, 's8 starts at 3334, after the 86 centering margin; the start align lands on the stop that shows it, 3248')
+  assert.notEqual(rowOffsetOf(m.container), after);
 });
 
 test('the claim is free again after a release, a pointercancel, an unmount and the row ceasing to scroll', async () => {
@@ -210,27 +211,25 @@ test('the row ceasing to scroll mid-hold gives the claim back and the row stops 
   await press(alone.handle, 960);
   await moveTo(1000);
   await frames(30);
-  const held = alone.scroller.scrollLeft;
+  const held = rowScroller.scrollLeft();
   assert.ok(held > 0);
   assert.equal(rowScroller.claimHeld(), true);
   alone.mounted.rerender(alone.ui(undefined));
   assert.equal(rowScroller.claimHeld(), false, 'rowScroll turned false');
   await frames(30);
-  assert.equal(alone.scroller.scrollLeft, held);
+  assert.equal(rowScroller.scrollLeft(), held);
   await liftAt(1000);
 });
 
-/** A row whose scrollLeft is counted: `writes` rises on every assignment. */
+/** A row whose offset moves are counted: `writes` rises on every notify that finds the offset changed. */
 function countWrites(m: MountedRow): { writes: () => number; value: () => number } {
+  const scroller = rowScrollerFor(m.container);
   let writes = 0;
-  let value = 0;
-  Object.defineProperty(m.container, 'scrollLeft', {
-    configurable: true,
-    get: () => value,
-    set: (next: number) => {
-      writes += 1;
-      value = next;
-    },
+  let value = scroller.scrollLeft();
+  scroller.subscribe(() => {
+    if (scroller.scrollLeft() === value) return;
+    writes += 1;
+    value = scroller.scrollLeft();
   });
   return { writes: () => writes, value: () => value };
 }
@@ -278,7 +277,7 @@ test('a wheel burst during the hold scrolls nothing under step or off, and off s
     await dragTo(m, 500);
     m.wheel({ deltaX: 600 });
     await frames(30);
-    assert.equal(m.container.scrollLeft, 0, `${rowGesture}: a 600 wheel burst scrolls nothing while the drag holds the row`);
+    assert.equal(rowOffsetOf(m.container), 0, `${rowGesture}: a 600 wheel burst scrolls nothing while the drag holds the row`);
     await liftAt(500);
     await frames(30);
     cleanup();
@@ -287,7 +286,7 @@ test('a wheel burst during the hold scrolls nothing under step or off, and off s
   const off = mountCancelRow({}, { tuning: { rowGesture: 'off' } });
   await dragTo(off, 1000);
   await frames(100);
-  assert.ok(Math.abs(off.container.scrollLeft - walked(99)) < 1e-6, 'under off the held drag scrolls as under step');
+  assert.ok(Math.abs(rowOffsetOf(off.container) - walked(99)) < 1e-6, 'under off the held drag scrolls as under step');
 });
 
 test('a claim someone else holds: no edge scroll, the box still follows the pointer, and the release reports the pointer offset and still closes', async () => {
@@ -297,7 +296,7 @@ test('a claim someone else holds: no edge scroll, the box still follows the poin
   other.setMaxScroll(MAX_SCROLL);
   await dragTo(m, 1000);
   await frames(60);
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
   assert.equal(drawnX(m), 40);
   await liftAt(1000);
   await frames(30);
@@ -320,7 +319,7 @@ test('a claim someone else holds: no edge scroll, the box still follows the poin
 test('the scroll distance counts from scrollLeft at pointer-down: a native 100 before the axis lock is counted, then the edge distance', async () => {
   const m = mountCancelRow({}, { tuning: { rowGesture: 'step' } });
   await press(handleOf(m), 960);
-  m.container.scrollLeft = 100;
+  setRowOffset(m.container, 100);
   await moveTo(1000);
   await frames(1);
   await frames(50);

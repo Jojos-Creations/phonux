@@ -10,6 +10,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import type { ConfigureResult, PanelHandle, PanelSettings } from '../index.js';
 import { panelKey } from '../panelSettings.js';
 import { maxScrollOf } from '../rowNumbers.js';
@@ -382,7 +383,7 @@ test('final property: over random settings vectors, scrollTo, resetLayout, confi
         if (Number.isFinite(n.windowWidth)) {
           // The end pad is part of the strip's bound, so the farthest legal scroll is the library's own maxScrollOf.
           const farthest = maxScrollOf(n);
-          const at = r.m.container.scrollLeft;
+          const at = rowOffsetOf(r.m.container);
           assert.equal(at >= 0 && at <= farthest + 1e-6, true, `${where(step)}: scrollLeft ${at} after ${op} lies in [0, ${farthest}]`);
           scrollBounds += 1;
         }
