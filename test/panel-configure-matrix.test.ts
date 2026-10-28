@@ -3,12 +3,12 @@
  * Every expectation is written from the configure design and the catalog's `on_configure` cells, never from the code
  * under test.
  */
-import { ROW_LAYER_Z } from '../rowConstants.js';
-import { centerRank, slotZ } from '../rowSlotZ.js';
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
+import { ROW_LAYER_Z } from '../rowConstants.js';
+import { centerRank, slotZ } from '../rowSlotZ.js';
 import { rowOffsetOf } from './support/strip.js';
 import { act, createElement } from 'react';
 import { LIBRARY_PANEL_DEFAULTS } from '../index.js';
