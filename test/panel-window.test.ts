@@ -18,15 +18,12 @@ import {
   appendPanel,
   closePanel,
   createRootPanel,
-  firstParkedAfter,
-  lastParkedBefore,
-  leftmostLiveIndex,
   movePanel,
+  parkedToReveal,
   promoteToLive,
   reanchorPanel,
   reorderStepsForOffset,
   restorePanel,
-  rightmostLiveIndex,
   setSlots,
   sideOfLiveRange,
 } from '../panelWindow.js';
@@ -244,7 +241,7 @@ test('restorePanel re-reads anchors from the restored order: A closed right of H
 });
 
 // ---------------------------------------------------------------------------
-// sideOfLiveRange / leftmostLiveIndex / rightmostLiveIndex / firstParkedAfter / lastParkedBefore: the
+// sideOfLiveRange / parkedToReveal: the
 // row-gesture and exit-direction primitives -- pure, so their edge cases are pinned without a hook or a
 // DOM.
 // ---------------------------------------------------------------------------
@@ -261,20 +258,21 @@ test('sideOfLiveRange: a parked id (about to be revived) is judged the same way,
   assert.equal(sideOfLiveRange(panels, 'w3'), 'right', 'w3 sits right of it');
 });
 
-test('leftmostLiveIndex / rightmostLiveIndex: -1 with nothing live, otherwise the array index of the edge panel', () => {
-  assert.equal(leftmostLiveIndex([]), -1);
-  assert.equal(rightmostLiveIndex([]), -1);
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1');
-  assert.equal(leftmostLiveIndex(panels), 1, 'w2, the first live one');
-  assert.equal(rightmostLiveIndex(panels), 2, 'w3, the last live one');
+test('parkedToReveal: the next parked panel toward each side, or null with nothing parked that way', () => {
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4'), 'w1', 'w4');
+  assert.equal(parkedToReveal(panels, 'right')?.id, 'w4');
+  assert.equal(parkedToReveal(panels, 'left')?.id, 'w1');
+  assert.equal(parkedToReveal(park(makeExtraPanels('w1', 'w2'), 'w1'), 'right'), null, 'nothing parked to the right');
 });
 
-test('firstParkedAfter / lastParkedBefore: the next parked panel toward each side, or null with nothing parked that way', () => {
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4'), 'w1', 'w4');
-  assert.equal(firstParkedAfter(panels, rightmostLiveIndex(panels))?.id, 'w4');
-  assert.equal(lastParkedBefore(panels, leftmostLiveIndex(panels))?.id, 'w1');
-  assert.equal(firstParkedAfter(panels, panels.length - 1), null, 'nothing after the last entry');
-  assert.equal(lastParkedBefore(panels, 0), null, 'nothing before the first entry');
+test('parkedToReveal: a run parked between drawn panels counts on the side nearer its place, nearest first, as the dot bar draws it', () => {
+  // Drawn: w1, w5, w6, w7. w2-w4 have one drawn panel before them and three after, so they wait on the left.
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7'), 'w2', 'w3', 'w4');
+  assert.equal(parkedToReveal(panels, 'left')?.id, 'w4', 'the one beside the drawn run comes in first');
+  assert.equal(parkedToReveal(panels, 'right'), null);
+  const nearEnd = park(makeExtraPanels('w1', 'w2', 'w3', 'w4', 'w5'), 'w4');
+  assert.equal(parkedToReveal(nearEnd, 'right')?.id, 'w4', 'three drawn before it and one after: it waits on the right');
+  assert.equal(parkedToReveal(nearEnd, 'left'), null);
 });
 
 test('History stays at array index 0 through appendPanel, closePanel and restorePanel -- for panels with no explicit left anchor', () => {

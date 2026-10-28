@@ -18,16 +18,13 @@ import { FIXED, effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
 import {
-  firstParkedAfter,
-  lastParkedBefore,
   leastRecentlyTouchedId,
-  leftmostLiveIndex,
   movePanelBy,
+  parkedToReveal,
   parkLevers,
   parksForRoom,
   promoteToLive,
   recordOverride,
-  rightmostLiveIndex,
   setSlots,
   sideOfLiveRange,
   type PanelWindow,
@@ -542,8 +539,8 @@ export function usePanelManager(
 
   /** See `UsePanelManagerResult.scrollRow`'s own doc comment. */
   const scrollRow = (direction: 'left' | 'right', keep?: string): boolean => {
-    const reveal = direction === 'right' ? firstParkedAfter(panels, rightmostLiveIndex(panels)) : lastParkedBefore(panels, leftmostLiveIndex(panels));
-    if (!reveal || effective(reveal).revealOnScroll === 'never') return false;
+    const reveal = parkedToReveal(panels, direction);
+    if (!reveal) return false;
     const kept = keep === undefined ? keptIds() : new Set([...keptIds(), keep]);
     markKeepLive(reveal.id);
     // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow..
