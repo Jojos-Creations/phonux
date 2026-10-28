@@ -136,3 +136,33 @@ test('a bar that unmounts mid-drag releases its claim, so the row still takes st
   assert.equal(rowScrollerFor(el).claimHeld(), false, 'the unmount released it');
   assert.ok(!el.hasAttribute('data-row-held'));
 });
+
+test('on a row that cannot scroll, a dragged oval moves with the pointer, the row steps once it is half a dot ahead, and release settles it', () => {
+  const out: { dots?: PanelDots } = {};
+  const steps: string[] = [];
+  const fits = { ...numbers, stripWidth: 600, windowWidth: 1300, stripWindow: 1300 } as unknown as RowNumbers;
+  const all = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'p1', live: false }, { id: 'p2', live: false }];
+  const Probe = () => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => registerRowKeys(scroller.current!, { step: (d) => steps.push(d) }), []);
+    out.dots = usePanelDots({ rowNumbers: fits, entries: all, scroller, tuning: resolveWorkspaceTuning({}) });
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '' });
+  };
+  const m = mount(React.createElement(Probe));
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const bar = { setPointerCapture() {}, getBoundingClientRect: () => ({ left: 0 }) };
+  const rest = out.dots!.oval.left;
+  React.act(() => out.dots!.barProps.onPointerDown({ button: 0, clientX: 10, target: el, currentTarget: bar, pointerId: 1 } as never));
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 20, target: el, currentTarget: bar } as never));
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 22, target: el, currentTarget: bar } as never));
+  assert.equal(out.dots!.oval.left, rest + 12, 'the oval is under the pointer');
+  assert.deepEqual(steps, [], 'not yet half a dot ahead');
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 30, target: el, currentTarget: bar } as never));
+  assert.equal(out.dots!.oval.left, rest + 20);
+  assert.deepEqual(steps, ['right']);
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 34, target: el, currentTarget: bar } as never));
+  assert.deepEqual(steps, ['right'], 'one step waits for the row to answer before the next');
+  assert.equal(rowScrollerFor(el).claimHeld(), false, 'a row that cannot scroll is never claimed');
+  React.act(() => out.dots!.barProps.onPointerUp({} as never));
+  assert.equal(out.dots!.oval.left, rest, 'release settles the oval on the window the row is at');
+});

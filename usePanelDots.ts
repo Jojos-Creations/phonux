@@ -28,9 +28,10 @@ export interface PanelDots {
   readonly cursor: string;
   /**
    * Spread on the element that holds the dots and the oval. A press that moves past a few px drags the oval; one that does not
-   * selects the dot it began on. The pointer is captured, so the drag follows it off the bar. A drag carried past the row's end, or
-   * on a row that cannot scroll, steps the row one stop per dot it travels, bringing in hidden panels as a scroll at the row's edge
-   * does; a wheel over the bar, either axis, steps the row the same way. The dots and the oval follow each step.
+   * selects the dot it began on. The pointer is captured, so the drag follows it off the bar. On a row that cannot scroll, the oval
+   * moves with the pointer and the row steps each time the oval passes half a dot, bringing in hidden panels; on release the oval
+   * settles over the panels on screen. A drag carried past a scrolling row's end steps it one stop per dot it travels. A wheel over
+   * the bar, either axis, steps the row too, and the oval follows each step.
    */
   readonly barProps: {
     readonly onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
@@ -58,6 +59,9 @@ const DRAG_THRESHOLD_PX = 4;
 
 /** Track px a drag travels past the row's end for one step: about one phone dot and its gap. */
 const OVERSHOOT_STEP_PX = 30;
+
+/** How far a carried oval gets ahead of the row's window before the row steps: half a phone dot and its gap. */
+const CARRY_STEP_PX = 15;
 
 /** Wheel travel over the bar for one step, and the quiet that ends a wheel gesture. */
 const WHEEL_STEP_PX = 100;
@@ -203,11 +207,30 @@ export function usePanelDots(i: {
   // the drag last met the row's end (or last stepped), so travel beyond it steps the row.
   const press = React.useRef<{ x: number; id: string | null; moved: boolean; edgeX: number | null } | null>(null);
   const wheel = React.useRef<{ travel: number; at: number }>({ travel: 0, at: 0 });
-  const cursor = ovalCursor(pointer?.x ?? null, bar.oval, ovalSide, dragging, pointer?.overDot === true);
+
+  // On a row that steps instead of scrolling, the oval is carried by the pointer 1:1 and the row steps each time it passes half a
+  // dot from where the row is; on release the oval settles on the window the row came to rest on.
+  const [carry, setCarry] = React.useState<{ from: number; dx: number } | null>(null);
+  const shownOval = carry === null ? bar.oval : { ...bar.oval, left: Math.min(Math.max(carry.from + carry.dx, 0), Math.max(0, bar.width - bar.oval.width)) };
+  // The oval's place when the last step was asked for: until the row answers it, the next step waits, so one pointer move never asks twice.
+  const stepAsked = React.useRef<{ at: number; time: number } | null>(null);
+  React.useEffect(() => {
+    if (carry === null) return;
+    const ask = stepAsked.current;
+    if (ask !== null && ask.at === bar.oval.left && performance.now() - ask.time < tuning.slide.durationSec * 1000 + 50) return;
+    stepAsked.current = null;
+    const off = shownOval.left - bar.oval.left;
+    if (Math.abs(off) < CARRY_STEP_PX) return;
+    stepAsked.current = { at: bar.oval.left, time: performance.now() };
+    step(off > 0 ? 'right' : 'left');
+  }, [carry?.dx, bar.oval.left]);
+
+  const cursor = ovalCursor(pointer?.x ?? null, shownOval, ovalSide, dragging, pointer?.overDot === true);
   const stop = (): void => {
     drag.current?.end();
     drag.current = null;
     setDragging(false);
+    setCarry(null);
   };
   // A bar that unmounts mid-drag (the row stops overflowing) gets no pointerup: its claim would hold the row against every later step.
   React.useEffect(() => () => drag.current?.end(), []);
@@ -225,15 +248,20 @@ export function usePanelDots(i: {
       const dx = e.clientX - p.x;
       if (!p.moved && Math.abs(dx) > DRAG_THRESHOLD_PX) {
         p.moved = true;
-        drag.current = startOvalDrag();
         setDragging(true);
+        if (maxScroll <= 0) setCarry({ from: bar.oval.left, dx: 0 });
+        else drag.current = startOvalDrag();
       }
       if (!p.moved) return;
+      if (maxScroll <= 0) {
+        setCarry((c) => (c === null ? c : { ...c, dx }));
+        return;
+      }
       drag.current?.drag(dx);
-      // Past the end, or on a row that cannot scroll at all, the drag steps the row instead.
+      // Past the end the drag steps the row instead.
       const el = scroller.current;
       const at = el?.scrollLeft ?? 0;
-      const atEnd = drag.current === null || maxScroll <= 0 || (dx > 0 ? at >= maxScroll - 0.5 : at <= 0.5);
+      const atEnd = drag.current === null || (dx > 0 ? at >= maxScroll - 0.5 : at <= 0.5);
       if (!atEnd) {
         p.edgeX = null;
         return;
@@ -278,7 +306,7 @@ export function usePanelDots(i: {
     tabIndex: 0,
     'aria-valuemin': 0,
     'aria-valuemax': 100,
-    'aria-valuenow': Math.round((bar.oval.left / Math.max(1, bar.width - bar.oval.width)) * 100),
+    'aria-valuenow': Math.round((shownOval.left / Math.max(1, bar.width - bar.oval.width)) * 100),
   };
   const dotProps = (id: string) => ({
     'data-dot': id,
@@ -288,5 +316,5 @@ export function usePanelDots(i: {
     },
   });
 
-  return { dots: bar.dots, oval: bar.oval, width: bar.width, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
+  return { dots: bar.dots, oval: shownOval, width: bar.width, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
 }
