@@ -318,7 +318,7 @@ test('source: a scratch copy of useProvidePanels.ts with a fifth writer of `over
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
   'panelWindow.ts': ['firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'parksForRoom', 'recordOverride', 'rightmostLiveIndex', 'sideOfLiveRange'],
   'panels/rowSettle.ts': ['rowPricing'],
-  'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'usePanelManager', 'wouldEmptyRow'],
+  'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'swapPanels', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],
 };
 

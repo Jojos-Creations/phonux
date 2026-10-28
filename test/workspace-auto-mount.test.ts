@@ -100,6 +100,7 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
     closingIds: provided.closingIds,
     enteringViaAnchorIds: provided.enteringViaAnchorIds,
     exitRightIds: provided.exitRightIds,
+    swapExitIds: provided.swapExitIds,
     enterSideById: provided.enterSideById,
     maxLiveWidth: provided.maxLiveWidth,
     rowNumbers: provided.rowNumbers,
@@ -173,11 +174,12 @@ test('the mount hands the row and the workspace shell each value useProvidePanel
   assert.equal(row.closingIds, p.closingIds);
   assert.equal(row.enteringViaAnchorIds, p.enteringViaAnchorIds);
   assert.equal(row.exitRightIds, p.exitRightIds);
+  assert.equal(row.swapExitIds, p.swapExitIds);
   assert.equal(row.enterSideById, p.enterSideById);
   assert.equal(row.maxLiveWidth, p.maxLiveWidth);
   assert.equal(row.rowNumbers, p.rowNumbers);
   assert.equal(row.workspace, ws);
-  assert.equal(Object.keys(row).length, 9, 'all nine PanelRow props are accounted for');
+  assert.equal(Object.keys(row).length, 10, 'all ten PanelRow props are accounted for');
   const shell = workspaceProps(p, ws);
   assert.equal(shell.fixedColumnCount, p.fixedViewCount);
   assert.equal(shell.liveWidths, p.liveWidths);
