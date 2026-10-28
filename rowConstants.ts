@@ -76,6 +76,7 @@ export const DROP_TIE_BREAK = 'leftmost' as const;
 
 /** What the row's own scroll input does, and where the strip starts. */
 export const ROW_GESTURE = 'step' as const;
+export const FAST_SCROLL = 'coalesce' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and how they fade. */

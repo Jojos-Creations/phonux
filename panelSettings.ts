@@ -30,6 +30,7 @@ import {
   RETURN_TIE_BREAK,
   ROW_GAP,
   ROW_GESTURE,
+  FAST_SCROLL,
   SAVE_QUIET_MS,
   PHONE_FIT,
   PHONE_FIT_MIN,
@@ -328,6 +329,12 @@ export type WorkspaceTuning = {
   dropTieBreak?: 'leftmost' | 'rightmost';
   /** What the row's own scroll input does: 'step' or 'off'. */
   rowGesture?: 'step' | 'off';
+  /**
+   * How a run of fast steps or a far dot moves the row. 'coalesce': the steps add to one target the row glides to in one
+   * motion, each glide shorter as input speeds up, down to a quarter second. 'jump': the same, but a move of more than a
+   * window fades the row out, moves it unseen and fades it back in.
+   */
+  fastScroll?: 'coalesce' | 'jump';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
   /** Overrides for the chrome numbers: when header, grab bar and footer show, and how they fade. */
@@ -396,6 +403,8 @@ export type ResolvedWorkspaceTuning = {
   dropTieBreak: 'leftmost' | 'rightmost';
   /** What the row's own scroll input does: 'step' or 'off'. */
   rowGesture: 'step' | 'off';
+  /** How a run of fast steps or a far dot moves the row: one coalesced glide, or a fade past a move of more than a window. */
+  fastScroll: 'coalesce' | 'jump';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
   /** The chrome numbers: when header, grab bar and footer show, and how they fade. */
@@ -1094,6 +1103,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
   {
+    name: 'tuning.fastScroll',
+    group: 'tuning',
+    values: 'coalesce, jump (workspace only)',
+    default: 'coalesce',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-row-scroll-gesture-and-requests',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
+  {
     name: 'tuning.initialScroll',
     group: 'tuning',
     values: 'start, end, root, { panel: PanelId } (workspace only)',
@@ -1304,6 +1324,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   returnTieBreak: RETURN_TIE_BREAK as ResolvedWorkspaceTuning['returnTieBreak'],
   dropTieBreak: DROP_TIE_BREAK as ResolvedWorkspaceTuning['dropTieBreak'],
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
+  fastScroll: FAST_SCROLL as ResolvedWorkspaceTuning['fastScroll'],
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
   maxLivePanels: null,
@@ -1553,7 +1574,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'fastScroll' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
@@ -1565,6 +1586,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneH
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
   rowGesture: oneOf('step', 'off'),
+  fastScroll: oneOf('coalesce', 'jump'),
   initialScroll: (v) => {
     if (v === 'start' || v === 'end' || v === 'root') return undefined;
     if (isPlain(v) && Object.keys(v).length === 1 && nonEmptyString(v.panel)) return undefined;

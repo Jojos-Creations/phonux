@@ -54,7 +54,7 @@ export function feedRowWheel(from: Element, wheel: { deltaX: number; deltaY?: nu
  * One gesture travels as far as it is pushed, one step per `stepPx` of wheel travel, never by free pixels: the first
  * event of a gesture steps at once, so a short swipe or one wheel notch still moves, and every further `stepPx` of
  * travel in the same direction steps again, momentum included. A reversal starts a fresh gesture. Each step is the
- * caller's glide to the next stop, so the row always comes to rest on one.
+ * caller's glide to the next stop, so the row always comes to rest on one; steps faster than a glide add to its target.
  *
  * A finger drag feeds the same accumulator: a finger moving left is the travel a wheel reports as `deltaX` > 0, so it asks
  * for the step right. A drag that starts vertical is left to the page for the whole touch.
@@ -109,8 +109,8 @@ export function useRowScrollGesture(
       }
       travel += Math.abs(amount);
       if (travel < unit || performance.now() - lastStepAt < gestureLockMsRef.current) return;
-      // Travel beyond one more step carries over, capped so a held burst never queues stops it has not shown yet.
-      travel = Math.min(travel - unit, unit);
+      // Travel beyond one step carries over: a fast burst adds to the target the row glides to, so its steps are not lost.
+      travel -= unit;
       step(direction);
     };
     // Who owns the wheel gesture in progress: 'row' once it has stepped, 'content' when Option began it, null between gestures.

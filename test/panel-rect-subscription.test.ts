@@ -1,6 +1,5 @@
 /**
- * A slot reports its box while it moves: `moving` on each change during the slide, then one `settled` once it stops. A
- * slide's event reaches a listener before Motion moves the slot, so the picture is taken of the rest it still shows.
+ * A slot reports its box while it moves: `moving` on each change during the slide, then one `settled` once it stops.
  * The layout is stubbed: jsdom computes no boxes, so a slot's box is its translateX.
  */
 import { test, afterEach } from 'node:test';
@@ -10,7 +9,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { PanelRowSlot } from '../PanelRowSlot.js';
-import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, type PanelRectDetail } from '../panelChrome.js';
+import { PANEL_RECT_EVENT, type PanelRectDetail } from '../panelChrome.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 
@@ -51,14 +50,8 @@ function Hosted(): React.ReactElement {
 test('a slot that a reorder slides reports its box while it moves, then one settled report at its rest', async () => {
   stubBoxes();
   const reports: PanelRectDetail[] = [];
-  const slides: { id: string; x: number }[] = [];
   const onRect = (e: Event): void => void reports.push((e as CustomEvent<PanelRectDetail>).detail);
-  const onSlide = (e: Event): void => {
-    const id = (e as CustomEvent<{ id: string }>).detail.id;
-    slides.push({ id, x: translateX(document.querySelector(`[data-row-id="${id}"]`)!) });
-  };
   window.addEventListener(PANEL_RECT_EVENT, onRect);
-  window.addEventListener(PANEL_SLIDE_EVENT, onSlide);
   try {
     mount(React.createElement(Hosted));
     await advanceFrames(120);
@@ -72,11 +65,8 @@ test('a slot that a reorder slides reports its box while it moves, then one sett
     assert.equal(settled.length, 1, 'exactly one settled report after the slide');
     assert.equal(history.at(-1)?.phase, 'settled', 'the settled report comes last');
     assert.ok(Math.abs(settled[0]!.rect.x - 406) < 1, `settled at its new rest, not ${settled[0]!.rect.x}`);
-    assert.equal(slides.filter((s) => s.id === 'history').length, 1, 'one slide event for history');
-    assert.equal(slides.find((s) => s.id === 'history')?.x, 0, 'the slide event fires before the slot moves');
   } finally {
     window.removeEventListener(PANEL_RECT_EVENT, onRect);
-    window.removeEventListener(PANEL_SLIDE_EVENT, onSlide);
     restoreBoxes();
   }
 });
@@ -93,22 +83,21 @@ test('a provider forwards each slot report under the panel key', async () => {
   }
 });
 
-test('a close that slides the panels after it captures each of them once the slide has landed, never while it moves', async () => {
+test('an open panel is pictured once its opening has landed; a close that slides the others pictures only the closed one', async () => {
   const captured: { id: string; x: number }[] = [];
   const m = mountRow(panelsOf(3), 3000, { capture: { capture: (id) => void captured.push({ id, x: translateX(slotOf(id)) }), evict: () => undefined }, wireClosing: true });
+  await advanceFrames(100);
+  assert.equal(captured.length, 0, 'no picture is taken while the opening is under way');
   await advanceFrames(2000);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert.deepEqual(captured.map((c) => c.id).sort(), ['s1', 's2', 's3'], 'each open panel is pictured once');
   const restBefore = translateX(slotOf('s2'));
   captured.length = 0;
   act(() => m.latest().close('s1'));
-  await advanceFrames(100);
-  assert.equal(captured.find((c) => c.id === 's2'), undefined, 'no picture is taken while the slide is under way');
   await advanceFrames(2000);
   await new Promise((resolve) => setTimeout(resolve, 900));
-  const restAfter = translateX(slotOf('s2'));
-  assert.notEqual(restAfter, restBefore, 's2 slid');
-  const landed = captured.find((c) => c.id === 's2');
-  assert.ok(landed, 's2 is captured after it slides');
-  assert.equal(landed.x, restAfter, 'the capture reads s2 at its new rest');
+  assert.notEqual(translateX(slotOf('s2')), restBefore, 's2 slid');
+  assert.deepEqual(captured.map((c) => c.id), ['s1'], 'only the closed panel is pictured');
 
   function slotOf(id: string): HTMLElement {
     return m.container.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!;

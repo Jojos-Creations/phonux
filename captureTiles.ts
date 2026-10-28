@@ -194,6 +194,8 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
 
   /** Measures, rasterizes and checks one picture. Null when there is nothing worth keeping. */
   const pictureOf = async (el: HTMLElement, extent: 'viewport' | 'full'): Promise<Picture | null> => {
+    await imagesSettled(el);
+    if (!el.isConnected) return null;
     if (isFadedOrHidden(el)) return null;
     // 'full' is the scroll extent, past what is visible; the client extent is what the viewport shows.
     const width = extent === 'full' ? el.scrollWidth : el.clientWidth;
@@ -315,4 +317,27 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
   };
 
   return { register, capture, evict, get, subscribe, restore };
+}
+
+/** How long a capture waits for a panel's pictures to load before it takes what is there. */
+const IMAGE_WAIT_MS = 5000;
+
+/** Settles once every `<img>` under `el` has loaded or failed, or after `IMAGE_WAIT_MS`: a panel still loading is not pictured blank. */
+function imagesSettled(el: HTMLElement): Promise<void> {
+  const pending = [...el.querySelectorAll('img')].filter((img) => !img.complete);
+  if (pending.length === 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    let left = pending.length;
+    const timer = setTimeout(resolve, IMAGE_WAIT_MS);
+    const one = (): void => {
+      left -= 1;
+      if (left > 0) return;
+      clearTimeout(timer);
+      resolve();
+    };
+    for (const img of pending) {
+      img.addEventListener('load', one, { once: true });
+      img.addEventListener('error', one, { once: true });
+    }
+  });
 }

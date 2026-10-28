@@ -260,6 +260,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
+    fastScroll: 'coalesce',
     initialScroll: 'start',
     chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' },
     maxLivePanels: null,
@@ -555,7 +556,7 @@ for (const [path, value, accepted] of RANGES) {
   });
 }
 
-const WORKSPACE_RANGES: readonly [string, unknown, boolean][] = [['rowGap', 0, true], ['rowGap', 200, true], ['rowGap', -1, false], ['rowGap', 201, false], ['rowGap', 16.5, false], ['rowGesture', 'step', true], ['rowGesture', 'off', true], ['rowGesture', 'free', false], ...RANGES];
+const WORKSPACE_RANGES: readonly [string, unknown, boolean][] = [['rowGap', 0, true], ['rowGap', 200, true], ['rowGap', -1, false], ['rowGap', 201, false], ['rowGap', 16.5, false], ['rowGesture', 'step', true], ['rowGesture', 'off', true], ['rowGesture', 'free', false], ['fastScroll', 'jump', true], ['fastScroll', 'skip', false], ...RANGES];
 
 for (const [path, value, accepted] of WORKSPACE_RANGES) {
   test(`ranges: ${path} = ${JSON.stringify(value)} in the workspace tuning, a Workspace or a PanelRow ${accepted ? 'is kept' : 'takes its default and nothing throws'}`, () => {
