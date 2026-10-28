@@ -544,7 +544,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
     // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
     if (rowNumbers.stepStops.length === 0) {
-      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease });
+      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
       return;
     }
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
@@ -555,8 +555,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
     const opening = !restedRef.current;
     restedRef.current = true;
+    // A window step lands at once, as the row's margin does: a glide per step would trail the window's edge.
+    const windowStep = before !== undefined && before.windowWidth !== rowNumbers.windowWidth;
     if (Math.abs(to - base) < 0.5) return;
-    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening, ease });
+    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening || windowStep, ease });
   }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad]);
   useLayoutEffect(() => {
     drawnSlotsRef.current = slotsKey(rowNumbers);

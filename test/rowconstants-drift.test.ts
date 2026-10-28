@@ -103,7 +103,7 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.phoneFit, rowConstants.PHONE_FIT);
   assert.equal(t.phoneFitMin, rowConstants.PHONE_FIT_MIN);
   assert.equal(t.phoneFitMax, rowConstants.PHONE_FIT_MAX);
-  assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1.25);
+  assert.equal(rowConstants.RESIZE_SETTLE_SLIDES, 1 / 3);
   assert.equal(rowConstants.DIRECTION_LOCK_PX, 8);
   assert.equal(rowConstants.PREVIEW_OUT_PX, 24);
   assert.deepEqual({ ...rowConstants.SNAP_BACK_SPRING }, { stiffness: 520, damping: 42 });

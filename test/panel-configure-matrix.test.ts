@@ -1505,7 +1505,7 @@ test('matrix:tuning.resizeSettleSlides', async () => {
   await wrongScopeInEveryStatus({ tuning: { resizeSettleSlides: 2 } }, 'tuning.resizeSettleSlides');
   const r = await matrixRig();
   await r.settle();
-  assert.equal(r.ws.tuning.resizeSettleSlides, 1.25);
+  assert.equal(r.ws.tuning.resizeSettleSlides, 1 / 3);
   const result = done(r.turn(() => r.ws.panels.configureTuning({ resizeSettleSlides: 2 })));
   assert.deepEqual([result.ok, result.changed, result.now], [true, true, ['tuning.resizeSettleSlides']], 'class NOW: applied at this commit');
   assert.equal(r.ws.tuning.resizeSettleSlides, 2);
