@@ -56,11 +56,13 @@ export interface RowScroller {
   /** Ends the glide in flight where it is. */
   stop(): void;
   /**
-   * A push past the row's end: the strip gives `distancePx` toward `direction` and springs back to where it rests, over
-   * `durationSec`, starting as the glide in flight lands. Moves no offset. Asks while one plays, or until a bump's length after
-   * the last ask, are absorbed, so a held key or a wheel's momentum bumps once.
+   * A push past the row's end: the strip gives `distancePx` toward `direction`, holds there until `holdMs` pass with no
+   * further ask or `keepBump`, then springs back to where it rests. `durationSec` is the push and the return together. It
+   * starts as the glide in flight lands, and moves no offset. An ask the same way while the bump holds only extends the hold.
    */
-  bump(direction: 'left' | 'right', o: { distancePx: number; durationSec: number }): void;
+  bump(direction: 'left' | 'right', o: { distancePx: number; durationSec: number; holdMs: number }): void;
+  /** Extends a bump toward `direction` that has not begun springing back, by `holdMs` from now; does nothing otherwise. */
+  keepBump(direction: 'left' | 'right', holdMs: number): void;
   /** The exclusive writer, or null while one is held. A `replayScroll` claim keeps the scroll asked for while it is held, for `replayDeferred()`. */
   claim(options?: { replayScroll?: boolean }): ScrollClaim | null;
   /** Keeps `run` for the held `replayScroll` claim: it runs at `replayDeferred()`, the last one kept wins. False when no such claim is held. */
@@ -128,10 +130,14 @@ export const ROW_BUMP_PX = 36;
 export const ROW_BUMP_SEC = 0.45;
 
 interface Bump {
+  /** Where the push starts from: a bump asked while the last one springs back takes over from where that one is. */
+  from: number;
   /** Signed px: positive moves the content left, as a step right would. */
   by: number;
   startMs: number;
-  durationMs: number;
+  outMs: number;
+  holdUntilMs: number;
+  backMs: number;
 }
 
 // The push takes this share of the bump on an ease-out; the rest springs back critically damped, so it settles without a wobble.
@@ -140,12 +146,16 @@ const SPRING_K = 6;
 const spring = (u: number): number => (1 + SPRING_K * u) * Math.exp(-SPRING_K * u);
 const SPRING_END = spring(1);
 
+const releaseOf = (b: Bump): number => Math.max(b.startMs + b.outMs, b.holdUntilMs);
+const bumpEnd = (b: Bump | null): number => (b === null ? 0 : releaseOf(b) + b.backMs);
+
 const bumpAt = (b: Bump | null, nowMs: number): number => {
-  if (b === null) return 0;
-  const t = (nowMs - b.startMs) / b.durationMs;
-  if (t <= 0 || t >= 1) return 0;
-  if (t < BUMP_PEAK) return b.by * (1 - (1 - t / BUMP_PEAK) ** 3);
-  return (b.by * (spring((t - BUMP_PEAK) / (1 - BUMP_PEAK)) - SPRING_END)) / (1 - SPRING_END);
+  if (b === null || nowMs >= bumpEnd(b)) return 0;
+  if (nowMs <= b.startMs) return b.from;
+  if (nowMs < b.startMs + b.outMs) return b.from + (b.by - b.from) * (1 - (1 - (nowMs - b.startMs) / b.outMs) ** 3);
+  const release = releaseOf(b);
+  if (nowMs <= release) return b.by;
+  return (b.by * (spring((nowMs - release) / b.backMs) - SPRING_END)) / (1 - SPRING_END);
 };
 
 const scrollers = new WeakMap<HTMLElement, RowScroller>();
@@ -179,7 +189,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let inputs = 0;
   let settleWait = false;
   let bump: Bump | null = null;
-  let lastBumpAsk = Number.NEGATIVE_INFINITY;
 
   const listeners = new Set<() => void>();
   const moveListeners = new Set<() => void>();
@@ -197,7 +206,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
     if (s === null) return;
     s.style.transform = translate(margin - offset - bumpAt(bump, nowMs));
     s.style.opacity = glide?.fade === true ? String(opacityAt(glide, nowMs)) : '';
-    const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, marginGlide === null ? 0 : marginGlide.startMs + marginGlide.durationMs, bump === null ? 0 : bump.startMs + bump.durationMs);
+    const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, marginGlide === null ? 0 : marginGlide.startMs + marginGlide.durationMs, bumpEnd(bump));
     if (end <= nowMs || typeof s.animate !== 'function') return;
     const frames: Keyframe[] = [];
     const steps = Math.max(1, Math.ceil((end - nowMs) / SAMPLE_MS));
@@ -224,7 +233,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
       margin = at(marginGlide, now);
       if (now >= marginGlide.startMs + marginGlide.durationMs) marginGlide = null;
     }
-    if (bump !== null && now >= bump.startMs + bump.durationMs) bump = null;
+    if (bump !== null && now >= bumpEnd(bump)) bump = null;
     const s = strip();
     // Without the Web Animations API the frame loop draws each frame itself.
     if (anim === null && s !== null) {
@@ -355,13 +364,25 @@ function createRowScroller(el: HTMLElement): RowScroller {
     },
     stop,
     bump(direction, o) {
+      if (claimed || o.distancePx <= 0 || o.durationSec <= 0) return;
       const now = performance.now();
-      const absorbed = now - lastBumpAsk < o.durationSec * 1000 || (bump !== null && now < bump.startMs + bump.durationMs);
-      lastBumpAsk = now;
-      if (absorbed || claimed || o.distancePx <= 0 || o.durationSec <= 0) return;
+      const by = direction === 'right' ? o.distancePx : -o.distancePx;
       if (glide !== null) offset = at(glide, now);
       if (marginGlide !== null) margin = at(marginGlide, now);
-      bump = { by: direction === 'right' ? o.distancePx : -o.distancePx, startMs: Math.max(now, glide === null ? now : glide.startMs + glide.durationMs), durationMs: o.durationSec * 1000 };
+      if (bump !== null && bump.by === by && now < releaseOf(bump)) bump.holdUntilMs = Math.max(bump.holdUntilMs, now + o.holdMs);
+      else {
+        const ms = o.durationSec * 1000;
+        bump = { from: bumpAt(bump, now), by, startMs: Math.max(now, glide === null ? now : glide.startMs + glide.durationMs), outMs: ms * BUMP_PEAK, holdUntilMs: now + o.holdMs, backMs: ms * (1 - BUMP_PEAK) };
+      }
+      draw(now);
+      run();
+    },
+    keepBump(direction, holdMs) {
+      const now = performance.now();
+      if (bump === null || Math.sign(bump.by) !== (direction === 'right' ? 1 : -1) || now >= releaseOf(bump) || now + holdMs <= bump.holdUntilMs) return;
+      if (glide !== null) offset = at(glide, now);
+      if (marginGlide !== null) margin = at(marginGlide, now);
+      bump.holdUntilMs = now + holdMs;
       draw(now);
       run();
     },
