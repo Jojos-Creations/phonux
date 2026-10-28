@@ -152,7 +152,7 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   containerWidth: number;
   /**
    * Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise.
-   * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1.25 by default)
+   * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1/3 by default)
    * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion); with `heightBudget` given, settled from the second
    * measurement on.
    */
@@ -165,9 +165,9 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
    */
   phoneHeight?: number;
   /**
-   * The room in px the row has to grow into, as `usePhoneFit` settles it. Given, `containerWidth` is taken as settled too (pass
-   * `usePhoneFit`'s): past the first measurement the row's margin, and with `phoneHeight` its place in that room, glide on every change,
-   * so a resized window moves the row once. Omitted: the row is centred in the container as drawn.
+   * The room in px the row has to grow into, as `usePhoneFit` measures it. Given (pass `usePhoneFit`'s, with its `containerWidth`), the row's
+   * margin, and with `phoneHeight` its place in that room, snap in a commit that changes `containerWidth` or this, and glide in any other,
+   * such as the one that lands a new phone size. Omitted: the row is centred in the container as drawn.
    */
   heightBudget?: number;
   /** The number of always-present columns the row renders. */
@@ -230,8 +230,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   React.useLayoutEffect(() => {
     if (landing && containerWidth > 0) setLanding(false);
   }, [landing, containerWidth]);
-  // A settled budget means the width is settled too: past the first measurement every change glides.
-  const rowResizeSettled = given ?? (heightBudget === undefined ? derived : !landing);
+  // What the last commit drew. A window step moves the row with no animation; any other change past the first measurement glides.
+  const drawn = React.useRef({ numbers: rowNumbers, containerWidth, heightBudget });
+  const windowStep = drawn.current.containerWidth !== containerWidth || drawn.current.heightBudget !== heightBudget;
+  const rowResizeSettled = given ?? (heightBudget === undefined ? derived : !landing && !windowStep);
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
   // nearest stop would scroll the row while the person drags. The release settles once.
   const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);
@@ -357,12 +359,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     container.addEventListener('pointerdown', note, { passive: true });
     return () => container.removeEventListener('pointerdown', note);
   }, [overflowContainerRef]);
-  // What the last commit drew. A panel whose width differs from it under the same container width was resized on purpose; a window
-  // resize moves the container width too and keeps its snap.
-  const drawn = React.useRef({ numbers: rowNumbers, containerWidth });
+  // A panel whose width differs from the last commit's under the same container width was resized on purpose; a window resize moves
+  // the container width too and keeps its snap.
   const panelResizing = resizingId !== null || (drawn.current.containerWidth === containerWidth && panelWidthChanged(drawn.current.numbers, rowNumbers));
   React.useLayoutEffect(() => {
-    drawn.current = { numbers: rowNumbers, containerWidth };
+    drawn.current = { numbers: rowNumbers, containerWidth, heightBudget };
   });
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const phoneSize = React.useMemo(() => (phoneHeight === undefined ? undefined : { width: phoneWidth, height: phoneHeight }), [phoneWidth, phoneHeight]);
@@ -383,19 +384,15 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
-  // While the window has resized and the row has not yet taken the new width, the row holds still where it was drawn.
-  const settledWidthRef = React.useRef(containerWidth);
-  settledWidthRef.current = containerWidth;
-  const holding = (container: HTMLElement): boolean => heightBudget !== undefined && Math.abs(container.clientWidth - settledWidthRef.current) > EDGE_TOLERANCE_PX;
   // A close, reopen or move slides slots without moving scrollLeft, so the row counts as moving until that slide has landed.
   const slideRef = React.useRef({ numbers: rowNumbers, endsAt: 0 });
   if (rowNumbers !== undefined && slideRef.current.numbers !== undefined && slotsMoved(slideRef.current.numbers, rowNumbers)) {
     slideRef.current = { numbers: rowNumbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
   } else if (slideRef.current.numbers !== rowNumbers) slideRef.current = { numbers: rowNumbers, endsAt: slideRef.current.endsAt };
-  // A new settled size grows every slot over one slide, which can outlast the scroll's glide: no slot is hidden mid-growth.
-  const sizedRef = React.useRef(`${containerWidth}x${phoneWidth}`);
-  if (sizedRef.current !== `${containerWidth}x${phoneWidth}`) {
-    sizedRef.current = `${containerWidth}x${phoneWidth}`;
+  // A new phone size grows every slot over one slide, which can outlast the scroll's glide: no slot is hidden mid-growth.
+  const sizedRef = React.useRef(phoneWidth);
+  if (sizedRef.current !== phoneWidth) {
+    sizedRef.current = phoneWidth;
     slideRef.current = { numbers: slideRef.current.numbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
   }
   // Reach is written straight to the slots on every scroll event, since a state update per frame of a glide would re-render the whole row.
@@ -407,8 +404,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const scroller = rowScrollerFor(container);
       const held = scroller.claimHeld();
       const view = container.getBoundingClientRect();
-      // While the row holds for the new width, each slot keeps what it drew, so nothing appears or vanishes before the row moves.
-      const still = holding(container);
       const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
       const seen = new Set<string>();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
@@ -428,7 +423,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         // or a panel leaving the window would vanish at its first pixel instead of sliding out.
         const cut = rect.left < view.left - EDGE_TOLERANCE_PX || rect.right > view.right + EDGE_TOLERANCE_PX;
         const wholeOnly = atRest && cut && rect.width <= phoneWidth + EDGE_TOLERANCE_PX;
-        if (!still) slot.style.visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
+        slot.style.visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
         if (held) continue;
         slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise scroll the row off its stop to reveal a panel the window does not reach.
@@ -481,63 +476,25 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // a jump, so the end element keeps the old range in that commit and gives it back frame by frame as the row's glide carries it home.
   const scrolledRef = React.useRef(0);
   const endPadRef = React.useRef<HTMLDivElement>(null);
-  // The scroll before the window moved: the clamp's own scroll event arrives before the observer that undoes it.
-  const heldScrollRef = React.useRef(0);
   const before = drawn.current.numbers;
   // Measured from where the row's end is drawn, which for a row that fits is left of 0 (`maxScrollOf` would floor it there), and
   // the strip's margin glides, so until it lands the row ends short of the numbers by the margin still to come.
   const drawnEnd = rowNumbers === undefined ? 0 : rowNumbers.stripStart + rowNumbers.stripWidth + rowNumbers.rightInset + rowNumbers.endPad - rowNumbers.windowWidth - Math.max(0, rowNumbers.rowMarginLeft - (before?.rowMarginLeft ?? rowNumbers.rowMarginLeft));
-  const endHold = scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' && scrolledRef.current > maxScrollOf(rowNumbers) ? scrolledRef.current - drawnEnd : 0;
+  const endHold = !windowStep && scrolls && rowNumbers !== undefined && resolved.rowGesture === 'step' && scrolledRef.current > maxScrollOf(rowNumbers) ? scrolledRef.current - drawnEnd : 0;
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (container === null) return undefined;
     const scroller = rowScrollerFor(container);
     const follow = (): void => {
       scrolledRef.current = container.scrollLeft;
-      if (!holding(container)) heldScrollRef.current = container.scrollLeft;
       const pad = endPadRef.current;
       if (pad === null || pad.style.minWidth === '') return;
       const need = container.scrollLeft + container.clientWidth - pad.offsetLeft;
-      pad.style.minWidth = (scroller.glideTarget() !== null || holding(container)) && need > 0 ? `${need}px` : '';
+      pad.style.minWidth = scroller.glideTarget() !== null && need > 0 ? `${need}px` : '';
     };
     scrolledRef.current = container.scrollLeft;
-    heldScrollRef.current = container.scrollLeft;
     return scroller.subscribe(follow);
   }, [overflowContainerRef]);
-  // A wider window shortens the scroll range at once, and the browser would clamp the scroll before the row has moved: the end element keeps
-  // the range while the row holds. An observer runs after layout and before paint, so the clamp is undone before it is ever drawn.
-  React.useLayoutEffect(() => {
-    const container = overflowContainerRef.current;
-    if (container === null || heightBudget === undefined || typeof ResizeObserver === 'undefined') return undefined;
-    const keep = (): void => {
-      const pad = endPadRef.current;
-      const strip = rowRef.current;
-      if (pad === null || strip === null || !holding(container)) return;
-      // Measured from the strip's end, not the pad's: once the row fits, the strip's auto right margin pushes the pad out.
-      const need = heldScrollRef.current + container.clientWidth - (pad.offsetLeft - Number.parseFloat(getComputedStyle(strip).marginRight));
-      if (need <= pad.offsetWidth) return;
-      pad.style.minWidth = `${need}px`;
-      container.scrollLeft = heldScrollRef.current;
-    };
-    // The scroller notifies on its own glides; a scroll by the person or the browser is read here.
-    const read = (): void => {
-      if (!holding(container)) heldScrollRef.current = container.scrollLeft;
-    };
-    const observer = new ResizeObserver(keep);
-    observer.observe(container);
-    container.addEventListener('scroll', read, { passive: true });
-    return () => {
-      observer.disconnect();
-      container.removeEventListener('scroll', read);
-    };
-  }, [overflowContainerRef, heightBudget === undefined]);
-  // The row has taken the window's width: a range the hold kept is given back once nothing glides through it.
-  React.useLayoutEffect(() => {
-    const container = overflowContainerRef.current;
-    const pad = endPadRef.current;
-    if (container === null || pad === null || pad.style.minWidth === '' || holding(container) || rowScrollerFor(container).glideTarget() !== null || endHold > 0) return;
-    pad.style.minWidth = '';
-  }, [containerWidth]);
   // Nothing glided the row home (a drag holds it, or motion is off): the range is given back at once.
   React.useEffect(() => {
     const container = overflowContainerRef.current;

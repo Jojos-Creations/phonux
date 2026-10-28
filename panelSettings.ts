@@ -320,7 +320,7 @@ export type WorkspaceTuning = {
   gestureLockMs?: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs?: number;
-  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  /** How many `slide.durationSec` the container width must hold still before the phone size is fitted again; 0 settles at once. */
   resizeSettleSlides?: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
@@ -388,7 +388,7 @@ export type ResolvedWorkspaceTuning = {
   gestureLockMs: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs: number;
-  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  /** How many `slide.durationSec` the container width must hold still before the phone size is fitted again; 0 settles at once. */
   resizeSettleSlides: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
@@ -1053,7 +1053,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.resizeSettleSlides',
     group: 'tuning',
     values: 'number [0, 10], multiplies slide.durationSec (workspace only)',
-    default: '1.25',
+    default: '1/3',
     scope: 'workspace',
     viewSettable: false,
     exists: 'today',

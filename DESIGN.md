@@ -1764,7 +1764,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
 | `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 30 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
-| `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1.25 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
+| `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1/3 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, off (workspace only) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
@@ -2071,8 +2071,11 @@ Web Animations API and so is not stopped by a theme's `transition: none !importa
 `PanelHeaderButtons` is a toolbar with a roving tab stop kept in its runtime: the stop follows focus, falls to the first
 enabled button when its holder is removed or disabled, and Arrow, Home and End skip disabled buttons.
 
-The Workspace derives the row's resize settle from `tuning.slide`: the row snaps while the width moves and glides once it has
-held for `tuning.resizeSettleSlides` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
+A window resize snaps the row to the live width on every step: the strip, its scroll and its vertical place follow at once, at
+the old phone size. Once the width and height have held for `tuning.resizeSettleSlides` (1/3) slide durations, about 200 ms, the
+phone size is fitted again, and only a changed phone size glides. Under Reduce Motion the fit lands at once. The row never holds
+its old layout in a resized window, so there is no end-pad hold or clamp undo. A host without `heightBudget` gets the same snap
+from `useResizeSettled`; a `rowResizeSettled` the host supplies wins.
 
 ## Safe areas and a touch drag in a web view
 

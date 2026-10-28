@@ -96,8 +96,8 @@ export const HEADER_INSET_PX = 13;
 export const FOOTER_PAD_X_PX = 12;
 export const FOOTER_PAD_Y_PX = 8;
 
-/** How many slide durations the container width must hold still before the row's centring margin glides again. */
-export const RESIZE_SETTLE_SLIDES = 1.25;
+/** How many slide durations the container width must hold still before the phone size is fitted again: 200 ms at the default slide, short of one macOS zoom. */
+export const RESIZE_SETTLE_SLIDES = 1 / 3;
 
 /** Scrolling the row while a dragged panel is held near the window's edge. */
 export const EDGE_SCROLL_ZONE_PX = 48;

@@ -134,7 +134,6 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   const bottomPadding = columnBottom > 0 ? rowBottomReservePx(tuning.rowGap) + columnBottom : undefined;
   const phone = usePhoneFit(ref, measuredWidth, preferred, tuning, topPadding, bottomPadding);
   const phoneWidth = phone.width;
-  // The settled width, so the capacity, the row's place and the phone size change in the same commit.
   const containerWidth = phone.containerWidth;
   const provided = useProvidePanels({
     ...panelsInputOf(workspace, stand.current),
