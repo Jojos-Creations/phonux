@@ -206,7 +206,7 @@ export type SettingValues = {
   revealOnScroll: 'edges' | 'any' | 'never';
   /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' is in the strip while it is in view, and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
   edgeHold: 'off' | 'left' | 'right' | 'both';
-  /** How the panel's content follows a size glide. 'reveal' lays it out once at the glide's larger width and the panel's eased edge clips its sides, so the content is resized when a grow starts and when a shrink ends. 'reflow' lays it out at the eased width on every frame. */
+  /** How the panel's content follows a size glide. 'reveal' lays it out once at the glide's larger size and the panel's eased edge clips it, so the content is resized when a grow starts and when a shrink ends. 'reflow' lays it out at the new size when the glide starts and draws it scaled to the eased size. */
   resize: 'reveal' | 'reflow';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;

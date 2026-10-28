@@ -96,7 +96,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const slot = React.useContext(PanelSlotContext);
-  // Below a size box the panel fills it on both axes, so it eases with the box and its frame's 100% has a height to resolve against.
+  // Below a size box the panel fills it on both axes, so it glides with the box and its frame's 100% has a height to resolve against.
   const boxed = useInsideSizeBox();
   const declared = slot?.headerButtonSlots;
   const buttons = usePanelHeaderButtons();
