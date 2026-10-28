@@ -288,6 +288,20 @@ test('at the strip end an arrow and a swipe move no offset: the strip bumps past
   assert.equal(rowOffsetOf(m.container), end);
 });
 
+test('at the strip end the bump holds while the wheel keeps coming and springs back only once it stops', async () => {
+  const m = stepRow(eleven(), 1000);
+  setRowOffset(m.container, maxScrollOf(numbersOf(m, 1000)));
+  const rest = m.scroller.stripX();
+  const drawn = (): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(m.container.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1]);
+  for (let k = 0; k < 50; k += 1) {
+    m.wheel({ deltaX: 3 });
+    await advanceFrames(16);
+    if (k > 12) assert.equal(drawn(), rest - 36, `held at frame ${k}`);
+  }
+  await advanceFrames(1000);
+  assert.equal(drawn(), rest);
+});
+
 test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any modifier, and still step with a button focused', () => {
   const m = stepRow(eleven(), 1000);
   const stepped = (): boolean => {
