@@ -3,7 +3,7 @@
  * when the key lands focus on the panel at the far edge of the view instead. `stepRow` gives a host's own chord the same answer.
  */
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
+import { ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, focusPanelIn } from './rowDom.js';
 
 type Direction = 'left' | 'right';
 
@@ -73,11 +73,7 @@ export function focusEdgePanel(container: HTMLElement, active: string | null, di
   if (own !== undefined && isShown(own, view)) return false;
   const edge = edgeSlotInView(slots, view, direction);
   if (edge === undefined) return false;
-  // The panel's own ring marks it, so the browser's square outline is dropped; no scroll, as the panel is already in view.
-  const root = edge.el.querySelector<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) ?? panelRootOf(edge.el) ?? edge.el;
-  if (!root.hasAttribute('tabindex')) root.tabIndex = -1;
-  root.style.outline = 'none';
-  root.focus({ preventScroll: true });
+  focusPanelIn(edge.el);
   return true;
 }
 

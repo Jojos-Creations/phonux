@@ -61,3 +61,11 @@ export function rowPanelIdOf(target: EventTarget | null): string | null {
 export function panelRootOf(target: EventTarget | null): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) : null;
 }
+
+/** Focuses the panel `slot` holds without scrolling; the panel's own ring marks it, so the browser's outline is dropped. */
+export function focusPanelIn(slot: HTMLElement): void {
+  const root = slot.querySelector<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) ?? panelRootOf(slot) ?? slot;
+  if (!root.hasAttribute('tabindex')) root.tabIndex = -1;
+  root.style.outline = 'none';
+  root.focus({ preventScroll: true });
+}
