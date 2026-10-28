@@ -15,6 +15,7 @@ import { fitPhone, PHONE_FIT_MARGIN, type PhoneFitInput } from '../phoneFit.js';
 import { PHONE_FIT_MAX, PHONE_FIT_MIN } from '../rowConstants.js';
 import { differential } from './support/differential.js';
 import { resize, rigCleanup, slots, track, until, win } from './support/auto-rig.js';
+import { stripMarginOf } from './support/strip.js';
 
 afterEach(rigCleanup);
 
@@ -194,8 +195,8 @@ test('a resize holds the previous size until the width has settled, then draws t
 
 test('a window still moving keeps the phone size and moves the row at once on every step; holding still 200 ms refits', async () => {
   const m = await mounted({ tuning: { phoneFit: 'fit' } }, 1000, 1117);
-  const margin = (): string => document.querySelector<HTMLElement>('[data-row-strip]')!.style.marginLeft;
-  const seen: string[] = [margin()];
+  const margin = (): number => stripMarginOf(document.body);
+  const seen: number[] = [margin()];
   for (const width of [1100, 1200, 1300, 1400]) {
     await resize(width);
     await advanceFrames(2 * 16);

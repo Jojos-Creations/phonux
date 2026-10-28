@@ -184,7 +184,7 @@ test('a window resize that moves the stops lands the row on the new last stop at
   for (const glideEase of ['linear', 'cubic-out'] as const) {
     const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
     m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'linear' });
-    assert.equal(m.container.scrollLeft, 1624, 'control: the row starts at the old last stop');
+    assert.equal(rowOffsetOf(m.container), 1624, 'control: the row starts at the old last stop');
     m.rerender(1500);
     assert.equal(m.scroller.glideTarget(), null, `${glideEase}: no glide trails the window`);
     assert.equal(rowOffsetOf(m.container), 1218, `${glideEase}: the new last stop, 133 + 2420 + 133 - 1468`);
