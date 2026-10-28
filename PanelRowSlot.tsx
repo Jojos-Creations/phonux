@@ -3,7 +3,7 @@ import { animate, PresenceContext, usePresence, useReducedMotion, useReducedMoti
 import { sharedStartTime } from './rowClock.js';
 import { NAMED_EASE, createSlotMover, shortTransform, type SlotMover, type SlotPose, type SlotTiming } from './slotMover.js';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
-import { CHROME_ATTRIBUTE, ChromeStoreContext, PANEL_SLIDE_EVENT, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
+import { CHROME_ATTRIBUTE, ChromeStoreContext, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
@@ -340,11 +340,6 @@ export function PanelRowSlot({
       slotDriver.set(node, m, rest);
       kickRect();
       return;
-    }
-    // Before the slide starts: a listener reads the box the panel still shows.
-    if (panelId !== undefined && moved) {
-      const Ctor = node.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
-      node.dispatchEvent(new Ctor(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
     }
     glide(rest, transition);
   });

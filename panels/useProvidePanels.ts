@@ -20,7 +20,7 @@ import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
-import { PANEL_RECT_EVENT, PANEL_SLIDE_EVENT, panelRectEvent, type PanelRectDetail, type PanelRectEvent } from '../panelChrome.js';
+import { PANEL_RECT_EVENT, panelRectEvent, type PanelRectDetail, type PanelRectEvent } from '../panelChrome.js';
 import { applyConfigure } from '../panelConfigure.js';
 import { accepted, refused, type ConfigureResult, type PanelOpSource, type PanelResult } from '../panelManager.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, applyTemplate, effective, panelKey, resolvePanelSettings } from '../panelSettings.js';
@@ -843,46 +843,48 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Diffs the one list instead of capturing per call site: usePanelManager parks from several sites with no single
   // "on park" hook, and a per-site call would silently miss any site not touched.
   const prevLiveRef = useRef<ReadonlyMap<string, boolean>>(new Map());
-  useEffect(() => {
-    const prev = prevLiveRef.current;
-    for (const p of panels) {
-      if (prev.get(p.id) === true && !p.live && asksForPicture('park')) capture.capture(panelKey(p));
-    }
-    prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
-  }, [panels, capture]);
-
   const slideMsRef = useRef(0);
   slideMsRef.current = tuning.slide.durationSec * 1000;
+  // A newly opened panel is pictured once its opening motion has landed: a picture is rasterized on the main thread, so one
+  // taken mid-motion holds back its frames. A slide, or a parked panel coming back, changes nothing a picture shows.
+  const openTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const prev = prevLiveRef.current;
+    const timers = openTimers.current;
+    for (const p of panels) {
+      if (prev.get(p.id) === true && !p.live && asksForPicture('park')) capture.capture(panelKey(p));
+      if (!prev.has(p.id) && p.live && p.id !== rootId && FIXED.snapshot === 'both') {
+        const key = panelKey(p);
+        clearTimeout(timers.get(key));
+        timers.set(key, setTimeout(() => {
+          timers.delete(key);
+          capture.capture(key);
+        }, slideMsRef.current + 100));
+      }
+    }
+    prevLiveRef.current = new Map(panels.map((p) => [p.id, p.live]));
+  }, [panels, capture, rootId]);
+  useEffect(() => {
+    const timers = openTimers.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
+
   // The slots report through window events (see panelChrome.ts); a provider hears only the ids it rendered.
   useEffect(() => {
     const keyOf = (id: string): string | undefined => keyById.current.get(id);
-    // A picture is rasterized on the main thread: taken as the slide starts, it holds back the slide's first frame, so the slid
-    // panels are pictured once the last slide has landed.
-    const slid = new Set<string>();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const onSlide = (e: Event): void => {
-      const key = keyOf((e as CustomEvent<{ id: string }>).detail.id);
-      if (key === undefined || FIXED.snapshot !== 'both') return;
-      slid.add(key);
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        for (const k of slid) capture.capture(k);
-        slid.clear();
-      }, slideMsRef.current + 100);
-    };
     const onRect = (e: Event): void => {
       const d = (e as CustomEvent<PanelRectDetail>).detail;
       const key = keyOf(d.id);
       if (key !== undefined) onPanelRect.current?.(panelRectEvent(key, d));
     };
-    window.addEventListener(PANEL_SLIDE_EVENT, onSlide);
     window.addEventListener(PANEL_RECT_EVENT, onRect);
     return () => {
-      clearTimeout(timer);
-      window.removeEventListener(PANEL_SLIDE_EVENT, onSlide);
       window.removeEventListener(PANEL_RECT_EVENT, onRect);
     };
-  }, [capture]);
+  }, []);
 
   // clearAll only records ids here: React may run its updater during render, where evict would notify other components.
   const clearedIds = useRef(new Set<string>());

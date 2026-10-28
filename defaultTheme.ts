@@ -79,7 +79,9 @@ export function muiThemeFor(theme: PhonuxTheme): Theme {
           },
         },
       },
-      MuiButtonBase: { defaultProps: { disableRipple: true } },
+      // Mounted but never shown. With disableRipple, ButtonBase's blur handler queues each FocusEvent on a ripple promise that
+      // never resolves, keeping every event's target and relatedTarget (closed panels included) alive for the page's life.
+      MuiButtonBase: { defaultProps: { disableTouchRipple: true }, styleOverrides: { root: { '& .MuiTouchRipple-root': { display: 'none' } } } },
     },
   });
 }

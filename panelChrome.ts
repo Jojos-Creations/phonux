@@ -268,12 +268,6 @@ export function panelRectEvent(key: string, detail: PanelRectDetail): PanelRectE
 export const PANEL_RECT_EVENT = 'phonux:panel-rect';
 
 /**
- * Dispatched on a slot's element with `detail: { id }` before its slide starts, so a listener reads the picture the panel
- * still shows. @internal
- */
-export const PANEL_SLIDE_EVENT = 'phonux:panel-slide';
-
-/**
  * Reports one slot's box while it moves. `kick()` runs a frame loop that reports `moving` on each change and, once nothing
  * is moving and the box has stood still for a frame, one `settled`. `settle()` ends the loop at once with the box as it is,
  * for the moment a motion completes. @internal
