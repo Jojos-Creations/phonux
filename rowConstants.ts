@@ -62,11 +62,13 @@ export const CLOSE_EXIT_EASE = 'easeIn' as const;
 export const GLIDE_EASE = 'cubic-out' as const;
 
 /**
- * The z-index of a row's slots: a `raised` panel sits above a `base` one, so a park that exits left crosses its footprint
- * on the way out, and the panel being dragged is drawn above both. Every `OVERLAY_Z` value is higher.
+ * The z-index tiers of a row's slots: a `raised` panel sits above a `base` one, so a park that exits left crosses its
+ * footprint on the way out, and the panel being dragged is drawn above both. Within a tier a slot's z-index is the tier
+ * plus twice its distance in slots from the nearer end of the row (at most 2 * 31 under `ALL_SLOTS`), and a slot entering
+ * or leaving sits one under that, so the tiers are 99 apart. Every `OVERLAY_Z` value is higher.
  * @public
  */
-export const ROW_LAYER_Z = Object.freeze({ BASE: 1, RAISED: 2, DRAGGED: 3 });
+export const ROW_LAYER_Z = Object.freeze({ BASE: 1, RAISED: 100, DRAGGED: 200 });
 
 /** Which of two equal-priority panels returns or lands first. */
 export const RETURN_TIE_BREAK = 'latest-first' as const;

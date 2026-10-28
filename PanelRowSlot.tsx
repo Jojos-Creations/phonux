@@ -8,6 +8,7 @@ import { PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
+import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
@@ -224,7 +225,7 @@ export function PanelRowSlot({
    * AnimatePresence has no later render of a removed child to fix a wrong guess. */
   exitDirection: SlotExit;
   /**
-   * Each slot carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
+   * The slot's tier (`ROW_LAYER_Z.BASE` or `RAISED`). Each slot carries a `transform`, so it is its OWN stacking context and a child's `zIndex`
    * cannot compare against a SIBLING slot: stacking between slots (e.g. a raised column above a panel sliding
    * left behind it) must be set HERE, on the slot, not on what renders inside it. Defaults to 0.
    */
@@ -247,12 +248,12 @@ export function PanelRowSlot({
 }) {
   // The entrance is read once, as the slot mounts: an enter in progress keeps its style whatever the settings say later.
   const [entrance] = React.useState(enterDirection);
-  // A reveal grows where the neighbor it replaces is still sliding away, so it is drawn on top until it has grown, on either side.
-  // A new open grows from its center while the panel in its slot slides out, so it is drawn beneath until it has grown.
-  // A slot mounted with the row (AnimatePresence initial={false}) never animates in, so it never grows.
+  // A slot entering the row is drawn one level under its rank until it has arrived, so it tucks under its inner neighbor;
+  // a new open grows from its center while the panel in its slot slides out, so it is drawn under the whole row until it has grown.
+  // A slot mounted with the row (AnimatePresence initial={false}) never animates in, so it is never entering.
   const presence = React.useContext(PresenceContext);
   const mountedWithRow = presence?.initial === false;
-  const [growing, setGrowing] = React.useState(!mountedWithRow && (entrance === 'expand' || EXPAND_ORIGIN_X[entrance] !== undefined));
+  const [entering, setEntering] = React.useState(!mountedWithRow);
   const { initial, animate: animateTarget, exit, transition } = panelRowSlotMotion(leftOffset, width, phoneHeight, entrance, exitDirection, gap, slide, rowScroll);
   const el = React.useRef<HTMLDivElement>(null);
   const mover = React.useRef<SlotMover | null>(null);
@@ -289,7 +290,10 @@ export function PanelRowSlot({
   // A drag of any axis lifts its slot above the row's others until it has settled; the slot is its own stacking context, so only its z can do it.
   const lifted = usePanelDragging();
   const [present, safeToRemove] = usePresence();
-  // Neighbors close up over a shrinking slot, so it is drawn on top to be seen shrinking away.
+  // The slot's rank from either end of the row follows the row through this context even while the slot leaves, when its props no longer change.
+  const { ranks, mounted } = React.useContext(SlotRanksContext);
+  const rank = panelId === undefined ? 0 : (ranks.get(panelId) ?? 0);
+  React.useEffect(() => (panelId === undefined ? undefined : mounted(panelId)), [panelId, mounted]);
   const shrinkOrigin = present ? undefined : SHRINK_ORIGIN_X[exitDirection];
   const shrinking = shrinkOrigin !== undefined;
   const glide = (pose: SlotPose, timing: SlotTiming, done?: () => void): void => {
@@ -318,9 +322,9 @@ export function PanelRowSlot({
       lastRest.current = leftOffset;
       if (enters)
         glide(rest, timingOf(transition, transition), () => {
-          setGrowing(false);
+          setEntering(false);
         });
-      else setGrowing(false);
+      else setEntering(false);
       return;
     }
     const m = mover.current;
@@ -346,7 +350,10 @@ export function PanelRowSlot({
       const Ctor = node.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
       node.dispatchEvent(new Ctor(PANEL_SLIDE_EVENT, { bubbles: true, detail: { id: panelId } }));
     }
-    glide(rest, transition);
+    // A slot added back while its exit was running enters again: under its inner neighbor as it scales back up. Any glide to
+    // a rest ends the entering level, since a move during the entrance replaces the entrance glide and its own end never comes.
+    if (returning) setEntering(true);
+    glide(rest, transition, () => setEntering(false));
   });
   // A box that moves by its own motion, a drag, a resize or a row scroll is reported until it stops. A slot that mounts
   // reports its rest once; its reporter is recreated under StrictMode's second setup, so nothing here is shared.
@@ -406,13 +413,7 @@ export function PanelRowSlot({
         left: 0,
         // Snaps, never animates: nothing paints the slot's own width (PanelSizeBox animates the visible resize).
         width,
-        zIndex: lifted
-          ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED)
-          : shrinking || (growing && present && entrance !== 'expand')
-            ? Math.max(zIndex ?? 0, ROW_LAYER_Z.RAISED)
-            : growing && present
-              ? Math.min(zIndex ?? 0, ROW_LAYER_Z.BASE) - 1
-              : (zIndex ?? 0),
+        zIndex: lifted ? Math.max(zIndex ?? 0, ROW_LAYER_Z.DRAGGED) : entering && present && entrance === 'expand' ? OPEN_Z : slotZ(zIndex ?? 0, rank, !present || entering),
         ...firstPose,
         ...(origin !== undefined ? { transformOrigin: `${origin * 100}% 50%` } : {}),
       }}

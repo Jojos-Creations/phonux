@@ -10,6 +10,7 @@ import * as React from 'react';
 import { cubicBezier } from 'motion/react';
 import { act } from 'react';
 import { DragToClose, LIBRARY_TUNING_DEFAULTS, OVERLAY_Z, ROW_LAYER_Z } from '../index.js';
+import { ALL_SLOTS } from '../rowConstants.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { SlideTuning } from '../index.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
@@ -145,8 +146,10 @@ test("glideEase: 'linear' and a bezier tuple glide along their own curves, apart
   assert.ok(Math.abs(skewed! - 1600 * cubicBezier(0, 0.2, 1, 0)(0.25)) < 0.5, `[0, 0.2, 1, 0] keeps its four numbers in order, got ${skewed}`);
 });
 
-test('ROW_LAYER_Z: base 1, raised 2, dragged 3, frozen, and every overlay sits above them', () => {
-  assert.deepEqual({ ...ROW_LAYER_Z }, { BASE: 1, RAISED: 2, DRAGGED: 3 });
+test('ROW_LAYER_Z: base 1, raised 100, dragged 200, frozen, the base tier at its deepest rank stays under raised, and every overlay sits above them', () => {
+  assert.deepEqual({ ...ROW_LAYER_Z }, { BASE: 1, RAISED: 100, DRAGGED: 200 });
+  assert.ok(ROW_LAYER_Z.BASE + 2 * Math.floor(ALL_SLOTS / 2) < ROW_LAYER_Z.RAISED - 1);
+  assert.ok(ROW_LAYER_Z.RAISED + 2 * Math.floor(ALL_SLOTS / 2) < ROW_LAYER_Z.DRAGGED);
   assert.ok(Object.isFrozen(ROW_LAYER_Z));
   assert.ok(Math.min(...Object.values(OVERLAY_Z)) > ROW_LAYER_Z.DRAGGED);
 });

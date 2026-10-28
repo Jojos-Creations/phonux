@@ -3,6 +3,8 @@
  * Every expectation is written from the configure design and the catalog's `on_configure` cells, never from the code
  * under test.
  */
+import { ROW_LAYER_Z } from '../rowConstants.js';
+import { centerRank, slotZ } from '../rowSlotZ.js';
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -903,21 +905,28 @@ test('matrix:layer', async () => {
   const r = await matrixRig();
   await r.settle();
   const z = (name: string): string | undefined => slotAt(r, r.entry(name).id)?.style.zIndex;
-  assert.deepEqual([z('b'), z('c')], ['1', '1'], 'before: both base');
+  // A resting slot's z-index is its tier plus twice its rank from the nearer end of the strip.
+  const restZ = (name: string, tier: number = ROW_LAYER_Z.BASE): string => {
+    const ids = r.provided().rowNumbers.ids;
+    return String(slotZ(tier, centerRank(ids.indexOf(r.entry(name).id), ids.length), false));
+  };
+  assert.deepEqual([z('b'), z('c')], [restZ('b'), restZ('c')], 'before: both base');
   const before = [r.order().join(' '), r.provided().rowNumbers.widths.join(','), r.provided().rowNumbers.leftOffsets.join(',')];
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ layer: 'raised' }))), { now: ['layer'], later: [], shadowed: [] });
-  assert.deepEqual([z('b'), z('c')], ['2', '1'], 'after, in that commit: the z-index changes');
+  assert.deepEqual([z('b'), z('c')], [restZ('b', ROW_LAYER_Z.RAISED), restZ('c')], 'after, in that commit: the z-index changes');
+  assert.ok(Number(z('b')) >= ROW_LAYER_Z.RAISED && Number(z('c')) < ROW_LAYER_Z.RAISED, 'the raised tier is over every base slot');
   assert.deepEqual([r.order().join(' '), r.provided().rowNumbers.widths.join(','), r.provided().rowNumbers.leftOffsets.join(',')], before, 'row order and widths do not change');
   done(r.turn(() => r.h.b!.configure({ layer: 'base' })));
-  assert.equal(z('b'), '1');
+  assert.equal(z('b'), restZ('b'));
   const engine = r.entry('c').id;
   r.turn(() => r.h.c!.hide());
   await frames(2);
   const leaving = slotAt(r, engine);
   assert.equal(leaving !== null, true, 'control: the slot is mid-exit');
-  assert.equal(leaving!.style.zIndex, '1');
+  const leavingZ = leaving!.style.zIndex;
+  assert.ok(Number(leavingZ) < ROW_LAYER_Z.RAISED, 'it leaves in the base tier');
   done(r.turn(() => r.h.c!.configure({ layer: 'raised' })));
-  assert.equal(slotAt(r, engine)?.style.zIndex, '1', 'a slot mid-exit keeps the z-index it left with');
+  assert.equal(slotAt(r, engine)?.style.zIndex, leavingZ, 'a slot mid-exit keeps the tier it left with');
 });
 
 test('matrix:enterFrom', async () => {

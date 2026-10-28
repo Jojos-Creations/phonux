@@ -158,16 +158,16 @@ test('exit direction: auto follows exitRightIds, and closingIds exits down witho
   assert.equal(closing.x, REST, 'and does not slide sideways');
 });
 
-test('layer: a raised slot has z-index 2 and a base slot 1, and a hand-built entry reads its own layer field', () => {
+test('layer: a raised slot at the row\'s end has z-index 100 and a base slot 1, and a hand-built entry reads its own layer field', () => {
   const zOf = (b: PanelWindow): string => {
     const mounted = mount(row([rootEntry(), b]));
     const z = slotOf(mounted.container, b.id)!.style.zIndex;
     mounted.unmount();
     return z;
   };
-  assert.equal(zOf(made('b', { layer: 'raised' })), '2');
+  assert.equal(zOf(made('b', { layer: 'raised' })), '100');
   assert.equal(zOf(made('b', { layer: 'base' })), '1');
-  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true, layer: 'raised' }), '2');
+  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true, layer: 'raised' }), '100');
   assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true }), '1');
 });
 

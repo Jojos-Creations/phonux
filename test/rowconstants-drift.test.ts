@@ -93,7 +93,7 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.gestureQuietMs, rowConstants.GESTURE_QUIET_MS);
   assert.equal(t.slide.closeExitEase, rowConstants.CLOSE_EXIT_EASE);
   assert.equal(t.slide.glideEase, rowConstants.GLIDE_EASE);
-  assert.deepEqual({ ...rowConstants.ROW_LAYER_Z }, { BASE: 1, RAISED: 2, DRAGGED: 3 });
+  assert.deepEqual({ ...rowConstants.ROW_LAYER_Z }, { BASE: 1, RAISED: 100, DRAGGED: 200 });
   assert.equal(t.returnTieBreak, rowConstants.RETURN_TIE_BREAK);
   assert.equal(t.dropTieBreak, rowConstants.DROP_TIE_BREAK);
   assert.equal(t.rowGesture, rowConstants.ROW_GESTURE);

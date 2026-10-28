@@ -1300,8 +1300,8 @@ export const ROW_ID_ATTRIBUTE = "data-row-id";
 // @public
 export const ROW_LAYER_Z: Readonly<{
     BASE: 1;
-    RAISED: 2;
-    DRAGGED: 3;
+    RAISED: 100;
+    DRAGGED: 200;
 }>;
 
 // @public

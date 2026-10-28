@@ -29,6 +29,7 @@ import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
+import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
 import { ROW_STRIP_ATTRIBUTE } from './rowDom.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import { setHoldShift } from './slotMover.js';
@@ -254,6 +255,7 @@ export function PanelRow({
   const birth = React.useRef({ seq: 0, byId: new Map<string, number>() });
   for (const p of presentAll) if (!birth.current.byId.has(p.id)) birth.current.byId.set(p.id, birth.current.seq++);
   const domOrder = [...presentAll].sort((a, b) => birth.current.byId.get(a.id)! - birth.current.byId.get(b.id)!);
+  const slotRanks = useSlotRanks(presentAll.map((p) => p.id));
   React.useEffect(() => {
     const now = new Set(presentAll.map((p) => p.id));
     for (const id of presentBefore.current) {
@@ -521,6 +523,7 @@ export function PanelRow({
       }}
     >
       {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
+      <SlotRanksContext.Provider value={slotRanks}>
       <AnimatePresence initial={false}>
         {domOrder.map((p) => {
           const h = heldById.get(p.id);
@@ -529,6 +532,7 @@ export function PanelRow({
             : slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)]!, width: widths[present.indexOf(p)]! }, false);
         })}
       </AnimatePresence>
+      </SlotRanksContext.Provider>
     </Box>
     </RowDropContext.Provider>
     </PanelViewContextValue.Provider>

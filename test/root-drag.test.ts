@@ -85,7 +85,7 @@ test('the preview: a held root drag slides the neighbour it would cross aside, a
   assert.equal(xOf(r, 'a'), rest.a! - SPAN, 'the first neighbour made room');
   assert.equal(xOf(r, 'b'), rest.b, 'a neighbour past the hop point has not moved');
   assert.equal(order(r).join(' '), 'root a b c', 'the order only changes at the drop');
-  assert.equal(slotOf(r, 'root').style.zIndex, '3', 'the dragged slot is drawn over its neighbours');
+  assert.equal(slotOf(r, 'root').style.zIndex, '200', 'the dragged slot is drawn over its neighbours');
   await release(SPAN * 0.5 + 10, 0);
   await advanceFrames(3000);
   assert.equal(xOf(r, 'a'), rest.root, 'the crossed neighbour rests where the root was: it did not jump at the drop');
