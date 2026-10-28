@@ -110,10 +110,10 @@ export function usePanelDots(i: {
   React.useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const sync = () => setScrollLeft(el.scrollLeft);
+    const row = rowScrollerFor(el);
+    const sync = () => setScrollLeft(row.scrollLeft());
     sync();
-    el.addEventListener('scroll', sync, { passive: true });
-    return () => el.removeEventListener('scroll', sync);
+    return row.subscribe(sync);
   }, [scroller]);
 
   const hollow = n.ids.map((id) => entries.find((e) => e.id === id)?.settings?.hollowDot === true);
@@ -232,7 +232,7 @@ export function usePanelDots(i: {
       drag.current?.drag(dx);
       // Past the end, or on a row that cannot scroll at all, the drag steps the row instead.
       const el = scroller.current;
-      const at = el?.scrollLeft ?? 0;
+      const at = el == null ? 0 : rowScrollerFor(el).scrollLeft();
       const atEnd = drag.current === null || maxScroll <= 0 || (dx > 0 ? at >= maxScroll - 0.5 : at <= 0.5);
       if (!atEnd) {
         p.edgeX = null;

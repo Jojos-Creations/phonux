@@ -392,7 +392,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
     const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
-    const inView = left < el.scrollLeft + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > el.scrollLeft + tuning.rowGap;
+    const inView = left < rowScrollerFor(el).scrollLeft() + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > rowScrollerFor(el).scrollLeft() + tuning.rowGap;
     if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
   };
   const requestOpen = (id: string, over: Partial<Pick<ScrollRequest, 'align' | 'forced' | 'fresh'>> = {}): boolean => requestScroll({ id, kind: 'open', align: null, forced: false, fresh: false, ...over });
@@ -675,7 +675,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const k = rowNumbers.ids.indexOf(id);
       if (k < 0) return false;
       const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
-      return left < el.scrollLeft + windowOf(el) && left + rowNumbers.widths[k]! > el.scrollLeft;
+      return left < rowScrollerFor(el).scrollLeft() + windowOf(el) && left + rowNumbers.widths[k]! > rowScrollerFor(el).scrollLeft();
     });
     // A frame later: a glide started inside the press is stopped by that same press reaching the row.
     if (shown !== undefined) requestAnimationFrame(() => requestScroll({ id: shown, kind: 'move', align: null, forced: false, fresh: false }));
@@ -768,7 +768,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (initialScrollDoneRef.current || !restoreSettled || el === null || i.containerWidth === 0 || rowNumbers.ids.length === 0) return;
     initialScrollDoneRef.current = true;
     const scroller = rowScrollerFor(el);
-    if (touchedRef.current || scroller.glideTarget() !== null || el.scrollLeft !== 0) return;
+    if (touchedRef.current || scroller.glideTarget() !== null || rowScrollerFor(el).scrollLeft() !== 0) return;
     const where = tuning.initialScroll;
     const maxScroll = maxScrollOf(rowNumbers);
     let to = rowNumbers.stops[0] ?? 0;
