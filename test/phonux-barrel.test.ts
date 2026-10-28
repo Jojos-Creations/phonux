@@ -112,6 +112,7 @@ const VALUE_EXPORTS = [
   'ROW_SCROLLER_ATTRIBUTE',
   'ROW_SLOT_ATTRIBUTE',
   'ROW_STRIP_ATTRIBUTE',
+  'UNDO_CLOSE_TOAST_ATTRIBUTE',
   'WORKSPACE_CELL_ATTRIBUTE',
   'WORKSPACE_COLUMN_ATTRIBUTE',
   'maximizedPanel',
@@ -138,7 +139,7 @@ const VALUE_EXPORTS = [
   'withSlotChanges',
 ].sort();
 
-test('the phonux barrel exports exactly the 125 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 126 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
