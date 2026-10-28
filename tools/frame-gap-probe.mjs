@@ -45,14 +45,16 @@ const browser = await chromium.launch({ executablePath });
 // Each rAF reads every slot's rect: a frame the probe sees is a frame the person sees, and the read lands after the
 // frame's own animation writes.
 function installSampler() {
-  window.sample = (ms) =>
+  // `leaving` names the slots a swap sends out: each shrinks into its center under the slot arriving there, so the pair is
+  // the swap's own shape, not two neighbors overlapping.
+  window.sample = (ms, leaving = []) =>
     new Promise((done) => {
       const frames = [];
       const start = performance.now();
       const tick = (ts) => {
         const slots = [...document.querySelectorAll('[data-row-slot]')]
           .map((el) => ({ id: el.querySelector('[data-probe-body]')?.dataset.probeBody ?? el.dataset.rowId, rect: el.getBoundingClientRect() }))
-          .filter((s) => s.rect.width > 1)
+          .filter((s) => s.rect.width > 1 && !leaving.includes(s.id))
           .sort((a, b) => a.rect.left - b.rect.left);
         let minGap = Number.POSITIVE_INFINITY;
         let pair = '';
@@ -124,8 +126,8 @@ try {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
   await page.waitForTimeout(1500);
 
-  const measure = async (name, windowMs, act) => {
-    const sampled = page.evaluate((ms) => window.sample(ms), windowMs);
+  const measure = async (name, windowMs, act, leaving = []) => {
+    const sampled = page.evaluate(([ms, out]) => window.sample(ms, out), [windowMs, leaving]);
     await page.waitForTimeout(50);
     await act();
     const summary = summarize(name, await sampled, windowMs);
@@ -167,8 +169,8 @@ try {
   results.push(await measure('unmaximize p2', 1500, () => page.evaluate(() => window.probe.toggleMaximize('p2'))));
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.waitForTimeout(1500);
-  results.push(await measure('tab change: six panels to one', 1500, () => page.evaluate(() => window.probe.swapToTab())));
-  results.push(await measure('tab change: one panel to six', 1500, () => page.evaluate(() => window.probe.swapBack())));
+  results.push(await measure('tab change: six panels to one', 1500, () => page.evaluate(() => window.probe.swapToTab()), ['p2', 'p3', 'p4', 'p5', 'p6']));
+  results.push(await measure('tab change: one panel to six', 1500, () => page.evaluate(() => window.probe.swapBack()), ['tab']));
 } finally {
   await browser.close();
   server.close();
