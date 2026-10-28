@@ -647,6 +647,17 @@ starts every restored wide panel resting, so it comes back at its saved width th
 code, so the person's recorded `overrides.slots` stays as it was. The next activation brings a resting panel back even
 after the tuning is turned off, so no panel is left at one phone.
 
+## The first press only puts a panel in use
+
+A pointer press on a panel that is not in use puts it in use and does nothing else: the control under it gets no mousedown
+and no click, a link is not followed, and keyboard focus leaves the panel that was in use. The next press reaches the content. A
+press on a button or grab bar of the panel's own header or footer acts at once, as it does for a resting wide panel. The
+pointerdown itself still bubbles, because the row, the window and a host read it to learn where a press landed; only a
+handler that acts on pointerdown inside the content sees the first press. The release lands on a transparent cover laid over
+the slot until the click, which is how a touch's late mouse events and click miss the content too. A frame (`iframe`,
+`embed`, `object`) inside a panel not in use takes no pointer, since a press inside one never reaches this document; a wheel
+over it scrolls nothing until the panel is in use. A keyboard focus is never swallowed.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never

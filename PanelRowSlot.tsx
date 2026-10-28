@@ -12,6 +12,7 @@ import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
 /**
  * The library's default row gap, 16 px; the gap a workspace draws with is its `tuning.rowGap`, which this does not follow.
@@ -48,6 +49,8 @@ function isChromeControl(target: EventTarget): boolean {
   const control = target instanceof Element ? target.closest('button, [role="button"], [data-panel-grab-bar]') : null;
   return control?.closest(`[${CHROME_ATTRIBUTE}]`) != null || control?.hasAttribute('data-panel-grab-bar') === true;
 }
+
+const noSubscribe = (): (() => void) => () => {};
 
 /** The same targets, no time taken: for Reduce Motion, snapping and width tracking. */
 const INSTANT_TRANSITION = { duration: 0 } as const;
@@ -271,6 +274,8 @@ export function PanelRowSlot({
     if (store !== undefined && id !== undefined) store.setSliding(id, on);
   };
   const framed = useHoldsFrame(el);
+  const inUse = React.useSyncExternalStore(chrome?.subscribeActive ?? noSubscribe, () => chrome !== undefined && panelId !== undefined && chrome.active() === panelId, () => false);
+  useFramesAsleep(el, framed, !inUse);
   const reducedMotion = useReducedMotionConfig();
   // The drag box reads the system preference itself, so the neighbors that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
@@ -398,7 +403,10 @@ export function PanelRowSlot({
       data-row-id={panelId}
       onPointerDownCapture={(e) => {
         markPanelPress(e.nativeEvent);
-        onActivate?.(isChromeControl(e.target));
+        const control = isChromeControl(e.target);
+        const first = onActivate !== undefined && chrome !== undefined && panelId !== undefined && chrome.active() !== panelId;
+        onActivate?.(control);
+        if (first && !control && el.current !== null) swallowFirstPress(el.current, e.nativeEvent);
       }}
       onFocusCapture={(e) => onActivate?.(isChromeControl(e.target))}
       style={{
