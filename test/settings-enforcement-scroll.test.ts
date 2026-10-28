@@ -18,7 +18,7 @@ afterEach(() => {
   cleanup();
 });
 
-const OWNED = ['revealOnScroll', 'edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.initialScroll'];
+const OWNED = ['revealOnScroll', 'edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll'];
 
 /** Whether the parked panel b sits live after one rightward swipe in a window that shows only the root (430 px). */
 async function revealedUnder(revealOnScroll: 'edges' | 'any' | 'never'): Promise<boolean> {
@@ -119,6 +119,36 @@ test('differential tuning.rowGesture: step starts a glide on a swipe and off lea
   differential('tuning.rowGesture', (run) => {
     run('step', () => swipeGlide('step'));
     run('off', () => swipeGlide('off'));
+  });
+});
+
+/** Whether the row faded during four quick swipes, each one stop on, under `fastScroll`. */
+async function fadedUnder(fastScroll: 'coalesce' | 'jump'): Promise<boolean> {
+  const m = mountRow(panelsOf(10), 1000, { tuning: { fastScroll } });
+  const strip = m.container.querySelector<HTMLElement>('[data-row-strip]')!;
+  m.wheel({ deltaX: 50 });
+  for (let k = 0; k < 3; k += 1) {
+    await advanceFrames(32);
+    m.wheel({ deltaX: 500 });
+  }
+  let darkest = 1;
+  for (let ms = 0; ms < 800; ms += 16) {
+    await advanceFrames(16);
+    darkest = Math.min(darkest, strip.style.opacity === '' ? 1 : Number(strip.style.opacity));
+  }
+  cleanup();
+  return darkest < 0.5;
+}
+
+test('differential tuning.fastScroll: coalesce glides the whole way and jump fades past a move of more than a window', async () => {
+  const outcomes = new Map([
+    ['coalesce', await fadedUnder('coalesce')],
+    ['jump', await fadedUnder('jump')],
+  ]);
+  assert.deepEqual([...outcomes.values()], [false, true]);
+  differential('tuning.fastScroll', (run) => {
+    run('coalesce', () => outcomes.get('coalesce'));
+    run('jump', () => outcomes.get('jump'));
   });
 });
 

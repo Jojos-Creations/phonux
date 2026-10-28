@@ -671,6 +671,7 @@ export type WorkspaceTuning = {
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
+    fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };

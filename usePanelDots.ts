@@ -10,6 +10,8 @@ import { centreScroll, dotLayout, dotMap, dragScroll, withParked, type ParkedDot
 import { maxScrollOf, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 import { stepRowIn } from './rowStep.js';
+import { FAST_SCROLL_FLOOR_SEC, stepGlide } from './rowFastScroll.js';
+import { FAST_SCROLL } from './rowConstants.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
@@ -101,7 +103,7 @@ export function usePanelDots(i: {
   rowNumbers: RowNumbers;
   entries: readonly WorkspaceRowEntry[];
   scroller: React.RefObject<HTMLElement | null>;
-  tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
+  tuning: Pick<ResolvedWorkspaceTuning, 'slide'> & Partial<Pick<ResolvedWorkspaceTuning, 'fastScroll'>>;
   /** How far the drawn oval reaches past the dots it encloses on each side, in px, so the cursor reads the oval as drawn. Default 0. */
   ovalSide?: number;
 }): PanelDots {
@@ -149,7 +151,8 @@ export function usePanelDots(i: {
       return undefined;
     }
     step(seek.direction);
-    const next = window.setTimeout(() => setSeek((s) => (s === null ? s : { ...s, steps: s.steps - 1 })), tuning.slide.durationSec * 1000 + 50);
+    // The steps toward a far dot come at the fast-scroll floor, each retargeting the last, not one whole slide apiece.
+    const next = window.setTimeout(() => setSeek((s) => (s === null ? s : { ...s, steps: s.steps - 1 })), Math.min(tuning.slide.durationSec, FAST_SCROLL_FLOOR_SEC) * 1000 + 50);
     return () => window.clearTimeout(next);
   }, [seek?.id, seek?.steps, parkedKey]);
 
@@ -173,7 +176,7 @@ export function usePanelDots(i: {
     // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted center.
     // Numbers built by hand may omit the stops; such a row has none to snap to.
     const at = Math.min(maxScroll, target + n.stripStart);
-    rowScrollerFor(el).glideTo(n.stops?.length ? snapToStop(n, index, at) : at, { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });
+    stepGlide(rowScrollerFor(el), n.stops?.length ? snapToStop(n, index, at) : at, { mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
   };
 
   const startOvalDrag = () => {

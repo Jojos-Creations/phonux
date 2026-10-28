@@ -14,6 +14,7 @@ import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { rowScrollerFor } from '../rowScroller.js';
+import { stepGlide } from '../rowFastScroll.js';
 import { createRestWatch } from './restWatch.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
@@ -520,7 +521,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (swapAllowed(direction)) activatePanel(step.id);
     }
     else if (step.kind === 'scroll') {
-      scroller.glideTo(step.to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
+      stepGlide(scroller, step.to, { mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
     }
   };
 
