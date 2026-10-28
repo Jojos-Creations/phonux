@@ -271,13 +271,21 @@ test('the last step clamps to the strip end', () => {
   assert.equal(m.scroller.glideTarget(), stops[stops.length - 1]);
 });
 
-test('at the strip end an arrow and a swipe do nothing', () => {
+test('at the strip end an arrow and a swipe move no offset: the strip bumps past the end and springs back', async () => {
   const m = stepRow(eleven(), 1000);
-  setRowOffset(m.container, maxScrollOf(numbersOf(m, 1000)));
+  const end = maxScrollOf(numbersOf(m, 1000));
+  setRowOffset(m.container, end);
+  const rest = m.scroller.stripX();
+  const drawn = (): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(m.container.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1]);
   m.key('ArrowRight');
   assert.equal(m.scroller.glideTarget(), null);
+  await advanceFrames(160);
+  assert.ok(drawn() < rest - 20, `pushed left past the end: ${drawn()} against ${rest}`);
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), null);
+  await advanceFrames(1000);
+  assert.equal(drawn(), rest);
+  assert.equal(rowOffsetOf(m.container), end);
 });
 
 test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any modifier, and still step with a button focused', () => {

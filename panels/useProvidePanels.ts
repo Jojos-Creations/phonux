@@ -13,7 +13,7 @@ import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
-import { rowScrollerFor } from '../rowScroller.js';
+import { ROW_BUMP_PX, ROW_BUMP_SEC, rowScrollerFor } from '../rowScroller.js';
 import { stepGlide } from '../rowFastScroll.js';
 import { createRestWatch } from './restWatch.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
@@ -495,8 +495,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (scroller.claimHeld()) return;
     scroller.noteMove();
     const maxScroll = maxScrollOf(rowNumbers);
+    // A step with nowhere to go gives the iOS rubber band instead of nothing.
+    const bump = (): void => {
+      if (!reducedMotion) scroller.bump(direction, { distancePx: ROW_BUMP_PX, durationSec: ROW_BUMP_SEC });
+    };
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
-      if (swapAllowed(direction)) scrollRow(direction);
+      const gate = lastSwapRef.current;
+      if (!swapAllowed(direction) || scrollRow(direction)) return;
+      // Nothing came in, so no swap holds the gate against a step back.
+      lastSwapRef.current = gate;
+      bump();
       return;
     }
     let liveBefore = 0;
@@ -520,6 +528,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (step.kind === 'show') {
       if (swapAllowed(direction)) activatePanel(step.id);
     }
+    else if (step.kind === 'none') bump();
     else if (step.kind === 'scroll') {
       stepGlide(scroller, step.to, { mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
     }

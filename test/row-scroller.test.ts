@@ -174,3 +174,50 @@ test('the Workspace reset of a row that stops scrolling stops a glide in flight 
   await advanceFrames(400);
   assert.equal(rowOffsetOf(ref.current!), 0, 'the glide did not resume');
 });
+
+const stripXOf = (el: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(el.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1] ?? 0);
+
+function rowWithStrip(): HTMLDivElement {
+  const el = container();
+  const strip = document.createElement('div');
+  strip.setAttribute('data-row-strip', '');
+  el.appendChild(strip);
+  return el;
+}
+
+test('a bump right pushes the strip left by up to its distance and springs back to rest without moving the offset', async () => {
+  const el = rowWithStrip();
+  setRowOffset(el, 300);
+  rowScrollerFor(el).bump('right', { distancePx: 36, durationSec: 0.4 });
+  let least = 0;
+  for (let k = 0; k < 25; k += 1) {
+    await advanceFrames(16);
+    least = Math.min(least, stripXOf(el) + 300);
+    assert.equal(rowOffsetOf(el), 300);
+  }
+  assert.ok(least < -30 && least >= -36, `pushed ${least}`);
+  await advanceFrames(32);
+  assert.equal(stripXOf(el), -300, 'back at rest');
+});
+
+test('a bump left pushes the strip right, and asks while it plays are absorbed', async () => {
+  const el = rowWithStrip();
+  const scroller = rowScrollerFor(el);
+  scroller.bump('left', { distancePx: 36, durationSec: 0.4 });
+  await advanceFrames(160);
+  assert.ok(stripXOf(el) > 0);
+  scroller.bump('left', { distancePx: 36, durationSec: 0.4 });
+  await advanceFrames(320);
+  assert.equal(stripXOf(el), 0, 'the second ask did not start another bump');
+});
+
+test('a bump asked while a glide is in flight waits for it to land', async () => {
+  const el = rowWithStrip();
+  const scroller = rowScrollerFor(el);
+  scroller.glideTo(400, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  scroller.bump('right', { distancePx: 36, durationSec: 0.4 });
+  await advanceFrames(400);
+  assert.equal(rowOffsetOf(el), 400);
+  await advanceFrames(80);
+  assert.ok(stripXOf(el) < -400, 'the bump plays after the glide lands');
+});

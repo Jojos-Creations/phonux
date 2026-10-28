@@ -1865,6 +1865,13 @@ The row's motion follows one set of intentions, so every change reads the same w
   the last swap is still in flight waits for that swap to land (`swapAllowed` in `useProvidePanels`): a reversal would run
   the enter and the exit half-way and leave panels growing and shrinking in place. Steps the same way never wait, so
   sustained scrolling stays as fast as the input. Reduce Motion clears the gate at once. This is the one motion the row skips.
+- **The end bump.** A step with nowhere to go (past the last or first stop, or on a row that fits with no hidden panel to
+  swap in on that side) pushes the strip `ROW_BUMP_PX` (36) in the step's direction on an ease-out and springs it back
+  critically damped, over `ROW_BUMP_SEC` (0.45 s): the iOS rubber band, so the input is answered rather than ignored. It is an
+  additive term in the strip's one `translateX` animation (`RowScroller.bump`), so it rides the compositor with any glide and
+  never touches the offset, the stops or the dot bar. A bump asked while a glide is landing starts when it lands, as momentum
+  carries into an edge. Asks during a bump, or within a bump's length of the last ask, are absorbed: a held key or a wheel's
+  momentum tail bumps once. A blocked swap reversal (the swap gate) is not a dead end and does not bump. Reduce Motion skips it.
 
 **Settings.** A panel's entrance is its `enterFrom` and its exit, for a park and a close alike, its `exitTo`. Each has one
 workspace-wide default, `tuning.defaultEnterFrom` and `tuning.defaultExitTo`: a panel whose own value is `auto` takes the
