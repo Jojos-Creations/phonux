@@ -57,20 +57,49 @@ test('under Reduce Motion the box snaps and the signal stays null', async () => 
   assert.ok(seen.every((g) => g === null));
 });
 
-test('reveal: a grow lays the content out at the end width at its start, and the eased box clips only its sides', async () => {
+test('reveal: a grow lays the content out at the larger size at its start, and a clip draws the eased size', async () => {
   const m = mount(boxed(390, 700, true));
   const box = boxOf(m.container);
   const inner = revealOf(m.container)!;
   assert.deepEqual([box.style.overflow, box.style.clipPath], ['', ''], 'at rest nothing is clipped, so a header or footer drawn outside the box shows');
   assert.deepEqual([inner.style.width, inner.style.height], ['100%', '100%'], 'at rest the content fills the box');
   m.rerender(boxed(780, 500, true));
-  assert.deepEqual([inner.style.width, inner.style.height], ['780px', '100%'], 'the larger width from the first frame; the height follows the box');
-  assert.equal(box.style.clipPath, 'inset(-100vh 0)', 'clipped at the sides only while gliding');
+  assert.deepEqual([inner.style.width, inner.style.height], ['780px', '700px'], 'the larger size from the first frame');
+  assert.deepEqual([box.style.width, box.style.height], ['780px', '500px'], 'the box itself takes its new size at once');
+  assert.equal(box.style.clipPath, 'inset(-100vh 390px -200px 0px)', 'the first frame draws the old size: never clipped above');
+  assert.equal(box.style.transform, '', 'clipped, never scaled');
   await advanceFrames(300);
-  assert.ok(Number.parseFloat(box.style.width) < 780, 'control: the box itself is still easing');
+  const right = Number(/inset\(-100vh ([\d.]+)px/.exec(box.style.clipPath)?.[1]);
+  assert.ok(right > 0 && right < 390, `control: the clip is still easing: ${box.style.clipPath}`);
   assert.equal(inner.style.width, '780px', 'the content is not resized mid-glide');
   await advanceFrames(1000);
   assert.deepEqual([inner.style.width, box.style.clipPath], ['100%', ''], 'landed: it fills the box again, unclipped');
+});
+
+test('reveal: with the height held, the clip never cuts above or below the box', () => {
+  const m = mount(boxed(390, 700, true));
+  m.rerender(boxed(780, 700, true));
+  assert.equal(boxOf(m.container).style.clipPath, 'inset(-100vh 390px -100vh 0px)');
+  assert.equal(revealOf(m.container)!.style.height, '100%');
+});
+
+test('without reveal the box takes its new size once and a scale about its top left draws the eased size', async () => {
+  const m = mount(boxed(390, 700));
+  const box = boxOf(m.container);
+  const widths: string[] = [];
+  const observer = new MutationObserver(() => widths.push(box.style.width));
+  observer.observe(box, { attributes: true, attributeFilter: ['style'] });
+  m.rerender(boxed(780, 350));
+  assert.deepEqual([box.style.width, box.style.height, box.style.transformOrigin], ['780px', '350px', '0 0']);
+  assert.equal(box.style.transform, 'scale(0.5, 2)', 'the first frame draws the old size');
+  await advanceFrames(300);
+  const [sx] = /scale\(([\d.]+)/.exec(box.style.transform)!.slice(1).map(Number);
+  assert.ok(sx! > 0.5 && sx! < 1, `control: still easing: ${box.style.transform}`);
+  await advanceFrames(1000);
+  observer.disconnect();
+  assert.equal(box.style.transform, '', 'landed: no transform left behind');
+  assert.ok(widths.length > 10, `control: the observer saw the per-frame transform writes: ${widths.length}`);
+  assert.deepEqual([...new Set(widths)], ['780px'], 'the width was never written again during the glide');
 });
 
 test('reveal: a shrink keeps the content at its start width until the glide ends', async () => {

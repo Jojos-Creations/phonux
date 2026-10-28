@@ -332,7 +332,7 @@ function motionPropsOf(el: Element, key: string): Record<string, unknown> {
 let boxWidth = 390;
 for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r']) registerTestView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
 
-/** How long, in ms, the first size box in what `render` draws takes to reach `to` px after `boxWidth` grows from 390 to 780. */
+/** How long, in ms, the first size box in what `render` draws takes to land at `to` px after `boxWidth` grows from 390 to 780. */
 async function sizeGlideMs(render: () => React.ReactElement, to = 780): Promise<number> {
   boxWidth = 390;
   const mounted = mount(render());
@@ -340,7 +340,9 @@ async function sizeGlideMs(render: () => React.ReactElement, to = 780): Promise<
   mounted.rerender(render());
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   let frames = 0;
-  while (box.style.width !== `${to}px` && frames < 200) {
+  assert.equal(box.style.width, `${to}px`, 'laid out at the new width in the commit');
+  // The glide draws a scale until it lands.
+  while (box.style.transform !== '' && frames < 200) {
     await advanceFrames(16);
     frames += 1;
   }
