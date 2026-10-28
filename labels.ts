@@ -36,6 +36,10 @@ export interface PhonuxLabels {
   cannotMove: (title: string, steps: number) => string;
   /** Said after a panel closed. Default `Closed <title>`. */
   closed: (title: string) => string;
+  /** The undo-close toast's text, given the titles of the panels the undo would bring back (at least one). Default `Closed <title>`, or `Closed <count> panels`. */
+  undoCloseMessage: (titles: readonly string[]) => string;
+  /** The undo-close toast's button. Default `Undo`. */
+  undo: string;
   /** The title a workspace grid gives a panel with no title and no url. Default `Untitled`. */
   workspaceUntitled: string;
   /** Shown in a workspace grid when there are no panels to list. Default `No panels yet.`. */
@@ -72,6 +76,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   moved: (title, steps) => `Moved ${title} ${steps < 0 ? 'left' : 'right'}`,
   cannotMove: (title, steps) => `${title} cannot move ${steps < 0 ? 'left' : 'right'}`,
   closed: (title) => `Closed ${title}`,
+  undoCloseMessage: (titles) => (titles.length === 1 ? `Closed ${titles[0]}` : `Closed ${titles.length} panels`),
+  undo: 'Undo',
   workspaceUntitled: 'Untitled',
   workspaceEmpty: 'No panels yet.',
   viewSize: 'View Size',

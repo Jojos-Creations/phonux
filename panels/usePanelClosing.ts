@@ -22,6 +22,8 @@ interface ClosedView {
   index: number;
   logId: string;
   reported: boolean;
+  /** Closed by the person, so the workspace's toast offers the undo. */
+  byPerson: boolean;
   /** True once a reset marked it: an undo then restores it by its defaults, placed by its `placeOnAdd`. */
   reset?: true;
 }
@@ -31,7 +33,7 @@ export type Reapplied = { panel: PanelWindow; placeAs: 'old-slot' | AddPlacement
 
 export interface UsePanelClosingResult {
   /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, root or already-closed id: does nothing and answers false. */
-  close: (id: string) => boolean;
+  close: (id: string, byPerson?: boolean) => boolean;
   /** Drops the views closed inside the window whose key is `key`, so an undo has nothing to skip or report for them. True when one was dropped. */
   forgetClosed: (key: string) => boolean;
   /** The ids of the views closed inside the window now, even when no render has seen the close yet. */
@@ -42,6 +44,8 @@ export interface UsePanelClosingResult {
   markReset: (id: string, reset: (panel: PanelWindow) => PanelWindow) => boolean;
   /** The views closed inside the window, oldest first; non-null exactly while the window is open. */
   recentlyClosed: PanelWindow[] | null;
+  /** The views in `recentlyClosed` the person closed, oldest first; null when there are none. */
+  closedByPerson: PanelWindow[] | null;
   /**
    * Ids leaving through THIS hook's `close()`, never usePanelManager's auto-collapse (which only flips `live`):
    * PanelRow reads it for each exiting PanelRowSlot's `exitDirection` (down for a close, left for a park).
@@ -124,7 +128,7 @@ export function usePanelClosing(
     claimed.current.clear();
   };
 
-  const close = (id: string): boolean => {
+  const close = (id: string, byPerson = false): boolean => {
     const found = closePanel(panels, id, rootId);
     // The root's close is a no-op: the one gate every close goes through.
     if (!found || claimed.current.has(id) || id === rootId) return false;
@@ -143,7 +147,7 @@ export function usePanelClosing(
       onWindowElapsed?.([found.closed]);
       return true;
     }
-    closedStore.set([...closedStore.get(), { panel: found.closed, index: found.index, logId, reported: FIXED.reportClose }]);
+    closedStore.set([...closedStore.get(), { panel: found.closed, index: found.index, logId, reported: FIXED.reportClose, byPerson }]);
     const now = Date.now();
     const end = Math.max(windowEnd.current ?? 0, now + FIXED.undoWindowMs);
     windowEnd.current = end;
@@ -222,5 +226,5 @@ export function usePanelClosing(
     return true;
   };
 
-  return { close, forgetClosed, closedIds: () => closedStore.get().map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closingIds };
+  return { close, forgetClosed, closedIds: () => closedStore.get().map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closedByPerson: closed.some((e) => e.byPerson) ? closed.filter((e) => e.byPerson).map((e) => e.panel) : null, closingIds };
 }

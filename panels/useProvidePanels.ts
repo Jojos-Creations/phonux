@@ -8,7 +8,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
-import type { CreatePanelOptions, JsonValue, PanelsAPI } from '../hostApi.js';
+import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
@@ -257,6 +257,8 @@ export interface ProvidedPanels extends PanelsAPI {
   setSlots(id: string, slots: number): void;
   /** The provider's one panel list, raw (not summarized): the row's input, never part of PanelsAPI. */
   readonly entries: readonly PanelWindow[];
+  /** The views in `recentlyClosed` the person closed (source `'person'`), oldest first; null when there are none. What the undo-close toast shows. */
+  readonly closedByPerson: readonly PanelSummary[] | null;
   /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
   readonly fixedViewCount: number;
   /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centering margin reads the same array the park capacity is priced from. */
@@ -950,11 +952,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   );
 
   /** `close` as a person's gesture and the manager's `close` verb both run it: the picture, then the close. True when the close was accepted. */
-  const closeNow = (id: string): boolean => {
+  const closeNow = (id: string, byPerson: boolean): boolean => {
     // A close the gate in usePanelClosing.ts will refuse (an unknown id or the root) takes no picture.
     const target = panels.find((p) => p.id === id);
     if (target && id !== rootId && asksForPicture('close')) capture.capture(panelKey(target));
-    return closing.close(id);
+    return closing.close(id, byPerson);
   };
 
   /** `fn` as a raw mutator: it takes a raw token on `ids`, never refuses, and does nothing on a panel a manager call holds. */
@@ -1061,7 +1063,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (gate.busy([engineId], 'close')) return busy(target);
       if (engineId === rootId || (source === 'person' && !effective(target).closable)) return refused('not-closable', `panel '${panelKey(target)}' cannot be closed`);
       const token = gate.take([engineId], 'close')!;
-      const changed = closeNow(engineId);
+      const changed = closeNow(engineId, source === 'person');
       gate.release(token);
       return accepted(changed);
     },
@@ -1288,8 +1290,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         },
       ),
     ),
-    close: named(raw((id: string) => [id], 'close', (id) => void closeNow(id))),
+    // A host called this for its own close control, so it counts as the person's.
+    close: named(raw((id: string) => [id], 'close', (id) => void closeNow(id, true))),
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
+    closedByPerson: closing.closedByPerson?.map(summarisePanel) ?? null,
     undoClose: raw(() => closing.closedIds(), 'other', closing.undoClose),
     // Drops every clearable panel: never History, a fixed column or an unclearable one. Its picture goes now, not at an
     // undo window: a dropped panel can never be shown again. The ids come from the updater's own list, because

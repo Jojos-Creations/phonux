@@ -431,6 +431,8 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     row: string;
     sizeName: (slots: number) => string;
+    undo: string;
+    undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;
     untitledPanel: string;
     viewSize: string;

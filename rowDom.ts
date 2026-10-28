@@ -47,6 +47,12 @@ export const WORKSPACE_CELL_ATTRIBUTE = 'data-workspace-cell';
 export const PANEL_ROOT_ATTRIBUTE = 'data-panel-root';
 
 /**
+ * On the workspace's undo-close toast, the notice with an Undo button that shows while `PanelsAPI.recentlyClosed` is non-null.
+ * @public
+ */
+export const UNDO_CLOSE_TOAST_ATTRIBUTE = 'data-undo-close-toast';
+
+/**
  * The engine id of the row slot that holds `target`, or null when it is not inside one.
  * @public
  */

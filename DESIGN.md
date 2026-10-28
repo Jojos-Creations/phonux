@@ -1864,6 +1864,15 @@ column: `fixedViewCount` is 0 beside it, and a root panel still counts 1.
 nothing and reports nothing. A closed panel whose key (`panelKey`: its `key`, else its id) is already in the row is
 skipped and its log id is not reported.
 
+### The undo-close toast
+
+Every mounted workspace draws one toast, open while the undo window holds a close the person made (a close with source
+`'person'`: the title-bar close, drag to close, or a host's own control passing it; the deprecated `PanelsAPI.close` counts
+too). Its Undo calls `undoClose`: the panel comes back at its old place, at its old size, with its view state. A close from
+code (a host tidying its row, a placement pushing a panel out) raises none, because the person did nothing to undo. Every
+app gets it without wiring, so there is one toast and no second way to build it. Its words are the `undoCloseMessage` and
+`undo` labels. It renders beside the row inside the `wrap`, at the snackbar band, bottom center.
+
 ### Motion
 
 The row's motion follows one set of intentions, so every change reads the same way whatever caused it:
@@ -1946,7 +1955,7 @@ So anything a view starts (audio, a web view, a socket) stops when its panel par
 `createWorkspace` keeps everything a workspace is outside React: the template registry, the declared panels, the options and the last committed list. `useProvidePanels({ workspace })` is its one consumer: it attaches in a layout effect that runs once, and it publishes the committed list and a few controls (`create`, `lateRegister`) in a layout effect that runs after every commit. Both are written after commit, never during render, so a handle read from an event handler sees what the screen shows.
 
 - **Intents, not calls.** `addPanel` before the row is ready records an intent; the restore replays the intents as declared panels when it settles, so a saved file and code agree on one list. After ready, the call goes straight to the controls the hook published. A first paint therefore never scrolls, and an `addPanel` after ready asks for the scroll of the panel's `scrollOnOpen`.
-- **A narrow surface.** Handles and the reader read through one internal source, and a verb reaches the engine through the controls the hook published, never through an export. A handle's members are fixed by a source test: the reader's handle has the read members only, the handle a view receives has those and every verb, and no export name may match `/controls/`. A view's handle has no manager, so it acts on its own panel only; to act on another it calls `useWorkspace()`, which gives the operable manager (`get(key)` returns a handle with the verbs) and `addPanel`, and none of the workspace's `dispose`, `update` or `rename`. Outside a row that has a workspace it is `undefined`. The reader `useWorkspaceManager()` stays read-only. The library draws no Undo toast after a close: a host that offers one reads `recentlyClosed` and calls `undoClose`.
+- **A narrow surface.** Handles and the reader read through one internal source, and a verb reaches the engine through the controls the hook published, never through an export. A handle's members are fixed by a source test: the reader's handle has the read members only, the handle a view receives has those and every verb, and no export name may match `/controls/`. A view's handle has no manager, so it acts on its own panel only; to act on another it calls `useWorkspace()`, which gives the operable manager (`get(key)` returns a handle with the verbs) and `addPanel`, and none of the workspace's `dispose`, `update` or `rename`. Outside a row that has a workspace it is `undefined`. The reader `useWorkspaceManager()` stays read-only. Every workspace draws its own Undo toast after a close (see "The undo-close toast"), so a host never builds one.
 - **Render-phase observation.** The core is told the list a render is about to draw (`observe`) so a handle read during the same render, before the layout effect publishes, answers from it instead of `pending`. Nothing is notified from there; the publish effect does that.
 - **Tombstones.** A declared `stay-closed` panel that leaves the list is added to the file's `dismissed`; a panel back in the list is removed. The restore skips a dismissed declared panel unless the template is no longer closable or no longer `stay-closed`, and then drops the tombstone and saves. The diff is on the list, so an unmount, which empties nothing, is never a mass close.
 - **Errors.** A storage whose `save` throws or rejects reaches `onError`, or `console.error` when it is unset; the row and the next save are unaffected.

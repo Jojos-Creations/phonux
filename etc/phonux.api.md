@@ -1182,6 +1182,8 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     row: string;
     sizeName: (slots: number) => string;
+    undo: string;
+    undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;
     untitledPanel: string;
     viewSize: string;
@@ -1222,6 +1224,7 @@ export interface PreviewOut {
 
 // @public
 export interface ProvidedPanels extends PanelsAPI {
+    readonly closedByPerson: readonly PanelSummary[] | null;
     readonly closingIds: ReadonlySet<string>;
     readonly enteringViaAnchorIds: ReadonlySet<string>;
     readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
@@ -1570,6 +1573,9 @@ export interface TileRequest {
 
 // @public
 export function toggleMaximize(target?: EventTarget | null): boolean;
+
+// @public
+export const UNDO_CLOSE_TOAST_ATTRIBUTE = "data-undo-close-toast";
 
 // @public
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void];

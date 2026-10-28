@@ -27,7 +27,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   hide(source?: 'code' | 'person'): PanelResult;
   /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
   toggleVisibility(source?: 'code' | 'person'): PanelResult;
-  /** Closes the panel completely; the undo window of the row applies. A call from code is not limited by `closable`, but the root is never closed; with source `'person'` a panel whose `closable` is false answers `not-closable`. */
+  /** Closes the panel completely; the undo window of the row applies. A call from code is not limited by `closable`, but the root is never closed; with source `'person'` a panel whose `closable` is false answers `not-closable`, and a close the workspace accepts shows its undo-close toast. */
   close(source?: 'code' | 'person'): PanelResult;
   /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
   open(source?: 'code' | 'person'): PanelResult;

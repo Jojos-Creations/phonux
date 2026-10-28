@@ -10,6 +10,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { AutoMountContext } from './autoMountContext.js';
 import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
+import { UndoCloseToast } from './undoCloseToast.js';
 import { createDefaultTheme, PhonuxThemeProvider, type PhonuxTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
@@ -151,6 +152,12 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
+  const shown = (
+    <>
+      {row}
+      <UndoCloseToast closed={provided.closedByPerson} onUndo={provided.undoClose} />
+    </>
+  );
   const rowValue = React.useMemo(
     (): WorkspaceRow => ({
       rowNumbers: provided.rowNumbers,
@@ -164,7 +171,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   );
   return (
     <HostProvider host={host}>
-      <WorkspaceRowContext.Provider value={rowValue}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</WorkspaceRowContext.Provider>
+      <WorkspaceRowContext.Provider value={rowValue}>{Wrap === undefined ? shown : <Wrap workspace={workspace}>{shown}</Wrap>}</WorkspaceRowContext.Provider>
     </HostProvider>
   );
 }
