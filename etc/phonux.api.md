@@ -1072,6 +1072,7 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
+    readonly touch?: boolean;
     readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 

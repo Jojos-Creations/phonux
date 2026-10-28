@@ -43,9 +43,10 @@ workspace.addPanel('notes');
 <!-- quickstart:end -->
 
 That is the whole app: `createWorkspace` renders itself into a full-window element, so there is no component to mount, no
-host to build and no width to track. A template takes two optional fields beyond `view`: `footer`, a component drawn at the
-bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), and `api`, the panel API level
-the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
+host to build and no width to track. A template takes three optional fields beyond `view`: `footer`, a component drawn at the
+bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), `touch: true`, which makes a mouse
+drag in the panel in use scroll its content as a finger does on a phone (see `DESIGN.md`, "A touch template"), and `api`, the
+panel API level the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
 drag to close, reorder). Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
 Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`

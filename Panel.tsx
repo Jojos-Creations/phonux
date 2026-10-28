@@ -21,6 +21,7 @@ import { PanelSizeControl, drawsSizeControl } from './panelSizeControl.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import { GRAB_HANDLE_PX } from './rowConstants.js';
+import { PanelTouchContext, usePanelTouch } from './panelTouch.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
@@ -104,6 +105,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   const untitled = headerButtons && declared !== undefined && title === undefined && buttons.some((b) => !b.hidden);
   const sized = sizeControl && title !== undefined && drawsSizeControl(slot);
   const active = usePanelActive();
+  const touchProps = usePanelTouch(rootRef, React.useContext(PanelTouchContext));
   const dragging = usePanelDragging();
   const { visible, handlers } = useChromeVisibility();
   const fadeHeader = useChromeFade(visible);
@@ -143,6 +145,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
       {...{ [PANEL_ROOT_ATTRIBUTE]: '' }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
+      {...touchProps}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
       onPointerEnter={(e: React.PointerEvent<HTMLDivElement>) => {
         handlers.onPointerEnter(e);

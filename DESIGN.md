@@ -660,6 +660,17 @@ the slot until the click, which is how a touch's late mouse events and click mis
 `embed`, `object`) inside a panel not in use takes no pointer, since a press inside one never reaches this document; a wheel
 over it scrolls nothing until the panel is in use. A keyboard focus is never swallowed.
 
+## A touch template
+
+`touch: true` on a template is for a panel built for a phone: on a desktop, while that panel is in use and the pointer is
+inside it, a mouse drag scrolls the content under it and coasts on release, the scrollbars are hidden and the cursor is a
+finger dot. It is declared on the template, not a setting, so every panel of that kind is handled one way and no layer
+changes it. Only the content scrolls: the drag never steps the row, which stays the wheel's, the keys' and a real finger's.
+The drag is taken after 4 px, under the 6 px every panel, tile and grab-bar drag waits for, and its moves stop at the window,
+so none of those drags starts; a press that does not move stays a click. A press on a panel not in use only puts it in use
+(see above), so touch begins with the next press. Option (Alt) held at the press, text fields and sliders keep the mouse.
+One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
