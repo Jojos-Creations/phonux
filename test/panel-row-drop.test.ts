@@ -6,6 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelRowDrop, useWorkspace } from '../index.js';
@@ -472,14 +473,14 @@ async function mountedScrolling(): Promise<MountedRow> {
 
 test('held in the right edge band the row scrolls and the hop count follows the scroll; held mid-window it stays', async () => {
   const m = await mountedScrolling();
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
   assert.equal(begin('s1'), true);
   await update(500);
   await frames(60);
-  assert.equal(m.container.scrollLeft, 0, 'the pointer is outside both bands');
+  assert.equal(rowOffsetOf(m.container), 0, 'the pointer is outside both bands');
   await update(WINDOW);
   await frames(60);
-  assert.ok(m.container.scrollLeft > 100, `the row scrolled: ${m.container.scrollLeft}`);
+  assert.ok(rowOffsetOf(m.container) > 100, `the row scrolled: ${rowOffsetOf(m.container)}`);
   assert.equal(m.scroller.claimHeld(), true, 'the drag holds the scroller');
   act(() => hook().cancel());
   assert.equal(m.scroller.claimHeld(), false, 'and gives it back');
@@ -489,11 +490,11 @@ test('held in the right edge band the row scrolls and the hop count follows the 
 test('held in the left edge band the row scrolls back', async () => {
   const m = await mountedScrolling();
   m.scroller.glideTo(1200, { durationSec: 0, instant: true, ease: 'linear' });
-  assert.equal(m.container.scrollLeft, 1200);
+  assert.equal(rowOffsetOf(m.container), 1200);
   begin('s5');
   await update(0);
   await frames(60);
-  assert.ok(m.container.scrollLeft < 1200 - 100, `the row scrolled left: ${m.container.scrollLeft}`);
+  assert.ok(rowOffsetOf(m.container) < 1200 - 100, `the row scrolled left: ${rowOffsetOf(m.container)}`);
   act(() => hook().cancel());
   await settle();
 });

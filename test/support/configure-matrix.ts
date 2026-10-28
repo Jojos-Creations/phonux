@@ -15,6 +15,7 @@ import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSe
 import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
 import { createFakeHost } from '../../fakeHost.js';
+import { rowOffsetOf } from './strip.js';
 import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js';
 import { FRAME_MS } from './jsdom-globals.js';
 import { flush, mountWorkspace, rowEntries, type MountedWorkspace } from './workspace-row.js';
@@ -522,10 +523,10 @@ export async function lift(x: number): Promise<void> {
 export const hold = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
 
 export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<number> {
-  const from = r.m.container.scrollLeft;
+  const from = rowOffsetOf(r.m.container);
   await pressAndMove(r, id, x);
   await hold(50);
-  const gained = r.m.container.scrollLeft - from;
+  const gained = rowOffsetOf(r.m.container) - from;
   await lift(x);
   return gained;
 }

@@ -7,6 +7,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { MotionConfig } from 'motion/react';
 import { act } from 'react';
@@ -212,7 +213,7 @@ async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Pr
         children: React.createElement('i'),
       } as never),
     );
-  const margin = (m: ReturnType<typeof mount>): number => Number.parseFloat((m.container.querySelector('[data-row-strip]') as HTMLElement).style.marginLeft);
+  const margin = (m: ReturnType<typeof mount>): number => stripMarginOf(m.container);
   const m = mount(at([], 1000));
   m.rerender(at([], 1200));
   act(() => mock.timers.tick(waitMs));

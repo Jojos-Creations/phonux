@@ -5,6 +5,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
@@ -410,10 +411,10 @@ async function scrolled(settings: Record<string, PanelSettings>, from: number, p
   const r = await freeRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], width: 1000, settings });
   prepare(r);
   await advanceFrames(900);
-  r.m!.container.scrollLeft = from;
+  setRowOffset(r.m!.container, from);
   const result = r.turn(() => run(r));
   await advanceFrames(900);
-  const out = { result: brief(result), left: r.m!.container.scrollLeft };
+  const out = { result: brief(result), left: rowOffsetOf(r.m!.container) };
   cleanup();
   return out;
 }

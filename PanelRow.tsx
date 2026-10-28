@@ -31,6 +31,7 @@ import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
 import { ROW_STRIP_ATTRIBUTE } from './rowDom.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { setHoldShift } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
@@ -115,22 +116,29 @@ function PanelHold({ sticky, spacer, lineLeft, lineWidth, width, children }: { s
     const container = box === null ? null : closestRowScroller(box);
     const strip = container?.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
     if (!held || box === null || container == null || strip == null) {
-      if (box !== null) box.style.transform = '';
+      if (box !== null) {
+        box.style.transform = '';
+        setHoldShift(box, 0);
+      }
       shift.current = 0;
       return undefined;
     }
     const scroller = rowScrollerFor(container);
     // Measured once per commit: where the box sits in the strip, which no move of the row changes. Every frame after is arithmetic.
     const inStrip = box.getBoundingClientRect().left - strip.getBoundingClientRect().left - shift.current;
-    const view = container.clientWidth;
+    // A sticky box keeps its insets inside the container's padding, so they count from the content box's edges.
+    const pad = getComputedStyle(container);
+    const padLeft = Number.parseFloat(pad.paddingLeft) || 0;
+    const contentRight = container.clientWidth - (Number.parseFloat(pad.paddingRight) || 0);
     const place = (): void => {
       const x = strip.offsetLeft + scroller.stripX() + inStrip;
       let to = x;
-      if (sticky.right !== undefined) to = Math.min(to, view - sticky.right - width);
-      if (sticky.left !== undefined) to = Math.max(to, sticky.left);
+      if (sticky.right !== undefined) to = Math.min(to, contentRight - sticky.right - width);
+      if (sticky.left !== undefined) to = Math.max(to, padLeft + sticky.left);
       const lineStart = x - spacer;
       to = Math.min(Math.max(to, lineStart), lineStart + lineWidth - width);
       shift.current = to - x;
+      setHoldShift(box, shift.current);
       box.style.transform = shift.current === 0 ? '' : `translateX(${shift.current}px)`;
     };
     place();
@@ -139,7 +147,13 @@ function PanelHold({ sticky, spacer, lineLeft, lineWidth, width, children }: { s
   return (
     <Box data-row-hold-line="" style={held ? { display: 'flex', height: 0, width: lineWidth, marginLeft: `${lineLeft}px`, flexShrink: 0 } : { display: 'contents' }}>
       <Box style={held ? { width: spacer, flexShrink: 0 } : { display: 'none' }} />
-      <Box ref={boxRef} data-row-hold="" style={held ? { position: 'relative', flexShrink: 0, height: 0, width, zIndex: ROW_LAYER_Z.DRAGGED } : { display: 'contents' }}>
+      <Box
+        ref={boxRef}
+        data-row-hold=""
+        data-hold-left={held && sticky.left !== undefined ? `${sticky.left}px` : undefined}
+        data-hold-right={held && sticky.right !== undefined ? `${sticky.right}px` : undefined}
+        style={held ? { position: 'relative', flexShrink: 0, height: 0, width, zIndex: ROW_LAYER_Z.DRAGGED } : { display: 'contents' }}
+      >
         {children}
       </Box>
     </Box>

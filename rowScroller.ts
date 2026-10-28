@@ -115,6 +115,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let deferred: (() => void) | null = null;
   let offset = 0;
   let margin = 0;
+  let marginSet = false;
   let glide: Glide | null = null;
   let marginGlide: Glide | null = null;
   let frame: number | null = null;
@@ -237,10 +238,12 @@ function createRowScroller(el: HTMLElement): RowScroller {
     setMargin(left, o) {
       const now = performance.now();
       const target = marginGlide === null ? margin : marginGlide.to;
-      if (target === left && (marginGlide !== null || strip()?.style.transform !== '')) return;
+      if (marginSet && target === left) return;
       if (glide !== null) offset = at(glide, now);
       margin = marginGlide === null ? margin : at(marginGlide, now);
-      marginGlide = o.instant || o.durationSec <= 0 ? null : glideOf(margin, left, now, o);
+      // The first margin is where the row is drawn from, not a move.
+      marginGlide = !marginSet || o.instant || o.durationSec <= 0 ? null : glideOf(margin, left, now, o);
+      marginSet = true;
       if (marginGlide === null) margin = left;
       draw(now);
       run();

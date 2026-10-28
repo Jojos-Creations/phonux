@@ -138,8 +138,8 @@ test('the auto-mounted workspace renders the same DOM as the hand-wired one, scr
   const html = (el: HTMLElement): string => (el === autoTarget ? (el.firstElementChild as HTMLElement).innerHTML : el.innerHTML).replace(/(Dnd(?:DescribedBy|LiveRegion))-\d+/g, '$1-N');
   const scroller = autoTarget.querySelector<HTMLElement>('[data-row-scroller]')!;
   assert.equal(getComputedStyle(scroller).overflowX, 'hidden', 'a stepping row moves by steps, so the browser has nothing to scroll');
-  // Only an overflowing row draws the end element that holds its scroll range.
-  assert.ok(scroller.querySelector('[data-row-end-pad]') !== null, 'control: at 700 wide the five panels overflow the row');
+  const lastSlot = [...scroller.querySelectorAll<HTMLElement>('[data-row-slot]')].at(-1)!;
+  assert.ok(Number(lastSlot.dataset.rowSlot) + 390 > 700, 'control: at 700 wide the five panels overflow the row');
   assert.equal(html(autoTarget), html(handTarget), 'the rows render the same DOM at 700 wide');
   await act(async () => void auto.panels.get('b')!.close());
   await act(async () => void hand.panels.get('b')!.close());
@@ -326,7 +326,7 @@ test('under StrictMode the mount subscribes once per element and disposes every 
   await act(async () => root.render(React.createElement(React.StrictMode, null, React.createElement(AutoRoot, { workspace: ws }))));
   await until('the row', () => slots(target).length === 2);
   const live = [...observers].filter((o) => o.targets.size > 0);
-  assert.equal(live.length, 3, 'the mount, its phone fit and Workspace each hold one live observer, the first run of each effect having been cleaned up');
+  assert.equal(live.length, 2, 'the mount and its phone fit each hold one live observer, the first run of each effect having been cleaned up');
   for (const o of live) assert.equal([...o.targets][0], target.querySelector('[data-row-scroller]'));
   await act(async () => root.unmount());
   assert.equal(observers.size, 0, 'no observer outlives the mount');
