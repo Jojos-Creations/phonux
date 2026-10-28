@@ -437,6 +437,7 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 // @public
 export interface Host {
     readonly device: PhoneDeviceAPI;
+    readonly icons?: Partial<PhonuxIcons>;
     readonly labels?: Partial<PhonuxLabels>;
     readonly panels: PanelsAPI;
     readonly snapshots?: SnapshotsAPI;
@@ -1164,6 +1165,14 @@ export interface PhoneSize {
 }
 
 // @public
+export interface PhonuxIcons {
+    fullscreen: React_2.ReactNode;
+    grab: React_2.ReactNode;
+    noActions: React_2.ReactNode;
+    size: (slots: number) => React_2.ReactNode;
+}
+
+// @public
 export interface PhonuxLabels {
     cannotMove: (title: string, steps: number) => string;
     close: string;
@@ -1831,6 +1840,7 @@ export type WorkspaceLive = {
     device?: PhoneDeviceAPI;
     snapshots?: SnapshotsAPI;
     labels?: Partial<PhonuxLabels>;
+    icons?: Partial<PhonuxIcons>;
     topInset?: number;
     panels?: WorkspacePanelsInput;
 };

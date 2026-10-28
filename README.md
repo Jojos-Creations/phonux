@@ -11,7 +11,7 @@ While 0.2 is a release candidate, install the `next` tag, together with the peer
 
 ```sh
 npm install phonux@next
-npm install react react-dom @mui/material @mui/icons-material @emotion/react @emotion/styled motion
+npm install react react-dom @mui/material @emotion/react @emotion/styled motion
 ```
 
 `@dnd-kit/core` is a dependency of phonux, not a peer: npm installs it for you. The package also ships `DESIGN.md`, which explains
