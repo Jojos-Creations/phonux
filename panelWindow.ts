@@ -10,6 +10,7 @@ import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import { HOP_FRACTION } from './rowConstants.js';
+import { waitsLeft } from './rowDots.js';
 
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
@@ -217,31 +218,21 @@ export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'ri
   return ownIndex < firstOtherLiveIndex ? 'left' : 'right';
 }
 
-/** The row-slot index of the LEFTMOST (lowest-index) live collapsible panel, or -1 if none are live. @internal */
-export function leftmostLiveIndex(panels: PanelWindow[]): number {
-  for (let i = 0; i < panels.length; i++) if (panels[i]!.collapsible && panels[i]!.live) return i;
-  return -1;
-}
-
-/** The row-slot index of the RIGHTMOST (highest-index) live collapsible panel, or -1 if none are live. @internal */
-export function rightmostLiveIndex(panels: PanelWindow[]): number {
-  let found = -1;
-  panels.forEach((p, i) => {
-    if (p.collapsible && p.live) found = i;
-  });
-  return found;
-}
-
-/** The first PARKED collapsible panel strictly after `index` -- a rightward gesture's own "next one to bring in", or null with nothing parked on that side. @internal */
-export function firstParkedAfter(panels: PanelWindow[], index: number): PanelWindow | null {
-  for (let i = index + 1; i < panels.length; i++) if (panels[i]!.collapsible && !panels[i]!.live) return panels[i]!;
-  return null;
-}
-
-/** The last PARKED collapsible panel strictly before `index` -- a leftward gesture's own "next one to bring in", or null with nothing parked on that side. @internal */
-export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWindow | null {
-  for (let i = index - 1; i >= 0; i--) if (panels[i]!.collapsible && !panels[i]!.live) return panels[i]!;
-  return null;
+/**
+ * The parked panel a step toward `direction` brings in, or null: of the parked panels the dot bar shows on that side, the one
+ * nearest the drawn ones. A panel parked between two drawn ones counts on the side nearer its place in the row, as its dot does, so
+ * every dot is reachable. One whose `revealOnScroll` is 'never' has no dot and is passed over.
+ * @internal
+ */
+export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {
+  const drawn = panels.filter(isPresent).length;
+  let before = 0;
+  const side: PanelWindow[] = [];
+  for (const p of panels) {
+    if (isPresent(p)) before += 1;
+    else if (p.marker !== true && effective(p).revealOnScroll !== 'never' && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+  }
+  return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
 }
 
 /**
@@ -286,7 +277,7 @@ export function closePanel(panels: PanelWindow[], id: string, rootId: string): {
 /**
  * Moves `id` one PRESENT slot (`isPresent`, PanelRow's filter) toward `direction`, past
  * whichever present panel sits there, the root included; a parked panel between the two shifts one array slot,
- * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
+ * keeping parkedToReveal/sideOfLiveRange meaningful. Every anchor is then re-read from the
  * new order. The SAME array for every no-op: unknown id, a parked panel, one already at that edge, or any array slot from the source to the target
  * (parked ones included) holding an entry whose `crossable` setting is false.
  * @internal
