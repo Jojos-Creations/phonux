@@ -37,6 +37,10 @@
     "./testing/row": {
       "types": "./testingRow.d.ts",
       "import": "./testingRow.js"
+    },
+    "./sync": {
+      "types": "./sync.d.ts",
+      "import": "./sync.js"
     }
   }
 }
