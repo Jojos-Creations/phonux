@@ -2,7 +2,7 @@
 
 A phone-shaped view host for React: write each view as a component, give phonux a template for it, and it lays the panels
 out in a row of phone-sized columns that steps one phone width at a time, each panel with a header, a width control and a grab
-bar (drag sideways to reorder, down to close; a touch never drags it). A view never touches `localStorage` or anything else
+bar (drag sideways to reorder; a touch never drags it). A view never touches `localStorage` or anything else
 app-internal (see `DESIGN.md` in this folder for why).
 
 ## Install
@@ -43,12 +43,13 @@ workspace.addPanel('notes');
 <!-- quickstart:end -->
 
 That is the whole app: `createWorkspace` renders itself into a full-window element, so there is no component to mount, no
-host to build and no width to track. A template takes three optional fields beyond `view`: `footer`, a component drawn at the
+host to build and no width to track. A template takes four optional fields beyond `view`: `footer`, a component drawn at the
 bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), `touch: true`, which makes a mouse
 drag in the panel in use scroll its content as a finger does on a phone (`touch: 'content'` keeps the header and footer
-to the mouse; see `DESIGN.md`, "A touch template"), and `api`, the
+to the mouse; see `DESIGN.md`, "A touch template"), `verticalDrag: true`, which lets a person drag the grab bar down to
+close the panel (off by default, so the grab bar only reorders), and `api`, the
 panel API level the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
-drag to close, reorder). Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
+drag sideways to reorder). Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
 Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
 component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme; each field is also a CSS custom property, such as `--phonux-primary`, that a stylesheet rule overrides), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
@@ -204,7 +205,7 @@ jsdom window and the clock, and `jsdom` is an optional peer dependency):
 import { renderWorkspace } from 'phonux/testing/row';
 import { createWorkspace, definePanel } from 'phonux';
 
-const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes })] });
+const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes, verticalDrag: true })] });
 workspace.addPanel('notes');
 const row = await renderWorkspace(workspace, { width: 1200 });
 await row.drag(row.panel('notes')!.grabBar!, { dx: 0, dy: 120 }); // closes the panel

@@ -241,14 +241,27 @@ test('at two slots the library frame is as wide as its slot', async () => {
 // Gestures through the library frame
 // ---------------------------------------------------------------------------
 
-test('a real pointer drag down on the grab bar closes a bare panel', async () => {
-  const r = await rig([bareTemplate('bare')], ['bare']);
+test('a real pointer drag down on the grab bar closes a bare panel whose template sets verticalDrag', async () => {
+  const r = await rig([bareTemplate('bare', { verticalDrag: true })], ['bare']);
   await settle();
   const grab = r.m.container.querySelector<HTMLElement>('[data-body="bare"]')!.closest('[data-row-slot]')!.querySelector<HTMLElement>('[data-panel-grab-bar]')!;
   await drag(grab, { dx: 0, dy: 400 });
   await settle();
   await advanceFrames(2000);
   assert.equal(r.m.container.querySelector('[data-body="bare"]') === null, true, 'the panel closed');
+});
+
+test('without verticalDrag the same drag down neither moves a bare panel nor closes it', async () => {
+  const r = await rig([bareTemplate('bare')], ['bare']);
+  await settle();
+  const slot = r.m.container.querySelector<HTMLElement>('[data-body="bare"]')!.closest<HTMLElement>('[data-row-slot]')!;
+  const box = slot.querySelector<HTMLElement>('[data-drag-to-close]')!;
+  await drag(slot.querySelector<HTMLElement>('[data-panel-grab-bar]')!, { dx: 0, dy: 400, keepDown: true });
+  assert.doesNotMatch(box.style.transform, /translateY\((?!0px)/, 'the box does not follow the pointer down');
+  await release(0, 400);
+  await settle();
+  await advanceFrames(2000);
+  assert.equal(r.m.container.querySelector('[data-body="bare"]') === null, false, 'the panel stays open');
 });
 
 /** Panels in the order they are drawn: the DOM keeps the order they opened, so position comes from the slot's offset. */
@@ -294,7 +307,7 @@ async function assertNoCloseHandle(r: Rig, id: string): Promise<void> {
 }
 
 test('a panel whose closable setting is false is framed with no grab bar and no drag-to-close, and a closable one beside it still closes', async () => {
-  const r = await rig([bareTemplate('fixed', { settings: { title: 'FIXED', multiple: true, closable: false } }), bareTemplate('plain')], ['fixed', 'plain']);
+  const r = await rig([bareTemplate('fixed', { settings: { title: 'FIXED', multiple: true, closable: false }, verticalDrag: true }), bareTemplate('plain', { verticalDrag: true })], ['fixed', 'plain']);
   await settle();
   await assertNoCloseHandle(r, 'fixed');
   await drag(grabOf(r, 'plain')!, { dx: 0, dy: 400 });
@@ -310,8 +323,8 @@ test('a permanent panel, one that is not parkable, gets no drag-to-close either'
   assert.equal(grabOf(r, 'plain') !== null, true, 'control: the ordinary panel has its grab bar');
 });
 
-test('a panel whose movable setting is false keeps the drag-down close but is not moved by a sideways drag', async () => {
-  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, movable: false } }), bareTemplate('two')], ['one', 'two']);
+test('a panel whose movable setting is false keeps the verticalDrag close but is not moved by a sideways drag', async () => {
+  const r = await rig([bareTemplate('one', { settings: { title: 'ONE', multiple: true, movable: false }, verticalDrag: true }), bareTemplate('two', { verticalDrag: true })], ['one', 'two']);
   await settle();
   assert.deepEqual(bodyOrder(r), ['one', 'two']);
   assert.equal(grabOf(r, 'one') !== null, true, 'the grab bar is still drawn');

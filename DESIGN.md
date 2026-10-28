@@ -673,6 +673,16 @@ so none of those drags starts; a press that does not move stays a click. A press
 click; `touch: 'content'` takes only the panel's frames, and the header, grab bar and footer keep the mouse's cursor and
 drags. One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
 
+## Vertical drag is a template option, off by default
+
+In a row a grab bar drags only sideways, to reorder. `verticalDrag: true` on a template gives its panels' grab bars the
+up-and-down drag as well: the drag-down close that `tuning.dragToClose` judges and, for a `DragToClose` given `previewOut`, the
+lifted tile. Off, a drag the direction lock would read as vertical moves the box sideways only when it can reorder and not at
+all when it cannot, and its release never closes; Delete on the grab bar and the header's close button still close. It is
+declared on the template, like `touch`, so every panel of that kind handles the grab bar one way. The templateView provides it
+as `PanelVerticalDragContext`, which `DragToClose` reads; a row slot with no template above it (a permanent column, a slot
+built by hand) has it off. Outside a row `DragToClose` always drags vertically, since there it is only a drag-down box.
+
 ## `params` is opaque and JSON-serializable by construction
 
 `PanelSummary.params`/`PanelsAPI.create({ params })` carry per-component data the registry and the row never
@@ -1264,7 +1274,7 @@ line snaps back. Its render prop hands out a handle for `Panel`'s `grabProps`:
 ```
 
 The handle is the grab bar and nothing else, so the body keeps its own scrolling and clicks. The box follows
-the pointer vertically, up and down. On release `shouldCloseOnRelease` decides: close (the box leaves
+the pointer vertically, up and down; in a row only for a template with `verticalDrag: true` (see "Vertical drag is a template option, off by default"). On release `shouldCloseOnRelease` decides: close (the box leaves
 downward, then the latest `onClose` runs) or snap back on a spring. `@dnd-kit/core`'s pointer sensor, one
 `DndContext` per box with its auto-scroll off, decides when a press becomes a drag and when it ends or is cancelled,
 with its events on `document`, so a drag survives leaving the handle; Motion draws the box and runs the springs.
@@ -1622,7 +1632,7 @@ Read by a verb or a view patch: `parkable`, `slots`, `maxSlots`, `movable`, `cro
 
 ### The capability flags limit a person's gestures
 
-`closable`, `movable` and `resizable` say what a person may do by gesture: the drag-down close and the close button,
+`closable`, `movable` and `resizable` say what a person may do by gesture: the drag-down close (under `verticalDrag`) and the close button,
 the reorder drag and a drop at a placement, the resize grabbers. They never limit the developer's own calls. Every
 engine operation knows its source (`'person'` from a gesture, `'code'` otherwise, see `PanelOpSource`) and checks the
 flag only for `'person'`, answering `not-closable`, `not-movable` or `not-resizable`; `close()`, `move()`, `place()`
@@ -1784,7 +1794,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.rowGap` | integer px 0 to 200 (workspace only) | 16 (GAP) | NOW (configureTuning only). The whole row re-prices at this commit; in park mode a smaller capacity parks the fewest park panels through the reconcile effect; a scrolling row only re-prices and clamps scrollLeft. Slides in progress retarget. Unmeasured: stored. Busy while any panel has a token. Outside 0-200 throws. |
 | `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; taken as given, so a value under 40 px (a panel header and its gap) can push headers off the top of the screen. Null keeps the default room, never less than 40 px. Outside 0-400 throws. |
 | `tuning.phoneHeight` | 'fit', 'auto' (workspace only) | 'fit' | NOW (configureTuning only). Under `phoneFit: 'fit'`, 'auto' makes the frame as tall as the row's room and the width still fits. Other values throw. |
-| `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only) | 0.25, 80, 40, 700, -300 (DRAG_CLOSE) | NEXT (configureTuning only). Read at the next release; a drag in flight is judged by the values current at release. Leaves merge. The direction lock, rest time, velocity window and snap-back spring are constants in rowConstants.ts. |
+| `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only) | 0.25, 80, 40, 700, -300 (DRAG_CLOSE) | NEXT (configureTuning only). Judges only panels whose template sets `verticalDrag: true`. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge. The direction lock, rest time, velocity window and snap-back spring are constants in rowConstants.ts. |
 | `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers) (workspace only) | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT (configureTuning only). Read at the next enter, exit, close or scroll; animations running keep their timing. The edge-scroll drag settle and a header dot click glide along `glideEase`. |
 | `tuning.hopFraction` | number in (0, 1] (workspace only) | 0.5 | NEXT (configureTuning only). Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
 | `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000] (workspace only) | 48, 900, 500 (the numbers live in rowConstants.ts) | NEXT (configureTuning only). Read at the next drag start; a drag in flight keeps its numbers. Leaves merge. |
@@ -2040,7 +2050,7 @@ snaps the row's margin and a panel resize glides it, as the app's own shell did.
 ## The default frame
 
 A template's view that draws no `Panel` and no `PanelFrame` is drawn inside the library's frame: the header with the panel's
-title (`labels.untitledPanel` when it has none), the grab bar of the drag-down close and the reorder drag, the phone frame and the
+title (`labels.untitledPanel` when it has none), the grab bar of the reorder drag (and of the drag-down close under `verticalDrag`), the phone frame and the
 template's footer, built from the exported `Panel`, `PanelFrame` and `DragToClose` and sized by the panel's slots like any other
 panel. A view that draws any part of a frame itself is left exactly as it was. There is no opt-out setting.
 
@@ -2057,7 +2067,7 @@ whether the `Panel` renders belongs outside the view. React.lazy resolves from i
 Under StrictMode the claim is made and given back by the same effect pair, so the verdict is the same. A panel that parks and
 returns keeps the verdict; it is not probed again.
 
-**Who gets the grab bar.** The frame follows `PanelRow`'s own rule: a panel that cannot be closed (`closable: false`, or not parkable) gets the header and the phone frame but no grab bar and no `DragToClose`, and a panel that cannot be moved (`movable: false`) keeps the grab bar and the drag-down close but not the reorder. The grab bar carries both gestures, so a panel with `closable: false` and `movable: true` has no reorder handle in the default frame, and the root has none even when its `movable` is on: a root view that wants to be dragged draws its own `Panel`, gives `grabProps` the `DragToClose` handle and spreads `usePanelDragProps()` onto `DragToClose`, which gives it the reorder and the Arrow keys and no close.
+**Who gets the grab bar.** The frame follows `PanelRow`'s own rule: a panel that cannot be closed (`closable: false`, or not parkable) gets the header and the phone frame but no grab bar and no `DragToClose`, and a panel that cannot be moved (`movable: false`) keeps the grab bar but not the reorder, so its grab bar drags only under `verticalDrag`. The grab bar carries both gestures, so a panel with `closable: false` and `movable: true` has no reorder handle in the default frame, and the root has none even when its `movable` is on: a root view that wants to be dragged draws its own `Panel`, gives `grabProps` the `DragToClose` handle and spreads `usePanelDragProps()` onto `DragToClose`, which gives it the reorder and the Arrow keys and no close.
 
 **Rejected.** (a) An outer frame that every view sits in, with the inner `Panel` hiding itself when it finds one: a `Panel` the view
 configures (`grabProps`, `overlay`, `headerProps`, `sx`, its rest props) would have to hand every one of those up to the outer

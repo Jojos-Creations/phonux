@@ -13,7 +13,7 @@ import { act } from 'react';
 import { DragToClose, usePanelReorderSteps } from '../index.js';
 import type { DragHandleProps, PanelSettings } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from '../panelSettings.js';
-import { PanelSlotContext, type DragScroll, type PanelSlotValue } from '../panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type DragScroll, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
 import { edgeScrollStep } from '../edgeScroll.js';
 import { rowScrollerFor } from '../rowScroller.js';
@@ -34,7 +34,8 @@ const closes: string[] = [];
 let lastHandle: DragHandleProps | undefined;
 function CancelBox({ id }: { id: string }): React.ReactElement {
   const steps = usePanelReorderSteps();
-  return React.createElement(DragToClose, {
+  // The close tests below drag down, which a row allows only under a template's verticalDrag.
+  const box = React.createElement(DragToClose, {
     onClose: () => void closes.push(id),
     reorder: { onDragEnd: (offset: number) => void ends.push({ id, offset, hops: steps(offset) }) },
     children: (handle) => {
@@ -42,6 +43,7 @@ function CancelBox({ id }: { id: string }): React.ReactElement {
       return React.createElement('div', { 'data-handle': id, onPointerDown: handle.onPointerDown }, 'grab');
     },
   });
+  return React.createElement(PanelVerticalDragContext.Provider, { value: true, children: box });
 }
 registerTestView('cancel-view', ({ panel }) => React.createElement(CancelBox, { id: panel.id }));
 

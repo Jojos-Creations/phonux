@@ -94,3 +94,6 @@ export interface PanelSlotValue {
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);
+
+/** True under a template declared with `verticalDrag: true`; a grab bar in a row drags up and down only then. */
+export const PanelVerticalDragContext = React.createContext(false);
