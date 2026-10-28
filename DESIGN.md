@@ -650,7 +650,7 @@ after the tuning is turned off, so no panel is left at one phone.
 ## The first press only puts a panel in use
 
 A pointer press on a panel that is not in use puts it in use and does nothing else: the control under it gets no mousedown
-and no click, a link is not followed, and keyboard focus moves to the panel itself. The next press reaches the content. A
+and no click, a link is not followed, and keyboard focus leaves the panel that was in use. The next press reaches the content. A
 press on a button or grab bar of the panel's own header or footer acts at once, as it does for a resting wide panel. The
 pointerdown itself still bubbles, because the row, the window and a host read it to learn where a press landed; only a
 handler that acts on pointerdown inside the content sees the first press. The release lands on a transparent cover laid over

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { focusPanelIn } from './rowDom.js';
+import { ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** Marks the cover a first press puts over its panel until the press is over. */
 export const PRESS_COVER_ATTRIBUTE = 'data-panel-press-cover';
@@ -37,7 +37,7 @@ export function swallowFirstPress(slot: HTMLElement, event: PointerEvent): void 
   };
   const onUp = (e: PointerEvent): void => {
     if (e.pointerId !== event.pointerId) return;
-    view.clearTimeout(timer);
+    unwatch();
     timer = view.setTimeout(done, COVER_LINGER_MS);
   };
   const onCancel = (e: PointerEvent): void => {
@@ -48,6 +48,9 @@ export function swallowFirstPress(slot: HTMLElement, event: PointerEvent): void 
     cover.remove();
     slot.removeEventListener('mousedown', onMouseDown, true);
     slot.removeEventListener('click', onClick, true);
+    unwatch();
+  }
+  function unwatch(): void {
     view.removeEventListener('pointerup', onUp, true);
     view.removeEventListener('pointercancel', onCancel, true);
   }
@@ -55,8 +58,9 @@ export function swallowFirstPress(slot: HTMLElement, event: PointerEvent): void 
   slot.addEventListener('click', onClick, true);
   view.addEventListener('pointerup', onUp, true);
   view.addEventListener('pointercancel', onCancel, true);
-  // Keystrokes follow the panel now in use, as they would had the press focused something inside it.
-  focusPanelIn(slot);
+  // Keystrokes stop reaching the panel that was in use, as they would had the press focused something in this one.
+  const focused = doc.activeElement;
+  if (focused instanceof HTMLElement && !slot.contains(focused) && focused.closest(`[${ROW_SLOT_ATTRIBUTE}]`) !== null) focused.blur();
 }
 
 const FRAMES = 'iframe,frame,embed,object';
