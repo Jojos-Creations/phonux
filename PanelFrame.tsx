@@ -37,11 +37,15 @@ export interface PanelFrameProps extends Omit<ElementProps, 'children'> {
 export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
-/** That radius in px for `theme`. @public */
-export const panelCornerRadiusPx = (theme: PhonuxTheme): number => PANEL_CORNER_RADIUS_UNITS * theme.radiusUnitPx;
+/** The panel corner radius in px for `theme`: its `radius`. @public */
+export const panelCornerRadiusPx = (theme: PhonuxTheme): number => theme.radius;
 
-// The same radius read off the styling theme the frame's own sx callbacks receive.
-const radiusOf = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
+// The same radius read off the styling theme the frame's own sx callbacks receive: px units from an app's own theme, a
+// `var(--phonux-radius)` expression from the mount's.
+const radiusOf = (theme: Theme): string => {
+  const unit = theme.shape.borderRadius;
+  return typeof unit === 'number' ? `${PANEL_CORNER_RADIUS_UNITS * unit}px` : `calc(${PANEL_CORNER_RADIUS_UNITS} * ${unit})`;
+};
 
 // One width for the padding and the inset shadow, so the content box begins exactly where the ring ends.
 const EDGE_PX = 1;
@@ -83,7 +87,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
         // The edge is an inset shadow inside padding of the same width, so it draws over nothing the content lays out.
         p: `${EDGE_PX}px`,
         boxShadow: (theme: Theme) => `inset 0 0 0 ${EDGE_PX}px ${theme.palette.divider}`,
-        borderRadius: (theme: Theme) => `${radiusOf(theme)}px`,
+        borderRadius: radiusOf,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',

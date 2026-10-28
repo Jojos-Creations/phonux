@@ -60,7 +60,7 @@ test('a row gap wider than the footer room is the reserve', async () => {
 });
 
 test('a mount theme with another corner radius: the reserve is 40 for the fit and the scroller padding alike', async () => {
-  const theme = { ...createDefaultTheme('light'), radiusUnitPx: 6 };
+  const theme = { ...createDefaultTheme('light'), radius: 24 };
   await autoMounted({ theme });
   assert.equal(padBottom(), 40);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 40, 'the fit reserve is the padding');

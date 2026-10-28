@@ -1187,12 +1187,12 @@ export interface PhonuxLabels {
 // @public
 export interface PhonuxTheme {
     readonly background: string;
-    readonly divider: string;
+    readonly border: string;
+    readonly card: string;
+    readonly foreground: string;
     readonly mode: 'light' | 'dark';
-    readonly paper: string;
     readonly primary: string;
-    readonly radiusUnitPx: number;
-    readonly text: string;
+    readonly radius: number;
 }
 
 // @public
