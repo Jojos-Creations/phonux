@@ -577,6 +577,8 @@ slots, so `n` slots are `n x phone + (n - 1) x gap` wide and every edge lands on
 `min(slots, maxSlots, fit)`, where `fit = floor((maxLive + gap) / (phone + gap))` and `maxLive` is the window (the
 container less one gap each side) or, in a parking row, what is left beside the fixed columns. The choice (`slots`) is
 never rewritten to the drawn count, so a window that grows gives the width back. A panel keeps the phone height at any slot count.
+A panel's frame is never shrunk to fit; extra chrome (headers, tabs, footers) grows the panel's total height instead, and the
+host reserves that room in the page around the row.
 The slot-out motion of a closing panel drops by the row height. The root keeps its own size and is centered like the rest.
 Unmeasured widths use `UNMEASURED_SLOTS` (3).
 
