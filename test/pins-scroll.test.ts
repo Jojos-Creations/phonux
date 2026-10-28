@@ -51,7 +51,7 @@ function provide(entries: PanelWindow[], width: number) {
   return { container, live: () => liveIds(latest!.entries), wheel, key };
 }
 
-test('PIN with [A, B parked, C] and A, C live, scrollRow in both directions reveals nothing and sets no state', () => {
+test('PIN with [A, B parked, C] and A, C live, B waits on the side nearer its place: left sets nothing, right brings B in and parks A', () => {
   let manager: UsePanelManagerResult | undefined;
   let panelsNow: PanelWindow[] = [];
   function Probe(): React.ReactElement {
@@ -62,10 +62,30 @@ test('PIN with [A, B parked, C] and A, C live, scrollRow in both directions reve
   }
   mount(React.createElement(Probe));
   const before = panelsNow;
-  act(() => manager!.scrollRow('right'));
   act(() => manager!.scrollRow('left'));
-  assert.equal(panelsNow, before, 'the same array: nothing was set');
-  assert.deepEqual(liveIds(panelsNow), ['a', 'c']);
+  assert.equal(panelsNow, before, 'two drawn panels before B and one after: B waits on the right, so left sets nothing');
+  act(() => manager!.scrollRow('right'));
+  assert.deepEqual(liveIds(panelsNow), ['b', 'c'], 'the live range stays one run');
+});
+
+test('a run parked inside the live range, as rapid opens leave it, is reached one panel per step from its side', () => {
+  const p = provide(row(rootEntry(), park('a'), park('b', { live: false }), park('c', { live: false }), park('d', { live: false }), park('e'), park('f')), W(3));
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    assert.deepEqual(p.live(), ['a', 'e', 'f']);
+    const seen: string[][] = [];
+    for (let k = 0; k < 4; k += 1) {
+      p.key('ArrowLeft');
+      act(() => {
+        mock.timers.tick(5000);
+        frameClock.skip(5000);
+      });
+      seen.push(p.live());
+    }
+    assert.deepEqual(seen, [['a', 'd', 'e'], ['a', 'c', 'd'], ['a', 'b', 'c'], ['a', 'b', 'c']], 'd, c, then b come in, each parking the far right panel, until none is left');
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: A parks, the next parked returns, and a same-direction step waits 30 ms after the last', () => {
