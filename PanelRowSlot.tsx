@@ -575,7 +575,7 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
   );
   // Laid out at the landing size once; the glide is drawn by a transform or a clip, which the browser composites.
   return (
-    <div ref={box} data-panel-size-box="" style={{ width, height, transformOrigin: '0 0' }}>
+    <div ref={box} data-panel-size-box="" style={{ width, height }}>
       <SizeBoxContext.Provider value>
         <SizeGlideContext.Provider value={glide}>{content}</SizeGlideContext.Provider>
       </SizeBoxContext.Provider>
@@ -625,7 +625,7 @@ function runSizeGlide(
   const last = sizeFrame(kind, to, to, heightEases);
   if (typeof node.animate === 'function') {
     // A Web Animation, not a style written each frame: it leaves no style behind when it ends or is cancelled.
-    const animation = node.animate({ [property]: [first, last] }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})` });
+    const animation = node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})` });
     animation.startTime = startTime;
     animation.onfinish = onLand;
     return {
@@ -642,6 +642,7 @@ function runSizeGlide(
   let shown = 0;
   const draw = (p: number): void => {
     shown = p;
+    if (kind === 'scale') node.style.transformOrigin = p >= 1 ? '' : '0 0';
     node.style[property] = p >= 1 ? '' : sizeFrame(kind, shownSize({ from, to, progress: () => p, stop: () => undefined }), to, heightEases);
   };
   draw(0);
@@ -656,6 +657,7 @@ function runSizeGlide(
     stop: () => {
       controls.stop();
       node.style[property] = '';
+      node.style.transformOrigin = '';
     },
   };
 }

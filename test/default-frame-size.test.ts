@@ -53,7 +53,7 @@ test('a bare view is drawn inside one size box that holds the header, the grab b
   const box = boxOf(r.m, 'bare');
   for (const part of ['[data-panel-chrome-part="header"]', '[data-panel-grab-bar]', '[data-phone-frame]']) assert.ok(box.querySelector(part), `${part} is inside the box, so it eases with the box`);
   assert.equal(box.style.transform, '', 'at rest the box is drawn at its own size, unscaled');
-  assert.equal(box.style.transformOrigin, '0 0', 'a glide scales it about its top left, as the slot grows from its left edge');
+  assert.equal(box.style.transformOrigin, '', 'and leaves its origin alone');
 });
 
 test('a self-framed view that draws a bare Panel is drawn in the row\'s one size box all the same', async () => {
