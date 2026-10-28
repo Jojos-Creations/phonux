@@ -1,6 +1,6 @@
 /**
  * The geometry of the dot bar: pure functions from the row's numbers to where each dot, the window oval and a
- * centring scroll sit. Internal; `usePanelDots` is the one public door.
+ * centering scroll sit. Internal; `usePanelDots` is the one public door.
  */
 
 /** A dot's place in the bar's track, in px, and whether it is the hollow one. */
@@ -113,7 +113,7 @@ export function dotLayout(i: { ids: readonly string[]; hollow: readonly boolean[
 }
 
 /**
- * The scroll that centres panel `index` in the window, clamped to the row's legal range. Null when the row cannot
+ * The scroll that centers panel `index` in the window, clamped to the row's legal range. Null when the row cannot
  * scroll or the window is not measured: a click on a dot then does nothing.
  */
 export function centreScroll(i: { index: number; leftOffsets: readonly number[]; widths: readonly number[]; windowWidth: number; maxScroll: number }): number | null {

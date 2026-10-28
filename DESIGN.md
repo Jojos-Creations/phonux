@@ -521,9 +521,9 @@ neighbor widths a drag crosses. A view follows the same rule: pass `panel.size` 
 
 The row's slot (`PanelRowSlot`) owns the enter/exit animation, so the resize never lives on the slot
 itself: Motion's docs warn against `layout` and `exit` on one element. It lives on an inner size box
-(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box eases its real
-width and height from the size on screen to the new one, over the same 0.6 s transition the slots slide with, growing
-from the left edge because the slot's own `x` already animates position. It is not Motion's
+(`PanelSizeBox`) that the built-in web view renders inside its slot, under its drag box. That box takes its new width and
+height once, in the commit, and draws its size easing from the size on screen to the new one, over the same 0.6 s transition
+the slots slide with, growing from the left edge because the slot's own `x` already animates position. It is not Motion's
 `layout="size"`: that animation starts in the frame after the commit while the slot's slide starts in the commit,
 so a commit that janks (the default frame's MUI render does) would draw the box and its neighbor from different
 moments. The box starts its glide in the commit's layout effect, and both it and the slot's slide are given that same
@@ -536,9 +536,12 @@ slot, position and the row's capacity follow, but its content snaps to the new s
 view renders a size box. The row's centering margin glides with the resize even right after a window resize,
 when a window-driven margin change would snap.
 
-The box eases its real width and height, not a scale, so its content reflows on every frame of the glide, as a maximize
-does, and the chrome the library draws (the corner radius, the 1 px edge, the header pill) is never squashed. A height of the slot's
-own (`'100%'`) has no number to ease, so only the width eases then.
+The drawn size is a Web Animation of a `transform: scale()` about the box's top left corner, never its real width and height.
+Easing the real size laid every panel's whole content out again on every frame, and a phone-model change does that for every
+panel at once, which is what stalled the glide; a transform runs on the compositor with no layout at all. The cost is that the
+content takes its new layout at the start and is drawn stretched until the box lands, chrome included (the corner radius, the
+1 px edge, the header pill); `reveal` (below) clips instead of stretching. A height of the slot's own (`'100%'`) has no number
+to ease, so only the width scales then. A glide that is cut off part way starts the next from the eased size on screen.
 
 The size box follows any change of the panel's width, not only a slot-count change. Choosing a different phone
 model resizes every panel's size box too, so their width and height glide over the same 0.6 s while
@@ -546,13 +549,11 @@ the slots slide to their new positions; the root, which has no size box, takes t
 panel lands exactly on its slots at the new phone size. A window resize that moves the fit cap resizes a capped panel the
 same way.
 
-Easing the real size reflows the content on every frame. For DOM content that is what makes a resize read as one motion,
-but content in another process (a `<webview>`, an out-of-process iframe) relays out its whole page on every frame, and the
-host then waits on that page's frames. `PanelSizeBox`'s `reveal` lays the content out once at the larger of the glide's start
-and end widths and lets the eased box clip it at its sides, the same way a slot's entrance reveals content at its full width:
-a grow resizes the content when it starts and a shrink when it ends. The clip is a sideways `clip-path` set only while the box
-glides, never `overflow`, because a frame draws its header and footer outside the box, above and below it; for the same reason
-the height follows the box. `usePanelSizeGlide()` reports the glide (its
+`PanelSizeBox`'s `reveal` lays the content out once at the larger of the glide's start and end sizes and animates a
+`clip-path: inset()` on the box instead of a scale, the same way a slot's entrance reveals content at its full width: a grow
+resizes the content when it starts and a shrink when it ends, and nothing is stretched. That suits content in another process
+(a `<webview>`, an out-of-process iframe), which should be resized as few times as possible. The clip never cuts above the box,
+and below it only while the height eases, never `overflow`, because a frame draws its header and footer outside the box. `usePanelSizeGlide()` reports the glide (its
 start and end size) from the commit that starts it until it lands, for a host that handles the content itself, such as holding
 a page's load back until the size is still. It is state on the box, set in the layout effect that starts the glide, so a
 consumer re-renders twice per glide, never per frame. A window that draws no frames does not advance a glide, so a host that
@@ -1764,7 +1765,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
 | `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 30 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
-| `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1.25 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
+| `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1/3 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
 | `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, off (workspace only) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
@@ -2072,8 +2073,11 @@ Web Animations API and so is not stopped by a theme's `transition: none !importa
 `PanelHeaderButtons` is a toolbar with a roving tab stop kept in its runtime: the stop follows focus, falls to the first
 enabled button when its holder is removed or disabled, and Arrow, Home and End skip disabled buttons.
 
-The Workspace derives the row's resize settle from `tuning.slide`: the row snaps while the width moves and glides once it has
-held for `tuning.resizeSettleSlides` (1.25) slide durations, at once under Reduce Motion. A `rowResizeSettled` the host supplies wins.
+A window resize snaps the row to the live width on every step: the strip, its scroll and its vertical place follow at once, at
+the old phone size. Once the width and height have held for `tuning.resizeSettleSlides` (1/3) slide durations, about 200 ms, the
+phone size is fitted again, and only a changed phone size glides. Under Reduce Motion the fit lands at once. The row never holds
+its old layout in a resized window, so there is no end-pad hold or clamp undo. A host without `heightBudget` gets the same snap
+from `useResizeSettled`; a `rowResizeSettled` the host supplies wins.
 
 ## Safe areas and a touch drag in a web view
 

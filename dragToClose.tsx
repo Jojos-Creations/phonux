@@ -315,7 +315,7 @@ export function visibleViewportBottom(): number {
 }
 
 /**
- * The fastest the pointer travelled between two samples at least SEGMENT_MIN_MS apart, px/s (positive = down). The
+ * The fastest the pointer traveled between two samples at least SEGMENT_MIN_MS apart, px/s (positive = down). The
  * peak, not the average of the window: a flick is judged by how fast it moved, and its events arrive unevenly.
  */
 function peakSpeed(samples: ReadonlyArray<{ t: number; y: number }>): number {
@@ -384,9 +384,9 @@ export function holdDragSelection(doc: Document): () => void {
 
 /** Where the pointer is during a grab-handle drag: what `DragToClose`'s `onDragMove` receives on every pointer move. @public */
 export interface GrabDragMove {
-  /** How far the pointer has travelled right of where it went down, px (negative = left). */
+  /** How far the pointer has traveled right of where it went down, px (negative = left). */
   x: number;
-  /** How far the pointer has travelled below where it went down, px (negative = up). */
+  /** How far the pointer has traveled below where it went down, px (negative = up). */
   y: number;
   /** The pointer's x in viewport px, the coordinate to hit-test against `getBoundingClientRect()` or pass to `elementFromPoint`. */
   clientX: number;
@@ -396,9 +396,9 @@ export interface GrabDragMove {
 
 /** Where the pointer let go of a grab-handle drag: what `DragToClose`'s `onDragEnd` receives on release. @public */
 export interface GrabDragEnd {
-  /** How far the pointer travelled right of where it went down, px (negative = left); the pointer's own travel, not the row's scroll added. */
+  /** How far the pointer traveled right of where it went down, px (negative = left); the pointer's own travel, not the row's scroll added. */
   offsetX: number;
-  /** How far the pointer travelled below where it went down, px (negative = up). */
+  /** How far the pointer traveled below where it went down, px (negative = up). */
   offsetY: number;
   /** The pointer's x in viewport px at release. */
   clientX: number;
@@ -610,7 +610,7 @@ function DragToCloseBox({
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
   React.useEffect(() => unlockScrollParents, []);
-  // The row slides the neighbours aside while a horizontal drag is live; the preview ends with the drag and with the box.
+  // The row slides the neighbors aside while a horizontal drag is live; the preview ends with the drag and with the box.
   // The row keeps the dragged slot raised from the first publish until null, so null follows the spring home that ends the drag.
   const previewed = React.useRef<number | null | undefined>(null);
   const preview = (offset: number | null) => {

@@ -18,7 +18,7 @@ function slotsOf(row: HTMLElement): Map<string, HTMLElement> {
   return new Map([...row.querySelectorAll<HTMLElement>('[data-row-slot]')].map((s) => [s.dataset.rowId ?? '', s]));
 }
 
-/** Focuses the nearest reading-order neighbour of `slot` that has a tabbable element; false when there is none. */
+/** Focuses the nearest reading-order neighbor of `slot` that has a tabbable element; false when there is none. */
 function handOver(slot: HTMLElement, row: HTMLElement, readingIds: readonly string[], back: boolean): boolean {
   const slots = slotsOf(row);
   const at = readingIds.indexOf(slot.dataset.rowId ?? '');
@@ -69,7 +69,7 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
     event.preventDefault();
     return;
   }
-  // No reading-order neighbour is left: the browser's next stop would be a DOM-later panel. When the DOM-extreme panel has a
+  // No reading-order neighbor is left: the browser's next stop would be a DOM-later panel. When the DOM-extreme panel has a
   // sentinel, park focus on it and let the default step carry on from there, out of the row; otherwise go there directly.
   const slots = [...slotsOf(row).values()];
   const extreme = slots[back ? 0 : slots.length - 1];
@@ -92,7 +92,7 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
 /**
  * Focus reaching a panel's start or end sentinel. A Tab pressed inside an iframe never reaches the row's keydown handler, and
  * the browser's step out of the iframe lands on the sentinel next to it: coming from inside the panel, that hands focus over
- * to the drawn neighbour (or past the row's end); coming from outside, the sentinel is passed through to the panel's content.
+ * to the drawn neighbor (or past the row's end); coming from outside, the sentinel is passed through to the panel's content.
  */
 export function steerSentinel(event: React.FocusEvent<HTMLElement>, row: HTMLElement, readingIds: readonly string[]): void {
   const sentinel = event.target as HTMLElement;

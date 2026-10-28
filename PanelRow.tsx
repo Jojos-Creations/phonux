@@ -173,7 +173,7 @@ export const usePanelTuning = (): Pick<ResolvedWorkspaceTuning, 'rowGap' | 'drag
 };
 /**
  * The hops a horizontal drag of this panel asks for: `steps(offsetX)` is reorderStepsForOffset over this slot's
- * neighbours, the row's gap and this panel's hop fraction. Outside a row there are no neighbours, so it is 0.
+ * neighbors, the row's gap and this panel's hop fraction. Outside a row there are no neighbors, so it is 0.
  * @public
  */
 export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
@@ -320,7 +320,7 @@ export function PanelRow({
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
-  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
+  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbor. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
   // because that is where movePanel refuses the hop.
   const neighborsAt = (entry: PanelRowEntry): Walk => {
@@ -366,6 +366,12 @@ export function PanelRow({
           nudgeBarrier: (px: number): void => {
             const root = barrierEl();
             if (root == null || px === nudged.current) return;
+            nudged.current = px;
+            // No Web Animations (a test DOM): the nudge lands at once. A throw here would stop Motion's frame loop for good.
+            if (typeof root.animate !== 'function') {
+              root.style.translate = px === 0 ? '' : `${-px}px 0px`;
+              return;
+            }
             // Its own `translate`, which Motion's writes of `transform` never touch, by the Web Animations API, because the theme
             // turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
             const from = getComputedStyle(root).translate;
@@ -373,7 +379,6 @@ export function PanelRow({
             const anim = root.animate([{ translate: from === 'none' ? '0px' : from }, { translate: `${-px}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards' });
             nudgeAnim.current = anim;
             if (px === 0) anim.onfinish = () => anim.cancel();
-            nudged.current = px;
           },
         };
   // A row that fits its window still drags to its edges: there the band swaps hidden panels in rather than scrolling.

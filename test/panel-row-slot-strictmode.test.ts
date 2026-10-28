@@ -1,7 +1,7 @@
 /**
  * A PanelRowSlot that a reorder moves must still slide to its new rest. React 19.2 cleans up and sets up again the
  * effects of a keyed child that a reorder moves under StrictMode, which stops the slide Motion was running for it.
- * This file's React (19.3) does not do that, so the test is the behaviour a consumer on 19.2 relies on.
+ * This file's React (19.3) does not do that, so the test is the behavior a consumer on 19.2 relies on.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

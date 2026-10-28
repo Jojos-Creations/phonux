@@ -1,5 +1,5 @@
 /**
- * The eighteen per-panel settings this version removed: their fixed behaviour, what a template or a saved file that
+ * The eighteen per-panel settings this version removed: their fixed behavior, what a template or a saved file that
  * still names one gets, and the list of settings that stay.
  */
 import { test } from 'node:test';

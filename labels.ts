@@ -10,16 +10,6 @@ export interface PhonuxLabels {
   untitledPanel: string;
   /** The text a `PanelHeaderRow` shows when its title is empty. Default `Untitled`. */
   untitledHeader: string;
-  /** The name of a pin button or action. Default `Pin`. */
-  pin: string;
-  /** The name of an unpin button or action. Default `Unpin`. */
-  unpin: string;
-  /** The text a host announces when a pin request is refused. Default `Could not pin this panel`. */
-  pinFailed: string;
-  /** The text a host announces when an unpin request is refused. Default `Could not unpin this panel`. */
-  unpinFailed: string;
-  /** The accessible name of a panel's move menu button, which holds Pin or Unpin. Default `Move`. */
-  move: string;
   /** The accessible name of a panel's close button. Default `Close`. */
   close: string;
   /** The text of the button that creates a workspace where the column has none above or below. Default `Create new workspace`. */
@@ -69,11 +59,6 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   panelTitle: (id) => `Panel ${id}`,
   untitledPanel: 'Untitled panel',
   untitledHeader: 'Untitled',
-  pin: 'Pin',
-  unpin: 'Unpin',
-  pinFailed: 'Could not pin this panel',
-  unpinFailed: 'Could not unpin this panel',
-  move: 'Move',
   close: 'Close',
   newWorkspace: 'Create new workspace',
   goToWorkspace: (name) => `Go to ${name}`,

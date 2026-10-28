@@ -3,6 +3,7 @@
  * is the pure rule; the context and `usePhoneSize` carry its result to every reader of the phone size.
  */
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 import { useHost, useOptionalHost } from './hostApi.js';
 import { ALL_SLOTS } from './rowConstants.js';
 
@@ -117,7 +118,8 @@ export function useRowHeightBudget(ref: React.RefObject<HTMLDivElement | null>, 
     const measure = (): void => setBudget(Math.max(0, Math.round(container.clientHeight - topPad - bottomPad)));
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
+    // Committed before the paint, as the width is: a resized window never draws the row at the old height.
+    const observer = new ResizeObserver(() => flushSync(measure));
     observer.observe(container);
     return () => observer.disconnect();
   }, [ref, topPad, bottomPad, enabled]);

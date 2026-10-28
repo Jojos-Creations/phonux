@@ -180,20 +180,14 @@ for (const [name, start] of [
   });
 }
 
-test('glideEase: the settle after a resize that moves the stops glides along the workspace leaf', async () => {
-  const settle = async (glideEase: SlideTuning['glideEase']): Promise<number> => {
+test('a window resize that moves the stops lands the row on the new last stop at once, whatever the leaf', async () => {
+  for (const glideEase of ['linear', 'cubic-out'] as const) {
     const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
     m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'linear' });
+    assert.equal(rowOffsetOf(m.container), 1624, 'control: the row starts at the old last stop');
     m.rerender(1500);
-    const target = m.scroller.glideTarget();
-    assert.equal(target, 1218, 'control: the row is brought to the new last stop, 133 + 2420 + 133 - 1468');
-    await advanceFrames(25 * 16);
-    const fraction = (1624 - rowOffsetOf(m.container)) / (1624 - 1218);
+    assert.equal(m.scroller.glideTarget(), null, `${glideEase}: no glide trails the window`);
+    assert.equal(rowOffsetOf(m.container), 1218, `${glideEase}: the new last stop, 133 + 2420 + 133 - 1468`);
     cleanup();
-    return fraction;
-  };
-  const linear = await settle('linear');
-  const cubic = await settle('cubic-out');
-  assert.ok(Math.abs(linear - 0.25) < 0.08, `linear covered ${linear}`);
-  assert.ok(cubic > 0.5, `cubic-out covered ${cubic}`);
+  }
 });

@@ -11,7 +11,7 @@ import { anchorPanel, restorePanel, type AnchorRequest, type PanelWindow } from 
 /** The five positions a value may name without a target; also what `placeFallback` may be. @internal */
 export type NamedPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed';
 
-/** What a resolution needs beyond the value: where to land when the value cannot be honoured, and the developer's panel order. @internal */
+/** What a resolution needs beyond the value: where to land when the value cannot be honored, and the developer's panel order. @internal */
 export interface PlacementOptions {
   fallback: NamedPlacement;
   order?: () => readonly string[];
@@ -19,7 +19,7 @@ export interface PlacementOptions {
 
 const NOTE_CODE = 'placement-fallback';
 
-/** The note raised when a placement could not be honoured and its `placeFallback` was used instead. @internal */
+/** The note raised when a placement could not be honored and its `placeFallback` was used instead. @internal */
 export const placementFallbackNote = (panelId: string | null, why: string): SettingNote => ({
   code: NOTE_CODE,
   ...(panelId !== null ? { panelId } : {}),

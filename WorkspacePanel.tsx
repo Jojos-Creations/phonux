@@ -63,7 +63,7 @@ export interface WorkspacePanelProps {
    * @defaultValue `'medium'`
    */
   readonly tileSize?: WorkspaceTileSize;
-  /** A class name for the root element, so the developer can set its spacing, type and colours. */
+  /** A class name for the root element, so the developer can set its spacing, type and colors. */
   readonly className?: string;
   /**
    * The tiles to list, in the order they are given. Given, the host owns the list and the panel reads

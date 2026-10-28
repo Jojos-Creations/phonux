@@ -37,11 +37,11 @@ export interface PhoneFitResult {
   /** The height in px of one phone slot. */
   readonly height: number;
   /**
-   * The container width in px this size was fitted to: the measured width once it has held still for the resize settle. Hand it to
-   * `useProvidePanels` and `Workspace` as their `containerWidth`, so the row's place, its capacity and its phone size change in one glide.
+   * The container width in px, as measured on every resize step. Hand it to `useProvidePanels` and `Workspace` as their
+   * `containerWidth`: the row follows the window at once, at the phone size above, which changes only once the window holds still.
    */
   readonly containerWidth: number;
-  /** The room in px the row has to grow into, settled with `containerWidth`: hand it to `Workspace` as `heightBudget`. 0 until measured. */
+  /** The room in px the row has to grow into, as measured with `containerWidth`: hand it to `Workspace` as `heightBudget`. 0 until measured. */
   readonly heightBudget: number;
 }
 
@@ -53,7 +53,7 @@ export interface PhoneFitResult {
  * container's width and height have held still for the resize settle (`tuning.resizeSettleSlides` slide durations), and at once
  * under Reduce Motion, so a window held at a breakpoint does not flip the count. `topInset` is the room the row leaves above
  * itself, as `Workspace`'s `topPadding`, and `bottomInset` the room under it, as its `bottomPadding`; omitted, the row gap; either way never less than a header's room unless `tuning.rowTop` is
- * set, which is taken as given. `containerWidth` is the measured width; pass the settled `containerWidth` and `heightBudget` this
+ * set, which is taken as given. `containerWidth` is the measured width; pass the `containerWidth` and `heightBudget` this
  * returns on to the row.
  * Hand it a `tuning` that is the one the workspace is priced with (`ProvidedPanels.tuning`, or `WorkspaceHandle.tuning`).
  * @public
@@ -82,5 +82,6 @@ export function usePhoneFit(
   const base = fitted ? preferred.height : fit.height;
   // Under 'auto' the frame is as tall as the row's room, never shorter than the fit.
   const h = on && tuning.phoneHeight === 'auto' ? Math.max(settled.height, base) : base;
-  return React.useMemo(() => ({ width: w, height: h, containerWidth: settled.width, heightBudget: settled.height }), [w, h, settled]);
+  // The row takes the live size on every step, so a resized window never draws the old layout; only the phone size waits.
+  return React.useMemo(() => ({ width: w, height: h, containerWidth, heightBudget: budget }), [w, h, containerWidth, budget]);
 }

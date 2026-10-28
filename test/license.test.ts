@@ -1,5 +1,5 @@
 /**
- * The licence files say what the package ships under. LICENSE is the canonical PolyForm Noncommercial 1.0.0 text under one
+ * The license files say what the package ships under. LICENSE is the canonical PolyForm Noncommercial 1.0.0 text under one
  * Required Notice line; package.json and the lockfile root name the matching SPDX id; nothing else claims MIT for this
  * package except the recorded 0.1.0 tarball. Contact and notice text never ships with a placeholder.
  */

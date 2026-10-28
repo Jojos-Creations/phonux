@@ -137,7 +137,7 @@ function walked(n: number, from = 0): number {
   for (let frame = 0; frame < n; frame += 1) scrollLeft += edgeScrollStep({ speed: EDGE.maxPxPerSec, dtMs: FRAME_MS, scrollLeft, maxScroll: MAX_SCROLL });
   return scrollLeft;
 }
-/** How many of the five 390 neighbours' hop thresholds `offset` reaches. */
+/** How many of the five 390 neighbors' hop thresholds `offset` reaches. */
 const hopsAt = (offset: number): number => [203, 609, 1015, 1421, 1827].filter((threshold) => offset >= threshold).length;
 const FIVE_NEIGHBOURS = { left: [], right: [390, 390, 390, 390, 390] };
 /**

@@ -1,5 +1,5 @@
 /**
- * The workspace column: addWorkspace is the one way in, step and the neighbour buttons are the only way to move, the
+ * The workspace column: addWorkspace is the one way in, step and the neighbor buttons are the only way to move, the
  * name input renames, off-screen cells are inert, and the saved list restores around what code added. A mutant that drops the inert
  * flag or the create-and-scroll fails a test here.
  */

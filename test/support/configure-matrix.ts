@@ -163,7 +163,7 @@ export const viewLog = {
 
 /**
  * A view that writes what its slot tells it into data attributes, so a test reads what a person's view would act on.
- * `data-slot` is the engine id; the others are the permission hooks, the neighbour widths and the panel's title.
+ * `data-slot` is the engine id; the others are the permission hooks, the neighbor widths and the panel's title.
  */
 export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): PanelTemplate =>
   definePanel({
