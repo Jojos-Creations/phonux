@@ -1,6 +1,6 @@
 /**
  * The engine's reading of the look tuning it owns: tuning.rowGap, tuning.dragToClose, tuning.slide and
- * tuning.hopFraction, through a mounted PanelRow where the behaviour is a render and through the pure function where
+ * tuning.hopFraction, through a mounted PanelRow where the behavior is a render and through the pure function where
  * it is arithmetic. One differential per name, then the defaults, the workspace-only scope, the range rules, and the
  * interfaces a host calls.
  */
@@ -144,7 +144,7 @@ test('differential tuning.slide: a longer slide has covered less of its entrance
   assert.ok(outputs[0]! < outputs[1]!, `the 0.4 s slide (${outputs[0]}) is nearer its rest than the 0.8 s one (${outputs[1]}); rest is 406 and it starts 796 away`);
 });
 
-/** The steps a 150 px drag right of `a` asks for, with one 390 px neighbour on its right. */
+/** The steps a 150 px drag right of `a` asks for, with one 390 px neighbor on its right. */
 function stepsFor(hopFraction: number): number {
   const mounted = mount(rowOf([entry('a'), entry('b')], { hopFraction }));
   const steps = seenOf('a').steps(150);
@@ -195,7 +195,7 @@ test('differential tuning.chrome: an idle panel keeps its header drawn under alw
   });
 });
 
-/** Whether the row's centring margin glides when a panel joins, `waitMs` after the width changed, under the given leaf. */
+/** Whether the row's centering margin glides when a panel joins, `waitMs` after the width changed, under the given leaf. */
 async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Promise<boolean> {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const workspace = createWorkspace({ mount: false, tuning: { resizeSettleSlides } });
@@ -407,7 +407,7 @@ test('hopFraction: over [phone, tablet] a quarter, a half and three quarters of 
 });
 
 test('usePanelReorderSteps: in a slot, steps(offsetX) uses the row gap and the hop fraction of the slot without the view passing either', () => {
-  // One neighbour of 390 on the right: the hop is at (390 + gap) x fraction.
+  // One neighbor of 390 on the right: the hop is at (390 + gap) x fraction.
   const table: readonly [number, number, number, number, number][] = [
     // offset, gap 16 / 0.5 (203), gap 16 / 0.25 (101.5), gap 40 / 0.5 (215), gap 40 / 0.25 (107.5)
     [105, 0, 1, 0, 0],

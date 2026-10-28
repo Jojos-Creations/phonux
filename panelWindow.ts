@@ -325,9 +325,9 @@ export function movePanelBy(panels: PanelWindow[], id: string, by: number, rootI
 }
 
 /**
- * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left). A hop past a neighbour
- * moves the dragged panel by that NEIGHBOUR's span (its width plus `gap`), so each hop lands `hopFraction` (default
- * half) of the way across the next neighbour's span, counted from where the previous hop ended; the dragged panel's
+ * How many movePanel hops a horizontal drag of `offsetX` px asks for (+right/-left). A hop past a neighbor
+ * moves the dragged panel by that NEIGHBOR's span (its width plus `gap`), so each hop lands `hopFraction` (default
+ * half) of the way across the next neighbor's span, counted from where the previous hop ended; the dragged panel's
  * own width never enters it. Exactly that fraction of a span is a hop either way, and this never returns -0.
  * @public
  * @deprecated A view reads its hops with `usePanelReorderSteps()` or hands `DragToClose` `usePanelDragProps()`; both use the row's tuned gap and hop fraction.

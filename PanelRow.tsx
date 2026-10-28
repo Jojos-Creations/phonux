@@ -131,7 +131,7 @@ export const usePanelTuning = (): Pick<ResolvedWorkspaceTuning, 'rowGap' | 'drag
 };
 /**
  * The hops a horizontal drag of this panel asks for: `steps(offsetX)` is reorderStepsForOffset over this slot's
- * neighbours, the row's gap and this panel's hop fraction. Outside a row there are no neighbours, so it is 0.
+ * neighbors, the row's gap and this panel's hop fraction. Outside a row there are no neighbors, so it is 0.
  * @public
  */
 export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
@@ -278,7 +278,7 @@ export function PanelRow({
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));
-  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbour. The
+  // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbor. The
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
   // because that is where movePanel refuses the hop.
   const neighborsAt = (entry: PanelRowEntry): Walk => {

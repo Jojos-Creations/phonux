@@ -1,5 +1,5 @@
 /**
- * The root panel drags sideways like any other panel when its `movable` setting is on: its neighbours slide aside live
+ * The root panel drags sideways like any other panel when its `movable` setting is on: its neighbors slide aside live
  * through the root's own view and its `grabProps`, and the drop re-anchors exactly the crossed panels to the root's other side.
  */
 import { test, afterEach } from 'node:test';

@@ -77,7 +77,7 @@ function isEventLike(value: unknown): boolean {
 }
 
 /**
- * What an app hands `useProvidePanels`: the row's measured inputs, plus the behaviour only the host can decide
+ * What an app hands `useProvidePanels`: the row's measured inputs, plus the behavior only the host can decide
  * (where closes are logged, what `hostData` means).
  * @public
  */
@@ -254,11 +254,11 @@ const REQUEST_WAIT_COMMITS = 2;
 export interface ProvidedPanels extends PanelsAPI {
   /** `PanelsAPI.setSlots`, always present on the library's own provider. */
   setSlots(id: string, slots: number): void;
-  /** The provider's one panel list, raw (not summarised): the row's input, never part of PanelsAPI. */
+  /** The provider's one panel list, raw (not summarized): the row's input, never part of PanelsAPI. */
   readonly entries: readonly PanelWindow[];
   /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
   readonly fixedViewCount: number;
-  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centring margin reads the same array the park capacity is priced from. */
+  /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centering margin reads the same array the park capacity is priced from. */
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;
@@ -854,7 +854,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The slots report through window events (see panelChrome.ts); a provider hears only the ids it rendered.
   useEffect(() => {
     const keyOf = (id: string): string | undefined => keyById.current.get(id);
-    // A picture is rasterised on the main thread: taken as the slide starts, it holds back the slide's first frame, so the slid
+    // A picture is rasterized on the main thread: taken as the slide starts, it holds back the slide's first frame, so the slid
     // panels are pictured once the last slide has landed.
     const slid = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;

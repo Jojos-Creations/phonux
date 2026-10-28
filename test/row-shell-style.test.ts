@@ -1,7 +1,7 @@
 /**
  * workspaceShellStyle (Workspace.tsx): the PURE half of the row shell. It turns the measured
  * widths into the values Workspace's markup reads (a legacy row, one with no settings, is `overflowX` 'hidden';
- * a scrolling row follows its rowGesture, in test/row-shell-overflow.test.ts). phonux-app's mount tests pin the same behaviour through the whole page in jsdom; these pin the function itself with plain
+ * a scrolling row follows its rowGesture, in test/row-shell-overflow.test.ts). phonux-app's mount tests pin the same behavior through the whole page in jsdom; these pin the function itself with plain
  * data, so a wrong input (a hard-coded phone width, a parked panel counted as live) fails here by name. No
  * DOM, no React: the function is not a hook.
  */
@@ -50,7 +50,7 @@ test('workspaceShellStyle: the margin centres the column and LIVE panels it is g
 
 test('workspaceShellStyle E3/E4: a fractional pixel of margin is kept exactly, never rounded or truncated (an odd container width centres on a half pixel)', () => {
   // Every other case here lands on a whole pixel, so a stray `Math.round` or `Math.floor` would pass them all; 1301 (one
-  // wider than the usual 1300) is the smallest change that lands the centring on a half pixel: (1301 - 2*16 - 390) / 2 = 439.5.
+  // wider than the usual 1300) is the smallest change that lands the centering on a half pixel: (1301 - 2*16 - 390) / 2 = 439.5.
   const margin = (over: Partial<WorkspaceShellStyleInput>): number => workspaceShellStyle({ ...base, ...over }).marginLeft;
   assert.equal(margin({ containerWidth: 1301 }), 439.5, 'a whole pixel of drift either way (439 or 440) would be a rounding bug, not measurement noise');
 });

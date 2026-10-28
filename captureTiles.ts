@@ -1,5 +1,5 @@
-// The tile-picture controller: the policy (faded or hidden panels, one-colour pictures), a bounded store with
-// least-recently-touched eviction, and persistence through a host-supplied storage. The rasteriser is injected, so
+// The tile-picture controller: the policy (faded or hidden panels, one-color pictures), a bounded store with
+// least-recently-touched eviction, and persistence through a host-supplied storage. The rasterizer is injected, so
 // this module draws nothing and names no location where pictures are kept.
 
 import type { CaptureRegistry, CaptureTrigger, SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
@@ -37,7 +37,7 @@ export interface TilePictureStorage {
   remove(viewIds: readonly ViewId[]): Promise<void>;
 }
 
-/** What the rasteriser is asked to draw. @public */
+/** What the rasterizer is asked to draw. @public */
 export interface TileRequest {
   /**
    * The live panel element. Read it before the returned promise settles; the panel may leave the page soon after
@@ -56,16 +56,16 @@ export interface TileRequest {
   readonly pictureHeight: number;
 }
 
-/** A rasterised picture. @public */
+/** A rasterized picture. @public */
 export interface TileRaster {
   /** A data: image URL, WebP where the browser can encode it. */
   readonly src: string;
-  /** RGBA pixels of the picture, exactly `pictureWidth * pictureHeight * 4` long. Used to reject one-colour pictures. */
+  /** RGBA pixels of the picture, exactly `pictureWidth * pictureHeight * 4` long. Used to reject one-color pictures. */
   readonly pixels: Uint8ClampedArray;
 }
 
 /**
- * The host's rasteriser: draws a panel to a picture of the requested size. Resolve `null` when there is nothing to
+ * The host's rasterizer: draws a panel to a picture of the requested size. Resolve `null` when there is nothing to
  * draw. Never called for a faded or hidden panel. @public
  */
 export type TileRasteriser = (request: TileRequest) => Promise<TileRaster | null>;
@@ -192,7 +192,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     };
   };
 
-  /** Measures, rasterises and checks one picture. Null when there is nothing worth keeping. */
+  /** Measures, rasterizes and checks one picture. Null when there is nothing worth keeping. */
   const pictureOf = async (el: HTMLElement, extent: 'viewport' | 'full'): Promise<Picture | null> => {
     if (isFadedOrHidden(el)) return null;
     // 'full' is the scroll extent, past what is visible; the client extent is what the viewport shows.
@@ -203,9 +203,9 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     const raster = await rasterise({ element: el, extent, width, height, pictureWidth: box.width, pictureHeight: box.height });
     if (!raster?.src.startsWith('data:image/')) return null;
     if (raster.pixels.length !== box.width * box.height * 4) return null;
-    // The panel may have faded while the rasteriser ran; its picture then shows the fade.
+    // The panel may have faded while the rasterizer ran; its picture then shows the fade.
     if (isFadedOrHidden(el)) return null;
-    // A picture of one colour is a blank or transparent panel: the last good picture stays.
+    // A picture of one color is a blank or transparent panel: the last good picture stays.
     if (isOneColour(raster.pixels)) return null;
     return { src: raster.src, width, height };
   };

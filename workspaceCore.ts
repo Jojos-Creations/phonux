@@ -31,7 +31,7 @@ import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } 
 export const ROOT_MARKER_ID = '__root__';
 
 let nextEngineIdValue = 1;
-/** The next id for an engine entry. A module counter, bumped only from handlers and the restore callback, never from a state initialiser. */
+/** The next id for an engine entry. A module counter, bumped only from handlers and the restore callback, never from a state initializer. */
 export const nextEngineId = (): string => String(nextEngineIdValue++);
 
 /** Moves the counter past the number after the first `~` of every restored key, which `nextEngineId` restarted below at launch and would otherwise hand out again. The counter only rises, so calling this twice, or from two workspaces, is harmless. */

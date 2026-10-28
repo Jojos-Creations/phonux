@@ -1,7 +1,7 @@
 /**
  * usePanelRowDrop: a drag that starts outside the row parts it by the header drag's hop rule and drops the panel at the
  * pointed slot. Slots are read through their drawn translateX, since jsdom has no layout; the row's own rect is the
- * origin, so a pointer at slotX + 195 + offset is `offset` px from the slot's centre.
+ * origin, so a pointer at slotX + 195 + offset is `offset` px from the slot's center.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,7 +87,7 @@ const finish = async (): Promise<PanelResult> => {
   await settle();
   return result!;
 };
-/** A pointer `offset` px from the centre of `id`'s slot as it rests now. */
+/** A pointer `offset` px from the center of `id`'s slot as it rests now. */
 const at = (m: MountedRow, id: string, offset: number): number => xOf(m, id) + HALF + offset;
 
 // ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ test('for the same offsets the hook parts the neighbours exactly as a header dra
 });
 
 test('the hop count is the header rule at literal offsets: a hop needs half the next neighbour\'s span, counted from where the last hop ended', async () => {
-  // A phone neighbour is 390 + 16 gap = 406 wide, so the thresholds are 203, 609 and 1015.
+  // A phone neighbor is 390 + 16 gap = 406 wide, so the thresholds are 203, 609 and 1015.
   const cases: Array<[number, string]> = [
     [202, 'root,s1,s2,s3,s4'],
     [204, 'root,s2,s1,s3,s4'],

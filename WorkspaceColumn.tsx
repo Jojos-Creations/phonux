@@ -1,6 +1,6 @@
 /**
  * The column component: every workspace of a `WorkspaceColumnHandle` in a cell of its own, one above the other, with the current
- * one in view. The person moves by the buttons at the top and bottom centre, which name the neighbour or offer to create one, and
+ * one in view. The person moves by the buttons at the top and bottom center, which name the neighbor or offer to create one, and
  * by whatever key the app binds to `step`; the column itself never scrolls under a wheel or a trackpad. DESIGN.md, "The workspace column".
  */
 import * as React from 'react';

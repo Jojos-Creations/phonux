@@ -298,7 +298,7 @@ export function PanelRowSlot({
   restNow.current = { leftOffset, transition: snapping || tracking ? INSTANT_TRANSITION : slideTransition };
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
-  // Neighbours close up over a shrinking slot, so it is drawn on top to be seen shrinking away.
+  // Neighbors close up over a shrinking slot, so it is drawn on top to be seen shrinking away.
   const shrinkOrigin = present ? undefined : SHRINK_ORIGIN_X[exitDirection];
   const shrinking = shrinkOrigin !== undefined;
   // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
@@ -453,7 +453,7 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 
 /**
  * The box a resize animates. Its real width and height ease from the size on screen to the new one over the slide, in step with
- * the neighbouring slots, so its content reflows as it goes and is never stretched. A row already draws one around every panel,
+ * the neighboring slots, so its content reflows as it goes and is never stretched. A row already draws one around every panel,
  * which follows the panel's `resize` setting; a `PanelSizeBox` inside it is a plain div that fills it. Under Reduce Motion, or
  * while a host holds a width, the resize snaps.
  * @public
@@ -534,7 +534,7 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
   const drawn = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
   const run = React.useRef<{ stop: () => void } | undefined>(undefined);
   const [glide, setGlide] = React.useState<PanelSizeGlide | null>(null);
-  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
+  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbor.
   React.useLayoutEffect(() => {
     const node = box.current;
     if (node === null || nested) return;

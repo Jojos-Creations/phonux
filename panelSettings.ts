@@ -1,5 +1,5 @@
 /**
- * The settings model: every behaviour a panel can differ in is a named setting with a library default, a
+ * The settings model: every behavior a panel can differ in is a named setting with a library default, a
  * descriptor in one catalog, and one pure resolver that interprets every layer. Nothing here is rendered or
  * mounted. The only value imports are the two leaf modules below, so this file can be read (and the resolver
  * called) with no React, no Motion and no row code loaded; test/panel-settings-catalog.test.ts holds that line.
@@ -84,7 +84,7 @@ export type Overflow = 'scroll' | 'park';
  * How a panel enters the row. 'auto' takes the workspace's `tuning.defaultEnterFrom`, whose own 'auto' slides in from the side
  * the row picks (an engine mark, else the anchor's side for a panel entering via its anchor, else the right). 'anchor'
  * slides in from its anchor's side whenever it enters. 'left', 'right', 'top' and 'bottom' slide in from that side,
- * 'fade' fades in where it rests, and 'expand' scales the panel up, width and height together, while its neighbours part to
+ * 'fade' fades in where it rests, and 'expand' scales the panel up, width and height together, while its neighbors part to
  * make room: an open grows from its center point, which keeps to where they part, and a reveal grows out of the edge on the
  * side it comes in from, which holds still. Every entrance takes the workspace's `slide` timing.
  * @public
@@ -95,7 +95,7 @@ export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' 
  * How a panel leaves the row, when it parks and when it closes. 'auto' takes the workspace's `tuning.defaultExitTo`, whose own
  * 'auto' parks off the side the row picks and closes downward along `slide.closeExitSeconds` and `slide.closeExitEase`.
  * 'left', 'right', 'top' and 'bottom' slide out to that side, 'fade' fades out where it rests, and 'shrink' scales
- * the panel down, width and height together, while its neighbours close up: a close shrinks to its center point, which
+ * the panel down, width and height together, while its neighbors close up: a close shrinks to its center point, which
  * keeps to where they meet, and a park shrinks into the edge on the side it leaves by, which holds still. Those take the
  * workspace's `slide` timing.
  * @public
@@ -304,7 +304,7 @@ export type WorkspaceTuning = {
   dragToClose?: { [K in keyof DragToCloseTuning]?: DragToCloseTuning[K] };
   /** Overrides for the slide timing. */
   slide?: { [K in keyof SlideTuning]?: SlideTuning[K] };
-  /** The fraction of a neighbour's span a dragged panel must cover to cross it, above 0 and at most 1. */
+  /** The fraction of a neighbor's span a dragged panel must cover to cross it, above 0 and at most 1. */
   hopFraction?: number;
   /** Overrides for the edge-scroll numbers. */
   edgeScroll?: { [K in keyof EdgeScrollTuning]?: EdgeScrollTuning[K] };
@@ -320,7 +320,7 @@ export type WorkspaceTuning = {
   gestureLockMs?: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs?: number;
-  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  /** How many `slide.durationSec` the container width must hold still before the row's centering margin glides again; 0 settles at once. */
   resizeSettleSlides?: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
@@ -341,7 +341,7 @@ export type WorkspaceTuning = {
    */
   maxLivePanels?: number | null;
   /**
-   * Removed: a stepping row always leaves every panel at its size and the window edge cuts the neighbour of a stop. 'off'
+   * Removed: a stepping row always leaves every panel at its size and the window edge cuts the neighbor of a stop. 'off'
    * is accepted; 'visible' and 'hidden' log one console warning each and act as 'off'.
    * @deprecated Has no effect; remove it. The next release refuses 'visible' and 'hidden'.
    */
@@ -372,7 +372,7 @@ export type ResolvedWorkspaceTuning = {
   dragToClose: DragToCloseTuning;
   /** The slide timing. */
   slide: SlideTuning;
-  /** The fraction of a neighbour's span a dragged panel must cover to cross it. */
+  /** The fraction of a neighbor's span a dragged panel must cover to cross it. */
   hopFraction: number;
   /** The edge-scroll numbers. */
   edgeScroll: EdgeScrollTuning;
@@ -388,7 +388,7 @@ export type ResolvedWorkspaceTuning = {
   gestureLockMs: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs: number;
-  /** How many `slide.durationSec` the container width must hold still before the row's centring margin glides again; 0 settles at once. */
+  /** How many `slide.durationSec` the container width must hold still before the row's centering margin glides again; 0 settles at once. */
   resizeSettleSlides: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
@@ -450,7 +450,7 @@ export type SettingConflict = {
   readonly key: string;
   /** The layer that asked for it. */
   readonly layer: 'template' | 'host' | 'instance';
-  /** Why the ask was not honoured: a rule forced another value, the key is set at the wrong scope, or a view may not set it. */
+  /** Why the ask was not honored: a rule forced another value, the key is set at the wrong scope, or a view may not set it. */
   readonly kind: 'forced' | 'wrong-scope' | 'not-view-settable';
   /** The value the layer asked for. */
   readonly asked: unknown;
@@ -490,7 +490,7 @@ export interface SettingDescriptor {
   readonly scope: SettingScope;
   /** Whether a view may set it with `ViewHandle.configure`, which also checks the value the view asks for. */
   readonly viewSettable: boolean;
-  /** Whether the setting names a behaviour that already existed ('today') or a new one ('new'). */
+  /** Whether the setting names a behavior that already existed ('today') or a new one ('new'). */
   readonly exists: 'today' | 'new';
   /** The catalog's identifier for the part of the library that owns the setting. */
   readonly ownerEntry: string;

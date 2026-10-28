@@ -1,5 +1,5 @@
 /**
- * Behaviour pinned before the engine learns the permission settings. A pin states what the code does today, with
+ * Behavior pinned before the engine learns the permission settings. A pin states what the code does today, with
  * the bad ones named KNOWN-BAD so a later change has to rename the pin it fixes, never delete it.
  */
 import { test, afterEach } from 'node:test';

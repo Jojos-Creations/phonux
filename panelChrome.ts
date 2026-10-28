@@ -402,7 +402,7 @@ export function usePanelSetDragging(): (on: boolean) => void {
  * Whether this panel is being resized by hand, and two setters for a host's resize grabber to call.
  *
  * `setResizing(true)` when a drag begins and `setResizing(false)` when it ends. While it is true no other panel's drawn
- * size changes, so a grabber that reads `panel.size` at the start of its drag, and a neighbour that was drawn smaller to
+ * size changes, so a grabber that reads `panel.size` at the start of its drag, and a neighbor that was drawn smaller to
  * fill the window, stay where they were until the release, and the row does not scroll. It also marks the panel as
  * dragging (`usePanelDragging`) for the same span, so a drag of any kind that a host runs shows the chrome a drag shows.
  *
@@ -560,7 +560,7 @@ export function useChromeFade(visible: boolean): (node: HTMLElement | null) => v
  * The `onClose` and `reorder` of the panel this hook is called in, to spread onto `DragToClose`: a close and a move
  * through the panel's own handle, so both are gated and answer a `PanelResult`. A close is offered when the panel is
  * closable and sits in a column that closes; a reorder when it is movable, and a release crossing several
- * neighbours is one `move`. The reorder's `onStep` is the same call for the grab strip's Arrow keys. Outside a row with a workspace there is no handle, so it returns neither.
+ * neighbors is one `move`. The reorder's `onStep` is the same call for the grab strip's Arrow keys. Outside a row with a workspace there is no handle, so it returns neither.
  * @public
  */
 export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHandle } {
