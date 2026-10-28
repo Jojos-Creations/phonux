@@ -7,7 +7,7 @@
 
 import * as React from 'react';
 import { type RefObject } from 'react';
-import { motion, useReducedMotionConfig } from 'motion/react';
+import { motion, useReducedMotionConfig, visualElementStore } from 'motion/react';
 import Box from '@mui/material/Box';
 import type { ElementProps } from './cssStyle.js';
 import { AnnounceContext } from './announce.js';
@@ -376,6 +376,18 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const availableHeight = heightBudget ?? measuredHeight;
   // Where auto margins would centre the row in its room, written out so it can glide: a flex item's auto margins are 0 once it overflows.
   const marginTop = heightBudget === undefined || phoneHeight === undefined || heightBudget === 0 ? undefined : Math.max(0, (heightBudget - phoneHeight) / 2);
+  // Motion writes even an instant change on a later frame: a window step's place is set on Motion's own values and written here,
+  // so the paint after the step has it.
+  React.useLayoutEffect(() => {
+    const strip = rowRef.current;
+    if (!windowStep || strip === null) return;
+    const values = visualElementStore.get(strip) as { getValue(key: string): { jump(v: number): void } | undefined } | undefined;
+    const place: [string, number][] = marginTop === undefined ? [['marginLeft', style.marginLeft]] : [['marginLeft', style.marginLeft], ['marginTop', marginTop]];
+    for (const [key, px] of place) {
+      values?.getValue(key)?.jump(px);
+      strip.style.setProperty(key === 'marginLeft' ? 'margin-left' : 'margin-top', `${px}px`);
+    }
+  });
   // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;

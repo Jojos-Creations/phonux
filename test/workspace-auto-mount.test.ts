@@ -326,7 +326,7 @@ test('under StrictMode the mount subscribes once per element and disposes every 
   await act(async () => root.render(React.createElement(React.StrictMode, null, React.createElement(AutoRoot, { workspace: ws }))));
   await until('the row', () => slots(target).length === 2);
   const live = [...observers].filter((o) => o.targets.size > 0);
-  assert.equal(live.length, 3, 'the mount, its phone fit and Workspace each hold one live observer, the first run of each effect having been cleaned up');
+  assert.equal(live.length, 2, 'the mount and its phone fit each hold one live observer, the first run of each effect having been cleaned up');
   for (const o of live) assert.equal([...o.targets][0], target.querySelector('[data-row-scroller]'));
   await act(async () => root.unmount());
   assert.equal(observers.size, 0, 'no observer outlives the mount');

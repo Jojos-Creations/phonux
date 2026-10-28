@@ -4,6 +4,7 @@
  * `import()` from workspaceCore.ts, which keeps `react-dom/client` off the import path of a React-free caller.
  */
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -45,7 +46,8 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>): number 
     const read = (): void => setWidth(el.clientWidth);
     read();
     if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(read);
+    // Committed before the paint the observer runs ahead of, so no frame of a live resize draws the row at the old width.
+    const observer = new ResizeObserver(() => flushSync(read));
     observer.observe(el);
     return () => observer.disconnect();
   }, [ref]);

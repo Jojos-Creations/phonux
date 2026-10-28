@@ -322,7 +322,7 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
     saveQuietMs: 500,
     gestureLockMs: 30,
     gestureQuietMs: 150,
-    resizeSettleSlides: 1.25,
+    resizeSettleSlides: 1 / 3,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',

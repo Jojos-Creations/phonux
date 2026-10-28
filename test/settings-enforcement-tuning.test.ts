@@ -255,7 +255,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     saveQuietMs: 500,
     gestureLockMs: 30,
     gestureQuietMs: 150,
-    resizeSettleSlides: 1.25,
+    resizeSettleSlides: 1 / 3,
     returnTieBreak: 'latest-first',
     dropTieBreak: 'leftmost',
     rowGesture: 'step',
