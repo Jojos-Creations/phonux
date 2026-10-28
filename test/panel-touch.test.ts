@@ -1,4 +1,4 @@
-/** A template's `touch` flag: which panels it marks, the stylesheet it shares, and what definePanel accepts. */
+/** A template's `touch`: which panels it marks and how, the stylesheet it shares, and what definePanel accepts. */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
@@ -35,13 +35,22 @@ test('a workspace with no touch template adds no stylesheet', () => {
   assert.equal(sheets(), 0);
 });
 
-test('definePanel takes a boolean touch and refuses anything else', () => {
+test("touch: 'content' marks its panel for the frame only, and true for the whole panel", () => {
+  const m = mountWith([definePanel({ id: 'inner', view, touch: 'content' }), definePanel({ id: 'whole', view, touch: true })]);
+  const marks = [...m.container.querySelectorAll('[data-panel-root][data-panel-touch]')].map((el) => el.getAttribute('data-panel-touch')).sort();
+  assert.deepEqual(marks, ['', 'content']);
+  const css = document.querySelector('style[data-phonux-touch]')?.textContent ?? '';
+  assert.match(css, /\[data-panel-touch="content"\] \[data-phone-frame\]/, 'under content only the frame is styled');
+});
+
+test("definePanel takes a boolean or 'content' for touch and refuses anything else", () => {
   assert.doesNotThrow(() => definePanel({ id: 'ok', view, touch: true }));
+  assert.doesNotThrow(() => definePanel({ id: 'ok', view, touch: 'content' }));
   assert.doesNotThrow(() => definePanel({ id: 'ok', view, touch: undefined }));
-  for (const touch of ['yes', 1, null, {}]) {
+  for (const touch of ['yes', 'header', 1, null, {}]) {
     assert.throws(
       () => definePanel({ id: 'bad', view, touch: touch as never }),
-      (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-template' && e.message.includes('touch must be a boolean'),
+      (e: unknown) => e instanceof PanelManagerError && e.code === 'invalid-template' && e.message.includes("touch must be a boolean or 'content'"),
     );
   }
 });

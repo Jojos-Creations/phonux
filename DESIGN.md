@@ -669,7 +669,9 @@ changes it. Only the content scrolls: the drag never steps the row, which stays 
 The drag is taken after 4 px, under the 6 px every panel, tile and grab-bar drag waits for, and its moves stop at the window,
 so none of those drags starts; a press that does not move stays a click. A press on a panel not in use only puts it in use
 (see above), so touch begins with the next press. Option (Alt) held at the press, text fields and sliders keep the mouse.
-One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
+`touch: true` covers the whole panel, header and footer included, so a drag there scrolls nothing and its buttons still
+click; `touch: 'content'` takes only the panel's frames, and the header, grab bar and footer keep the mouse's cursor and
+drags. One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
 
 ## `params` is opaque and JSON-serializable by construction
 
