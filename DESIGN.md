@@ -1284,7 +1284,7 @@ defaulting on. A hide and show in the middle of a drag (Activity) gives the hold
 motion, along the curve of `slide.closeExitEase` (`'easeIn'`: a Motion name or a cubic bezier). The direction lock (8 px), the snap-back spring, the speed window (100 ms) and the rest time (50 ms) after which a lift has no speed are
 constants in `rowConstants.ts`, not tuning. A row's own scroll glides (a step, `scrollTo`, the settle after a resize or a
 drag) travel along `slide.glideEase`, `'cubic-out'` by default (1 - (1 - t)^3, not `slide.ease`), so a host that wants
-one curve sets it equal to `ease`. The slots' stacking is the exported `ROW_LAYER_Z` (base 1, raised 2, dragged 3), below
+one curve sets it equal to `ease`. The slots' stacking tiers are the exported `ROW_LAYER_Z` (base 1, raised 100, dragged 200), below
 every `OVERLAY_Z` layer; layers are structure, so they are not tuning. Outside a row it reads the library defaults. It also reads the slot's `closable` (alone: not `collapsible`,
 which only decides whether the view wraps a box at all) at the release and again when the exit animation ends. A
 release that finds `closable` false starts no exit; one that finds it turned false at the end of the exit does not
@@ -1843,14 +1843,14 @@ skipped and its log id is not reported.
 
 The row's motion follows one set of intentions, so every change reads the same way whatever caused it:
 
-- **Open.** A new panel grows from its own center, drawn beneath the panel sliding out of the slot it takes, so it never
-  paints over it.
-- **Close.** A closing panel shrinks into its own center, which keeps to the point where its neighbors meet, drawn over the
-  neighbors closing up.
+- **Open.** A new panel grows from its own center, drawn beneath the whole row, so it never paints over the panel sliding
+  out of the slot it takes.
+- **Close.** A closing panel shrinks into its own center, which keeps to the point where its neighbors meet, tucked under
+  the neighbor nearer the row's middle (see "Layering").
 - **Park** (a panel leaving by one side of the window). It shrinks into the edge it leaves by and stays at its rest while it
-  does.
+  does, tucked under the neighbor sliding onto its spot.
 - **Reveal** (a parked panel returning from a side: an entry with a side mark, or one entering via its anchor). It grows out
-  of the edge on the side it comes in from, drawn over the neighbor still sliding off that spot: the mirror of a park.
+  of the edge on the side it comes in from, tucked under the neighbor still sliding off that spot: the mirror of a park.
 - **One clock.** Every move to a new rest, every scale and every size glide takes the workspace's `slide`: 0.6 s on the in-out
   curve `[0.4, 0, 0.2, 1]`, the shared `PANEL_TRANSITION` object while `slide` is at its defaults. Neighbors move on the same
   clock as the slot that grows or shrinks, so the gap it grows into or leaves never lags it, and every entrance and exit fades
@@ -1884,10 +1884,16 @@ fades out at the rest, and `shrink` scales the slot to 0, width and height toget
 the exit edge for a park. `shrink-left` and `shrink-right` shrink into that edge whatever the exit. An explicit `exitTo` is
 the same for a park and a close.
 
-**Layering.** While a slot grows or shrinks it is drawn above or below its neighbors so the motion reads: a reveal and every
-shrink are raised over the neighbors, an open sits one layer below the row's base until its expand completes, and a dragged
-slot is raised above all. A slot present at the row's first render never animates in, so it never grows and keeps the base
-layer. `layer` sets the resting order.
+**Layering.** One rule holds for every speed and direction (`rowSlotZ.ts`): a slot's z-index is its tier (`layer`:
+`ROW_LAYER_Z.BASE` 1 or `RAISED` 100) plus twice its rank, the number of slots between it and the nearer end of the row, so
+the stack peaks at the row's middle and falls toward both edges. A slot entering or leaving sits one level under its own
+rank, between it and the next rank out, so an entry or an exit at an edge always tucks under its inner neighbor, however many
+are in flight on that edge and whichever way the last step went. The rank is ranked over the drawn order, the present slots
+with each leaving slot kept at the place it had (a context, since AnimatePresence renders a leaving slot with the props it
+left with): two slots leaving by one edge keep their row order, and the one that left first stays under the second. An open
+sits one under the base tier until its expand completes, under the whole row; a dragged slot is `DRAGGED` (200), above all.
+A slot present at the row's first render never animates in, so it is never entering. DOM order is birth order and never
+decides the stacking: every pair that can overlap differs in z-index.
 
 Reduced motion is honored as the slide honors it: a slide's move lands at once and its fade still runs, so an `expand` or
 `shrink` scale lands at once and the fade still runs. A slot that mounts at its rest (a restored panel, or one added while a

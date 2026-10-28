@@ -15,6 +15,8 @@ import { landPanelIn } from '../workspaceCore.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
+import { ROW_LAYER_Z } from '../rowConstants.js';
+import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
 
@@ -52,6 +54,11 @@ const xOf = (m: MountedRow, id: string): number => {
   const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(m, id).style.transform);
   return match === null ? 0 : Math.round(Number(match[1]));
 };
+const restZ = (m: MountedRow, id: string, tier: number = ROW_LAYER_Z.BASE): string => {
+  const ids = ['root', ...m.live()];
+  return String(slotZ(tier, centerRank(ids.indexOf(id), ids.length), false));
+};
+const DRAGGED = String(ROW_LAYER_Z.DRAGGED);
 const xs = (m: MountedRow, ids: string[]): Record<string, number> => Object.fromEntries(ids.map((id) => [id, xOf(m, id)]));
 const order = (m: MountedRow): string => m.latest().entries.map((p) => p.id).join(',');
 const liveIds = (m: MountedRow): string => m.latest().entries.filter((p) => p.live).map((p) => p.id).join(',');
@@ -292,7 +299,7 @@ test('cancel leaves a panel in view and every slot exactly as it was', async () 
   assert.deepEqual(xs(m, ids), before);
   assert.equal(m.latest().entries, entries, 'the row was never rewritten');
   assert.equal(changes, 0);
-  assert.equal(slotOf(m, 's2').style.zIndex, '1', 'and nothing stays raised');
+  assert.equal(slotOf(m, 's2').style.zIndex, restZ(m, 's2'), 'and nothing stays raised');
 });
 
 // ---------------------------------------------------------------------------

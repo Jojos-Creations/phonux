@@ -12,6 +12,8 @@ import { DragToClose, usePanelDragProps } from '../index.js';
 import type { GrabDragEnd, GrabDragMove } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag, flick, release } from './support/drag-gesture.js';
+import { ROW_LAYER_Z } from '../rowConstants.js';
+import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
 
@@ -180,40 +182,45 @@ const slotOf = (m: MountedRow, id: string): HTMLElement => {
   return slot;
 };
 const zOf = (m: MountedRow, id: string): string => slotOf(m, id).style.zIndex;
+const restZ = (m: MountedRow, id: string, tier: number = ROW_LAYER_Z.BASE): string => {
+  const ids = ['root', ...m.live()];
+  return String(slotZ(tier, centerRank(ids.indexOf(id), ids.length), false));
+};
+const DRAGGED = String(ROW_LAYER_Z.DRAGGED);
 
 test('a dragged slot is drawn above its neighbours while it is held, vertically as well as sideways, and returns to its layer after it settles', async () => {
   optOut.on = true;
   const m = mountRow(panelsOf(3), 3000);
   await advanceFrames(2000);
-  assert.equal(zOf(m, 's2'), '1', 'at rest a panel is on the base layer');
+  assert.equal(zOf(m, 's2'), restZ(m, 's2'), 'at rest a panel is on the base layer');
   await drag(grabOf(m, 's2'), { dx: 0, dy: -120, steps: 6, hold: 4, keepDown: true });
   await advanceFrames(200);
-  assert.equal(zOf(m, 's2'), '3', 'dragged up: above the row');
-  assert.equal(zOf(m, 's1'), '1', 'a neighbour keeps its layer');
-  assert.equal(zOf(m, 's3'), '1');
+  assert.equal(zOf(m, 's2'), DRAGGED, 'dragged up: above the row');
+  assert.equal(zOf(m, 's1'), restZ(m, 's1'), 'a neighbour keeps its layer');
+  assert.equal(zOf(m, 's3'), restZ(m, 's3'));
   await release(0, -120);
   await advanceFrames(2000);
-  assert.equal(zOf(m, 's2'), '1', 'back on the base layer once the spring home ends');
+  assert.equal(zOf(m, 's2'), restZ(m, 's2'), 'back on the base layer once the spring home ends');
   await drag(grabOf(m, 's2'), { dx: 0, dy: 120, steps: 6, hold: 4, keepDown: true });
   await advanceFrames(200);
-  assert.equal(zOf(m, 's2'), '3', 'dragged down: above the row');
+  assert.equal(zOf(m, 's2'), DRAGGED, 'dragged down: above the row');
   await release(0, 120);
   await advanceFrames(2000);
-  assert.equal(zOf(m, 's2'), '1');
+  assert.equal(zOf(m, 's2'), restZ(m, 's2'));
 });
 
 test('a raised panel dragged keeps at least the dragged layer, and an opted-out release closes nothing in a row while the default still does', async () => {
   optOut.on = true;
   const m = mountRow(row(rootEntry(), made('s1'), made('s2', { layer: 'raised' })), 3000);
   await advanceFrames(2000);
-  assert.equal(zOf(m, 's2'), '2');
+  assert.equal(zOf(m, 's2'), restZ(m, 's2', ROW_LAYER_Z.RAISED));
   await drag(grabOf(m, 's2'), { dx: 0, dy: 300, steps: 6, hold: 4, keepDown: true });
   await advanceFrames(200);
-  assert.equal(zOf(m, 's2'), '3');
+  assert.equal(zOf(m, 's2'), DRAGGED);
   await release(0, 300);
   await advanceFrames(3000);
   assert.deepEqual(m.live(), ['s1', 's2'], 'opted out: nothing closed');
-  assert.equal(zOf(m, 's2'), '2', 'and the raised layer is back');
+  assert.equal(zOf(m, 's2'), restZ(m, 's2', ROW_LAYER_Z.RAISED), 'and the raised layer is back');
 
   optOut.on = false;
   m.rerender(3001);
