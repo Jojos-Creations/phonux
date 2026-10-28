@@ -38,6 +38,7 @@
     "phone:webkit": "PHONE_PROJECTS=iphone-13-webkit playwright test -c playwright.phone.config.ts",
     "smoke": "node tools/phonux-pack-smoke.mjs",
     "check:api-report": "node tools/phonux-api-report.mjs",
+    "check:frame-gap": "node tools/frame-gap-probe.mjs",
     "api-report:update": "node tools/phonux-api-report.mjs --local",
     "release:check": "node tools/phonux-release-check.mjs",
     "lint": "biome lint --error-on-warnings ."
