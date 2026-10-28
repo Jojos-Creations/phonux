@@ -6,13 +6,11 @@
 import * as React from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { ThemeProvider } from '@mui/material/styles';
 import { AutoMountContext } from './autoMountContext.js';
 import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
-import { createDefaultTheme, muiThemeFor, type PhonuxTheme } from './defaultTheme.js';
+import { createDefaultTheme, PhonuxThemeProvider, type PhonuxTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
@@ -75,7 +73,7 @@ function panelsInputOf(workspace: WorkspaceHandle, stand: Map<string, unknown>):
 /** What the default mount renders for `workspace`. @internal */
 type ThemeFor = (mode: 'light' | 'dark') => PhonuxTheme;
 
-const isTheme = (t: unknown): t is PhonuxTheme => typeof t === 'object' && t !== null && typeof (t as PhonuxTheme).primary === 'string' && typeof (t as PhonuxTheme).radiusUnitPx === 'number';
+const isTheme = (t: unknown): t is PhonuxTheme => typeof t === 'object' && t !== null && typeof (t as PhonuxTheme).primary === 'string' && typeof (t as PhonuxTheme).radius === 'number';
 
 /** The theme for the window's color scheme: `make` once per mode, else the default; a throw or a non-theme is reported once and the default is drawn. */
 function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void): PhonuxTheme {
@@ -103,15 +101,11 @@ function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void
 export function AutoRoot({ workspace, columnTop = 0, columnBottom = 0, themed = true }: { workspace: WorkspaceHandle; columnTop?: number; columnBottom?: number; themed?: boolean }): React.ReactElement {
   const binding = bindingOf(workspace);
   const theme = useMountTheme(binding.theme, binding.reportError);
-  const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
   const body = <AutoBody workspace={workspace} columnTop={columnTop} columnBottom={columnBottom} />;
   return (
     <AutoMountContext.Provider value={workspace}>
       {themed ? (
-        <ThemeProvider theme={styling}>
-          <CssBaseline />
-          {body}
-        </ThemeProvider>
+        <PhonuxThemeProvider theme={theme}>{body}</PhonuxThemeProvider>
       ) : (
         body
       )}
@@ -205,12 +199,10 @@ export function mountWorkspace(workspace: WorkspaceHandle, target: HTMLElement |
 export function ColumnRoot({ column }: { column: WorkspaceColumnHandle }): React.ReactElement {
   const core = columnCoreOf(column);
   const theme = useMountTheme(core.theme, core.reportError);
-  const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
   return (
-    <ThemeProvider theme={styling}>
-      <CssBaseline />
+    <PhonuxThemeProvider theme={theme}>
       <WorkspaceColumn column={column} />
-    </ThemeProvider>
+    </PhonuxThemeProvider>
   );
 }
 

@@ -49,7 +49,7 @@ the template was written against (left out, it is the newest). A view returns ba
 drag to close, reorder). Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
 Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
-component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
+component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme; each field is also a CSS custom property, such as `--phonux-primary`, that a stylesheet rule overrides), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
