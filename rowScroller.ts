@@ -27,6 +27,10 @@ export interface GlideOptions {
   instant: boolean;
   /** The curve. */
   ease: GlideEase;
+  /** True: a glide in flight hands its speed to this one, so a retarget keeps moving instead of starting from rest. */
+  carry?: boolean;
+  /** True: the strip fades out, moves at once while unseen, and fades back in, over `durationSec`. Nothing between is drawn. */
+  fade?: boolean;
 }
 
 /** What may move one row's offset. */
@@ -83,14 +87,35 @@ interface Glide {
   startMs: number;
   durationMs: number;
   curve: (t: number) => number;
+  fade: boolean;
 }
+
+const progress = (g: Glide, nowMs: number): number => Math.min(1, Math.max(0, (nowMs - g.startMs) / g.durationMs));
 
 const at = (g: Glide, nowMs: number): number => {
   const t = (nowMs - g.startMs) / g.durationMs;
   return t >= 1 ? g.to : g.from + (g.to - g.from) * g.curve(Math.max(0, t));
 };
 
-const glideOf = (from: number, to: number, nowMs: number, o: GlideOptions): Glide => ({ from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: curveOf(o.ease) });
+// A fade moves at its midpoint, where the strip is fully transparent.
+const jumpCurve = (t: number): number => (t < 0.5 ? 0 : 1);
+const opacityAt = (g: Glide, nowMs: number): number => Math.abs(1 - 2 * progress(g, nowMs));
+
+const glideOf = (from: number, to: number, nowMs: number, o: GlideOptions): Glide => ({ from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: o.fade === true ? jumpCurve : curveOf(o.ease), fade: o.fade === true });
+
+// The slope a glide in flight has now, in px per ms, read off its own curve.
+const speedOf = (g: Glide, nowMs: number): number => (at(g, nowMs + 1) - at(g, nowMs - 1)) / 2;
+
+/**
+ * A glide from `from` to `to` that leaves at `speed` px per ms and eases into its rest: the first control point's slope is the
+ * speed measured against the straight line, so a retarget joins the motion before it without a lurch.
+ */
+function carried(from: number, to: number, nowMs: number, speed: number, o: GlideOptions): Glide {
+  const distance = to - from;
+  const slope = Math.abs(distance) < 0.5 ? 0 : (speed * o.durationSec * 1000) / distance;
+  const y1 = Math.min(1.5, Math.max(0, slope / 3));
+  return { from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: cubicBezier(1 / 3, y1, 0.6, 1), fade: false };
+}
 
 const scrollers = new WeakMap<HTMLElement, RowScroller>();
 
@@ -138,16 +163,20 @@ function createRowScroller(el: HTMLElement): RowScroller {
     anim = null;
     if (s === null) return;
     s.style.transform = translate(margin - offset);
+    s.style.opacity = glide?.fade === true ? String(opacityAt(glide, nowMs)) : '';
     const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, marginGlide === null ? 0 : marginGlide.startMs + marginGlide.durationMs);
     if (end <= nowMs || typeof s.animate !== 'function') return;
     const frames: Keyframe[] = [];
     const steps = Math.max(1, Math.ceil((end - nowMs) / SAMPLE_MS));
     for (let k = 0; k <= steps; k += 1) {
       const t = nowMs + ((end - nowMs) * k) / steps;
-      frames.push({ transform: translate((marginGlide === null ? margin : at(marginGlide, t)) - (glide === null ? offset : at(glide, t))), offset: k / steps });
+      const keyframe: Keyframe = { transform: translate((marginGlide === null ? margin : at(marginGlide, t)) - (glide === null ? offset : at(glide, t))), offset: k / steps };
+      if (glide?.fade === true) keyframe.opacity = String(opacityAt(glide, t));
+      frames.push(keyframe);
     }
     // Under the animation, the rest it lands on, so its end hands over without a frame of the old value.
     s.style.transform = translate((marginGlide?.to ?? margin) - (glide?.to ?? offset));
+    s.style.opacity = '';
     anim = s.animate(frames, { duration: end - nowMs, easing: 'linear', fill: 'none' });
   };
 
@@ -164,7 +193,10 @@ function createRowScroller(el: HTMLElement): RowScroller {
     }
     const s = strip();
     // Without the Web Animations API the frame loop draws each frame itself.
-    if (anim === null && s !== null) s.style.transform = translate(margin - offset);
+    if (anim === null && s !== null) {
+      s.style.transform = translate(margin - offset);
+      s.style.opacity = glide?.fade === true ? String(opacityAt(glide, now)) : '';
+    }
     if (glide === null && marginGlide === null) {
       anim?.cancel();
       anim = null;
@@ -226,10 +258,16 @@ function createRowScroller(el: HTMLElement): RowScroller {
       }
       const now = performance.now();
       const from = glide === null ? offset : at(glide, now);
+      const before = glide;
       if (glide === null) el.addEventListener('pointerdown', onPointerDown);
       if (marginGlide !== null) margin = at(marginGlide, now);
       offset = from;
-      glide = glideOf(from, target, now, o);
+      if (o.fade === true && before?.fade === true) {
+        // A fade already under way goes on from the opacity it has reached, so a second jump does not flash the row.
+        const t = progress(before, now);
+        glide = glideOf(from, target, now - (t < 0.5 ? t : 1 - t) * o.durationSec * 1000, o);
+      } else if (o.carry === true && before !== null && !before.fade) glide = carried(from, target, now, speedOf(before, now), o);
+      else glide = glideOf(from, target, now, o);
       draw(now);
       run();
       return true;

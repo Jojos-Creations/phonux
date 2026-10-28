@@ -121,7 +121,7 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
 export const CATALOG_NAMES: readonly string[] = PANEL_SETTINGS_CATALOG.map((d) => d.name);
 
 /** The thirteen catalog names whose instance-door call is wrong-scope: three template keys, ten workspace-only tuning keys. */
-export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels'];
+export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels'];
 
 const probesRun = new Set<string>();
 const cellsRun = new Set<string>();

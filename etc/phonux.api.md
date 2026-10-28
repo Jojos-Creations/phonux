@@ -1286,6 +1286,7 @@ export type ResolvedWorkspaceTuning = {
     returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'off';
+    fastScroll: 'coalesce' | 'jump';
     initialScroll: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
@@ -1588,7 +1589,7 @@ export function usePanelDots(i: {
     rowNumbers: RowNumbers;
     entries: readonly WorkspaceRowEntry[];
     scroller: React_2.RefObject<HTMLElement | null>;
-    tuning: Pick<ResolvedWorkspaceTuning, 'slide'>;
+    tuning: Pick<ResolvedWorkspaceTuning, 'slide'> & Partial<Pick<ResolvedWorkspaceTuning, 'fastScroll'>>;
     ovalSide?: number;
 }): PanelDots;
 
@@ -2026,6 +2027,7 @@ export type WorkspaceTuning = {
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
+    fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
