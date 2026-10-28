@@ -11,7 +11,7 @@ While 0.2 is a release candidate, install the `next` tag, together with the peer
 
 ```sh
 npm install phonux@next
-npm install react react-dom @mui/material @mui/icons-material @emotion/react @emotion/styled motion
+npm install react react-dom @mui/material @emotion/react @emotion/styled motion
 ```
 
 `@dnd-kit/core` is a dependency of phonux, not a peer: npm installs it for you. The package also ships `DESIGN.md`, which explains
@@ -45,7 +45,8 @@ workspace.addPanel('notes');
 That is the whole app: `createWorkspace` renders itself into a full-window element, so there is no component to mount, no
 host to build and no width to track. A template takes three optional fields beyond `view`: `footer`, a component drawn at the
 bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), `touch: true`, which makes a mouse
-drag in the panel in use scroll its content as a finger does on a phone (see `DESIGN.md`, "A touch template"), and `api`, the
+drag in the panel in use scroll its content as a finger does on a phone (`touch: 'content'` keeps the header and footer
+to the mouse; see `DESIGN.md`, "A touch template"), and `api`, the
 panel API level the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
 drag to close, reorder), and after the person closes a panel the workspace shows a toast whose Undo puts it back where it was, at the same size and with its state. Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
@@ -215,6 +216,23 @@ await row.dispose();
 
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
+
+## Sync to the user's own Dropbox or Drive
+
+`phonux/sync` keeps an app's documents in the user's Dropbox App Folder or Google Drive appDataFolder, encrypted on
+the device. It needs no server and never reads the documents.
+
+```ts
+import { createSync, dropbox } from 'phonux/sync';
+
+const sync = createSync({ provider: dropbox({ clientId: DROPBOX_APP_KEY }), kv, redirectUri });
+location.assign(await sync.signInUrl());     // later, on the redirect: await sync.finishSignIn(location.href)
+await sync.unlock(passphrase);               // sets the passphrase on a new account, checks it on the next device
+await sync.push({ name: 'workspace', text }); // a newer edit from another device comes back instead
+for (const doc of await sync.pull()) apply(doc);
+```
+
+`kv` is any string store on the device. See DESIGN.md "`phonux/sync`" for the encryption and conflict rules.
 
 ## License
 

@@ -9,6 +9,7 @@
 import * as React from 'react';
 import type { PhoneModel } from './phoneModels.js';
 import type { SnapshotsAPI } from './snapshots.js';
+import type { PhonuxIcons } from './icons.js';
 import type { PhonuxLabels } from './labels.js';
 import { OverlayProvider } from './windowOverlay.js';
 import { ViewStateProvider } from './viewState.js';
@@ -204,7 +205,7 @@ export interface PhoneDeviceAPI {
 }
 
 /**
- * Everything a view reaches through `useHost()`. `snapshots` and `labels` may be absent, so a view reads each with a
+ * Everything a view reaches through `useHost()`. `snapshots`, `labels` and `icons` may be absent, so a view reads each with a
  * fallback. The first frame of an auto-mounted workspace holds exactly the values given to `createWorkspace`; a value that arrives
  * later is absent in that frame and appears after `workspace.update`.
  * @public
@@ -219,6 +220,8 @@ export interface Host {
   readonly snapshots?: SnapshotsAPI;
   /** Overrides of the library's visible strings (see `PhonuxLabels`); a key left out keeps its English default. */
   readonly labels?: Partial<PhonuxLabels>;
+  /** Overrides of the library's own icons (see `PhonuxIcons`); a key left out keeps its default. */
+  readonly icons?: Partial<PhonuxIcons>;
 }
 
 // ---------------------------------------------------------------------------

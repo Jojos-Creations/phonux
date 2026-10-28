@@ -669,7 +669,9 @@ changes it. Only the content scrolls: the drag never steps the row, which stays 
 The drag is taken after 4 px, under the 6 px every panel, tile and grab-bar drag waits for, and its moves stop at the window,
 so none of those drags starts; a press that does not move stays a click. A press on a panel not in use only puts it in use
 (see above), so touch begins with the next press. Option (Alt) held at the press, text fields and sliders keep the mouse.
-One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
+`touch: true` covers the whole panel, header and footer included, so a drag there scrolls nothing and its buttons still
+click; `touch: 'content'` takes only the panel's frames, and the header, grab bar and footer keep the mouse's cursor and
+drags. One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
 
 ## `params` is opaque and JSON-serializable by construction
 
@@ -1899,12 +1901,15 @@ The row's motion follows one set of intentions, so every change reads the same w
   the enter and the exit half-way and leave panels growing and shrinking in place. Steps the same way never wait, so
   sustained scrolling stays as fast as the input. Reduce Motion clears the gate at once. This is the one motion the row skips.
 - **The end bump.** A step with nowhere to go (past the last or first stop, or on a row that fits with no hidden panel to
-  swap in on that side) pushes the strip `ROW_BUMP_PX` (36) in the step's direction on an ease-out and springs it back
-  critically damped, over `ROW_BUMP_SEC` (0.45 s): the iOS rubber band, so the input is answered rather than ignored. It is an
-  additive term in the strip's one `translateX` animation (`RowScroller.bump`), so it rides the compositor with any glide and
-  never touches the offset, the stops or the dot bar. A bump asked while a glide is landing starts when it lands, as momentum
-  carries into an edge. Asks during a bump, or within a bump's length of the last ask, are absorbed: a held key or a wheel's
-  momentum tail bumps once. A blocked swap reversal (the swap gate) is not a dead end and does not bump. Reduce Motion skips it.
+  swap in on that side) pushes the strip `ROW_BUMP_PX` (36) in the step's direction on an ease-out, holds it there while
+  the scrolling goes on, and springs it back critically damped once it stops: the iOS rubber band, so the input is answered
+  rather than ignored. Every wheel event and finger move toward that end (`keepBump`), and every further step, extends the
+  hold to `tuning.gestureQuietMs` (150 ms) from now, the quiet that ends a gesture, so a wheel's momentum tail keeps the panels
+  pushed out until it dies away. The push and the return together take `ROW_BUMP_SEC` (0.45 s). It is an additive term in the
+  strip's one `translateX` animation (`RowScroller.bump`), so it rides the compositor with any glide and never touches the
+  offset, the stops or the dot bar. A bump asked while a glide is landing starts when it lands, as momentum carries into an
+  edge; one asked while the last springs back pushes out again from where it is. A blocked swap reversal (the swap gate) is
+  not a dead end and does not bump. Reduce Motion skips it.
 
 **Settings.** A panel's entrance is its `enterFrom` and its exit, for a park and a close alike, its `exitTo`. Each has one
 workspace-wide default, `tuning.defaultEnterFrom` and `tuning.defaultExitTo`: a panel whose own value is `auto` takes the
@@ -2154,6 +2159,29 @@ A Capacitor page runs in WKWebView on iPhone and in the Android System WebView. 
   box stays at rest under the finger. A mouse or pen is unchanged and starts past the direction lock; the press is taken on the handle, not the sensor, because
   the sensor's activator is one per event name and would drop the mouse's. The workspace's tile drag is separate and still holds a
   touch for 250 ms.
+
+## `phonux/sync`: user-owned storage, encrypted on the device
+
+The library never stores app data itself; `phonux/sync` is the one place it talks to storage, and only to storage the
+user owns. It is its own entry with no React and no panel code, so an app that does not sync bundles none of it, and
+any phonux app (or none) can sync its own shapes through it.
+
+- **Documents, not schemas.** The app names text documents and pushes them whole. Sync never parses them, so
+  validation stays with the app, as it does for `WorkspaceStorage`.
+- **Three provider calls.** A `SyncProvider` lists, reads and writes whole files in one app folder, with an opaque
+  revision. Dropbox enforces the revision on upload; Drive cannot, so its `write` checks just before writing.
+- **No server.** OAuth 2 with PKCE: the host opens `signInUrl()` and hands the redirect's URL to `finishSignIn`, so a
+  page redirect, a popup, an Electron window or a Capacitor deep link all work. Google requires its public client
+  secret at the token endpoint, so `googleDrive` takes one.
+- **Encryption.** One random data key per account, wrapped by PBKDF2-SHA256 (600,000 iterations, stored in the key
+  file) of the passphrase. HKDF splits it into an AES-256-GCM file key and an HMAC name key. File names are the
+  HMAC of the document name; the remote name is the GCM AAD, so a file moved to another name fails to open. The
+  unlocked data key is kept on the device beside its tokens, so the passphrase is asked once per device. A lost
+  passphrase cannot be recovered; the device's own data is untouched.
+- **Newest edit wins, per document.** A push carries the revision this device last saw. On a conflict the remote
+  copy is read; when its `updatedAt` is newer, it is returned to the host and nothing is uploaded, else the push
+  overwrites it. Device clocks decide, which is enough for one person's devices. There is no delete yet: without
+  tombstones a delete would race another device's push.
 
 ## Doc comments
 

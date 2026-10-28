@@ -69,9 +69,12 @@ export function useRowScrollGesture(
   mode: 'step' | 'off' = 'step',
   gestureQuietMs: number = GESTURE_QUIET_MS,
   stepPx = 400,
+  onTravel?: (direction: 'left' | 'right') => void,
 ): void {
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
+  const onTravelRef = useRef(onTravel);
+  onTravelRef.current = onTravel;
   const gestureLockMsRef = useRef(gestureLockMs);
   gestureLockMsRef.current = gestureLockMs;
   const gestureQuietMsRef = useRef(gestureQuietMs);
@@ -94,6 +97,7 @@ export function useRowScrollGesture(
     };
     // Both inputs feed this: `amount` is travel in px, positive for a step to the right.
     const feed = (amount: number): void => {
+      if (amount !== 0) onTravelRef.current?.(amount > 0 ? 'right' : 'left');
       const unit = Math.max(1, stepPxRef.current);
       if (quietTimer) clearTimeout(quietTimer);
       quietTimer = setTimeout(() => {

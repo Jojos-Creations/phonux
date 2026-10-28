@@ -188,7 +188,7 @@ function rowWithStrip(): HTMLDivElement {
 test('a bump right pushes the strip left by up to its distance and springs back to rest without moving the offset', async () => {
   const el = rowWithStrip();
   setRowOffset(el, 300);
-  rowScrollerFor(el).bump('right', { distancePx: 36, durationSec: 0.4 });
+  rowScrollerFor(el).bump('right', { distancePx: 36, durationSec: 0.4, holdMs: 0 });
   let least = 0;
   for (let k = 0; k < 25; k += 1) {
     await advanceFrames(16);
@@ -200,22 +200,29 @@ test('a bump right pushes the strip left by up to its distance and springs back 
   assert.equal(stripXOf(el), -300, 'back at rest');
 });
 
-test('a bump left pushes the strip right, and asks while it plays are absorbed', async () => {
+test('a bump left pushes the strip right and holds there while asks keep coming, then springs back once they stop', async () => {
   const el = rowWithStrip();
   const scroller = rowScrollerFor(el);
-  scroller.bump('left', { distancePx: 36, durationSec: 0.4 });
-  await advanceFrames(160);
-  assert.ok(stripXOf(el) > 0);
-  scroller.bump('left', { distancePx: 36, durationSec: 0.4 });
+  scroller.bump('left', { distancePx: 36, durationSec: 0.4, holdMs: 150 });
+  await advanceFrames(80);
+  scroller.bump('left', { distancePx: 36, durationSec: 0.4, holdMs: 150 });
+  await advanceFrames(128);
+  assert.equal(stripXOf(el), 36, 'held at the full push');
+  scroller.keepBump('left', 150);
+  await advanceFrames(128);
+  assert.equal(stripXOf(el), 36, 'kept held by input that is not a step');
+  scroller.keepBump('right', 150);
+  await advanceFrames(64);
+  assert.ok(stripXOf(el) < 36, 'input the other way does not hold it: it springs back');
   await advanceFrames(320);
-  assert.equal(stripXOf(el), 0, 'the second ask did not start another bump');
+  assert.equal(stripXOf(el), 0, 'back at rest, with no second bump');
 });
 
 test('a bump asked while a glide is in flight waits for it to land', async () => {
   const el = rowWithStrip();
   const scroller = rowScrollerFor(el);
   scroller.glideTo(400, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
-  scroller.bump('right', { distancePx: 36, durationSec: 0.4 });
+  scroller.bump('right', { distancePx: 36, durationSec: 0.4, holdMs: 0 });
   await advanceFrames(400);
   assert.equal(rowOffsetOf(el), 400);
   await advanceFrames(80);

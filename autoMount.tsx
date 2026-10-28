@@ -145,6 +145,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
     ...(values.device !== undefined ? { device: values.device } : {}),
     ...(values.snapshots !== undefined ? { snapshots: values.snapshots } : {}),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
+    ...(values.icons !== undefined ? { icons: values.icons } : {}),
   };
   const Wrap = binding.wrap;
   const row = (

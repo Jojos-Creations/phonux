@@ -9,13 +9,9 @@ import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { createSvgIcon } from '@mui/material/utils';
-import DesktopWindowsOutlinedIcon from '@mui/icons-material/DesktopWindowsOutlined';
-import FullscreenOutlinedIcon from '@mui/icons-material/FullscreenOutlined';
-import SmartphoneOutlinedIcon from '@mui/icons-material/SmartphoneOutlined';
-import TabletOutlinedIcon from '@mui/icons-material/TabletOutlined';
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
+import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
 import { usePanelMaximize } from './panelMaximize.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
@@ -28,13 +24,6 @@ function insidePanel(button: HTMLElement | null): { side: 'left' | 'right'; maxW
   return { side: icon && panel && icon.left + icon.width / 2 > panel.left + panel.width / 2 ? 'right' : 'left', maxWidth: panel?.width };
 }
 
-/** Material has no ultrawide monitor: this is its outlined desktop monitor with the screen drawn wide and short. */
-const UltrawideIcon = createSvgIcon(<path d="M21 5H3c-1.1 0-2 .9-2 2v7c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 9H3V7h18v7z" />, 'Ultrawide');
-/** Material has no foldable phone: two outlined phones side by side, the fold drawn as the gap between them. */
-const FoldIcon = createSvgIcon(<path d="M3 4h18v16H3V4zm2 2v12h6V6H5zm8 0v12h6V6h-6z" />, 'Fold');
-
-/** One icon per width, by slots. The outlined set throughout: the filled desktop monitor is solid beside the hollow phone and tablet. */
-const SIZE_ICONS = [SmartphoneOutlinedIcon, FoldIcon, TabletOutlinedIcon, DesktopWindowsOutlinedIcon, UltrawideIcon] as const;
 const SIZE_KEYS = ['phone', 'fold', 'tablet', 'desktop', 'ultrawide'] as const;
 
 const ICON = { color: 'inherit' } as const;
@@ -63,7 +52,9 @@ export interface PanelSizeControlProps {
  * @public
  */
 export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys, onRefused }: PanelSizeControlProps = {}): React.JSX.Element | null {
-  const labels = resolveLabels(useOptionalHost()?.labels);
+  const host = useOptionalHost();
+  const labels = resolveLabels(host?.labels);
+  const icons = resolveIcons(host?.icons);
   const announce = React.useContext(AnnounceContext);
   const slot = React.useContext(PanelSlotContext);
   const button = React.useRef<HTMLButtonElement>(null);
@@ -78,12 +69,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const summary = slot?.summary;
   if (!drawsSizeControl(slot) || handle === undefined || summary === undefined) return null;
   const maxSlots = slot?.maxSlots ?? 1;
-  const limit = Math.min(SIZE_ICONS.length, maxSlots, summary.fitSlots ?? maxSlots);
+  const limit = Math.min(SIZE_KEYS.length, maxSlots, summary.fitSlots ?? maxSlots);
   const own = summary.savedSlots ?? summary.slots ?? 1;
-  const iconOf = (slots: number): React.ReactElement => {
-    const Icon = SIZE_ICONS[slots - 1] ?? DesktopWindowsOutlinedIcon;
-    return <Icon fontSize="small" />;
-  };
   const close = (): void => {
     setAnchor(null);
     button.current?.focus({ preventScroll: true });
@@ -104,7 +91,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
           onClick={(event) => setAnchor(event.currentTarget)}
           sx={ICON}
         >
-          {maximize.maximized || own > SIZE_ICONS.length ? <FullscreenOutlinedIcon fontSize="small" /> : iconOf(own)}
+          {maximize.maximized || own > SIZE_KEYS.length ? icons.fullscreen : icons.size(own)}
         </IconButton>
       </Tooltip>
       {/* No restore on close: a dismissed menu leaves focus where it was, and a pick puts it back on the button itself. */}
@@ -135,7 +122,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
                   }}
                   sx={ENTRY}
                 >
-                  {iconOf(slots)}
+                  {icons.size(slots)}
                 </IconButton>
               </Tooltip>
             ))}
@@ -152,7 +139,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
                 }}
                 sx={ENTRY}
               >
-                <FullscreenOutlinedIcon fontSize="small" />
+                {icons.fullscreen}
               </IconButton>
             </Tooltip>
           </Box>

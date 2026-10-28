@@ -499,7 +499,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const maxScroll = maxScrollOf(rowNumbers);
     // A step with nowhere to go gives the iOS rubber band instead of nothing.
     const bump = (): void => {
-      if (!reducedMotion) scroller.bump(direction, { distancePx: ROW_BUMP_PX, durationSec: ROW_BUMP_SEC });
+      if (!reducedMotion) scroller.bump(direction, { distancePx: ROW_BUMP_PX, durationSec: ROW_BUMP_SEC, holdMs: tuning.gestureQuietMs });
     };
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
       const gate = lastSwapRef.current;
@@ -581,7 +581,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   });
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap);
+  // Every wheel event and finger move keeps a bump at the end held, so the row springs back only once the scrolling stops.
+  const keepBump = (direction: 'left' | 'right'): void => {
+    const el = i.overflowContainerRef.current;
+    if (el !== null) rowScrollerFor(el).keepBump(direction, tuning.gestureQuietMs);
+  };
+  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap, keepBump);
 
   const shrinkUnfocusedRef = useRef(tuning.shrinkUnfocused);
   shrinkUnfocusedRef.current = tuning.shrinkUnfocused;

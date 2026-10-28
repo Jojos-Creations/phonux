@@ -51,7 +51,7 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
     );
     const Footer = t.footer as React.ComponentType<object> | undefined;
     const body = Footer === undefined ? view : <PanelFooterContext.Provider value={<Footer {...viewProps} />}>{view}</PanelFooterContext.Provider>;
-    const touched = t.touch === true ? <PanelTouchContext.Provider value>{body}</PanelTouchContext.Provider> : body;
+    const touched = t.touch === undefined || t.touch === false ? body : <PanelTouchContext.Provider value={t.touch}>{body}</PanelTouchContext.Provider>;
     return <PanelLevelContext.Provider value={level}>{touched}</PanelLevelContext.Provider>;
   }
   forTable.set(t, TemplatePanelView);

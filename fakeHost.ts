@@ -28,6 +28,7 @@ import { ROOT_MARKER_ID } from './workspaceCore.js';
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
 export type { Host, PhoneSize, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
 export type { PhonuxLabels } from './labels.js';
+export type { PhonuxIcons } from './icons.js';
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';

@@ -437,6 +437,7 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 // @public
 export interface Host {
     readonly device: PhoneDeviceAPI;
+    readonly icons?: Partial<PhonuxIcons>;
     readonly labels?: Partial<PhonuxLabels>;
     readonly panels: PanelsAPI;
     readonly snapshots?: SnapshotsAPI;
@@ -1072,9 +1073,12 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly id: string;
     readonly params?: P;
     readonly settings?: PanelSettings;
-    readonly touch?: boolean;
+    readonly touch?: PanelTouch;
     readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
+
+// @public
+export type PanelTouch = boolean | 'content';
 
 // @public
 export type PanelUserLayer = {
@@ -1161,6 +1165,14 @@ export interface PhoneSize {
     height: number;
     modelId: string;
     width: number;
+}
+
+// @public
+export interface PhonuxIcons {
+    fullscreen: React_2.ReactNode;
+    grab: React_2.ReactNode;
+    noActions: React_2.ReactNode;
+    size: (slots: number) => React_2.ReactNode;
 }
 
 // @public
@@ -1837,6 +1849,7 @@ export type WorkspaceLive = {
     device?: PhoneDeviceAPI;
     snapshots?: SnapshotsAPI;
     labels?: Partial<PhonuxLabels>;
+    icons?: Partial<PhonuxIcons>;
     topInset?: number;
     panels?: WorkspacePanelsInput;
 };

@@ -10,9 +10,9 @@ import Box from '@mui/material/Box';
 import type { ElementProps } from './cssStyle.js';
 import type { Theme } from '@mui/material/styles';
 import type { PhonuxTheme } from './defaultTheme.js';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
+import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -191,13 +191,13 @@ const placeholderTitle = (text: string) => (
 
 /** A dimmed "more" glyph reads as "no actions here" rather than a missing icon, and keeps the
  * row's right edge occupied so the header's height never depends on whether any were passed. */
-const PLACEHOLDER_ACTIONS = (
+const placeholderActions = (glyph: React.ReactNode) => (
   <Box
     data-header-placeholder-action=""
     aria-hidden="true"
     sx={{ display: 'flex', alignItems: 'center', color: 'text.disabled' }}
   >
-    <MoreHorizIcon fontSize="small" />
+    {glyph}
   </Box>
 );
 
@@ -208,7 +208,8 @@ const PLACEHOLDER_ACTIONS = (
  * @public
  */
 export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, onTitleChange, ...rest }: PanelHeaderRowProps) {
-  const labels = resolveLabels(useOptionalHost()?.labels);
+  const host = useOptionalHost();
+  const labels = resolveLabels(host?.labels);
   const [draft, setDraft] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const editing = draft !== null;
@@ -216,7 +217,7 @@ export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, o
     if (editing) inputRef.current?.focus();
   }, [editing]);
   const resolvedTitle = isEmptyHeaderContent(title) ? placeholderTitle(labels.untitledHeader) : title;
-  const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
+  const resolvedActions = isEmptyHeaderContent(actions) ? placeholderActions(resolveIcons(host?.icons).noActions) : actions;
   const editable = isInput && typeof title === 'string' && onTitleChange !== undefined;
   const commit = (): void => {
     if (draft === null) return;
