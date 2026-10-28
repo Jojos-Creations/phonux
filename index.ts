@@ -20,6 +20,7 @@ export type {
 } from './hostApi.js';
 
 export type { PhonuxLabels } from './labels.js';
+export type { PhonuxIcons } from './icons.js';
 
 export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
@@ -164,6 +165,7 @@ export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,
+  PanelTouch,
   PanelViewProps,
   AnyPanelTemplate,
   PanelStatus,

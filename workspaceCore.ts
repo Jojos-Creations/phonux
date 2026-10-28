@@ -140,7 +140,7 @@ export interface WorkspaceHandle {
   addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: AddPanelOptions<P>): PanelHandle<P>;
   /**
    * Gives the auto-mounted host new values: only the members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`,
-   * `labels`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
+   * `labels`, `icons`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
    * member changed, never for a changed closure alone, so a hook may call this from an effect on every render without a loop.
    * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) changes nothing.
    * @throws PanelManagerError with code `disposed`, or `invalid-options` for a member that is not live.
@@ -492,7 +492,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const autoMounted = o.mount !== false && typeof document !== 'undefined';
-  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
+  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.icons !== undefined ? { icons: o.icons } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
   let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
@@ -1273,7 +1273,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     update: (change) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
       const refusedKeys = refusedLiveKeys(change);
-      if (refusedKeys.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refusedKeys.join(', ')}: only device, settings, history, snapshots, labels, topInset and panels are live`);
+      if (refusedKeys.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refusedKeys.join(', ')}: only device, settings, history, snapshots, labels, icons, topInset and panels are live`);
       live.update(change);
     },
     registerTemplate: (t) => {

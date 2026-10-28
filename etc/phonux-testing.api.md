@@ -4,7 +4,7 @@
 
 ```ts
 
-import type * as React_2 from 'react';
+import * as React_2 from 'react';
 
 // @public
 export type AbsentHostMember = 'snapshots';
@@ -187,6 +187,7 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 // @public
 export interface Host {
     readonly device: PhoneDeviceAPI;
+    readonly icons?: Partial<PhonuxIcons>;
     readonly labels?: Partial<PhonuxLabels>;
     readonly panels: PanelsAPI;
     readonly snapshots?: SnapshotsAPI;
@@ -410,6 +411,14 @@ export interface PhoneSize {
     height: number;
     modelId: string;
     width: number;
+}
+
+// @public
+export interface PhonuxIcons {
+    fullscreen: React_2.ReactNode;
+    grab: React_2.ReactNode;
+    noActions: React_2.ReactNode;
+    size: (slots: number) => React_2.ReactNode;
 }
 
 // @public

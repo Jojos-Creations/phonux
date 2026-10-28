@@ -1,17 +1,24 @@
 /**
- * Touch handling for a template declared with `touch: true`: while such a panel is active and the pointer is inside it, a mouse
+ * Touch handling for a template declared with `touch: true` or `touch: 'content'`: while such a panel is active and the pointer is inside it, a mouse
  * drag scrolls the content under it as a finger does and coasts on release. It never moves the row, which stays the wheel's
  * and the keys'. Anywhere else, or with Option (Alt) held at the press, the mouse is a mouse. A press that stays put clicks.
  */
 import * as React from 'react';
 import { ACTIVE_ATTRIBUTE } from './panelChrome.js';
+import { PHONE_FRAME_ATTRIBUTE } from './PanelFrame.js';
+import type { PanelTouch } from './panelTemplate.js';
 
 const TOUCH_ATTRIBUTE = 'data-panel-touch';
 const TOUCH_PANEL = `[${ACTIVE_ATTRIBUTE}][${TOUCH_ATTRIBUTE}]`;
+const FRAME = `[${PHONE_FRAME_ATTRIBUTE}]`;
+// The element a touch drag may start in: the whole panel, or under 'content' only its frames, leaving the header and footer to the mouse.
+const AREAS = [`${TOUCH_PANEL}[${TOUCH_ATTRIBUTE}=""]`, `${TOUCH_PANEL}[${TOUCH_ATTRIBUTE}="content"] ${FRAME}`];
 
 // A finger's dot instead of the arrow, and no scrollbars, as on a phone; the content still scrolls.
 const FINGER = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="11" fill="rgba(128,128,128,0.35)" stroke="rgba(255,255,255,0.8)" stroke-width="2"/></svg>')}") 14 14, auto`;
-const CSS = `${TOUCH_PANEL}, ${TOUCH_PANEL} * { cursor: ${FINGER} !important; } ${TOUCH_PANEL} * { scrollbar-width: none; } ${TOUCH_PANEL} *::-webkit-scrollbar { display: none; }`;
+const CSS = AREAS.map((a) => `${a}, ${a} * { cursor: ${FINGER} !important; } ${a} * { scrollbar-width: none; } ${a} *::-webkit-scrollbar { display: none; }`).join(' ');
+
+const inArea = (target: Element): boolean => AREAS.some((a) => target.closest(a) !== null);
 
 /** Under the library's 6 px drag activation, so a drag is ours before any panel or tile drag can start. */
 const SLOP_PX = 4;
@@ -73,7 +80,7 @@ function attach(win: Window): () => void {
     if (e.pointerType !== 'mouse' || e.button !== 0 || e.altKey || !(e.target instanceof Element)) return;
     // A press on a panel not yet active only activates it: the library marks it after this capture listener runs.
     const panel = e.target.closest(TOUCH_PANEL);
-    if (panel === null || e.target.closest(OWN_POINTER) !== null) return;
+    if (panel === null || !inArea(e.target) || e.target.closest(OWN_POINTER) !== null) return;
     swallowClick = stopped;
     drag = { id: e.pointerId, target: e.target, panel, x: e.clientX, y: e.clientY, axis: null, el: null, samples: [] };
   };
@@ -126,7 +133,7 @@ function attach(win: Window): () => void {
   };
   // An image or link would otherwise start the browser's own drag on the first move.
   const onDragStart = (e: DragEvent): void => {
-    if (e.target instanceof Element && e.target.closest(TOUCH_PANEL) !== null) e.preventDefault();
+    if (e.target instanceof Element && inArea(e.target)) e.preventDefault();
   };
 
   const cancel = (): void => { drag = null; };
@@ -169,14 +176,14 @@ function use(doc: Document): () => void {
   };
 }
 
-/** True inside a panel made from a `touch: true` template. @internal */
-export const PanelTouchContext = React.createContext(false);
+/** The `touch` of the template the panel is made from. @internal */
+export const PanelTouchContext = React.createContext<PanelTouch>(false);
 
 /** The attributes and listeners a panel root needs for touch: `rootRef` is the root, `touch` the context value. @internal */
-export function usePanelTouch(rootRef: React.RefObject<HTMLElement | null>, touch: boolean): Record<string, string> {
+export function usePanelTouch(rootRef: React.RefObject<HTMLElement | null>, touch: PanelTouch): Record<string, string> {
   React.useEffect(() => {
     const doc = rootRef.current?.ownerDocument;
-    return touch && doc !== undefined ? use(doc) : undefined;
+    return touch !== false && doc !== undefined ? use(doc) : undefined;
   }, [rootRef, touch]);
-  return touch ? { [TOUCH_ATTRIBUTE]: '' } : {};
+  return touch === false ? {} : { [TOUCH_ATTRIBUTE]: touch === 'content' ? 'content' : '' };
 }

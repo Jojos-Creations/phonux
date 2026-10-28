@@ -209,6 +209,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     ...(o.device !== undefined ? { device: o.device } : {}),
     ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}),
     ...(o.labels !== undefined ? { labels: o.labels } : {}),
+    ...(o.icons !== undefined ? { icons: o.icons } : {}),
     ...(o.topInset !== undefined ? { topInset: o.topInset } : {}),
     ...(o.panels !== undefined ? { panels: o.panels } : {}),
   };
@@ -363,7 +364,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     update: (change) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the column was disposed');
       const refused = refusedLiveKeys(change);
-      if (refused.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refused.join(', ')}: only device, settings, history, snapshots, labels, topInset and panels are live`);
+      if (refused.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refused.join(', ')}: only device, settings, history, snapshots, labels, icons, topInset and panels are live`);
       live = { ...live, ...change };
       for (const w of list) w.update(change);
       changed();

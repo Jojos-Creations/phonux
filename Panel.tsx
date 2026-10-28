@@ -9,9 +9,9 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import type { CssStyle, ElementProps } from './cssStyle.js';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
-import { type PanelSize } from './hostApi.js';
+import { type PanelSize, useOptionalHost } from './hostApi.js';
+import { resolveIcons } from './icons.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -126,7 +126,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
       ...grabProps?.sx,
     },
   };
-  const grabIcon = <DragIndicatorIcon aria-hidden="true" fontSize="small" />;
+  const grabIcon = resolveIcons(useOptionalHost()?.icons).grab;
   const grabHandle = grabProps && title !== undefined ? <Box {...grabHandleProps}>{grabIcon}</Box> : undefined;
   React.useEffect(() => {
     if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;

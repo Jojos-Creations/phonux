@@ -9,7 +9,8 @@
   "exports": {
     ".": "./index.ts",
     "./testing": "./fakeHost.ts",
-    "./testing/row": "./testingRow.ts"
+    "./testing/row": "./testingRow.ts",
+    "./sync": "./sync.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1"
@@ -18,7 +19,6 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "@mui/material": "^9.3.1",
-    "@mui/icons-material": "^9.3.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "motion": "^13.3.0",
