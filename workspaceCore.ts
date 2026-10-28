@@ -214,6 +214,8 @@ export interface EngineOps {
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   /** Puts a parked or hidden panel where `value` says and makes it live in the same update; a live panel is placed. */
   land(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
+  /** Parks `hideIds` and makes each of `show` live where its `place` says, in one update and one motion; refuses `busy` when any of them already holds a token. */
+  swap(show: readonly { engineId: string; place?: AddPlacement | 'in-place' }[], hideIds: readonly string[]): PanelResult;
   setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
   /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
@@ -744,6 +746,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
     operate: (id, call, src) => operate(id, call, src),
     resetLayout: (target) => resetLayout(target),
+    swap: (show, hide) => swapPanels(show, hide),
     configure: (id, patch, caller) => configureOne(id, patch, caller),
     configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
     configureTuning: (patch) => configureTuningOne(patch),
@@ -957,6 +960,34 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
 
   /** Clears what a reset clears on a closed panel: its place in the undo window. True when it was in it. */
   const resetClosed = (r: Rec): boolean => r.lastEngineId !== undefined && commit!.ops.resetClosed(r.lastEngineId);
+
+  /** `swap`: the engine ids of `show` and `hide`, each a panel the row holds, or the refusal for one it cannot take. */
+  const swapPanels = (show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult => {
+    const first = hide[0] ?? show[0];
+    const unavailable = lifecycleRefusal(first === undefined || typeof first === 'string' ? (first ?? rootId) : first.id);
+    if (unavailable !== undefined) return unavailable;
+    const engineIdOf = (id: PanelId): string | PanelResult => {
+      const state = knownState(id);
+      if (state === undefined) return refused('unknown-panel', `no panel '${id}' in this workspace`);
+      if (state.status === 'pending') return refused('is-pending', `panel '${id}' is still being added`);
+      if (state.status === 'closed') return refused('is-closed', `panel '${id}' is closed`);
+      return state.engineId!;
+    };
+    const hideIds: string[] = [];
+    for (const id of hide) {
+      const engineId = engineIdOf(id);
+      if (typeof engineId !== 'string') return engineId;
+      hideIds.push(engineId);
+    }
+    const shows: { engineId: string; place?: AddPlacement | 'in-place' }[] = [];
+    for (const entry of show) {
+      const { id, place } = typeof entry === 'string' ? { id: entry, place: undefined } : entry;
+      const engineId = engineIdOf(id);
+      if (typeof engineId !== 'string') return engineId;
+      shows.push(place === undefined ? { engineId } : { engineId, place });
+    }
+    return commit!.ops.swap(shows, hideIds);
+  };
 
   /** `resetLayout`: one panel, or every panel but the root, back to the cascade's defaults in one update. */
   const resetLayout = (target: PanelId | 'all'): ResetResult => {

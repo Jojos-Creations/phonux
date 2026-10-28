@@ -285,6 +285,8 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly enteringViaAnchorIds: ReadonlySet<string>;
   /** See usePanelManager.ts's `UsePanelManagerResult.exitRightIds` for the full contract. */
   readonly exitRightIds: ReadonlySet<string>;
+  /** See usePanelManager.ts's `UsePanelManagerResult.swapExitIds` for the full contract. */
+  readonly swapExitIds: ReadonlySet<string>;
   /** See usePanelManager.ts's `UsePanelManagerResult.enterSideById` for the full contract. */
   readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
 }
@@ -435,6 +437,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     resizePanel,
     enterSideById,
     exitRightIds,
+    swapExitIds,
+    swapPanels,
     releaseHold,
     heldIds,
     holdPanel,
@@ -1077,6 +1081,35 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gate.release(token);
       return accepted(changed);
     },
+    swap: (show, hideIds) => {
+      const leaving: PanelWindow[] = [];
+      for (const engineId of hideIds) {
+        const target = held(engineId);
+        if (!isEntry(target)) return target;
+        if (!effective(target).parkable) return refused('not-parkable', `panel '${panelKey(target)}' is a fixed column and cannot be parked`);
+        leaving.push(target);
+      }
+      const arriving: PanelWindow[] = [];
+      for (const { engineId } of show) {
+        const target = held(engineId);
+        if (!isEntry(target)) return target;
+        if (engineId === rootId) return refused('root-fixed', `panel '${panelKey(target)}' is the root and cannot be placed`);
+        arriving.push(target);
+      }
+      const showIds = show.map((s) => s.engineId);
+      if (gate.busy(hideIds, 'hide') || gate.busy(showIds, 'other')) return refused('busy', 'a panel already has an operation in this turn');
+      if (arriving.every((p) => p.live) && FIXED.hideWhenLast === 'refuse' && wouldEmptyRow(hideIds)) return refused('would-empty-row', 'the swap would leave no panel in the row');
+      // Two tokens: the hides count as leaving for the empty-row rule, the shows do not.
+      const hiding = gate.take(hideIds, 'hide')!;
+      const showing = gate.take(showIds, 'other')!;
+      const changed = swapPanels(
+        leaving.map((p) => ({ id: p.id, stickiness: effective(p).hideStickiness })),
+        show.map(({ engineId, place }) => (place === undefined ? { id: engineId } : { id: engineId, place })),
+      );
+      gate.release(hiding);
+      gate.release(showing);
+      return accepted(changed);
+    },
     land: (engineId, value, source) => {
       const target = held(engineId);
       if (!isEntry(target)) return target;
@@ -1270,6 +1303,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     closingIds: closing.closingIds,
     enteringViaAnchorIds,
     exitRightIds,
+    swapExitIds,
     enterSideById,
   };
 

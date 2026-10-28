@@ -5,7 +5,7 @@
 import type { JsonValue } from './hostApi.js';
 import { filterStates, type PanelHandle, type ReadSource } from './panelHandles.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import type { PanelId, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import type { AddPlacement, PanelId, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import type { InstancePatch, SettingsPatch } from './settingsPatch.js';
 import type { ListFilter, PanelSnapshot } from './panelTemplate.js';
 
@@ -112,6 +112,16 @@ export interface PanelManager {
   /** Clears the person's overrides of one panel, or of every panel but the root with 'all', and applies the cascade defaults now, in one update. */
   resetLayout(target: PanelId | 'all'): ResetResult;
   /**
+   * Replaces what the row shows in one update: parks the panels of `hide` and brings in those of `show`, each a parked panel's id
+   * or `{ id, place }` to land it where `place` says (else where its `placeOnShow` says). The shows are priced against the row
+   * without the hides, so the whole change lands in one commit and one motion: every leaving panel shrinks as a close does and
+   * every arriving one grows as an open does, and the row re-centers once. Nothing is scrolled to. A live panel in `show` or a
+   * parked one in `hide` is left as it is. Refused as a whole, changing nothing, for a panel that is unknown, pending or closed,
+   * a fixed column in `hide`, the root in `show`, one that already has an operation this turn (`busy`), or a change that would
+   * leave the row empty.
+   */
+  swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide?: readonly PanelId[]): PanelResult;
+  /**
    * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).
    * Empty when the row holds no panel `id`: a pending, closed or unknown panel has no family.
    */
@@ -134,6 +144,7 @@ export function makePanelManager(source: ReadSource): PanelManager {
     configureTemplate: (templateId, patch) => source.configureTemplate(templateId, patch),
     configureTuning: (patch) => source.configureTuning(patch),
     resetLayout: (target) => source.resetLayout(target),
+    swap: (show, hide = []) => source.swap(show, hide),
     familyOf: (id) => source.familyOf(id),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),

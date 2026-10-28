@@ -76,6 +76,8 @@ export interface ReadSource {
   viewHandleOf(id: PanelId): ViewHandle | undefined;
   /** Resets one panel, or every panel but the root. */
   resetLayout(target: PanelId | 'all'): ResetResult;
+  /** Parks `hide` and shows `show` in one update. */
+  swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult;
   /** Patches one panel's settings, for a panel's own caller or for its view. */
   configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
   /** Patches the template-scope settings of a template. */

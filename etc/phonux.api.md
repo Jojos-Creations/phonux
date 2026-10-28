@@ -778,6 +778,10 @@ export interface PanelManager {
     list(f?: ListFilter): readonly PanelHandle[];
     resetLayout(target: PanelId | 'all'): ResetResult;
     subscribe(l: () => void): () => void;
+    swap(show: readonly (PanelId | {
+        id: PanelId;
+        place?: AddPlacement | 'in-place';
+    })[], hide?: readonly PanelId[]): PanelResult;
 }
 
 // @public
@@ -885,6 +889,7 @@ export function PanelRow(input: {
     closingIds: ReadonlySet<string>;
     enteringViaAnchorIds: ReadonlySet<string>;
     exitRightIds?: ReadonlySet<string>;
+    swapExitIds?: ReadonlySet<string>;
     enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
     maxLiveWidth?: number;
     rowNumbers?: RowNumbers;
@@ -1229,6 +1234,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly rowScroll: boolean;
     scrollTo(id: string, align?: ScrollAlign): boolean;
     setSlots(id: string, slots: number): void;
+    readonly swapExitIds: ReadonlySet<string>;
     readonly tuning: ResolvedWorkspaceTuning;
 }
 
@@ -1478,7 +1484,10 @@ export type SettingValues = {
 };
 
 // @public
-export function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe'>, show: readonly PanelId[], hide?: readonly PanelId[], options?: WaitOptions): Promise<readonly PanelResult[]>;
+export function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe' | 'swap'>, show: readonly (PanelId | {
+    id: PanelId;
+    place?: AddPlacement | 'in-place';
+})[], hide?: readonly PanelId[], options?: WaitOptions): Promise<PanelResult>;
 
 // @public
 export function slideToTransition(slide: SlideTuning): {

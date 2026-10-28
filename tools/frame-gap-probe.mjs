@@ -45,14 +45,16 @@ const browser = await chromium.launch({ executablePath });
 // Each rAF reads every slot's rect: a frame the probe sees is a frame the person sees, and the read lands after the
 // frame's own animation writes.
 function installSampler() {
-  window.sample = (ms) =>
+  // `leaving` names the slots a swap sends out: each shrinks into its center under the slot arriving there, so the pair is
+  // the swap's own shape, not two neighbors overlapping.
+  window.sample = (ms, leaving = []) =>
     new Promise((done) => {
       const frames = [];
       const start = performance.now();
       const tick = (ts) => {
         const slots = [...document.querySelectorAll('[data-row-slot]')]
           .map((el) => ({ id: el.querySelector('[data-probe-body]')?.dataset.probeBody ?? el.dataset.rowId, rect: el.getBoundingClientRect() }))
-          .filter((s) => s.rect.width > 1)
+          .filter((s) => s.rect.width > 1 && !leaving.includes(s.id))
           .sort((a, b) => a.rect.left - b.rect.left);
         let minGap = Number.POSITIVE_INFINITY;
         let pair = '';
@@ -67,7 +69,8 @@ function installSampler() {
         const shape = [...document.querySelectorAll('[data-probe-body]')]
           .map((el) => { const r = el.getBoundingClientRect(); return `${el.dataset.probeBody}:${r.left.toFixed(1)},${r.top.toFixed(1)},${r.width.toFixed(1)}x${r.height.toFixed(1)}`; })
           .join(' ');
-        frames.push({ ts, minGap, pair, shape });
+        const stay = document.querySelector('[data-probe-body="p1"]')?.closest('[data-row-slot]');
+        frames.push({ ts, minGap, pair, shape, stayLeft: stay ? stay.getBoundingClientRect().left : 0 });
         if (ts - start < ms) requestAnimationFrame(tick);
         else done(frames);
       };
@@ -86,6 +89,15 @@ function summarize(name, frames, windowMs) {
     }
   }
   const tightest = frames.reduce((worst, f) => (f.minGap < worst.minGap ? f : worst), { minGap: Number.POSITIVE_INFINITY, pair: '' });
+  // The panel that stays through a set swap must glide once: a frame where its left edge turns back is a second motion.
+  let reversals = 0;
+  let direction = 0;
+  for (let i = 1; i < frames.length; i++) {
+    const step = frames[i].stayLeft - frames[i - 1].stayLeft;
+    if (Math.abs(step) < 0.5) continue;
+    if (direction !== 0 && Math.sign(step) !== direction) reversals++;
+    direction = Math.sign(step);
+  }
   return {
     name,
     frames: frames.length,
@@ -96,6 +108,7 @@ function summarize(name, frames, windowMs) {
     maxGapAtMs: Math.round(worstAt),
     minNeighborPx: Number.isFinite(tightest.minGap) ? +tightest.minGap.toFixed(1) : null,
     tightestPair: tightest.pair,
+    reversals,
   };
 }
 
@@ -113,8 +126,8 @@ try {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
   await page.waitForTimeout(1500);
 
-  const measure = async (name, windowMs, act) => {
-    const sampled = page.evaluate((ms) => window.sample(ms), windowMs);
+  const measure = async (name, windowMs, act, leaving = []) => {
+    const sampled = page.evaluate(([ms, out]) => window.sample(ms, out), [windowMs, leaving]);
     await page.waitForTimeout(50);
     await act();
     const summary = summarize(name, await sampled, windowMs);
@@ -154,6 +167,10 @@ try {
   results.push(await measure('shrink out (close it again)', 1500, () => page.evaluate(() => window.probe.closeMid())));
   results.push(await measure('maximize p2', 1500, () => page.evaluate(() => window.probe.toggleMaximize('p2'))));
   results.push(await measure('unmaximize p2', 1500, () => page.evaluate(() => window.probe.toggleMaximize('p2'))));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.waitForTimeout(1500);
+  results.push(await measure('tab change: six panels to one', 1500, () => page.evaluate(() => window.probe.swapToTab()), ['p2', 'p3', 'p4', 'p5', 'p6']));
+  results.push(await measure('tab change: one panel to six', 1500, () => page.evaluate(() => window.probe.swapBack()), ['tab']));
 } finally {
   await browser.close();
   server.close();
@@ -161,6 +178,7 @@ try {
 
 const late = (r) => r.maxGapMs >= MAX_GAP_MS;
 const overlaps = (r) => r.minNeighborPx !== null && r.minNeighborPx < MIN_NEIGHBOR_PX;
+const turnsBack = (r) => r.reversals > 0;
 const nothing = [];
 for (const c of controls) {
   const ok = c.expect === 'pass' ? !late(c) && !overlaps(c) : c.expect === 'late' ? c.maxGapMs >= 100 : overlaps(c);
@@ -173,14 +191,14 @@ for (const r of results) {
   if (r.shapes < 2) nothing.push(`${r.name}: nothing on screen moved`);
 }
 if (errors.length > 0) nothing.push(`page errors: ${errors.join('; ')}`);
-const failed = results.filter((r) => late(r) || overlaps(r));
+const failed = results.filter((r) => late(r) || overlaps(r) || turnsBack(r));
 
 if (json) console.log(JSON.stringify({ throttle: THROTTLE, maxGapMs: MAX_GAP_MS, minNeighborPx: MIN_NEIGHBOR_PX, controls, results, nothing }, null, 1));
 else {
-  console.log(`frame-gap probe: Chromium, CPU throttle x${THROTTLE}, budget: frame gap < ${MAX_GAP_MS} ms, neighbor gap >= 0 px`);
+  console.log(`frame-gap probe: Chromium, CPU throttle x${THROTTLE}, budget: frame gap < ${MAX_GAP_MS} ms, neighbor gap >= 0 px, p1 never turns back`);
   for (const r of [...controls, ...results]) {
-    const mark = nothing.some((n) => n.startsWith(r.name)) ? 'BROKEN' : r.expect ? 'ok' : late(r) || overlaps(r) ? 'FAIL' : 'pass';
-    console.log(`  ${mark.padEnd(6)} ${r.name.padEnd(38)} max gap ${String(r.maxGapMs).padStart(6)} ms at ${String(r.maxGapAtMs).padStart(5)} ms  min neighbor ${String(r.minNeighborPx).padStart(7)} px ${r.tightestPair}  (${r.frames} frames)`);
+    const mark = nothing.some((n) => n.startsWith(r.name)) ? 'BROKEN' : r.expect ? 'ok' : late(r) || overlaps(r) || turnsBack(r) ? 'FAIL' : 'pass';
+    console.log(`  ${mark.padEnd(6)} ${r.name.padEnd(38)} max gap ${String(r.maxGapMs).padStart(6)} ms at ${String(r.maxGapAtMs).padStart(5)} ms  min neighbor ${String(r.minNeighborPx).padStart(7)} px ${r.tightestPair}  p1 turns back ${r.reversals}x  (${r.frames} frames)`);
   }
 }
 if (nothing.length > 0) {
