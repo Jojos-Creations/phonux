@@ -216,6 +216,23 @@ await row.dispose();
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
 
+## Sync to the user's own Dropbox or Drive
+
+`phonux/sync` keeps an app's documents in the user's Dropbox App Folder or Google Drive appDataFolder, encrypted on
+the device. It needs no server and never reads the documents.
+
+```ts
+import { createSync, dropbox } from 'phonux/sync';
+
+const sync = createSync({ provider: dropbox({ clientId: DROPBOX_APP_KEY }), kv, redirectUri });
+location.assign(await sync.signInUrl());     // later, on the redirect: await sync.finishSignIn(location.href)
+await sync.unlock(passphrase);               // sets the passphrase on a new account, checks it on the next device
+await sync.push({ name: 'workspace', text }); // a newer edit from another device comes back instead
+for (const doc of await sync.pull()) apply(doc);
+```
+
+`kv` is any string store on the device. See DESIGN.md "`phonux/sync`" for the encryption and conflict rules.
+
 ## License
 
 phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
