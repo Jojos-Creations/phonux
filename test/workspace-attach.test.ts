@@ -27,6 +27,7 @@ const NO_OPS: EngineOps = {
   move: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   place: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   land: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
+  swap: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   setSlots: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   scrollTo: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),
   reopen: () => ({ ok: false, code: 'is-closed', message: 'no engine' }),

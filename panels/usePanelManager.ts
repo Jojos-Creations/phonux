@@ -87,6 +87,15 @@ export interface UsePanelManagerResult {
   enterSideById: ReadonlyMap<string, 'left' | 'right'>;
   /** Ids parking with an exit to the RIGHT (every other park exits left). Set through `flushSync` BEFORE the parking `setPanels`: AnimatePresence reads `exit` from the last render before the child leaves. */
   exitRightIds: ReadonlySet<string>;
+  /** Ids a swap parks: each leaves as a close does, not toward a side. Set as `exitRightIds` is, before the parking `setPanels`. */
+  swapExitIds: ReadonlySet<string>;
+  /**
+   * Parks `hide` and makes `show` live, each where its `place` (else its `placeOnShow`) says, in ONE update: the shows are priced
+   * against the row without the hides, so the whole set changes in one commit and one motion. A hide is recorded as `holdPanel`
+   * records it; a show drops its enter-side marks, so it enters as an open does. False, changing nothing, when no hide is live
+   * and collapsible and no show is parked.
+   */
+  swapPanels: (hide: readonly { id: string; stickiness: 'sticky' | 'until-room' }[], show: readonly { id: string; place?: AddPlacement | 'in-place' }[]) => boolean;
   /**
    * Parks `id` and records the hold of `kind`: a 'sticky' hold returns only when shown, an 'until-room' one when
    * the free slots exceed what the park itself left. An id already parked by capacity takes the hold and leaves
@@ -211,15 +220,18 @@ export function usePanelManager(
 
   const enterSideRef = useRef<ReadonlyMap<string, 'left' | 'right'>>(new Map());
   const [exitRightIds, setExitRightIds] = useState<ReadonlySet<string>>(new Set());
+  const [swapExitIds, setSwapExitIds] = useState<ReadonlySet<string>>(new Set());
 
-  /** Every path that makes an id live must forget any stale exit-right mark from a PREVIOUS park of the same id -- ids cycle live/parked repeatedly over a session. Put here, once, so no reveal path can skip it. */
+  /** Every path that makes an id live must forget any stale exit mark from a PREVIOUS park of the same id -- ids cycle live/parked repeatedly over a session. Put here, once, so no reveal path can skip it. */
   const purgeExitRight = (id: string): void => {
-    setExitRightIds((prev) => {
+    const without = (prev: ReadonlySet<string>): ReadonlySet<string> => {
       if (!prev.has(id)) return prev;
       const next = new Set(prev);
       next.delete(id);
       return next;
-    });
+    };
+    setExitRightIds(without);
+    setSwapExitIds(without);
   };
 
   /** No flushSync needed: the mark only has to be in the commit that mounts the slot, like enteringViaAnchorRef's. */
@@ -449,6 +461,45 @@ export function usePanelManager(
     const priced = pricing(row);
     const live = row.filter(isParkLive);
     return priced.capacityFor(parksForRoom(target) ? [...live, target] : live, live.map(priced.widthOf));
+  };
+
+  /** See `UsePanelManagerResult.swapPanels`'s own doc comment. */
+  const swapPanels = (hide: readonly { id: string; stickiness: 'sticky' | 'until-room' }[], show: readonly { id: string; place?: AddPlacement | 'in-place' }[]): boolean => {
+    const flying = inFlight();
+    const leaving = hide.filter(({ id }) => {
+      const target = panels.find((p) => p.id === id);
+      return target?.collapsible === true && target.live && !flying.has(id);
+    });
+    const arriving = show.filter(({ id }) => panels.some((p) => p.id === id && !p.live));
+    if (leaving.length === 0 && arriving.length === 0) return false;
+    const leavingSet = new Set(leaving.map(({ id }) => id));
+    const liveAfter = liveParkable(panels).filter((p) => !leavingSet.has(p.id) && !flying.has(p.id));
+    for (const { id, stickiness } of leaving) {
+      markInFlight(id);
+      noteHold(panels.find((p) => p.id === id)!);
+      recordPark([id], { kind: 'hide', stickiness, liveAfter });
+    }
+    for (const { id } of arriving) {
+      markKeepLive(id);
+      // No side: a swap's arrival enters as an open does, whatever an earlier reveal of the same id marked.
+      forgetEnteringViaAnchor(id);
+      clearEnterSide(id);
+      forgetCollapsed(id);
+      releaseHold(id);
+    }
+    const keep = [...keptIds()];
+    // Its own commit before the one that parks them, as `markExitRight` has: the leaving slots' last render carries the mark.
+    if (leaving.length > 0) flushOwn(() => setSwapExitIds((prev) => new Set([...prev, ...leavingSet])));
+    setPanels((prev) => {
+      let row = prev.map((p) => (leavingSet.has(p.id) ? { ...p, live: false } : p));
+      for (const { id, place } of arriving) {
+        const target = row.find((p) => p.id === id);
+        if (target === undefined || target.live) continue;
+        row = liftOn(row, id, place ?? effective(target).placeOnShow, capacityShowing(row, target), new Set(keep)) ?? row;
+      }
+      return settledKeeping(row, keep);
+    });
+    return true;
   };
 
   /**
@@ -773,6 +824,8 @@ export function usePanelManager(
     gate,
     enterSideById: enterSideRef.current,
     exitRightIds,
+    swapExitIds,
+    swapPanels,
     holdPanel,
     releaseHold,
     heldIds: heldRef.current,

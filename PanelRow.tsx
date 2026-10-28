@@ -149,6 +149,7 @@ export function PanelRow({
   closingIds,
   enteringViaAnchorIds,
   exitRightIds = EMPTY_SET,
+  swapExitIds = EMPTY_SET,
   enterSideById = EMPTY_MAP,
   maxLiveWidth = Number.POSITIVE_INFINITY,
   rowNumbers,
@@ -166,6 +167,8 @@ export function PanelRow({
   enteringViaAnchorIds: ReadonlySet<string>;
   /** Ids parking with an exit to the RIGHT; every other park exits LEFT. Read only while the panel's `exitTo` resolves to 'auto'. */
   exitRightIds?: ReadonlySet<string>;
+  /** Ids a swap parks: each leaves as a close does, toward no side. */
+  swapExitIds?: ReadonlySet<string>;
   /** An explicit enter side per id, winning over the anchor formula: a scroll gesture knows which side a reveal
    * must enter from, which the boolean anchor formula cannot express. */
   enterSideById?: ReadonlyMap<string, 'left' | 'right'>;
@@ -422,7 +425,7 @@ export function PanelRow({
           phoneHeight={rowHeight}
           height={p.slots === undefined ? undefined : phoneHeight}
           enterDirection={held ? 'fade' : enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index), workspaceTuning.defaultEnterFrom)}
-          exitDirection={held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id), exitRightIds.has(p.id))}
+          exitDirection={held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id) || swapExitIds.has(p.id), exitRightIds.has(p.id))}
           zIndex={dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
           tracking={slotTracking}
           gap={gap}

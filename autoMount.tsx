@@ -32,8 +32,8 @@ export function workspaceProps(provided: ProvidedPanels, workspace: WorkspaceHan
 }
 
 /** The `PanelRow` props the mount derives from what `useProvidePanels` returned. @internal */
-export function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'enterSideById' | 'maxLiveWidth' | 'rowNumbers' | 'workspace'> {
-  return { entries: provided.entries, rootId: workspace.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace };
+export function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'swapExitIds' | 'enterSideById' | 'maxLiveWidth' | 'rowNumbers' | 'workspace'> {
+  return { entries: provided.entries, rootId: workspace.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, swapExitIds: provided.swapExitIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace };
 }
 
 /** The window's width as the row prices itself from it: the scroll container's own `clientWidth`, 0 until it is measured. */

@@ -6,7 +6,7 @@
 import { columnCoreOf, type WorkspaceColumnHandle } from './columnHandle.js';
 import type { PanelManager, PanelResult } from './panelManager.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import type { PanelId } from './panelSettings.js';
+import type { AddPlacement, PanelId } from './panelSettings.js';
 import type { PanelState } from './panelTemplate.js';
 
 /** Refusals a later turn can clear. */
@@ -106,21 +106,15 @@ export function whenPanel(panels: Pick<PanelManager, 'get' | 'subscribe'>, id: P
 }
 
 /**
- * Puts away the panels of `hide` and then brings in those of `show`, each as soon as the row takes it: a show in the same turn as
- * the hides would still count them against the row's room. Resolves once every call is answered, with the answers in order (hides
- * first).
+ * Puts away the panels of `hide` and brings in those of `show` in one update (`PanelManager.swap`), as soon as the row takes it,
+ * and resolves with its answer once every shown panel is live: one commit, so the old set leaves, the new set arrives and the row
+ * re-centers in one motion. A `busy` answer is retried as `whenAccepted` retries it.
  * @public
  */
-export async function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe'>, show: readonly PanelId[], hide: readonly PanelId[] = [], options?: WaitOptions): Promise<readonly PanelResult[]> {
-  const gone: PanelResult = { ok: false, code: 'unknown-panel', message: 'no such panel' };
-  const hidden = await Promise.all(hide.map((id) => whenAccepted(panels, () => panels.get(id)?.hide('code') ?? gone, options)));
-  if (hidden.some((r) => r.ok && r.changed)) {
-    await Promise.all(hide.map((id) => whenPanel(panels, id, (s) => s.status !== 'live', options)));
-    // The hides' own turn still counts them against the row's room until it ends.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  const shown = await Promise.all(show.map((id) => whenAccepted(panels, () => panels.get(id)?.show('code') ?? gone, options)));
-  return [...hidden, ...shown];
+export async function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe' | 'swap'>, show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[] = [], options?: WaitOptions): Promise<PanelResult> {
+  const result = await whenAccepted(panels, () => panels.swap(show, hide), options);
+  if (result.ok && result.changed) await Promise.all(show.map((entry) => whenPanel(panels, typeof entry === 'string' ? entry : entry.id, (s) => s.status === 'live', options)));
+  return result;
 }
 
 /**

@@ -1855,6 +1855,11 @@ The row's motion follows one set of intentions, so every change reads the same w
   curve `[0.4, 0, 0.2, 1]`, the shared `PANEL_TRANSITION` object while `slide` is at its defaults. Neighbors move on the same
   clock as the slot that grows or shrinks, so the gap it grows into or leaves never lags it, and every entrance and exit fades
   the opacity as a slide does. The slot keeps its full box and scales it, so the content is never reflowed.
+- **A set swap** (`PanelManager.swap`, and `showPanels` over it: a host's tab change). The hides and the shows land in one
+  update, priced against the row without the hides, so the old set leaves, the new set arrives and the row re-centers in one
+  commit and on one clock. A leaving panel shrinks into its center as a close does, an arriving one grows from its center as an
+  open does, drawn as those are, and the root glides at most once, straight to the new rest. Nothing is scrolled to. Two updates
+  would re-center the row twice: once around the root alone, then back around the new set.
 - **The swap gate.** A scroll step at the row's end swaps a hidden panel in. A step that would swap back the other way while
   the last swap is still in flight waits for that swap to land (`swapAllowed` in `useProvidePanels`): a reversal would run
   the enter and the exit half-way and leave panels growing and shrinking in place. Steps the same way never wait, so
