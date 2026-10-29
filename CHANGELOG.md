@@ -48,8 +48,6 @@
 - `MovePanelOptions.leave`: with `withFamily`, members of the family that stay in the source while the rest moves; the panel itself always moves. A moving member whose opener stays takes its nearest moving ancestor as opener, and the all-or-nothing checks cover only what moves.
 - `useWorkspaceRow()`: a hook inside a workspace's `wrap` that returns the mounted row's `rowNumbers`, `entries` (`WorkspaceRowEntry`: id, the panel's saved `uid`, and hollow dot), `scroller`, slide values, `maxFitPanels` and the fitted `phoneSize`.
 - `tuning.rowTop` (integer px 0 to 400, or null): the room above the row, which the default mount uses for the row's top padding and the phone fit alike. `tuning.phoneHeight` (`'fit'` or `'auto'`): under `phoneFit: 'fit'`, `'auto'` makes the frame as tall as the row's room, never shorter than the fit, and the width still fits.
-- `useClosedPages`' `limit` is optional: without it the list keeps every closed page and never drops one, so a host keeps history until the person deletes it.
-- `ClosedPagesPanel` takes `pageSize`: it shows that many of the newest rows and a Show more button (label `closedPagesShowMore`) that shows that many more each press. Search still matches every entry. `query` lets a host draw the search field elsewhere, such as in the panel's footer: given, the panel draws no field of its own and filters by it.
 - A `WorkspaceColumn` cell whose children function returns `undefined` draws the library's own row for that cell; `null` draws nothing.
 
 ### Changed
