@@ -6,6 +6,9 @@
   "private": true,
   "type": "module",
   "sideEffects": false,
+  "bin": {
+    "phonux": "./cli/main.ts"
+  },
   "exports": {
     ".": "./index.ts",
     "./testing": "./fakeHost.ts",

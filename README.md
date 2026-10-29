@@ -235,6 +235,37 @@ for (const doc of await sync.pull()) apply(doc);
 
 `kv` is any string store on the device. See DESIGN.md "`phonux/sync`" for the encryption and conflict rules.
 
+## Build for phones, tablets and desktop
+
+`npx phonux build` builds your app for the devices you pick from a list: Android phone, Android tablet, iPhone, iPad and
+desktop. Phones and tablets are wrapped with [Capacitor](https://capacitorjs.com), so the app needs `@capacitor/core`,
+`@capacitor/cli`, `@capacitor/android`, `@capacitor/ios` and a `capacitor.config.ts` whose `webDir` is your web build.
+The first build adds the native projects; commit them.
+
+```sh
+npx phonux build                                # pick from the list; the choice is remembered
+npx phonux build --targets iphone,ipad,desktop  # skip the list
+npx phonux build --check                        # say what this machine is missing, build nothing
+```
+
+Builds run side by side when the machine has the cores and memory, one at a time when it does not (`--jobs` caps it).
+A target this machine cannot build, such as iPhone off a Mac, is skipped with what to install. Logs and remembered
+choices go in `.phonux/build/`; add it to `.gitignore`.
+
+Without signing set up, Android makes a test APK and iOS a simulator app. Add signing to `package.json` to get store
+builds from the same command (`--debug` still makes test builds):
+
+```json
+"phonux": { "build": {
+  "web": "build:web", "desktop": "build:desktop",
+  "android": { "keystore": "release.jks", "alias": "upload" },
+  "ios": { "teamId": "ABCDE12345" }
+} }
+```
+
+The keystore passwords come from `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD`, never from a file. `web` and
+`desktop` name npm scripts, and default to the two shown.
+
 ## License
 
 phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
