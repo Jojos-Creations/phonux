@@ -14,7 +14,7 @@ import { ALL_SLOTS } from '../rowConstants.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { SlideTuning } from '../index.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
-import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning, type SlotTuning } from '../panelTuning.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
@@ -39,7 +39,7 @@ function mountBox(tuning: Partial<SlotTuning> | null, onClose: () => void = () =
     onClose,
     children: (handle) => React.createElement('div', { 'data-handle': '', onPointerDown: handle.onPointerDown }, 'grab'),
   });
-  const mounted = mount(tuning === null ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(tuning), children: box }));
+  const mounted = mount(tuning === null ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(tuning), children: React.createElement(PanelVerticalDragContext.Provider, { value: true, children: box }) }));
   const handle = mounted.container.querySelector<HTMLElement>('[data-handle]')!;
   return { handle, box: handle.closest<HTMLElement>('[data-drag-to-close]')! };
 }

@@ -104,6 +104,11 @@ export type WorkspaceOptions = WorkspaceLive & {
    * one identity for the workspace's life and never remounts. Ignored when `mount` is `false`.
    */
   wrap?: ComponentType<WorkspaceWrapProps>;
+  /**
+   * Default true: after the person closes a panel the auto mount shows a toast whose Undo calls `undoClose`. false leaves the
+   * notice to the host, which reads `PanelsAPI.recentlyClosed`. Fixed at creation. Ignored when `mount` is `false`.
+   */
+  undoToast?: boolean;
 };
 
 /**
@@ -277,6 +282,8 @@ export interface EngineBinding {
   readonly live: LiveStore;
   /** The component the auto mount renders around the row, if the app gave one. */
   readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
+  /** Whether the auto mount draws its undo-close toast (see `WorkspaceOptions.undoToast`). */
+  readonly undoToast: boolean;
   /** The theme function the auto mount draws with, if the app gave one. */
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
   /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
@@ -1160,6 +1167,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     autoMounted,
     live,
     wrap: o.wrap,
+    undoToast: o.undoToast !== false,
     theme: o.theme,
     warnHandMounted: () => {
       if (!autoMounted || warnedHandMount || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;

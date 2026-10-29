@@ -20,10 +20,10 @@ const toast = (): HTMLElement | null => document.querySelector<HTMLElement>(`[${
 const message = (): string => toast()?.querySelector('.MuiSnackbarContent-message')?.textContent ?? '';
 const button = (text: string): HTMLButtonElement | undefined => [...(toast()?.querySelectorAll('button') ?? [])].find((b) => b.textContent === text);
 
-async function row(labels?: Partial<PhonuxLabels>): Promise<WorkspaceHandle> {
+async function row(labels?: Partial<PhonuxLabels>, undoToast?: boolean): Promise<WorkspaceHandle> {
   const t = (id: string) => definePanel({ id, settings: { title: id.toUpperCase() }, view });
   await resize(1600);
-  const w = track(createWorkspace({ templates: [t('a'), t('b'), t('c')], ...(labels === undefined ? {} : { labels }) }));
+  const w = track(createWorkspace({ templates: [t('a'), t('b'), t('c')], ...(labels === undefined ? {} : { labels }), ...(undoToast === undefined ? {} : { undoToast }) }));
   for (const id of ['a', 'b', 'c']) w.addPanel(id, { id: `${id}1` });
   await until('three panels', () => slots(document.body).length === 3);
   return w;
@@ -61,6 +61,13 @@ test('a close from code raises no toast', async () => {
   await act(async () => void w.panels.get('a1')!.close());
   await until('a closed', () => w.panels.getSnapshot().panels.find((p) => p.id === 'a1')?.status !== 'live');
   assert.equal(message(), '');
+});
+
+test('undoToast: false leaves the notice to the host, so the mount draws no toast', async () => {
+  const w = await row(undefined, false);
+  await act(async () => void w.panels.get('a1')!.close('person'));
+  await until('a closed', () => w.panels.getSnapshot().panels.find((p) => p.id === 'a1')?.status !== 'live');
+  assert.equal(toast(), null);
 });
 
 test('the host labels replace the words', async () => {

@@ -10,6 +10,7 @@ import { FrameBoundary } from './panelFrameBoundary.js';
 import { PanelFooterContext } from './panelFooter.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelTouchContext } from './panelTouch.js';
+import { PanelVerticalDragContext } from './panelSlotContext.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { placeholderFor, type ViewComponent } from './viewRegistry.js';
 
@@ -52,7 +53,8 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
     const Footer = t.footer as React.ComponentType<object> | undefined;
     const body = Footer === undefined ? view : <PanelFooterContext.Provider value={<Footer {...viewProps} />}>{view}</PanelFooterContext.Provider>;
     const touched = t.touch === undefined || t.touch === false ? body : <PanelTouchContext.Provider value={t.touch}>{body}</PanelTouchContext.Provider>;
-    return <PanelLevelContext.Provider value={level}>{touched}</PanelLevelContext.Provider>;
+    const dragged = t.verticalDrag === true ? <PanelVerticalDragContext.Provider value={true}>{touched}</PanelVerticalDragContext.Provider> : touched;
+    return <PanelLevelContext.Provider value={level}>{dragged}</PanelLevelContext.Provider>;
   }
   forTable.set(t, TemplatePanelView);
   return TemplatePanelView;

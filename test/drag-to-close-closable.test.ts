@@ -12,7 +12,7 @@ import { DRAG_CLOSE, DragToClose, LIBRARY_TUNING_DEFAULTS } from '../index.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { ReorderHandle } from '../index.js';
 import { shouldCloseOnRelease } from '../dragToClose.js';
-import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning, type SlotTuning } from '../panelTuning.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
@@ -48,7 +48,7 @@ const boxUi = (setup: Setup): React.ReactElement => {
       children: (handle) => React.createElement('div', { 'data-handle': '', onPointerDown: handle.onPointerDown }, 'grab'),
     }),
   );
-  return setup.slot === undefined ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(setup.slot.closable ?? true, setup.slot.tuning ?? {}), children: box });
+  return setup.slot === undefined ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(setup.slot.closable ?? true, setup.slot.tuning ?? {}), children: React.createElement(PanelVerticalDragContext.Provider, { value: true, children: box }) });
 };
 function mountBox(setup: Setup) {
   const mounted = mount(boxUi(setup));

@@ -156,7 +156,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   const shown = (
     <>
       {row}
-      <UndoCloseToast closed={provided.closedByPerson} onUndo={provided.undoClose} />
+      {binding.undoToast ? <UndoCloseToast closed={provided.closedByPerson} onUndo={provided.undoClose} /> : null}
     </>
   );
   const rowValue = React.useMemo(

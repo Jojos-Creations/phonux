@@ -2,7 +2,7 @@
 
 A phone-shaped view host for React: write each view as a component, give phonux a template for it, and it lays the panels
 out in a row of phone-sized columns that steps one phone width at a time, each panel with a header, a width control and a grab
-bar (drag sideways to reorder, down to close; a touch never drags it). A view never touches `localStorage` or anything else
+bar (drag sideways to reorder; a touch never drags it). A view never touches `localStorage` or anything else
 app-internal (see `DESIGN.md` in this folder for why).
 
 ## Install
@@ -43,12 +43,13 @@ workspace.addPanel('notes');
 <!-- quickstart:end -->
 
 That is the whole app: `createWorkspace` renders itself into a full-window element, so there is no component to mount, no
-host to build and no width to track. A template takes three optional fields beyond `view`: `footer`, a component drawn at the
+host to build and no width to track. A template takes four optional fields beyond `view`: `footer`, a component drawn at the
 bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), `touch: true`, which makes a mouse
 drag in the panel in use scroll its content as a finger does on a phone (`touch: 'content'` keeps the header and footer
-to the mouse; see `DESIGN.md`, "A touch template"), and `api`, the
+to the mouse; see `DESIGN.md`, "A touch template"), `verticalDrag: true`, which lets a person drag the grab bar down to
+close the panel (off by default, so the grab bar only reorders), and `api`, the
 panel API level the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
-drag to close, reorder), and after the person closes a panel the workspace shows a toast whose Undo puts it back where it was, at the same size and with its state. Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
+drag sideways to reorder), and after the person closes a panel the workspace shows a toast whose Undo puts it back where it was, at the same size and with its state. Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
 Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
 component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme; each field is also a CSS custom property, such as `--phonux-primary`, that a stylesheet rule overrides), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
@@ -204,7 +205,7 @@ jsdom window and the clock, and `jsdom` is an optional peer dependency):
 import { renderWorkspace } from 'phonux/testing/row';
 import { createWorkspace, definePanel } from 'phonux';
 
-const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes })] });
+const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes, verticalDrag: true })] });
 workspace.addPanel('notes');
 const row = await renderWorkspace(workspace, { width: 1200 });
 await row.drag(row.panel('notes')!.grabBar!, { dx: 0, dy: 120 }); // closes the panel
@@ -233,6 +234,37 @@ for (const doc of await sync.pull()) apply(doc);
 ```
 
 `kv` is any string store on the device. See DESIGN.md "`phonux/sync`" for the encryption and conflict rules.
+
+## Build for phones, tablets and desktop
+
+`npx phonux build` builds your app for the devices you pick from a list: Android phone, Android tablet, iPhone, iPad and
+desktop. Phones and tablets are wrapped with [Capacitor](https://capacitorjs.com), so the app needs `@capacitor/core`,
+`@capacitor/cli`, `@capacitor/android`, `@capacitor/ios` and a `capacitor.config.ts` whose `webDir` is your web build.
+The first build adds the native projects; commit them.
+
+```sh
+npx phonux build                                # pick from the list; the choice is remembered
+npx phonux build --targets iphone,ipad,desktop  # skip the list
+npx phonux build --check                        # say what this machine is missing, build nothing
+```
+
+Builds run side by side when the machine has the cores and memory, one at a time when it does not (`--jobs` caps it).
+A target this machine cannot build, such as iPhone off a Mac, is skipped with what to install. Logs and remembered
+choices go in `.phonux/build/`; add it to `.gitignore`.
+
+Without signing set up, Android makes a test APK and iOS a simulator app. Add signing to `package.json` to get store
+builds from the same command (`--debug` still makes test builds):
+
+```json
+"phonux": { "build": {
+  "web": "build:web", "desktop": "build:desktop",
+  "android": { "keystore": "release.jks", "alias": "upload" },
+  "ios": { "teamId": "ABCDE12345" }
+} }
+```
+
+The keystore passwords come from `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD`, never from a file. `web` and
+`desktop` name npm scripts, and default to the two shown.
 
 ## License
 

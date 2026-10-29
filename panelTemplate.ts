@@ -147,6 +147,13 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
    * Defaults to false.
    */
   readonly touch?: PanelTouch;
+  /**
+   * Lets a person drag the grab bar of a panel made from this template up and down while it is in a row: a drag down past
+   * `tuning.dragToClose` closes it, and a `DragToClose` given `previewOut` lifts its tile out. Defaults to false, where the
+   * grab bar drags only sideways, to reorder, and Delete on it and the header's close button still close the panel.
+   * `DragToClose` outside a row always drags vertically.
+   */
+  readonly verticalDrag?: boolean;
   /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
   /** The params a panel made from this template starts with. */
@@ -178,7 +185,7 @@ const isComponent = (view: unknown): boolean => typeof view === 'function' || (t
 export type AnyPanelTemplate = PanelTemplate<any>;
 
 /**
- * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, a `touch` of a boolean or `'content'` when given, an `api` the library serves, and a settings layer the
+ * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, a `touch` of a boolean or `'content'` and a boolean `verticalDrag` when given, an `api` the library serves, and a settings layer the
  * resolver accepts on its own. 
  * @throws PanelManagerError with code `invalid-template` or `invalid-settings`.
  * @public
@@ -190,6 +197,7 @@ export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>
   if (!isComponent(t.view)) throw new PanelManagerError('invalid-template', `template '${t.id}': view must be a React component`);
   if (t.footer !== undefined && !isComponent(t.footer)) throw new PanelManagerError('invalid-template', `template '${t.id}': footer must be a React component`);
   if (t.touch !== undefined && typeof t.touch !== 'boolean' && t.touch !== 'content') throw new PanelManagerError('invalid-template', `template '${t.id}': touch must be a boolean or 'content'`);
+  if (t.verticalDrag !== undefined && typeof t.verticalDrag !== 'boolean') throw new PanelManagerError('invalid-template', `template '${t.id}': verticalDrag must be a boolean`);
   checkPanelApi(t.id, t.api);
   resolvePanelSettings({ template: t.settings });
   reportLevelTieOnce(t.id, t.api, t.settings);

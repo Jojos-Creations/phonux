@@ -221,6 +221,7 @@ export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): Pan
   definePanel({
     id,
     view: ({ panel, handle }) => createElement(DragBox, { id: engineOf.current(panel.id), close: () => void handle.close() }),
+    verticalDrag: true,
     ...over,
     settings: over.settings,
   });

@@ -29,7 +29,7 @@ import { createWorkspace } from '../index.js';
 import type { PanelWindow, ProvidedPanels, SlideTuning, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { SLOT_TRANSITION } from '../directionalTransition.js';
 import { SLIDE_DURATION_SEC, SLIDE_EASE } from '../rowConstants.js';
-import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { checkTuningLeaf, resolvePanelSettings } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
@@ -54,10 +54,10 @@ registerTestView('tune-view', ({ panel }) => {
   return React.createElement('i', { 'data-slot': panel.id }, panel.title);
 });
 registerTestView('tune-drag', ({ panel }) =>
-  React.createElement(DragToClose, {
+  React.createElement(PanelVerticalDragContext.Provider, { value: true, children: React.createElement(DragToClose, {
     onClose: () => closed.push(panel.id),
     children: (handle) => React.createElement('div', { 'data-slot': panel.id, 'data-handle': '', onPointerDown: handle.onPointerDown }, panel.title),
-  }),
+  }) }),
 );
 
 afterEach(() => {

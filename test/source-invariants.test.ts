@@ -316,7 +316,7 @@ test('source: a scratch copy of useProvidePanels.ts with a fifth writer of `over
 
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
-  'panelWindow.ts': ['firstParkedAfter', 'lastParkedBefore', 'leftmostLiveIndex', 'parksForRoom', 'recordOverride', 'rightmostLiveIndex', 'sideOfLiveRange'],
+  'panelWindow.ts': ['parksForRoom', 'recordOverride', 'sideOfLiveRange'],
   'panels/rowSettle.ts': ['rowPricing'],
   'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'swapPanels', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],

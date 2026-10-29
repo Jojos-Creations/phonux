@@ -16,6 +16,7 @@ import { ROW_LAYER_Z } from '../rowConstants.js';
 import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { PanelVerticalDragContext } from '../panelSlotContext.js';
 
 afterEach(() => cleanup());
 
@@ -162,13 +163,15 @@ test('a cancelled gesture reports no release', async () => {
 // In a row: the slot is its own stacking context, so the lift is on the slot's z.
 function GrabView({ id }: { id: string }): React.ReactElement {
   const { onClose } = usePanelDragProps();
-  return React.createElement(DragToClose, {
+  const box = React.createElement(DragToClose, {
     ...(onClose === undefined ? {} : { onClose }),
     closeOnRelease: !optOut.on,
     children: (handle) => React.createElement('div', { 'data-grab': id, onPointerDown: handle.onPointerDown }, id),
   });
+  return React.createElement(PanelVerticalDragContext.Provider, { value: vertical.on, children: box });
 }
 const optOut = { on: false };
+const vertical = { on: true };
 registerTestView('scroll-row-view', ({ panel }) => React.createElement(GrabView, { id: panel.id }));
 
 const grabOf = (m: MountedRow, id: string): HTMLElement => {
@@ -228,4 +231,21 @@ test('a raised panel dragged keeps at least the dragged layer, and an opted-out 
   await drag(grabOf(m, 's2'), { dx: 0, dy: 300, steps: 6, hold: 4 });
   await advanceFrames(3000);
   assert.deepEqual(m.live(), ['s1'], 'default: the same drag closes it');
+});
+
+test('in a row, without verticalDrag, the grab bar follows no vertical pointer and a drag down closes nothing', async () => {
+  vertical.on = false;
+  try {
+    const m = mountRow(panelsOf(3), 3000);
+    await advanceFrames(2000);
+    const box = grabOf(m, 's2').closest<HTMLElement>('[data-drag-to-close]')!;
+    await drag(grabOf(m, 's2'), { dx: 0, dy: 300, steps: 6, hold: 4, keepDown: true });
+    await advanceFrames(200);
+    assert.equal(translateY(box), 0, 'the box stays in its slot');
+    await release(0, 300);
+    await advanceFrames(3000);
+    assert.deepEqual(m.live(), ['s1', 's2', 's3'], 'nothing closed');
+  } finally {
+    vertical.on = true;
+  }
 });

@@ -11,7 +11,7 @@ import { act } from 'react';
 import { DragToClose, usePanelReorderSteps } from '../index.js';
 import type { PanelSettings } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from '../panelSettings.js';
-import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
 import { reorderStepsForOffset } from '../panelWindow.js';
 import { edgeScrollStep } from '../edgeScroll.js';
@@ -76,11 +76,13 @@ const ends: Array<{ id: string; offset: number; hops: number }> = [];
 const closes: string[] = [];
 function EdgeBox({ id }: { id: string }): React.ReactElement {
   const steps = usePanelReorderSteps();
-  return React.createElement(DragToClose, {
+  // The close test below drags down, which a row allows only under a template's verticalDrag.
+  const box = React.createElement(DragToClose, {
     onClose: () => void closes.push(id),
     reorder: { onDragEnd: (offset: number) => void ends.push({ id, offset, hops: steps(offset) }) },
     children: (handle) => React.createElement('div', { 'data-handle': id, onPointerDown: handle.onPointerDown }, 'grab'),
   });
+  return React.createElement(PanelVerticalDragContext.Provider, { value: true, children: box });
 }
 registerTestView('edge-view', ({ panel }) => React.createElement(EdgeBox, { id: panel.id }));
 

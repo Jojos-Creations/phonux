@@ -1074,6 +1074,7 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
     readonly params?: P;
     readonly settings?: PanelSettings;
     readonly touch?: PanelTouch;
+    readonly verticalDrag?: boolean;
     readonly view: React_2.ComponentType<PanelViewProps<P>>;
 }
 
@@ -1874,6 +1875,7 @@ export type WorkspaceOptions = WorkspaceLive & {
     mount?: HTMLElement | false;
     theme?: (mode: 'light' | 'dark') => PhonuxTheme;
     wrap?: ComponentType<WorkspaceWrapProps>;
+    undoToast?: boolean;
 };
 
 // @public

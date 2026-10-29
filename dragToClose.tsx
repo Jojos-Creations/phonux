@@ -12,7 +12,7 @@ import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useR
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
-import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type DragScroll } from './panelSlotContext.js';
 import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
@@ -425,7 +425,8 @@ export interface PreviewOut {
 
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
- * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
+ * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors. In a row the handle drags
+ * up and down only for a panel whose template sets `verticalDrag: true`; otherwise it drags only sideways.
  * @public
  */
 export function DragToClose(input: {
@@ -565,6 +566,9 @@ function DragToCloseBox({
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
+  // Read by the frame step and the release, which outlive the render that started them.
+  const vertical = React.useRef(true);
+  vertical.current = React.useContext(PanelVerticalDragContext) || slot === undefined;
   const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX, slot?.id);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
   const exitEase = slot?.tuning.slide.closeExitEase ?? CLOSE_EXIT_EASE;
@@ -710,7 +714,7 @@ function DragToCloseBox({
     const dx = pointer.current.x - pointer.current.downX;
     const dy = pointer.current.y - pointer.current.downY;
     if (axisLock.current === null) {
-      axisLock.current = reorder !== undefined && Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      axisLock.current = reorder !== undefined && (!vertical.current || Math.abs(dx) >= Math.abs(dy)) ? 'x' : 'y';
       if (axisLock.current === 'x') edge.lock(pointer.current.x);
     }
     edge.track(pointer.current.x, x);
@@ -723,6 +727,9 @@ function DragToCloseBox({
     // The losing axis is held at zero on every move: a locked box moves on one axis only.
     if (axisLock.current === 'x') {
       x.set(edge.cap(dx));
+      y.set(0);
+    } else if (!vertical.current) {
+      x.set(0);
       y.set(0);
     } else if (previewOutRef.current !== undefined) {
       x.set(0);
@@ -829,6 +836,7 @@ function DragToCloseBox({
         return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
       }
       if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
+      if (!vertical.current) return unlockScrollParents();
       const rect = box.current?.getBoundingClientRect();
       const height = rect?.height ?? 0;
       if (previewOutRef.current !== undefined) {
