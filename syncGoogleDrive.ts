@@ -19,16 +19,27 @@ export interface GoogleDriveOptions {
 }
 
 /**
- * A {@link SyncProvider} over the app's Google Drive appDataFolder, with the `drive.appdata` scope. Drive has no
+ * A {@link SyncProvider} over the app's Google Drive appDataFolder, with the `drive.appdata` scope: a space only this
+ * app reads, hidden from the user in Drive, so it cannot be deleted by accident. Drive has no
  * conditional upload, so `write` checks the revision just before writing: two devices writing in the same instant can
  * both succeed, and the later one wins.
  * @public
  */
 export function googleDrive({ clientId, clientSecret, fetch: fetchFn = (...a) => fetch(...a) }: GoogleDriveOptions): SyncProvider {
-  const find = async (token: string, name: string): Promise<{ id: string; version: string } | null> => {
-    const q = encodeURIComponent(`name = '${name}' and trashed = false`);
-    const res = await call(fetchFn, `${FILES}?spaces=appDataFolder&q=${q}&fields=files(id,version)`, { headers: bearer(token) });
-    return ((await res.json()) as { files: { id: string; version: string }[] }).files[0] ?? null;
+  type DriveFile = { id: string; version: string; modifiedTime?: string };
+  const find = async (token: string, name: string): Promise<DriveFile | null> => {
+    const q = encodeURIComponent(`name = '${name.replace(/'/g, "\\'")}' and trashed = false`);
+    const res = await call(fetchFn, `${FILES}?spaces=appDataFolder&q=${q}&fields=files(id,version,modifiedTime)`, { headers: bearer(token) });
+    return ((await res.json()) as { files: DriveFile[] }).files[0] ?? null;
+  };
+  const multipart = (meta: object, bytes: Uint8Array<ArrayBuffer>) => {
+    const boundary = 'phonux-sync-boundary';
+    const body = new Blob([
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`,
+      bytes,
+      `\r\n--${boundary}--`,
+    ]);
+    return { body, type: `multipart/related; boundary=${boundary}` };
   };
 
   return {
@@ -46,9 +57,9 @@ export function googleDrive({ clientId, clientSecret, fetch: fetchFn = (...a) =>
       const out: SyncRemoteEntry[] = [];
       let pageToken = '';
       do {
-        const url = `${FILES}?spaces=appDataFolder&pageSize=1000&fields=nextPageToken,files(name,version)&q=trashed%20%3D%20false${pageToken && `&pageToken=${pageToken}`}`;
-        const page = (await (await call(fetchFn, url, { headers: bearer(token) })).json()) as { files: { name: string; version: string }[]; nextPageToken?: string };
-        for (const f of page.files) out.push({ name: f.name, rev: f.version });
+        const url = `${FILES}?spaces=appDataFolder&pageSize=1000&fields=nextPageToken,files(name,version,modifiedTime)&q=trashed%20%3D%20false${pageToken && `&pageToken=${pageToken}`}`;
+        const page = (await (await call(fetchFn, url, { headers: bearer(token) })).json()) as { files: { name: string; version: string; modifiedTime?: string }[]; nextPageToken?: string };
+        for (const f of page.files) out.push({ name: f.name, rev: f.version, modifiedAt: Date.parse(f.modifiedTime ?? '') || 0 });
         pageToken = page.nextPageToken ?? '';
       } while (pageToken);
       return out;
@@ -57,23 +68,15 @@ export function googleDrive({ clientId, clientSecret, fetch: fetchFn = (...a) =>
       const f = await find(token, name);
       if (!f) return null;
       const res = await call(fetchFn, `${FILES}/${f.id}?alt=media`, { headers: bearer(token) });
-      return { name, rev: f.version, bytes: new Uint8Array(await res.arrayBuffer()) };
+      return { name, rev: f.version, modifiedAt: Date.parse(f.modifiedTime ?? '') || 0, bytes: new Uint8Array(await res.arrayBuffer()) };
     },
-    async write(token, name, bytes, ifRev) {
+    async write(token, name, bytes, ifRev, modifiedAt) {
       const f = await find(token, name);
       if ((f?.version ?? null) !== ifRev) throw new SyncError('conflict', `${name} changed on another device`);
-      if (f) {
-        const res = await call(fetchFn, `${UPLOAD}/${f.id}?uploadType=media&fields=version`, { method: 'PATCH', headers: { ...bearer(token), 'Content-Type': 'application/octet-stream' }, body: bytes });
-        return ((await res.json()) as { version: string }).version;
-      }
-      const boundary = 'phonux-sync-boundary';
-      const meta = JSON.stringify({ name, parents: ['appDataFolder'] });
-      const body = new Blob([
-        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`,
-        bytes,
-        `\r\n--${boundary}--`,
-      ]);
-      const res = await call(fetchFn, `${UPLOAD}?uploadType=multipart&fields=version`, { method: 'POST', headers: { ...bearer(token), 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
+      const modifiedTime = new Date(modifiedAt).toISOString();
+      const { body, type } = multipart(f ? { modifiedTime } : { name, parents: ['appDataFolder'], modifiedTime }, bytes);
+      const url = f ? `${UPLOAD}/${f.id}?uploadType=multipart&fields=version` : `${UPLOAD}?uploadType=multipart&fields=version`;
+      const res = await call(fetchFn, url, { method: f ? 'PATCH' : 'POST', headers: { ...bearer(token), 'Content-Type': type }, body });
       return ((await res.json()) as { version: string }).version;
     },
   };

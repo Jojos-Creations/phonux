@@ -4,7 +4,7 @@
  */
 
 /**
- * A string key-value store on the device, where sync keeps its sign-in tokens, unlocked key and last-seen revisions.
+ * A string key-value store on the device, where sync keeps its sign-in tokens and last-seen revisions.
  * An empty string reads the same as a missing key.
  * @public
  */
@@ -43,6 +43,8 @@ export interface SyncRemoteEntry {
   readonly name: string;
   /** The provider's revision, compared only for equality. */
   readonly rev: string;
+  /** Epoch ms of the edit the file holds, as its writer gave it (whole seconds on Dropbox). */
+  readonly modifiedAt: number;
 }
 
 /**
@@ -68,24 +70,23 @@ export interface SyncProvider {
   /** Resolves null when the file does not exist. */
   read(token: string, name: string): Promise<SyncRemoteFile | null>;
   /**
-   * Writes the whole file and resolves its new revision. It rejects with a `conflict` {@link SyncError} when the
-   * remote revision is not `ifRev`; an `ifRev` of null means the file must not exist yet.
+   * Writes the whole file, stamped with `modifiedAt` (epoch ms), and resolves its new revision. It rejects with a
+   * `conflict` {@link SyncError} when the remote revision is not `ifRev`; an `ifRev` of null means the file must not
+   * exist yet.
    */
-  write(token: string, name: string, bytes: Uint8Array<ArrayBuffer>, ifRev: string | null): Promise<string>;
+  write(token: string, name: string, bytes: Uint8Array<ArrayBuffer>, ifRev: string | null, modifiedAt: number): Promise<string>;
 }
 
 /**
  * What went wrong, as a {@link SyncError} carries it.
  * - `signed-out`: no account, or the provider revoked the sign-in.
- * - `locked`: signed in, but this device has not been given the passphrase.
- * - `wrong-passphrase`: the passphrase does not open the account's key.
  * - `conflict`: another device wrote the file first.
  * - `unauthorized`: the access token was refused; sync refreshes it once before reporting this.
  * - `sign-in-failed`: the provider's redirect carried an error or a state this device did not start.
  * - `http`: any other provider failure; `status` holds the HTTP status.
  * @public
  */
-export type SyncErrorCode = 'signed-out' | 'locked' | 'wrong-passphrase' | 'conflict' | 'unauthorized' | 'sign-in-failed' | 'http';
+export type SyncErrorCode = 'signed-out' | 'conflict' | 'unauthorized' | 'sign-in-failed' | 'http';
 
 /**
  * The only error sync throws on purpose. Network failures from `fetch` pass through unchanged.

@@ -30,6 +30,7 @@ export interface GoogleDriveOptions {
 export function memorySyncProvider(): SyncProvider & {
     readonly files: ReadonlyMap<string, {
         rev: string;
+        modifiedAt: number;
         bytes: Uint8Array;
     }>;
 };
@@ -37,7 +38,6 @@ export function memorySyncProvider(): SyncProvider & {
 // @public
 export interface Sync {
     finishSignIn(callbackUrl: string): Promise<void>;
-    isNewAccount(): Promise<boolean>;
     pull(): Promise<SyncDoc[]>;
     push(doc: {
         name: string;
@@ -47,8 +47,10 @@ export interface Sync {
     signInUrl(): Promise<string>;
     signOut(): Promise<void>;
     status(): Promise<SyncStatus>;
-    unlock(passphrase: string): Promise<void>;
 }
+
+// @public
+export const SYNC_README_FILE = "README - DO NOT DELETE.txt";
 
 // @public
 export interface SyncDoc {
@@ -65,7 +67,7 @@ export class SyncError extends Error {
 }
 
 // @public
-export type SyncErrorCode = 'signed-out' | 'locked' | 'wrong-passphrase' | 'conflict' | 'unauthorized' | 'sign-in-failed' | 'http';
+export type SyncErrorCode = 'signed-out' | 'conflict' | 'unauthorized' | 'sign-in-failed' | 'http';
 
 // @public
 export interface SyncKv {
@@ -90,6 +92,7 @@ export interface SyncOptions {
     readonly now?: () => number;
     readonly prefix?: string;
     readonly provider: SyncProvider;
+    readonly readme?: string;
     readonly redirectUri: string;
 }
 
@@ -99,11 +102,12 @@ export interface SyncProvider {
     list(token: string): Promise<SyncRemoteEntry[]>;
     readonly oauth: SyncOAuth;
     read(token: string, name: string): Promise<SyncRemoteFile | null>;
-    write(token: string, name: string, bytes: Uint8Array<ArrayBuffer>, ifRev: string | null): Promise<string>;
+    write(token: string, name: string, bytes: Uint8Array<ArrayBuffer>, ifRev: string | null, modifiedAt: number): Promise<string>;
 }
 
 // @public
 export interface SyncRemoteEntry {
+    readonly modifiedAt: number;
     readonly name: string;
     readonly rev: string;
 }
@@ -114,6 +118,6 @@ export interface SyncRemoteFile extends SyncRemoteEntry {
 }
 
 // @public
-export type SyncStatus = 'signed-out' | 'locked' | 'ready';
+export type SyncStatus = 'signed-out' | 'ready';
 
 ```
