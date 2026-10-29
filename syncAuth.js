@@ -1,5 +1,5 @@
 /** OAuth 2 with PKCE: no client secret to keep and no server of our own, so it runs in a page or an Electron renderer. */
-import { b64url, randomBytes, sha256, utf8 } from './syncCrypto.js';
+import { b64url, randomBytes, sha256, utf8 } from './syncBytes.js';
 import { SyncError } from './syncTypes.js';
 export async function readJsonKv(kv, key) {
     const text = await kv.get(key);

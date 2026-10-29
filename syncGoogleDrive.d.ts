@@ -12,7 +12,8 @@ export interface GoogleDriveOptions {
     readonly fetch?: typeof fetch;
 }
 /**
- * A {@link SyncProvider} over the app's Google Drive appDataFolder, with the `drive.appdata` scope. Drive has no
+ * A {@link SyncProvider} over the app's Google Drive appDataFolder, with the `drive.appdata` scope: a space only this
+ * app reads, hidden from the user in Drive, so it cannot be deleted by accident. Drive has no
  * conditional upload, so `write` checks the revision just before writing: two devices writing in the same instant can
  * both succeed, and the later one wins.
  * @public

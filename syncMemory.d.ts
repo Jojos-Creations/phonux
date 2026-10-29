@@ -8,6 +8,7 @@ import { type SyncProvider } from './syncTypes.js';
 export declare function memorySyncProvider(): SyncProvider & {
     readonly files: ReadonlyMap<string, {
         rev: string;
+        modifiedAt: number;
         bytes: Uint8Array;
     }>;
 };

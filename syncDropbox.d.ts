@@ -10,7 +10,8 @@ export interface DropboxOptions {
     readonly fetch?: typeof fetch;
 }
 /**
- * A {@link SyncProvider} over the app's Dropbox App Folder. The Dropbox app needs the `files.content.read`,
+ * A {@link SyncProvider} over the app's Dropbox App Folder, which the user sees under Apps in their Dropbox, named
+ * when the Dropbox app is registered. The Dropbox app needs the `files.content.read`,
  * `files.content.write` and `files.metadata.read` permissions, and the host's redirect URI listed.
  * @public
  */
