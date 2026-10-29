@@ -250,7 +250,7 @@ npx phonux build --check                        # say what this machine is missi
 
 Builds run side by side when the machine has the cores and memory, one at a time when it does not (`--jobs` caps it).
 A target this machine cannot build, such as iPhone off a Mac, is skipped with what to install. Logs and remembered
-choices go in `.phonux/build/`; add it to `.gitignore`.
+choices go in `.phonux/build/`, and so do finished builds (`android/`, `ios/`); add it to `.gitignore`.
 
 Without signing set up, Android makes a test APK and iOS a simulator app. Add signing to `package.json` to get store
 builds from the same command (`--debug` still makes test builds):

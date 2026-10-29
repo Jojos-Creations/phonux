@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, createWriteStream, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Job, Step } from './plan.js';
 
@@ -46,6 +46,19 @@ export async function runJob(root: string, job: Job): Promise<boolean> {
     if (step.kind === 'write') {
       mkdirSync(dirname(step.path), { recursive: true });
       writeFileSync(step.path, step.content);
+      continue;
+    }
+    if (step.kind === 'copy') {
+      // Cleared first, so a copy that failed cannot leave the last run's build looking like this one's.
+      rmSync(step.to, { recursive: true, force: true });
+      mkdirSync(dirname(step.to), { recursive: true });
+      try {
+        cpSync(step.from, step.to, { recursive: true });
+      } catch (err) {
+        log.write(`\nCould not copy the build to ${step.to}: ${(err as Error).message}\n`);
+        ok = false;
+        break;
+      }
       continue;
     }
     ok = await runStep(step, job.env, log);

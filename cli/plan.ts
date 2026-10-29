@@ -6,7 +6,8 @@ import { iosDeviceFamily, type Platform, type Target } from './targets.js';
 /** One command a job runs, or a file it writes before the next command. */
 export type Step =
   | { kind: 'run'; command: string; args: string[]; cwd: string }
-  | { kind: 'write'; path: string; content: string };
+  | { kind: 'write'; path: string; content: string }
+  | { kind: 'copy'; from: string; to: string };
 
 /** A unit the scheduler runs: its steps run in order, after every job in `deps` has finished. */
 export interface Job {
@@ -17,7 +18,7 @@ export interface Job {
   memoryGb: number;
   steps: Step[];
   env: Record<string, string>;
-  /** Where the finished build lands, relative to the app root. */
+  /** Where the finished build lands, relative to the app root: always under `.phonux/build/<job>`. */
   output?: string;
 }
 
@@ -34,6 +35,12 @@ export interface PlanOptions {
 }
 
 const OUT = join('.phonux', 'build');
+const ANDROID_OUT = join(OUT, 'android');
+
+// Gradle's output folder is fixed by the Android project, so the build is copied next to the iOS one.
+function copyOut(app: AppInfo, from: string, name: string): Step {
+  return { kind: 'copy', from: join(app.root, from), to: join(app.root, ANDROID_OUT, name) };
+}
 
 function npm(app: AppInfo, script: string): Step {
   return { kind: 'run', command: 'npm', args: ['run', script], cwd: app.root };
@@ -56,8 +63,12 @@ function androidJob(app: AppInfo, probe: Probe, env: Record<string, string>, opt
     const gradlew = probe.platform === 'win32' ? 'gradlew.bat' : './gradlew';
     return {
       id: 'android', label: 'Android test build', deps: ['web'], memoryGb: 3, env,
-      steps: [...prepare, { kind: 'run', command: gradlew, args: ['assembleDebug'], cwd: join(app.root, 'android') }],
-      output: join('android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
+      steps: [
+        ...prepare,
+        { kind: 'run', command: gradlew, args: ['assembleDebug'], cwd: join(app.root, 'android') },
+        copyOut(app, join('android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'), 'app-debug.apk'),
+      ],
+      output: join(ANDROID_OUT, 'app-debug.apk'),
     };
   }
   const storePass = probe.env.PHONUX_KEYSTORE_PASSWORD;
@@ -68,8 +79,9 @@ function androidJob(app: AppInfo, probe: Probe, env: Record<string, string>, opt
     steps: [
       ...prepare,
       cap(app, 'build', 'android', '--keystorepath', signing.keystore, '--keystorepass', storePass, '--keystorealias', signing.alias, '--keystorealiaspass', keyPass, '--androidreleasetype', 'AAB'),
+      copyOut(app, join('android', 'app', 'build', 'outputs', 'bundle', 'release'), 'release'),
     ],
-    output: join('android', 'app', 'build', 'outputs', 'bundle', 'release'),
+    output: join(ANDROID_OUT, 'release'),
   };
 }
 
