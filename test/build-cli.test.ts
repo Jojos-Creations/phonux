@@ -103,7 +103,8 @@ test('desktop alone needs no web build, and a missing native project is added fi
   assert.deepEqual(desktop.jobs.map((j) => j.id), ['desktop']);
   const android = planBuild(targetsById(['android-tablet']), app(), probe, (p) => checkPlatform(p, app(), probe), { debug: false });
   const steps = android.jobs[1]!.steps.map((s) => (s.kind === 'run' ? `${s.command} ${s.args.join(' ')}` : s.kind));
-  assert.deepEqual(steps, ['npx cap add android', 'npx cap sync android', './gradlew assembleDebug']);
+  assert.deepEqual(steps, ['npx cap add android', 'npx cap sync android', './gradlew assembleDebug', 'copy']);
+  assert.equal(android.jobs[1]!.output, join('.phonux', 'build', 'android', 'app-debug.apk'));
 });
 
 test('a platform this machine cannot build is skipped and the rest still plan', () => {
@@ -124,6 +125,15 @@ test('signing turns on release builds, --debug turns them off, and a missing pas
   const noPass = { ...probe, env: {} };
   const skipped = planBuild(targetsById(['android-phone']), signed, noPass, (p) => checkPlatform(p, signed, noPass), { debug: false });
   assert.match(skipped.skipped[0]!.problems[0]!, /PHONUX_KEYSTORE_PASSWORD is not set/);
+});
+
+test('every phone build lands under .phonux/build, signed or not', () => {
+  const signed = app({ android: { keystore: 'release.jks', alias: 'app' }, ios: { teamId: 'ABCDE12345' } });
+  const probe = fullMac([join(ROOT, 'android'), join(ROOT, 'ios')], { PHONUX_KEYSTORE_PASSWORD: 'secret' });
+  for (const [config, debug] of [[app(), false], [signed, false], [signed, true]] as const) {
+    const plan = planBuild(targetsById(['android-phone', 'iphone']), config, probe, (p) => checkPlatform(p, config, probe), { debug });
+    for (const job of plan.jobs.filter((j) => j.id !== 'web')) assert.ok(job.output?.startsWith(join('.phonux', 'build', job.id)), `${job.label}: ${job.output}`);
+  }
 });
 
 test('printed commands hide keystore passwords', () => {

@@ -250,7 +250,7 @@ npx phonux build --check                        # say what this machine is missi
 
 Builds run side by side when the machine has the cores and memory, one at a time when it does not (`--jobs` caps it).
 A target this machine cannot build, such as iPhone off a Mac, is skipped with what to install. Logs and remembered
-choices go in `.phonux/build/`; add it to `.gitignore`.
+choices go in `.phonux/build/`, and so do finished builds (`android/`, `ios/`); add it to `.gitignore`.
 
 Without signing set up, Android makes a test APK and iOS a simulator app. Add signing to `package.json` to get store
 builds from the same command (`--debug` still makes test builds):
@@ -268,9 +268,9 @@ The keystore passwords come from `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASS
 
 ## License
 
-phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
+phonux is licensed under the phonux Public License 1.0.0, the [Prosperity Public License 3.0.0](https://prosperitylicense.com/versions/3.0.0) with a ninety-day commercial trial in place of thirty days. Noncommercial use is free, and a company may try phonux for commercial purposes for ninety days, one trial for the whole company. After that, commercial use needs a paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>). The full text is in LICENSE.
 
-Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
+Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. Versions 0.2.0-rc.3 through 0.2.0-rc.5 were published under the PolyForm Noncommercial License 1.0.0 and stay under it. From 0.2.0-rc.6 on, phonux is under the phonux Public License 1.0.0. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 
 `npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on). `npm run phone:webkit` runs the iPhone profile in WebKit, which needs WebKit installed; `PHONE_PROJECTS` picks any set of them.
 
