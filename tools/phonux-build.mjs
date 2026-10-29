@@ -9,6 +9,7 @@ import {
   rmSync,
   readFileSync,
   writeFileSync,
+  chmodSync,
   copyFileSync,
   existsSync,
   readdirSync,
@@ -77,6 +78,8 @@ for (const [name, sourcePath] of Object.entries(srcPkg.bin ?? {})) {
   if (!existsSync(join(DIST_DIR, bin[name]))) fail(`generated bin['${name}'] points at ${bin[name]}, which tsc did not emit`);
   // npm links a bin without a shebang, and the shell then runs it as a shell script.
   if (!readFileSync(join(DIST_DIR, bin[name]), 'utf8').startsWith('#!/usr/bin/env node')) fail(`${bin[name]} lost its #!/usr/bin/env node line`);
+  // A git-pinned install takes the mode from the dist commit, and npm does not re-chmod a bin it already linked.
+  chmodSync(join(DIST_DIR, bin[name]), 0o755);
 }
 
 // Gates consumer tree-shaking; a silent undefined default could drop a real side effect.
