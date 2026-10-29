@@ -218,22 +218,6 @@ await row.dispose();
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
 
-## Sync to the user's own Dropbox or Drive
-
-`phonux/sync` keeps an app's documents in the user's Dropbox App Folder or Google Drive appDataFolder, one plain file
-per document, so the folder doubles as a backup. It needs no server and never reads the documents.
-
-```ts
-import { createSync, dropbox } from 'phonux/sync';
-
-const sync = createSync({ provider: dropbox({ clientId: DROPBOX_APP_KEY }), kv, redirectUri, readme: 'Do not delete.' });
-location.assign(await sync.signInUrl());          // later, on the redirect: await sync.finishSignIn(location.href)
-await sync.push({ name: 'workspace.json', text }); // a newer edit from another device comes back instead
-for (const doc of await sync.pull()) apply(doc);
-```
-
-`kv` is any string store on the device. See DESIGN.md "`phonux/sync`" for the conflict rules.
-
 ## Build for phones, tablets and desktop
 
 `npx phonux build` builds your app for the devices you pick from a list: Android phone, Android tablet, iPhone, iPad and

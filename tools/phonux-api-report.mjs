@@ -23,7 +23,6 @@ const CONFIG_FOR_EXPORT = {
   '.': 'api-extractor.json',
   './testing': 'api-extractor.testing.json',
   './testing/row': 'api-extractor.testing-row.json',
-  './sync': 'api-extractor.sync.json',
 };
 
 const LOCAL = process.argv.includes('--local');

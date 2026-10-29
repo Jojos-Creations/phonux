@@ -42,7 +42,7 @@ function valueExportsOf(reportFile) {
   const reExported = [...text.matchAll(/^export \{ (\w+)(?: as (\w+))? \}$/gm)].map((m) => m[2] ?? m[1]);
   return [...new Set([...declared, ...reExported])].sort();
 }
-const EXPECTED_VALUES = { phonux: valueExportsOf('phonux.api.md'), 'phonux/testing': valueExportsOf('phonux-testing.api.md'), 'phonux/testing/row': valueExportsOf('phonux-testing-row.api.md'), 'phonux/sync': valueExportsOf('phonux-sync.api.md') };
+const EXPECTED_VALUES = { phonux: valueExportsOf('phonux.api.md'), 'phonux/testing': valueExportsOf('phonux-testing.api.md'), 'phonux/testing/row': valueExportsOf('phonux-testing-row.api.md') };
 
 const CONSUMER_TSX = `import * as React from 'react';
 import { renderToString } from 'react-dom/server';
@@ -154,12 +154,11 @@ export const bad = (
 `;
 
 const CHECK_EXPORTS_MJS = `import * as row from 'phonux/testing/row';
-import * as sync from 'phonux/sync';
 import * as main from 'phonux';
 import * as testing from 'phonux/testing';
 
 const expected = ${JSON.stringify(EXPECTED_VALUES)};
-const actual = { phonux: Object.keys(main).sort(), 'phonux/testing': Object.keys(testing).sort(), 'phonux/testing/row': Object.keys(row).sort(), 'phonux/sync': Object.keys(sync).sort() };
+const actual = { phonux: Object.keys(main).sort(), 'phonux/testing': Object.keys(testing).sort(), 'phonux/testing/row': Object.keys(row).sort() };
 const problems = [];
 for (const key of Object.keys(expected)) {
   const missing = expected[key].filter((n) => !actual[key].includes(n));
@@ -169,7 +168,7 @@ for (const key of Object.keys(expected)) {
   if (expected[key].length === 0) problems.push(key + ': the API report listed zero value exports, so nothing was checked');
 }
 if (problems.length) throw new Error(problems.join('; '));
-console.log('checkExports:', expected.phonux.length, 'values from phonux,', expected['phonux/testing'].length, 'from phonux/testing,', expected['phonux/testing/row'].length, 'from phonux/testing/row,', expected['phonux/sync'].length, 'from phonux/sync');
+console.log('checkExports:', expected.phonux.length, 'values from phonux,', expected['phonux/testing'].length, 'from phonux/testing,', expected['phonux/testing/row'].length, 'from phonux/testing/row');
 `;
 
 const CHECK_SSR_MJS = `import { MARKER, render } from './consumer.node.mjs';
@@ -299,7 +298,7 @@ try {
     if (packed.publishConfig?.access !== 'public') problems.push('publishConfig.access is not "public"');
     if (JSON.stringify(packed.peerDependencies) !== JSON.stringify(PEERS)) problems.push('peerDependencies differ from the source manifest');
     const keys = Object.keys(packed.exports ?? {}).sort().join(',');
-    if (keys !== '.,./sync,./testing,./testing/row') problems.push(`exports keys are "${keys}", expected ". and ./sync and ./testing and ./testing/row"`);
+    if (keys !== '.,./testing,./testing/row') problems.push(`exports keys are "${keys}", expected ". and ./testing and ./testing/row"`);
     if (problems.length) throw new Error(problems.join('; '));
     return `${packed.name}@${packed.version}, license ${packed.license}`;
   });
