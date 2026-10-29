@@ -22,7 +22,7 @@ const HEAD = [
   'Source Code: https://github.com/Jojos-Creations/phonux\n',
 ].join('');
 const CANONICAL_HEAD = '# The Prosperity Public License 3.0.0\n\nContributor: $name\n\nSource Code: $address\n';
-const TRIAL = [
+const TRIAL: [string, string][] = [
   ['for commercial purposes for ninety days.', 'for commercial purposes for thirty days.'],
   ['to a ninety-day trial period.', 'to a thirty-day trial period.'],
 ];
