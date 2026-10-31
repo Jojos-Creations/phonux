@@ -1083,6 +1083,35 @@ test('matrix:tuning.shrinkUnfocused', async () => {
   for (const bad of ['yes', 1]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ shrinkUnfocused: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
 });
 
+test('matrix:tuning.firstPressFocusOnly', async () => {
+  probe('tuning.firstPressFocusOnly');
+  await wrongScopeInEveryStatus({ tuning: { firstPressFocusOnly: true } }, 'tuning.firstPressFocusOnly');
+  const r = await matrixRig();
+  await r.settle();
+  const clicks: string[] = [];
+  const tap = (id: string): void => {
+    const b = r.slot(id)!.querySelector('button') ?? r.slot(id)!.appendChild(document.createElement('button'));
+    if (!b.dataset.counted) {
+      b.dataset.counted = '1';
+      b.addEventListener('click', () => clicks.push(id));
+    }
+    r.turn(() => {
+      b.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+      window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+      b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+  };
+  tap('b');
+  tap('c');
+  assert.deepEqual(clicks, ['b', 'c'], 'control: off by default, the first press on a panel not in use clicks');
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ firstPressFocusOnly: true }))), { now: [], later: ['tuning.firstPressFocusOnly'], shadowed: [] });
+  tap('b');
+  assert.deepEqual(clicks, ['b', 'c'], 'on: the press only puts b in use');
+  tap('b');
+  assert.deepEqual(clicks, ['b', 'c', 'b'], 'b in use: the press clicks');
+  for (const bad of ['yes', 1]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ firstPressFocusOnly: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+});
+
 test('matrix:title', async () => {
   probe('title');
   const logged: string[] = [];
@@ -1651,13 +1680,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'resize', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused', 'tuning.fastScroll'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'resize', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused', 'tuning.fastScroll', 'tuning.firstPressFocusOnly'];
 
-test('the probes ran every catalog name once: 57 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 58 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 60);
-  assert.equal(CATALOG_NAMES.length, 57);
-  assert.equal(probesExecuted().size, 57);
+  assert.equal(CATALOG_NAMES.length, 58);
+  assert.equal(probesExecuted().size, 58);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

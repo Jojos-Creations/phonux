@@ -270,6 +270,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     defaultEnterFrom: 'expand',
     defaultExitTo: 'shrink',
     shrinkUnfocused: false,
+    firstPressFocusOnly: false,
   });
 });
 

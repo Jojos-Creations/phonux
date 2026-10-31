@@ -1,14 +1,18 @@
-/** A press on a panel not in use only puts it in use; the control it lands on sees nothing until the panel is in use. */
+/**
+ * `tuning.firstPressFocusOnly`: a press on a panel not in use only puts it in use, and the control it lands on sees nothing
+ * until the panel is in use. Off by default, when the first press reaches the content.
+ */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { cleanup } from './support/mount-harness.js';
 import { matrixRig, type MatrixRig } from './support/configure-matrix.js';
+import { differential, differentialsCovered } from './support/differential.js';
 
 afterEach(() => cleanup());
 
-const rig = async (): Promise<MatrixRig> => {
-  const r = await matrixRig({});
+const rig = async (on = true): Promise<MatrixRig> => {
+  const r = await matrixRig({ workspace: { tuning: { firstPressFocusOnly: on } } });
   await r.settle();
   return r;
 };
@@ -77,4 +81,38 @@ test('frames in a panel not in use take no pointer, and get it back with the pan
   tap(r, r.slot('b')!);
   await r.settle();
   assert.equal(frame.style.pointerEvents, '', 'b in use');
+});
+
+test('off by default: the first press puts the panel in use and clicks, and frames keep the pointer', async () => {
+  const r = await rig(false);
+  const clicks: string[] = [];
+  const b = button(r, 'b', clicks);
+  const frame = r.slot('c')!.appendChild(document.createElement('iframe'));
+  tap(r, r.slot('a')!);
+  await r.settle();
+  tap(r, b);
+  assert.deepEqual(clicks, ['b'], 'the first press clicks');
+  assert.equal(covers(r, 'b'), 0, 'no cover');
+  assert.equal(frame.style.pointerEvents, '', 'a frame in a panel not in use still takes the pointer');
+});
+
+test('tuning.firstPressFocusOnly decides whether the first press clicks', async () => {
+  const clicksWith = async (on: boolean): Promise<string[]> => {
+    const r = await rig(on);
+    const clicks: string[] = [];
+    const b = button(r, 'b', clicks);
+    tap(r, r.slot('a')!);
+    tap(r, b);
+    r.m.unmount();
+    return clicks;
+  };
+  const seen = { off: await clicksWith(false), on: await clicksWith(true) };
+  differential('tuning.firstPressFocusOnly', (run) => {
+    for (const value of [false, true]) run(value, () => seen[value ? 'on' : 'off']);
+  });
+});
+
+test('every name this file owns has a completed differential', () => {
+  assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
+  assert.deepEqual(differentialsCovered(), ['tuning.firstPressFocusOnly']);
 });

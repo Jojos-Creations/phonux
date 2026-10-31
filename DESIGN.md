@@ -649,9 +649,10 @@ starts every restored wide panel resting, so it comes back at its saved width th
 code, so the person's recorded `overrides.slots` stays as it was. The next activation brings a resting panel back even
 after the tuning is turned off, so no panel is left at one phone.
 
-## The first press only puts a panel in use
+## The first press can be made to only put a panel in use
 
-A pointer press on a panel that is not in use puts it in use and does nothing else: the control under it gets no mousedown
+By default a press on a panel that is not in use puts it in use and reaches the content in the same press, so a button or
+link under it works at once. With `tuning.firstPressFocusOnly` on, a pointer press on a panel that is not in use puts it in use and does nothing else: the control under it gets no mousedown
 and no click, a link is not followed, and keyboard focus leaves the panel that was in use. The next press reaches the content. A
 press on a button or grab bar of the panel's own header or footer acts at once, as it does for a resting wide panel. The
 pointerdown itself still bubbles, because the row, the window and a host read it to learn where a press landed; only a
@@ -668,7 +669,7 @@ finger dot. It is declared on the template, not a setting, so every panel of tha
 changes it. Only the content scrolls: the drag never steps the row, which stays the wheel's, the keys' and a real finger's.
 The drag is taken after 4 px, under the 6 px every panel, tile and grab-bar drag waits for, and its moves stop at the window,
 so none of those drags starts; a press that does not move stays a click. A press on a panel not in use only puts it in use
-(see above), so touch begins with the next press. Option (Alt) held at the press, text fields and sliders keep the mouse.
+(see above) when `tuning.firstPressFocusOnly` is on, and touch then begins with the next press. Option (Alt) held at the press, text fields and sliders keep the mouse.
 `touch: true` covers the whole panel, header and footer included, so a drag there scrolls nothing and its buttons still
 click; `touch: 'content'` takes only the panel's frames, and the header, grab bar and footer keep the mouse's cursor and
 drags. One set of window listeners and one stylesheet serve every touch panel, mounted with the first and removed with the last.
@@ -1846,6 +1847,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.defaultEnterFrom` | auto, left, right, anchor, top, bottom, fade, expand (workspace only) | expand | NEXT (configureTuning only). Read at each panel's next enter; an entrance in progress keeps its style. |
 | `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | shrink | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
 | `tuning.shrinkUnfocused` | boolean (workspace only) | false | NEXT (configureTuning only). Read at the next activation or row scroll; a panel already at one phone keeps the width it goes back to. See "Unfocused panels rest at one phone". |
+| `tuning.firstPressFocusOnly` | boolean (workspace only) | false | NEXT (configureTuning only). Read at the next press on a panel not in use. See "The first press can be made to only put a panel in use". |
 <!-- catalog:end -->
 
 ## Panel boxes are reported, never drawn over
@@ -2040,7 +2042,7 @@ a hand-built `Host` give the same view result. `panels` is `Partial<PanelsInput>
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 24 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 25 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
 `CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and
@@ -2340,7 +2342,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `fastScroll`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `fastScroll`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`, `firstPressFocusOnly`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 

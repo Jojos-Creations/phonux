@@ -697,6 +697,7 @@ export type WorkspaceTuning = {
     defaultEnterFrom?: EnterFrom;
     defaultExitTo?: ExitTo;
     shrinkUnfocused?: boolean;
+    firstPressFocusOnly?: boolean;
 };
 
 // (No @packageDocumentation comment for this package)

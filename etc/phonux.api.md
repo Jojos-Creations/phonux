@@ -1316,6 +1316,7 @@ export type ResolvedWorkspaceTuning = {
     defaultEnterFrom: EnterFrom;
     defaultExitTo: ExitTo;
     shrinkUnfocused: boolean;
+    firstPressFocusOnly: boolean;
 };
 
 // @public
@@ -2068,6 +2069,7 @@ export type WorkspaceTuning = {
     defaultEnterFrom?: EnterFrom;
     defaultExitTo?: ExitTo;
     shrinkUnfocused?: boolean;
+    firstPressFocusOnly?: boolean;
 };
 
 // @public

@@ -203,6 +203,7 @@ export function PanelRowSlot({
   slide,
   rowScroll = false,
   previewing = false,
+  firstPressFocusOnly = false,
   onActivate,
   dragged = false,
   children,
@@ -242,6 +243,8 @@ export function PanelRowSlot({
   rowScroll?: boolean;
   /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
   previewing?: boolean;
+  /** True when a press on this panel while it is not in use only puts it in use (`tuning.firstPressFocusOnly`). Default false. */
+  firstPressFocusOnly?: boolean;
   /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree); `control` is true when it lands on a control of the panel's own chrome. */
   onActivate?: (control: boolean) => void;
   /** True for the slot whose box is being dragged: its rest moving during the preview is the drop, which lands at once whatever the motion setting. */
@@ -275,7 +278,7 @@ export function PanelRowSlot({
   };
   const framed = useHoldsFrame(el);
   const inUse = React.useSyncExternalStore(chrome?.subscribeActive ?? noSubscribe, () => chrome !== undefined && panelId !== undefined && chrome.active() === panelId, () => false);
-  useFramesAsleep(el, framed, !inUse);
+  useFramesAsleep(el, framed, firstPressFocusOnly && !inUse);
   const reducedMotion = useReducedMotionConfig();
   // The drag box reads the system preference itself, so the neighbors that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
@@ -404,7 +407,7 @@ export function PanelRowSlot({
       onPointerDownCapture={(e) => {
         markPanelPress(e.nativeEvent);
         const control = isChromeControl(e.target);
-        const first = onActivate !== undefined && chrome !== undefined && panelId !== undefined && chrome.active() !== panelId;
+        const first = firstPressFocusOnly && onActivate !== undefined && chrome !== undefined && panelId !== undefined && chrome.active() !== panelId;
         onActivate?.(control);
         if (first && !control && el.current !== null) swallowFirstPress(el.current, e.nativeEvent);
       }}

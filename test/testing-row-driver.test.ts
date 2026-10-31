@@ -97,7 +97,7 @@ test('setWidth gives the row a new window: a panel that no longer fits parks, an
   assert.ok(rendered.panel('a'), 'a is drawn again');
 });
 
-test('press clicks a control the way a person does, once its panel is in use', async () => {
+test('press clicks a control the way a person does', async () => {
   const seen: string[] = [];
   const ws = createWorkspace({
     root: view('root'),
@@ -108,9 +108,9 @@ test('press clicks a control the way a person does, once its panel is in use', a
   const rendered = await render(ws);
   const button = rendered.panel('btn')!.root.querySelector('[data-press]')!;
   await rendered.press(button);
-  assert.deepEqual(seen, ['down', 'up'], 'the first press only puts the panel in use');
+  assert.deepEqual(seen, ['down', 'up', 'click'], 'the first press puts the panel in use and clicks');
   await rendered.press(button);
-  assert.deepEqual(seen, ['down', 'up', 'down', 'up', 'click']);
+  assert.deepEqual(seen, ['down', 'up', 'click', 'down', 'up', 'click']);
 });
 
 test('a workspace that does not render itself fails with a message that says so', async () => {

@@ -371,6 +371,11 @@ export type WorkspaceTuning = {
    * becomes active, and back to its own width the next time it is active. Its own width is what the workspace saves. Default false.
    */
   shrinkUnfocused?: boolean;
+  /**
+   * Whether a press on a panel that is not in use only puts it in use, so the control under the press gets no click until
+   * the next press. Default false: the first press reaches the content and puts the panel in use at once.
+   */
+  firstPressFocusOnly?: boolean;
 };
 
 /** Every tuning leaf after resolving, each present. @public */
@@ -423,6 +428,8 @@ export type ResolvedWorkspaceTuning = {
   defaultExitTo: ExitTo;
   /** Whether a panel wider than one phone rests at one phone width while it is not the active one. */
   shrinkUnfocused: boolean;
+  /** Whether a press on a panel not in use only puts it in use, its content seeing no click. */
+  firstPressFocusOnly: boolean;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -1234,6 +1241,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'lib-shrink-unfocused',
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.firstPressFocusOnly',
+    group: 'tuning',
+    values: 'boolean (workspace only)',
+    default: 'false',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-first-press',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1334,6 +1352,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   defaultEnterFrom: 'expand',
   defaultExitTo: 'shrink',
   shrinkUnfocused: false,
+  firstPressFocusOnly: false,
 });
 
 // ---------------------------------------------------------------------------
@@ -1574,7 +1593,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'fastScroll' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'fastScroll' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused' | 'firstPressFocusOnly', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
@@ -1600,6 +1619,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneH
   defaultEnterFrom: oneOf(...ENTER_FROM),
   defaultExitTo: oneOf(...EXIT_TO),
   shrinkUnfocused: bool,
+  firstPressFocusOnly: bool,
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);

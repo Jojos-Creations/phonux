@@ -115,7 +115,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.firstPressFocusOnly', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -160,7 +160,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 56 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 58 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -324,6 +324,9 @@ const RANGES: readonly RangeRow[] = [
   ['shrinkUnfocused', true, 'accept'],
   ['shrinkUnfocused', false, 'accept'],
   ['shrinkUnfocused', 'on', 'reject'],
+  ['firstPressFocusOnly', true, 'accept'],
+  ['firstPressFocusOnly', false, 'accept'],
+  ['firstPressFocusOnly', 'on', 'reject'],
   ['edgeScroll.zonePx', 7, 'reject'],
   ['edgeScroll.zonePx', 8, 'accept'],
   ['edgeScroll.zonePx', 200, 'accept'],
@@ -354,7 +357,7 @@ test('ranges: every (value, outcome) row is accepted or refused by the tuning le
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 105);
+  assert.equal(RANGES.length, 108);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {
