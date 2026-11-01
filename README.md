@@ -68,7 +68,7 @@ column.addWorkspace({ name: 'Reading' }); // or give it a name
 column.removeWorkspace(0); // takes it out and disposes it; false for the last one
 ```
 
-The column renders itself. A button at the top and bottom centre names the neighbour and moves there, `column.step('up' | 'down')`
+The column renders itself. A button at the top and bottom center names the neighbor and moves there, `column.step('up' | 'down')`
 moves by one (bind a key to it; the column binds none), and where there is none it reads "Create new workspace" and calls
 `addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
 workspace; the column has one content (`root`, `templates`, `defaults`, `order`), `addWorkspace` takes only `id`, `name` and `index`, and a
@@ -146,7 +146,7 @@ A panel is a whole number of slots wide: one slot is the phone width, and each a
 `DRAGGING_ATTRIBUTE` and `CHROME_ATTRIBUTE`, and the part values as `CHROME_PARTS`, so a host imports them and repeats no string. `tuning.chrome` with `mode: 'hover-or-active'` fades
 those parts out for a panel nobody is using, along `fadeEase` (see DESIGN.md, "Panel chrome").
 
-A stepping row shows the neighbour at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
+A stepping row shows the neighbor at the window edge cut off, at its full size. A resize grabber calls the setter from `usePanelResizing()` so no other
 panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's third item, `setDrawnWidth(px, pin?)`, draws that
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
 end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
@@ -196,9 +196,9 @@ panel-view registry, and what stays out of a view's reach on purpose.
 
 ## License
 
-phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid licence. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
+phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
 
-Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT licence and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
+Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 
 `npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on). `npm run phone:webkit` runs the iPhone profile in WebKit, which needs WebKit installed; `PHONE_PROJECTS` picks any set of them.
 

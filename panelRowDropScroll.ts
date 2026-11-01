@@ -20,7 +20,7 @@ export interface EdgeHold {
   lastMs: number | null;
   /** Reduced motion: how long the pointer has stayed in a band since the last jump. */
   waitedMs: number;
-  /** The pointer has lifted or been cancelled: no further frame may move the row before the release reads the distance. */
+  /** The pointer has lifted or been canceled: no further frame may move the row before the release reads the distance. */
   stopped: boolean;
 }
 

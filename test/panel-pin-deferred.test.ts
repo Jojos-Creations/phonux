@@ -35,7 +35,7 @@ const quiet = { tuning: { saveQuietMs: 5 } };
 const wait = (): Promise<void> => act(async () => void (await new Promise((done) => setTimeout(done, 80))));
 
 // ---------------------------------------------------------------------------
-// Storing, replacing and cancelling
+// Storing, replacing and canceling
 // ---------------------------------------------------------------------------
 
 test('apply-on-next-show on a parked panel stores a deferral and changes nothing else: the row, the status and the permissions stay', async () => {
@@ -178,7 +178,7 @@ test('a deferred unpin applies the same way: a pinned panel parked, unpinned whi
 });
 
 // ---------------------------------------------------------------------------
-// live is normalised when a fixing pin lands
+// live is normalized when a fixing pin lands
 // ---------------------------------------------------------------------------
 
 test('a deferred parkable:false applied through open() or undo leaves the panel live, never parked and fixed', async () => {

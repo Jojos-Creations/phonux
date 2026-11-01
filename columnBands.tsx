@@ -10,7 +10,7 @@ import type { WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspaceHandle } from './workspaceCore.js';
 import { MAX_WORKSPACE_NAME } from './workspaceName.js';
 
-/** The height of a workspace name input and of the column's neighbour buttons, in px. @public */
+/** The height of a workspace name input and of the column's neighbor buttons, in px. @public */
 export const WORKSPACE_NAME_CONTROL_HEIGHT = 24;
 /** The attribute the workspace name input carries, so a stylesheet can select it without a class name. @public */
 export const WORKSPACE_NAME_INPUT_ATTRIBUTE = 'data-workspace-name-input';

@@ -47,7 +47,7 @@
  *
  * 2. THERE IS NO ALLOWLIST, AND THE SCANNER CANNOT BE GIVEN ONE.
  *    The spec has no option that excuses a file, a line or a match, and an
- *    option it does not recognise (a typo, or someone adding an escape hatch
+ *    option it does not recognize (a typo, or someone adding an escape hatch
  *    at the call site) is a hard error rather than something quietly ignored.
  *    An in-source pragma comment cannot excuse a violation either, because
  *    comments are simply not read. A boundary with a way out is a suggestion.
@@ -127,7 +127,7 @@
  *  - Path comparison lower-cases both sides (ASCII), so a wrong-case path
  *    (`../../Desktop/x.js`, `../../DESKTOP/x.js`) IS caught, matching what a
  *    disk that ignores case (macOS, Windows) would actually resolve. Unicode
- *    normalisation differences, which APFS also ignores, are not handled.
+ *    normalization differences, which APFS also ignores, are not handled.
  *  - The scanner checks words and named directories, not REACH: it reads the
  *    files it is given and does not follow their imports, so a view that
  *    imports an app helper which itself calls the bridge stays green as long

@@ -39,7 +39,7 @@ export const SLIDE_DURATION_SEC = 0.6;
 export const SLIDE_EASE: readonly [number, number, number, number] = Object.freeze([0.4, 0, 0.2, 1]) as readonly [number, number, number, number];
 export const SLIDE_CLOSE_EXIT_SECONDS = CLOSE_EXIT_SECONDS;
 
-/** A drag crosses a neighbour once it has covered this fraction of that neighbour's span. */
+/** A drag crosses a neighbor once it has covered this fraction of that neighbor's span. */
 export const HOP_FRACTION = 0.5;
 
 /** Quiet time before the workspace file is written. */
@@ -96,7 +96,7 @@ export const HEADER_INSET_PX = 13;
 export const FOOTER_PAD_X_PX = 12;
 export const FOOTER_PAD_Y_PX = 8;
 
-/** How many slide durations the container width must hold still before the row's centring margin glides again. */
+/** How many slide durations the container width must hold still before the row's centering margin glides again. */
 export const RESIZE_SETTLE_SLIDES = 1.25;
 
 /** Scrolling the row while a dragged panel is held near the window's edge. */
