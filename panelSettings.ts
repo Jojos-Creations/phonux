@@ -1509,8 +1509,8 @@ export interface FixedBehaviour {
 }
 
 /**
- * What the per-panel settings this version removed do now: each is fixed at the value it had as a default, for every
- * panel. A template that still names one is told once in development and the value is ignored; a later rc refuses it.
+ * What the per-panel settings the library removed do now: each is fixed at the value it had as a default, for every
+ * panel. A template that still names one is told once in development and the value is ignored; a later release refuses it.
  * @internal
  */
 export const FIXED: FixedBehaviour = Object.freeze({
