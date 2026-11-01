@@ -1,7 +1,7 @@
 /**
  * The header buttons as one toolbar: a single tab stop, Arrow, Home and End moving along the buttons, disabled buttons
  * skipped, the stop following a removed or disabled button, and the row announcing itself as a horizontal toolbar.
- * These replace the earlier behaviour, where every button was its own tab stop.
+ * These replace the earlier behavior, where every button was its own tab stop.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

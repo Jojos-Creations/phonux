@@ -1,5 +1,5 @@
 /**
- * The licence files say what the package ships under. LICENSE is the canonical PolyForm Noncommercial 1.0.0 text under one
+ * The license files say what the package ships under. LICENSE is the canonical PolyForm Noncommercial 1.0.0 text under one
  * Required Notice line; package.json and the lockfile root name the matching SPDX id; nothing else claims MIT for this
  * package except the recorded 0.1.0 tarball. Contact and notice text never ships with a placeholder.
  */
@@ -52,7 +52,7 @@ test('the licence, README and notices text carries no placeholder or TODO', () =
 
 test('the README tells a reader which versions are MIT, which are not, and where to ask about commercial use', () => {
   const readme = read('README.md');
-  assert.match(readme, /0\.1\.0 and 0\.2\.0-rc\.2 were published under the MIT licence/);
+  assert.match(readme, /0\.1\.0 and 0\.2\.0-rc\.2 were published under the MIT license/);
   assert.match(readme, /PolyForm Noncommercial/);
   assert.match(readme, /https:\/\/github\.com\/Jojos-Creations/);
 });

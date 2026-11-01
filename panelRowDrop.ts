@@ -27,10 +27,10 @@ export interface Walk {
   readonly right: readonly Neighbor[];
 }
 
-/** The neighbours `steps` hops would cross. */
+/** The neighbors `steps` hops would cross. */
 export const crossedBy = (walk: Walk, steps: number): readonly Neighbor[] => (steps > 0 ? walk.right : walk.left).slice(0, Math.abs(steps));
 
-/** How far a panel moves when it hops over `crossed`: each neighbour's width plus the gap. */
+/** How far a panel moves when it hops over `crossed`: each neighbor's width plus the gap. */
 export const travelOver = (crossed: readonly Neighbor[], gap: number): number => crossed.reduce((sum, n) => sum + n.width + gap, 0);
 
 /** Every panel the drag would cross moves by the dragged panel's own `span`, away from the side it is dragged toward. */
@@ -70,7 +70,7 @@ export interface DropRow {
 }
 
 /**
- * How the row parts for `preview`. A panel in view moves to the slot its hops end in while the neighbours it crossed
+ * How the row parts for `preview`. A panel in view moves to the slot its hops end in while the neighbors it crossed
  * slide aside by its span. A hidden one leaves a gap its own width at the slot its hops end in: every present panel
  * after its place in the array moves right by the span, and the ones it crossed take that back.
  */
@@ -122,7 +122,7 @@ export interface RowDropInput {
   readonly entries: readonly PanelRowEntry[];
   readonly chrome: ChromeStore;
   readonly boxRef: React.RefObject<HTMLElement | null>;
-  /** The x of the centre a drag of the entry counts its pointer offset from, in the row's own px: its slot when it is in view, else the gap it would hold open. */
+  /** The x of the center a drag of the entry counts its pointer offset from, in the row's own px: its slot when it is in view, else the gap it would hold open. */
   readonly centreOf: (entry: PanelRowEntry, hidden: boolean) => number;
   readonly walkOf: (entry: PanelRowEntry) => Walk;
   /** The hop rule shared with the header drag. */

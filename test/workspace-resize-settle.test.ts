@@ -1,5 +1,5 @@
 /**
- * The Workspace's own resize settle: the row's centring margin snaps while the container width is moving and glides
+ * The Workspace's own resize settle: the row's centering margin snaps while the container width is moving and glides
  * once it has held still for 1.25 slide durations, with no help from the host. A host-supplied `rowResizeSettled` wins.
  */
 import { test, afterEach, mock } from 'node:test';

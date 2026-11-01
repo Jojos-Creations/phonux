@@ -1,5 +1,5 @@
 /**
- * The header's title colour follows the MUI palette's text colour, so a light theme
+ * The header's title color follows the MUI palette's text color, so a light theme
  * shows it and the dark default is unchanged (its text.primary is white). Server-render checks on the emitted CSS.
  */
 

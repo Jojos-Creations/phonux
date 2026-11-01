@@ -226,7 +226,7 @@ test('shrink: a leaving slot scales to 0 about its center, which keeps to the po
   assert.equal(b.style.overflowX, '', 'and is never clipped');
   assert.ok(['', '50% 50%', '50% 50% 0px'].includes(b.style.transformOrigin), `it scales about its center (${b.style.transformOrigin})`);
   assert.ok(axis(c, 'X') > REST && axis(c, 'X') < REST + SPAN, 'c is closing up');
-  // a stays at its rest, so the neighbours meet midway between a's right edge and c's left edge.
+  // a stays at its rest, so the neighbors meet midway between a's right edge and c's left edge.
   const center = axis(b, 'X') + WIDTH / 2;
   const meet = (REST - GAP + axis(c, 'X')) / 2;
   assert.ok(Math.abs(center - meet) < 1, `b's center (${center}) is where a and c meet (${meet})`);

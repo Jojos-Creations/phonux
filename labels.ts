@@ -44,7 +44,7 @@ export interface PhonuxLabels {
   pickedUp: (title: string) => string;
   /** Said when a drag lets the panel go. Default `Dropped <title>`. */
   dropped: (title: string) => string;
-  /** Said when a drag is cancelled. Default `Cancelled moving <title>`. */
+  /** Said when a drag is canceled. Default `Cancelled moving <title>`. */
   dragCancelled: (title: string) => string;
   /** Said after a key moved the panel one slot: `steps` is -1 for left and 1 for right. Default `Moved <title> left` or `Moved <title> right`. */
   moved: (title: string, steps: number) => string;

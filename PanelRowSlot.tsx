@@ -66,7 +66,7 @@ export type SlotEntrance = 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'expan
 
 /**
  * How a slot leaves: 'down' is the close exit on the close timing; the others take the slide timing, and 'shrink'
- * scales it to 0 about its center, which moves to where its neighbours meet.
+ * scales it to 0 about its center, which moves to where its neighbors meet.
  * @internal
  */
 export type SlotExit = 'down' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
@@ -103,7 +103,7 @@ export function panelRowSlotMotion(
       : enterDirection === 'top' || enterDirection === 'bottom'
         ? { initial: { x: rest, y: enterDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }, animate: { x: rest, y: 0, opacity: 1 } }
         : enterDirection === 'expand'
-          ? // Starts half a span left, where its neighbours part from, so the center rides the opening gap.
+          ? // Starts half a span left, where its neighbors part from, so the center rides the opening gap.
             { initial: { x: rest - ownSpan / 2, scale: 0, opacity: 0 }, animate: { x: rest, scale: 1, opacity: 1 } }
           : { initial: { x: rest, opacity: 0 }, animate: { x: rest, opacity: 1 } };
   // 'down': a close, timed to DragToClose's exit so trash and drag closes read as one motion (DragToClose calls
@@ -119,7 +119,7 @@ export function panelRowSlotMotion(
           : exitDirection === 'top' || exitDirection === 'bottom'
             ? { x: rest, y: exitDirection === 'top' ? -phoneHeight : phoneHeight, opacity: 0 }
             : exitDirection === 'shrink'
-              ? // The mirror of 'expand': half a span left keeps the center where the neighbours meet as they close up.
+              ? // The mirror of 'expand': half a span left keeps the center where the neighbors meet as they close up.
                 { x: rest - ownSpan / 2, scale: 0, opacity: 0 }
               : { x: rest, opacity: 0 };
   return { initial, animate, exit, transition };
@@ -250,7 +250,7 @@ export function PanelRowSlot({
   // This slot's own copy of the transition, so the moment its slide counts from can be set for the one call that starts it.
   const startable: { duration: number; ease?: unknown; startTime?: number } = React.useMemo(() => ({ ...transition }), [transition]);
   const reducedMotion = useReducedMotionConfig();
-  // The drag box reads the system preference itself, so the neighbours that make room for it must too, whatever the app's MotionConfig says.
+  // The drag box reads the system preference itself, so the neighbors that make room for it must too, whatever the app's MotionConfig says.
   const systemReduced = useReducedMotion();
   // A press or key inside an iframe never reaches the page's own handlers; the page's window loses focus to the iframe element instead.
   const activate = React.useRef(onActivate);
@@ -275,7 +275,7 @@ export function PanelRowSlot({
   const setUpBefore = React.useRef(false);
   const present = useIsPresent();
   // Motion starts an exit in its own layout effect, before this slot's: the clock must be on the transition by render, so a
-  // shrink and the neighbours closing up over it count from the same moment however late the commit runs.
+  // shrink and the neighbors closing up over it count from the same moment however late the commit runs.
   if (!present && exitDirection === 'shrink') startable.startTime = slideStart();
   React.useLayoutEffect(() => {
     if (!present) delete startable.startTime;
@@ -298,7 +298,7 @@ export function PanelRowSlot({
       delete startable.startTime;
     }
   });
-  // An expand's scale and its neighbours' parting must share one clock, or the gap it grows into lags it by a frame.
+  // An expand's scale and its neighbors' parting must share one clock, or the gap it grows into lags it by a frame.
   React.useLayoutEffect(() => {
     if (entrance !== 'expand' || snapping || tracking || el.current === null) return;
     startable.startTime = slideStart();
@@ -415,7 +415,7 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 
 /**
  * The box a resize animates. Its real width and height ease from the size on screen to the new one over the slide, in step with
- * the neighbouring slots, so its content reflows as it goes and is never stretched. A view renders it inside its own slot.
+ * the neighboring slots, so its content reflows as it goes and is never stretched. A view renders it inside its own slot.
  * Under Reduce Motion, or while a host holds a width, the resize snaps.
  * @public
  */
@@ -495,7 +495,7 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
   const drawn = React.useRef<{ width: number; height: number | '100%' } | undefined>(undefined);
   const run = React.useRef<{ stop: () => void } | undefined>(undefined);
   const [glide, setGlide] = React.useState<PanelSizeGlide | null>(null);
-  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbour.
+  // Starts in the commit's layout effect, on the slot's slide clock (`slideStart`), so a commit that janks opens no gap to a neighbor.
   React.useLayoutEffect(() => {
     const node = box.current;
     if (node === null || nested) return;

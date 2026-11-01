@@ -45,7 +45,7 @@ export interface WorkspacePanelEntry {
   readonly placeholder?: string;
   /** The panel's width in slots (a positive integer). The tile spans that many grid columns, capped at the grid's columns. @defaultValue `1` */
   readonly slots?: number;
-  /** The host's own element drawn before the tile's title. The panel sets no size or colour on it. Left out, the caption shows the title alone. */
+  /** The host's own element drawn before the tile's title. The panel sets no size or color on it. Left out, the caption shows the title alone. */
   readonly icon?: ReactNode;
 }
 

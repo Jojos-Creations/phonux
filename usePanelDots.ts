@@ -18,7 +18,7 @@ export interface PanelDots {
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
   readonly width: number;
-  /** Centres the panel `id` in the window. Does nothing when the row cannot scroll, or while a drag holds the row. */
+  /** Centers the panel `id` in the window. Does nothing when the row cannot scroll, or while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
   startOvalDrag(): { drag(dx: number): void; end(): void } | null;
@@ -72,7 +72,7 @@ export function usePanelDots(i: {
     rowScrollerFor(el).noteInput();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) return;
-    // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted centre.
+    // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted center.
     // Numbers built by hand may omit the stops; such a row has none to snap to.
     const at = Math.min(maxScroll, target + n.stripStart);
     rowScrollerFor(el).glideTo(n.stops?.length ? snapToStop(n, index, at) : at, { durationSec: tuning.slide.durationSec, instant: reduced, ease: tuning.slide.glideEase });

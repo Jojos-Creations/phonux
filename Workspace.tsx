@@ -1,6 +1,6 @@
 /**
- * The workspace shell: the scroll container that holds the centred, animated row, plus the pure
- * `workspaceShellStyle` derivation behind its centring math (computed synchronously on every render,
+ * The workspace shell: the scroll container that holds the centered, animated row, plus the pure
+ * `workspaceShellStyle` derivation behind its centering math (computed synchronously on every render,
  * never through state or an effect -- see DESIGN.md). The host measures the row itself, before building its
  * own panels API in the same render, and passes the measurement in as props.
  */
@@ -59,7 +59,7 @@ export interface WorkspaceShellStyleInput {
 
 /** The values the row shell renders with, derived by `workspaceShellStyle`. @internal */
 export interface WorkspaceShellStyle {
-  /** The row's centring margin, px. */
+  /** The row's centering margin, px. */
   marginLeft: number;
   /** Snap while the container width is still moving, glide once it has held still. */
   transition:
@@ -144,12 +144,12 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   /** Attach to the scroll container: the caller's ResizeObserver measures it. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
   /** Attach to the row (the flex box holding the columns): the SAME ref object a caller's own
-   * `beforeRow` content may need too, so both centre against the one measured element. */
+   * `beforeRow` content may need too, so both center against the one measured element. */
   rowRef: RefObject<HTMLDivElement | null>;
   /** The scroll container's measured width in px; 0 before the first measurement. */
   containerWidth: number;
   /**
-   * Whether the container width has held still: the row's centring margin glides once it has, and snaps otherwise.
+   * Whether the container width has held still: the row's centering margin glides once it has, and snaps otherwise.
    * Omitted: the Workspace decides, calling the width settled once it has held for `tuning.resizeSettleSlides` slide durations (1.25 by default)
    * (`tuning.slide.durationSec`), and at once while animation is off (Reduce Motion).
    */
@@ -167,7 +167,7 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   liveWidths: readonly number[];
   /** Whether the row scrolls (ProvidedPanels.rowScroll). Ignored when `rowNumbers` is given, which carries it. Default false. */
   rowScroll?: boolean;
-  /** The row's numbers (ProvidedPanels.rowNumbers): the margin and the overflow follow them. Omitted: a row with no settings, centred from `liveWidths` and never scrolling. */
+  /** The row's numbers (ProvidedPanels.rowNumbers): the margin and the overflow follow them. Omitted: a row with no settings, centered from `liveWidths` and never scrolling. */
   rowNumbers?: RowNumbers;
   /** Clearance above the row, in px. Defaults to the row gap; a host with its own chrome above the scroll container (e.g. a drag strip) passes more. Never less than the room a panel header takes, so the header stays on screen, unless the workspace sets `tuning.rowTop`: then it is taken as given, and the workspace's `rowTop` is used when this is omitted. */
   topPadding?: number;
@@ -198,7 +198,7 @@ const NO_SUBSCRIPTION = (): (() => void) => () => {};
 const VISUALLY_HIDDEN = { position: 'absolute', width: '1px', height: '1px', margin: '-1px', padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 } as const;
 
 /**
- * The workspace shell: a scroll container holding the centred, animated row, with two OverlaySlots
+ * The workspace shell: a scroll container holding the centered, animated row, with two OverlaySlots
  * (`dialog` inside the row, `toast` as this component's own last sibling) so a view's WindowOverlay always
  * has somewhere to render, independent of the host's own mount order.
  * @public
@@ -326,7 +326,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const topPad = rowTopReservePx(topPadding, resolved.rowTop, gap);
   const bottomPad = rowBottomReservePx(gap, bottomPadding);
   const availableHeight = useRowHeightBudget(overflowContainerRef, topPad, bottomPad);
-  // A row that stops scrolling must not keep the offset it had: the margin that centres it assumes the strip starts at 0.
+  // A row that stops scrolling must not keep the offset it had: the margin that centers it assumes the strip starts at 0.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     if (scrolls || container === null || container.scrollLeft === 0) return;
@@ -351,7 +351,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - container.scrollLeft) <= EDGE_TOLERANCE_PX);
       const seen = new Set<string>();
       for (const slot of strip.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-        // A stepping row cuts the neighbour of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
+        // A stepping row cuts the neighbor of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
         const rect = slot.getBoundingClientRect();
         const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
         // Published here, not in PanelRow: this loop is the only place that measures a slot against the window.
@@ -392,7 +392,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     container.addEventListener('scroll', apply, { passive: true });
     container.addEventListener('pointermove', follow, { passive: true });
     container.addEventListener('keydown', follow);
-    // A click or focus in the cut-off neighbour makes the browser scroll it into view off a stop; the row settles back onto one.
+    // A click or focus in the cut-off neighbor makes the browser scroll it into view off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       const n = rowNumbers;
       // A held panel is in view at every scroll, so focusing it moves nothing.
@@ -476,7 +476,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           pt: `${topPad}px`,
           pb: `${bottomPad}px`,
           pl: `${gap}px`,
-          // A scrolling row's end space is the end element's (below); a row that does not scroll centres in this padding.
+          // A scrolling row's end space is the end element's (below); a row that does not scroll centers in this padding.
           pr: scrolls ? 0 : `${gap}px`,
           overflowX: style.overflowX,
           // The row never scrolls vertically: a panel scrolls its own content, and a wheel over the row must not move it off its workspace.
