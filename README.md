@@ -16,10 +16,10 @@ npm install react react-dom @mui/material @mui/icons-material @emotion/react @em
 `@dnd-kit/core` is a dependency of phonux, not a peer: npm installs it for you. The package also ships `DESIGN.md`, which explains
 the design decisions behind the API.
 
-## Testing main without a publish
+## Testing a release candidate without a publish
 
-Every push to `main` force-pushes the built package to the `dist` branch, a test channel and not a release. An app that wants
-to try main before a publish depends on `github:Jojos-Creations/phonux#dist`. The package version on that branch is the source
+Every push to `release` force-pushes the built package to the `dist` branch, a test channel and not a release. An app that
+wants to try the release branch before a publish depends on `github:Jojos-Creations/phonux#dist`. The package version on that branch is the source
 version, so the commit SHA in the app's lockfile, not the version, says which build it is. A shipped app never depends on
 `dist`. `npm publish` and its publish gate are unchanged. The repository is private, so whoever installs it, CI included,
 needs a GitHub credential.
