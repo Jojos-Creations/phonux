@@ -1,8 +1,9 @@
 name: Dist branch
 
+# Only a promotion to release builds dist: Actions minutes are spent on release candidates and versions.
 on:
   push:
-    branches: [main]
+    branches: [release]
   workflow_dispatch:
 
 permissions:
@@ -23,7 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # Build and pack smoke only, not the full suite: a broken package must never replace the last good dist, and main is verified before it lands.
+      # Build and pack smoke only, not the full suite: a broken package must never replace the last good dist, and release is verified before it lands.
       - run: npm run smoke
       - name: Force-push dist/ to the dist branch
         run: |
