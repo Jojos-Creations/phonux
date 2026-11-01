@@ -2449,7 +2449,7 @@ moves it and everything left of it one slot left, the default; `'shift-right'` m
 right; `'close'` closes it), and optionally the entrance (`enterFrom`). The panel pushed past the row's end leaves view.
 `resolveOpen` in `openPlacement.ts` is the pure half: it turns the answer into the anchor the engine places by (a neighbor
 that stays, never the occupant, which still holds its room while its close plays) and the panel that leaves. The reference
-app reopens a closed page from its History in the middle slot with `'shift-right'`, then centers it in the row; a plain open
+app reopens a closed page from its Workspace timeline in the middle slot with `'shift-right'`, then centers it in the row; a plain open
 keeps the far right.
 
 ## Maximize
