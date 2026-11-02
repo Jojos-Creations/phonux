@@ -651,6 +651,10 @@ after the tuning is turned off, so no panel is left at one phone.
 
 ## The first press can be made to only put a panel in use
 
+A template's own `firstPressFocusOnly`, when set, wins over the workspace's `tuning.firstPressFocusOnly` for its panels, so a
+host can turn it on for the row and off for one kind of panel (a workspace panel whose lists should act on the first press),
+or the reverse. It is a template field, not a setting layer, because it describes the kind of panel and never changes per panel.
+
 By default a press on a panel that is not in use puts it in use and reaches the content in the same press, so a button or
 link under it works at once. With `tuning.firstPressFocusOnly` on, a pointer press on a panel that is not in use puts it in use and does nothing else: the control under it gets no mousedown
 and no click, a link is not followed, and keyboard focus leaves the panel that was in use. The next press reaches the content. A
