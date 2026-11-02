@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.2.0-rc.6
 
 - License: from this release phonux is under the phonux Public License 1.0.0, the Prosperity Public License 3.0.0 with a ninety-day commercial trial in place of thirty days. Noncommercial use stays free, and any company may now use phonux commercially for ninety days, one trial for the whole company, before it needs a paid license. A modified license has no SPDX id, so `package.json` says `SEE LICENSE IN LICENSE`. 0.2.0-rc.3 through rc.5 stay PolyForm Noncommercial 1.0.0.
