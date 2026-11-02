@@ -154,6 +154,11 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
    * `DragToClose` outside a row always drags vertically.
    */
   readonly verticalDrag?: boolean;
+  /**
+   * Whether a press on a panel made from this template, while it is not in use, only puts it in use. Left out, the
+   * workspace's `tuning.firstPressFocusOnly` decides. Set it to override that one way or the other for this template.
+   */
+  readonly firstPressFocusOnly?: boolean;
   /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
   /** The params a panel made from this template starts with. */
@@ -185,7 +190,7 @@ const isComponent = (view: unknown): boolean => typeof view === 'function' || (t
 export type AnyPanelTemplate = PanelTemplate<any>;
 
 /**
- * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, a `touch` of a boolean or `'content'` and a boolean `verticalDrag` when given, an `api` the library serves, and a settings layer the
+ * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, a `touch` of a boolean or `'content'`, a boolean `verticalDrag` and a boolean `firstPressFocusOnly` when given, an `api` the library serves, and a settings layer the
  * resolver accepts on its own. 
  * @throws PanelManagerError with code `invalid-template` or `invalid-settings`.
  * @public
@@ -198,6 +203,7 @@ export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>
   if (t.footer !== undefined && !isComponent(t.footer)) throw new PanelManagerError('invalid-template', `template '${t.id}': footer must be a React component`);
   if (t.touch !== undefined && typeof t.touch !== 'boolean' && t.touch !== 'content') throw new PanelManagerError('invalid-template', `template '${t.id}': touch must be a boolean or 'content'`);
   if (t.verticalDrag !== undefined && typeof t.verticalDrag !== 'boolean') throw new PanelManagerError('invalid-template', `template '${t.id}': verticalDrag must be a boolean`);
+  if (t.firstPressFocusOnly !== undefined && typeof t.firstPressFocusOnly !== 'boolean') throw new PanelManagerError('invalid-template', `template '${t.id}': firstPressFocusOnly must be a boolean`);
   checkPanelApi(t.id, t.api);
   resolvePanelSettings({ template: t.settings });
   reportLevelTieOnce(t.id, t.api, t.settings);

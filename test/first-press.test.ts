@@ -6,13 +6,13 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { cleanup } from './support/mount-harness.js';
-import { matrixRig, type MatrixRig } from './support/configure-matrix.js';
+import { matrixRig, matrixTemplate, type MatrixRig, type MatrixRigOptions } from './support/configure-matrix.js';
 import { differential, differentialsCovered } from './support/differential.js';
 
 afterEach(() => cleanup());
 
-const rig = async (on = true): Promise<MatrixRig> => {
-  const r = await matrixRig({ workspace: { tuning: { firstPressFocusOnly: on } } });
+const rig = async (on = true, extra?: MatrixRigOptions): Promise<MatrixRig> => {
+  const r = await matrixRig({ ...extra, workspace: { tuning: { firstPressFocusOnly: on } } });
   await r.settle();
   return r;
 };
@@ -110,6 +110,29 @@ test('tuning.firstPressFocusOnly decides whether the first press clicks', async 
   differential('tuning.firstPressFocusOnly', (run) => {
     for (const value of [false, true]) run(value, () => seen[value ? 'on' : 'off']);
   });
+});
+
+test("a template's own firstPressFocusOnly wins over the workspace's, either way", async () => {
+  const clicksWith = async (workspace: boolean, template: boolean): Promise<{ clicks: string[]; frame: string }> => {
+    const r = await rig(workspace, { ids: ['a', 'c'], extra: [matrixTemplate('b', { firstPressFocusOnly: template })] });
+    r.turn(() => r.ws.addPanel('b'));
+    await r.settle();
+    const clicks: string[] = [];
+    const b = button(r, 'b', clicks);
+    const frame = r.slot('b')!.appendChild(document.createElement('iframe'));
+    tap(r, r.slot('a')!);
+    await r.settle();
+    const asleep = frame.style.pointerEvents;
+    tap(r, b);
+    r.m.unmount();
+    return { clicks, frame: asleep };
+  };
+  assert.deepEqual(await clicksWith(true, false), { clicks: ['b'], frame: '' }, 'on for the row, off for b: b clicks at once');
+  assert.deepEqual(await clicksWith(false, true), { clicks: [], frame: 'none' }, 'off for the row, on for b: b only goes in use');
+});
+
+test('a template whose firstPressFocusOnly is not a boolean is refused', () => {
+  assert.throws(() => matrixTemplate('b', { firstPressFocusOnly: 'yes' as unknown as boolean }), /firstPressFocusOnly must be a boolean/);
 });
 
 test('every name this file owns has a completed differential', () => {

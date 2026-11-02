@@ -243,7 +243,7 @@ export function PanelRowSlot({
   rowScroll?: boolean;
   /** True while a sideways drag previews the reorder: under Reduce Motion the slot's own moves then snap, since a preview-time slide carries no information. */
   previewing?: boolean;
-  /** True when a press on this panel while it is not in use only puts it in use (`tuning.firstPressFocusOnly`). Default false. */
+  /** True when a press on this panel while it is not in use only puts it in use (the template's `firstPressFocusOnly`, else `tuning.firstPressFocusOnly`). Default false. */
   firstPressFocusOnly?: boolean;
   /** Called when a press or focus lands anywhere inside the slot, a portaled descendant included (React capture handlers follow the React tree); `control` is true when it lands on a control of the panel's own chrome. */
   onActivate?: (control: boolean) => void;
