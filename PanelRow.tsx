@@ -481,7 +481,7 @@ export function PanelRow({
           slide={own.slide}
           rowScroll={rowScroll}
           previewing={dragging !== null || drop !== null}
-          firstPressFocusOnly={workspaceTuning.firstPressFocusOnly}
+          firstPressFocusOnly={templateOf(p.view)?.firstPressFocusOnly ?? workspaceTuning.firstPressFocusOnly}
           onActivate={(control) => {
             chrome.setActive(p.id);
             binding.touch(p.id, control);
