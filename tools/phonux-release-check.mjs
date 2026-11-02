@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Pre-publish check: name@version must still be free on the registry and the built package must pass the publish
- * gate, then it PRINTS the publish command for the owner to run by hand. It never publishes and never logs in.
+ * Pre-publish check: HEAD must hold all of its rc branch, name@version must still be free on the registry and the
+ * built package must pass the publish gate, then it PRINTS the publish command for the owner to run by hand. It never
+ * publishes and never logs in.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -11,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { resolvePhoneDir } from './phonux-paths.mjs';
 import { lockfileVersionProblem } from './phonux-lockfile-version.mjs';
 import { publishCommand } from './phonux-publish-command.mjs';
+import { rcBranchProblem } from './phonux-rc-branch.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PHONE_DIR = resolvePhoneDir(REPO_ROOT);
@@ -24,6 +26,9 @@ function fail(message) {
 
 const lockProblem = lockfileVersionProblem(PHONE_DIR);
 if (lockProblem) fail(lockProblem);
+
+const rcProblem = rcBranchProblem({ version, cwd: REPO_ROOT });
+if (rcProblem) fail(rcProblem);
 
 const levelCheck = spawnSync(join(REPO_ROOT, 'node_modules', '.bin', 'tsx'), [fileURLToPath(new URL('./phonux-api-level-version.ts', import.meta.url)), PHONE_DIR], { encoding: 'utf8' });
 if (levelCheck.error) fail(`could not run the panel API level check (${levelCheck.error.message}); this proved nothing`);
@@ -49,4 +54,5 @@ if (smoke.status !== 0) fail(`node tools/phonux-pack-smoke.mjs exited ${smoke.st
 const distDir = relative(process.cwd(), join(PHONE_DIR, 'dist')) || '.';
 console.log(`release:check OK -- ${spec} is free on the registry and the built package passed the publish gate.`);
 console.log('Publish it yourself (this script never does), with your npm account and 2FA code ready:');
-console.log(`  ${publishCommand(version, distDir)}`);
+const rcCheck = relative(process.cwd(), fileURLToPath(new URL('./phonux-rc-branch-check.mjs', import.meta.url)));
+console.log(`  node ${rcCheck} && ${publishCommand(version, distDir)}`);
