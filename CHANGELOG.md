@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A stepping row that overflows centers its whole slots at the first and last rests too, like every rest between them: `rowMarginLeft` and `endPad` are each half the window's leftover past its whole slots, and every stop sits on the one-phone grid from 0. rc.5 ended flush at both edges, which left the whole leftover beside the hidden cut neighbor, so an end rest looked off-center.
+
 ## 0.2.0-rc.6
 
 ### Added
@@ -20,7 +26,6 @@
 
 ### Changed
 
-- A stepping row that overflows centers its whole slots at the first and last rests too, like every rest between them: `rowMarginLeft` and `endPad` are each half the window's leftover past its whole slots, and every stop sits on the one-phone grid from 0. rc.5 ended flush at both edges, which left the whole leftover beside the hidden cut neighbour, so an end rest looked off-center.
 - `slots` and `maxSlots` are documented as whole numbers from 1 to 64, the most slots any panel can have; the doc comments, README and DESIGN.md say so.
 - `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbors still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbors still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade. They are also the library's defaults now: `tuning.defaultEnterFrom` defaults to `'expand'` and `tuning.defaultExitTo` to `'shrink'`, so a panel left at `auto` expands in and shrinks out, for a park and a close alike. **Migration:** a host that wants the earlier sideways park and downward close sets both to `'auto'` through `createWorkspace({ tuning })` or `configureTuning`.
 
