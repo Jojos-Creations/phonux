@@ -128,7 +128,7 @@ export type InstancePlan =
       later: string[];
       shadowed: string[];
       notes: SettingNote[];
-      /** True when the patch asked for `parkable`: a deferred pin is cancelled. */
+      /** True when the patch asked for `parkable`: a deferred pin is canceled. */
       cancelsPin: boolean;
       /** The Host-bag split after the patch; undefined for a panel no view created. */
       split: HostSplit | undefined;

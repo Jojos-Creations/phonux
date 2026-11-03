@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-rc.6
 
 ### Added
 
+- Column bands: `ColumnOptions.bands` sets what every cell draws above and below its row, as ordered lists of named slots (`ColumnBands`, `ColumnBand`, `ColumnSlot`, `ColumnSlotProps`). `DEFAULT_COLUMN_BANDS` is the link above, the name input and the link below, also exported as `NeighbourAboveSlot`, `WorkspaceNameSlot` and `NeighbourBelowSlot`. `withSlotChanges` replaces (handing the replacement the default as `Default`), hides and adds slots by id, and skips an unknown id with a warning. `columnBandRoom` gives the room the bands need; the library row keeps it clear. `COLUMN_BAND_ATTRIBUTE` and `COLUMN_SLOT_ATTRIBUTE` mark a band and a slot's box.
+- `Workspace` takes `bottomPadding`, and `usePhoneFit` a `bottomInset`, for chrome under the row.
+- `usePanelSizeGlide()`: inside a `PanelSizeBox` (or the default frame's box), the box's size glide (`PanelSizeGlide`: `from` and `to` sizes) from the commit that starts it until it lands, and null at rest.
+- `PanelSizeBox` takes `reveal`: while the box glides, its content is laid out once at the larger of the start and end widths and clipped at the eased box's sides, so a grow resizes it at its start and a shrink at its end rather than on every frame. Content in another process, such as a webview, then lays out twice per glide instead of about 34 times. The height follows the box, and nothing above or below the box is clipped, so a frame's header and footer stay visible.
 - A panel added through the `addPanel` of a view's own `useWorkspace()` records that view's panel as its opener: `PanelState.openedBy` is the opener's id, or null for a panel the host opened. It is set once, a drag or a reorder never changes it, and it is saved in the workspace file, so it survives a relaunch; a file saved before it loads with no openers. When a panel closes, the panels it opened take its own opener.
 - `PanelManager.familyOf(id)` lists a panel and every panel it opened, directly or through the panels it opened, in row order.
 - `WorkspaceColumnHandle.movePanel` takes `{ withFamily: true }` (`MovePanelOptions`) to move a panel together with its family to the end of another workspace's row, keeping who opened whom among them. It is all or nothing: one member the target refuses moves none, and the message names it. `canMovePanel` answers what `movePanel` would, without moving, so a host can offer only the workspaces that can take the whole family. `MovePanelResult` gains `panelIds`, every panel that moved in its new order. A panel moved alone now arrives with no opener, and the panels it opened stay behind under its old opener.
@@ -18,16 +22,14 @@
 
 - A stepping row that overflows centers its whole slots at the first and last rests too, like every rest between them: `rowMarginLeft` and `endPad` are each half the window's leftover past its whole slots, and every stop sits on the one-phone grid from 0. rc.5 ended flush at both edges, which left the whole leftover beside the hidden cut neighbour, so an end rest looked off-center.
 - `slots` and `maxSlots` are documented as whole numbers from 1 to 64, the most slots any panel can have; the doc comments, README and DESIGN.md say so.
+- `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbors still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbors still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade. They are also the library's defaults now: `tuning.defaultEnterFrom` defaults to `'expand'` and `tuning.defaultExitTo` to `'shrink'`, so a panel left at `auto` expands in and shrinks out, for a park and a close alike. **Migration:** a host that wants the earlier sideways park and downward close sets both to `'auto'` through `createWorkspace({ tuning })` or `configureTuning`.
 
 ### Breaking
 
+- The column's neighbor links and name input sit inside a band's slot box instead of being positioned themselves, so a stylesheet that placed them by `top`, `bottom` or a child selector on the cell must place the slot box or replace the slot instead.
 - Standalone (no column), `topInset` no longer sets the row's top room: `tuning.rowTop` is the only control for it. In a column the cell's `topInset` still clears its links, as before.
 - The MUI and DOM types leave the public API, ahead of 0.2.0 final. `createWorkspace({ theme })` and `createDefaultTheme(mode)` take and return `PhonuxTheme`, a set of CSS colors and a corner unit, and the library builds its styling theme from it. `HeaderButton.sx` and the drag handle's `sx` are a `CssStyle` (plain CSS properties), not MUI `sx`. `panelCornerRadiusPx` takes a `PhonuxTheme`. The root props of `Panel`, `PanelFrame`, `PanelHeader` and `Workspace` are `ElementProps`, not MUI `BoxProps`. The drag handle's `onPointerDown` and `onKeyDown` take `HandlePointerEvent` and `HandleKeyEvent`, which React's events satisfy.
 - `PhonuxThemeProvider` draws the row's styling for a hand-rendered row (`mount: false`), in place of an app's own MUI `ThemeProvider`.
-
-### Changed
-
-- `enterFrom: 'expand'` and `exitTo: 'shrink'` mirror each other around the panel's center point. `expand` scales the panel up from 0, width and height together, where it used to widen from its left edge; its neighbours still part, and the center keeps to where they part. `exitTo: 'shrink'` scales the panel down to its own center point, width and height together, on the `slide` timing. It used to narrow the panel's width toward its left edge with the height unchanged. The neighbours still close up, and the center keeps to the point where they meet, so in a centered row it holds still and the panel never overlaps them. Reduced motion lands the scale at once and keeps the fade. They are also the library's defaults now: `tuning.defaultEnterFrom` defaults to `'expand'` and `tuning.defaultExitTo` to `'shrink'`, so a panel left at `auto` expands in and shrinks out, for a park and a close alike. **Migration:** a host that wants the earlier sideways park and downward close sets both to `'auto'` through `createWorkspace({ tuning })` or `configureTuning`.
 
 ### Fixed
 
@@ -117,22 +119,22 @@
 
 ### Fixed
 
-- A grab-handle drag cancelled by Escape or a `pointercancel` now springs the panel's vertical offset back to rest too. It sprang only the horizontal offset and the row's scroll, so a panel dragged up or down stayed lifted (at `translateY(-90px)`, for example) until its next gesture.
+- A grab-handle drag canceled by Escape or a `pointercancel` now springs the panel's vertical offset back to rest too. It sprang only the horizontal offset and the row's scroll, so a panel dragged up or down stayed lifted (at `translateY(-90px)`, for example) until its next gesture.
 - The workspace's status region is a 1px clipped box. It was sized 100% by 100% (a bare `1` in `sx` is a percentage), so inside a host's scrolling container it added a screenful of scrollable area and drew a native scrollbar.
-- A stepping row at rest draws only whole slots: the neighbour the window edge cuts is no longer drawn, however much of it shows (with four phone slots fitting, a 60 px sliver of the fifth showed). A panel wider than a phone may still show partly, and a slot crossing an edge while the row glides or a drag holds it keeps drawing until the row rests.
+- A stepping row at rest draws only whole slots: the neighbor the window edge cuts is no longer drawn, however much of it shows (with four phone slots fitting, a 60 px sliver of the fifth showed). A panel wider than a phone may still show partly, and a slot crossing an edge while the row glides or a drag holds it keeps drawing until the row rests.
 - `PanelFrame`'s 1 px edge now stays visible around the rounded corners. Opaque full-bleed content (a photo, a web view) painted over the ring along each corner arc, so the border faded out at the corners. The frame's content box now takes the frame's own radius (`border-radius: inherit`) and clips what it holds, so it follows the radius however that is set: the theme, an inline style, a stylesheet rule or an animation. A view that sets its own `borderRadius` or `overflow` in the frame's `sx` still wins. No export changes.
-- A panel resize that grows a row past the window no longer snaps the centring margin, which jumped every panel by the whole margin in one frame. The margin snaps while the row has stops, and such a grow adds its stops in the same render that moves the margin. The margin now glides with the shared slide when a panel's width changes under an unchanged window, or while a width is held (`usePanelResizing`). A window resize keeps the snap. After a held-width release that moves the margin, the settle onto the nearest stop starts when the slide ends, so the scroll and the margin do not move the panels together. Any ask to move the row during that wait (a wheel, key, dot or press, even one the row refuses at an end) or any scroll of it decides where it rests, and the settle is skipped.
+- A panel resize that grows a row past the window no longer snaps the centering margin, which jumped every panel by the whole margin in one frame. The margin snaps while the row has stops, and such a grow adds its stops in the same render that moves the margin. The margin now glides with the shared slide when a panel's width changes under an unchanged window, or while a width is held (`usePanelResizing`). A window resize keeps the snap. After a held-width release that moves the margin, the settle onto the nearest stop starts when the slide ends, so the scroll and the margin do not move the panels together. Any ask to move the row during that wait (a wheel, key, dot or press, even one the row refuses at an end) or any scroll of it decides where it rests, and the settle is skipped.
 - `WorkspaceColumn` lands on the saved workspace without a slide when it is drawn before the saved list is read; it glides from the first move after that.
 - A stepping row's last stop rests with the last panel one row gap from the window edge, not behind a blank stretch. The room after the strip was the last whole-panel group's even margin, so at a 2240 px window a row ending in a phone stopped with about 909 px of blank space after it. `RowNumbers.endPad` is now always 0 and the end space is the row gap wide. The stops below the last are unchanged; the last stop is the strip's new end, so grid stops that lay past it are dropped.
 - A panel dragged sideways and dropped into a new slot glides into it from where it was released, with Reduce Motion off, instead of jumping a slot-width in one frame. Reduce Motion still lands it at once, and a release that hops nowhere still springs home.
 - Opening a workspace that has a root template no longer saves once with nothing changed: the restore baseline now includes the root's key and slot count, as the save does.
-- The panel header's title follows the theme's text colour, so it reads on a light theme. The dark default is unchanged.
-- Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged. Every stop a row rests on is on that one-phone grid, so a drag release or a resize settle no longer leaves a half step: the next step is a whole phone width. The whole-panel stops are gone; a wide panel centres only where the grid holds the centred position.
+- The panel header's title follows the theme's text color, so it reads on a light theme. The dark default is unchanged.
+- Behavior change: a step over a row moves one phone width per event, also onto a wide panel. Before, a wide panel took a step of its whole width or half. Walking a 1280 px window across a five-slot desktop panel and then two phones: 4 events of 812, 1218, 406, 406 before; 7 events of 406 after. A row of phones is unchanged. Every stop a row rests on is on that one-phone grid, so a drag release or a resize settle no longer leaves a half step: the next step is a whole phone width. The whole-panel stops are gone; a wide panel centers only where the grid holds the centered position.
 - A vertical wheel over a panel row no longer moves the row up off its workspace: the row's own overflow is `overflowY: hidden`. A panel's inner scroller still scrolls.
 - A leftward drag no longer flicks the panel it replaces to the window edge. The drop moved that panel's DOM node, which reset what it hosts; no panel node moves in a reorder now.
 - After a reorder, Tab and Shift+Tab walk the panels in the order they are drawn, not the order they opened, also out of an iframe that ends or starts a panel.
 - A panel present at mount no longer slides from the preferred phone size to the fitted one when the container is first measured: the measuring commit snaps its moves and its size box.
-- The drag-to-close box and its release, close and edge scroll honour MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
+- The drag-to-close box and its release, close and edge scroll honor MotionConfig `reducedMotion: "always"` as well as the system's Reduce Motion query. `never` does not turn off the system query.
 - A step from a panel as wide as the window now slides it to show its right part beside the next whole panel, instead of jumping to the next panel and dropping the wide one.
 - A closed panel's `useViewState` is kept for the undo window again. The row held the state by the row's own id while `recentlyClosed` carries the key, so a panel with a key unlike its row id came back from Undo with empty state; both sides now use the key.
 - A panel added with `addPanel` and no title of its own now gets `labels.panelTitle(id)`, the same default the Host-bag `create` gave, whether it is added before or after the workspace mounts.
@@ -167,10 +169,10 @@
 - A panel has one public id, its key. A template panel's `panel.id` was the row's counter (`3`) while `handle.id`, `PanelState.id` and `usePanelState` used the key (`web~3`), so an id from one place failed silently in another. Now `panel.id`, `PanelSummary.id` (`panelList`, `recentlyClosed`), every `PanelsAPI` verb, `useActivePanel` (its value and its setter), the id the snapshot trigger is given and `tuning.initialScroll.panel` all use the key. A hand-built entry's key is its id, so a view that never used templates sees no change. **Migration:** a view that held `panel.id` and passed it to a handle, manager or `usePanelState` needs nothing; one that stored the counter id (saved, or in a `viewId` for pictures) stores the key instead.
 - `handle.move(by, source?)` takes a signed slot count in place of `'left'` or `'right'`: `handle.move(-3, 'person')` is one gated call that crosses up to three
   slots to the left, stops at an end or a panel that cannot be crossed, and answers `changed: true` when at least one slot was crossed. A drag over several
-  neighbours is one call, where the loop of raw `panels.move` calls was needed before. Pass `1` or `-1` where `'right'` or `'left'` was passed.
+  neighbors is one call, where the loop of raw `panels.move` calls was needed before. Pass `1` or `-1` where `'right'` or `'left'` was passed.
   `usePanelPinned()` now reads `PanelState.pinned`, so it agrees with `handle.getState().pinned` (and with `pin()` and `unpin()`).
-- `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbour of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
-  neighbour out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbour
+- `tuning.shrinkOutOfView: 'off'` (the default) now shows the neighbor of a stop cut off by the window edge, at its full size. Before, a stepping row faded that
+  neighbor out, so Off looked like Hide at rest. A panel is inert only when the window does not reach it, and a click or focus in the cut-off neighbor
   settles the row onto a stop afterwards. `'visible'` and `'hidden'` are unchanged. `RowNumbers` gains `showPartial`.
 - The gap between a panel's header and its frame is 4 px, down from 24 px, and the grab handle stays 24 px wide and tall.
 - `PanelFooter` is bare, like the header: no border, shadow or background, and the header's height, where it was a bordered box a little shorter. **Migration:** delete any `sx` that flattens it.
@@ -185,15 +187,15 @@
 ### Added
 
 - `isWorkspaceState` is exported from the package entry point, so a host can check an imported workspace file with the same guard the library applies to saved state.
-- `usePanelRowDrop()` lets a view drag a panel into the row from outside it, such as a Workspace or History tile. `begin(id, source?)` returns false for a panel that is closed, still being added, the row's root, or (for a person) not `movable`; `update(clientX)` parts the neighbours by the hop rule the header drag uses and scrolls the row at its edges; `end()` answers a `PanelResult` and `cancel()` restores the row. A parked or hidden panel shows a gap its own width at the place it would land, and `end()` places and shows it in one update.
-- Every panel can pick its own entrance and exit, and a workspace can set the default for all of them. `enterFrom` gains `top`, `bottom`, `fade` and `expand` beside `auto`, `left`, `right` and `anchor`: `top` and `bottom` slide in from that side, `fade` fades in where the panel rests, and `expand` grows the panel's width out of the gap at its slot while its neighbours part to make room. `exitTo` is a setting again, with `auto`, `left`, `right`, `top`, `bottom`, `fade` and `shrink` (the width collapses into the gap and the neighbours close up), and one value governs a park and a close alike. `WorkspaceTuning` gains `defaultEnterFrom` and `defaultExitTo`, set through `createWorkspace({ tuning })` or `configureTuning`: a panel whose own value is `auto` takes the workspace's. The new types are `EnterFrom` and `ExitTo`. Every style takes the workspace's `slide` timing (the `auto` close keeps `slide.closeExitSeconds` and `slide.closeExitEase`), honours reduced motion as the slide does, and is read at the next enter or exit, so one in progress keeps its style. An expanding or shrinking panel is clipped at its full width rather than squashed. Every default is `auto`, which behaves as before: a park leaves sideways and a close leaves downward. **Migration:** none. A template that still set `exitTo` to `left` or `right` was told the setting was removed and had it ignored; that value is honoured again.
+- `usePanelRowDrop()` lets a view drag a panel into the row from outside it, such as a Workspace or History tile. `begin(id, source?)` returns false for a panel that is closed, still being added, the row's root, or (for a person) not `movable`; `update(clientX)` parts the neighbors by the hop rule the header drag uses and scrolls the row at its edges; `end()` answers a `PanelResult` and `cancel()` restores the row. A parked or hidden panel shows a gap its own width at the place it would land, and `end()` places and shows it in one update.
+- Every panel can pick its own entrance and exit, and a workspace can set the default for all of them. `enterFrom` gains `top`, `bottom`, `fade` and `expand` beside `auto`, `left`, `right` and `anchor`: `top` and `bottom` slide in from that side, `fade` fades in where the panel rests, and `expand` grows the panel's width out of the gap at its slot while its neighbors part to make room. `exitTo` is a setting again, with `auto`, `left`, `right`, `top`, `bottom`, `fade` and `shrink` (the width collapses into the gap and the neighbors close up), and one value governs a park and a close alike. `WorkspaceTuning` gains `defaultEnterFrom` and `defaultExitTo`, set through `createWorkspace({ tuning })` or `configureTuning`: a panel whose own value is `auto` takes the workspace's. The new types are `EnterFrom` and `ExitTo`. Every style takes the workspace's `slide` timing (the `auto` close keeps `slide.closeExitSeconds` and `slide.closeExitEase`), honors reduced motion as the slide does, and is read at the next enter or exit, so one in progress keeps its style. An expanding or shrinking panel is clipped at its full width rather than squashed. Every default is `auto`, which behaves as before: a park leaves sideways and a close leaves downward. **Migration:** none. A template that still set `exitTo` to `left` or `right` was told the setting was removed and had it ignored; that value is honored again.
 - `WorkspaceColumnHandle.movePanel(from, panelId, to)` moves one panel from its workspace to the end of another workspace's row in the same column, and answers `MovePanelResult`: the target workspace, its index and the panel's id there (enough to `scrollTo` it), or a refusal code and a sentence. The panel keeps its template, params, url, title, size and `uid`; the target saves it and the source stops saving it. The current workspace does not change. It refuses the root panel (`root-fixed`), an always-shown column, a panel whose `movable` is false and a code-declared panel that would return at the next launch (`not-movable`), an unknown panel, a template the target lacks (`unknown-panel`), an unknown workspace or the same one twice, a target at the template's instance limit or holding the id (`instance-limit`), a workspace not yet drawn or loaded (`not-attached`, `not-ready`) and a disposed column (`disposed`). `useViewState` values are per workspace and do not move, `hostData` is built afresh by the target, and a parked panel arrives live. **Migration:** none.
-- The root panel can be dragged sideways: C5 no longer forces `draggable: false`, so a root whose template, workspace defaults or `configure(rootId, { draggable: true })` sets `draggable: true` reorders like any panel. The default stays `false`, so no existing root changes. Its neighbours slide aside live, and the drop re-anchors the panels it crossed to the root's other side in one commit, which flips their pinned state. `closable`, `parkable` and `placeable` on the root still answer `settings-conflict`. The root has no grab bar in the default frame; its own view draws a `Panel` with `grabProps` and spreads `usePanelDragProps()` onto `DragToClose`.
+- The root panel can be dragged sideways: C5 no longer forces `draggable: false`, so a root whose template, workspace defaults or `configure(rootId, { draggable: true })` sets `draggable: true` reorders like any panel. The default stays `false`, so no existing root changes. Its neighbors slide aside live, and the drop re-anchors the panels it crossed to the root's other side in one commit, which flips their pinned state. `closable`, `parkable` and `placeable` on the root still answer `settings-conflict`. The root has no grab bar in the default frame; its own view draws a `Panel` with `grabProps` and spreads `usePanelDragProps()` onto `DragToClose`.
 - The row's rest is saved: `WorkspaceState` gains an optional `scroll` (`{ panel, offset }`), written with the panels once a person has moved the row, and the next mount restores that stop in one instant glide, ahead of `tuning.initialScroll`. A file without it reads as before; a malformed one is dropped with an `invalid-saved-setting` note. **Migration:** none; an app that builds a `WorkspaceState` by hand may leave `scroll` out.
 - `seedWorkspace` and `PanelSeed` in `phonux/testing`, for tests only: members of `WorkspaceOptions` that make a workspace restore panels under given ids with given `hostData`, slot count, permanent-column flag and live or parked state, through the path a saved file takes. A seed can sit left of the root (`side`), and `laterIds` names the engine ids of panels added afterwards. The `phonux` entry is unchanged.
 - `usePanelSetDragging()` returns a setter for the dragging mark of the panel it is called in, so a host's own drag shows the chrome and `data-panel-dragging` without writing the attribute. It does nothing outside a row.
-- `usePanelDots(...)` (`usePanelDots.ts`) is the headless state of a dot bar for a row: one dot per drawn panel, its width following the panel's width, the odd one hollow, the window oval, `selectDot(id)` to centre a panel, and `startOvalDrag()` to drag the oval. The app draws and places it; the library writes the row only through its scroll writer, and Reduce Motion snaps a click. The panel setting `hollowDot` (template scope, default false) draws that panel's dot hollow.
-- A workspace switch's motion is pinned by tests and a Chromium proof for each way of switching and each Reduce Motion source (`test/workspace-switch-scroll*.test.ts`). The column already slides on every path, so there is no behaviour change.
+- `usePanelDots(...)` (`usePanelDots.ts`) is the headless state of a dot bar for a row: one dot per drawn panel, its width following the panel's width, the odd one hollow, the window oval, `selectDot(id)` to center a panel, and `startOvalDrag()` to drag the oval. The app draws and places it; the library writes the row only through its scroll writer, and Reduce Motion snaps a click. The panel setting `hollowDot` (template scope, default false) draws that panel's dot hollow.
+- A workspace switch's motion is pinned by tests and a Chromium proof for each way of switching and each Reduce Motion source (`test/workspace-switch-scroll*.test.ts`). The column already slides on every path, so there is no behavior change.
 
 - `tuning.chrome` takes six pixel settings for the chrome drawn around a panel: `headerGapPx` (the header pill's gap above the frame, also the grab bar's height), `grabPillWidthPx` and `grabPillHeightPx`, `headerInsetPx` (the header text's inset), and `footerPadXPx` and `footerPadYPx`. Their defaults are the values the library drew before, so nothing moves until a workspace sets one.
 
@@ -216,7 +218,7 @@
 - A column of workspaces, one above the other. `createWorkspaceColumn(options)` renders itself like `createWorkspace`, and
   `column.addWorkspace(options)` is the one call that creates a workspace, adds it and returns its `WorkspaceHandle`. ArrowUp and
   ArrowDown move between workspaces (never while focus is in a field, widget, editor or dialog, or during a keyboard drag, and never
-  with a modifier, a repeat or an IME composition); a button at the top and bottom centre names the neighbour and moves there, and
+  with a modifier, a repeat or an IME composition); a button at the top and bottom center names the neighbor and moves there, and
   reads "Create new workspace" where there is none. Each workspace has a name input above its panels. A workspace now has an `id`
   that never changes, a `name` (default `Workspace <n>`) and `rename(name)`; `WorkspaceOptions` takes `id`, `name` and `onRename`.
   `ColumnStorage` keeps the list, the names and the current workspace, and the panels of each workspace under its id. New
@@ -291,13 +293,13 @@
   wide with no glide so a grabber follows the pointer, and the panels after it, its height and its size box follow on the same frame.
   It is held between one slot and what fits, never writes `slots` and never reaches the stop list, capacity or the live set. `pin: 'end'`
   keeps the right edge still for a grabber on the left. End the drag with `setSlots(nearest)`, `setDrawnWidth(null)`, `setResizing(false)`. The
-  row's centring margin now snaps under Reduce Motion instead of gliding.
+  row's centering margin now snaps under Reduce Motion instead of gliding.
 - Whole panels only: new workspace tuning `shrinkOutOfView` (`'off'` default, `'visible'`, `'hidden'`) for a row that steps
   (`rowGesture: 'step'`). With `'visible'` the row moves one slot at a time: every panel steps through every size on its way in (1,
   2, ... its own width) and on its way out (its own width, ... 2, 1), drawn smaller where the window would cut it, never cropped, so
   `[2, 2, 2, 2]` takes twice the steps and a panel's page lays out at each size. `slots` is never written; `PanelSummary.drawnSlots`
   and `size` report what is drawn. With `'hidden'` the room stays as margin and no panel is drawn part way, not even mid-glide; `'off'`
-  is today's behaviour. New `usePanelResizing()` returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is
+  is today's behavior. New `usePanelResizing()` returns `[resizing, setResizing]` for a resize grabber or any drag: while a panel is
   marked it reads as dragging, no other panel's drawn width changes, and the row does not scroll.
 - A header button has two forms, told apart by the `icon` key: with `icon` the label is only the accessible name (as before),
   without it the label is drawn as the button's text (`HeaderButtonIconForm`, `HeaderButtonTextForm`). `icon: undefined` is
@@ -361,7 +363,7 @@
   `OVERLAY_Z` layer. Nothing changes at the defaults.
 
 - Two more values that were literals are tuning leaves, each at the value the code always used: `tuning.resizeSettleSlides`
-  (1.25, a workspace-only number from 0 to 10 that multiplies `slide.durationSec` into the wait before the row's centring
+  (1.25, a workspace-only number from 0 to 10 that multiplies `slide.durationSec` into the wait before the row's centering
   margin glides again after a resize; 0 settles at once) and `tuning.chrome.fadeEase` (`'easeOut'`, the curve Motion applies
   to a fade given only a duration; also `'easeIn'`, `'easeInOut'`, `'linear'` or a cubic bezier). `fadeEase` is a required member
   of the resolved `ChromeTuning`, so a host that builds a whole `ChromeTuning` object (a test double, a fake) now has to give
@@ -371,19 +373,19 @@
 
 - The default frame animates its size. A bare view's header, grab bar, phone frame and footer are drawn in one box that takes the new
   size at once and eases to it over the slide, so a panel that steps through its sizes no longer jumps to each one while its
-  neighbours glide. `PanelSizeBox` is the same scale now instead of Motion's `layout="size"`: it starts in the commit, on the clock of
-  the slot's slide, so a neighbour stays one gap from it even when the commit takes longer than a frame. Self-framed views are unchanged.
-- Licence: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
-  noncommercial use, with commercial use through a separate paid licence. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
+  neighbors glide. `PanelSizeBox` is the same scale now instead of Motion's `layout="size"`: it starts in the commit, on the clock of
+  the slot's slide, so a neighbor stays one gap from it even when the commit takes longer than a frame. Self-framed views are unchanged.
+- License: phonux is now PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`), free for personal and other
+  noncommercial use, with commercial use through a separate paid license. 0.1.0 and 0.2.0-rc.2 stay MIT. The package now
   ships `THIRD_PARTY_NOTICES.md` for the MIT-licensed phone-model entries.
-- **Default behaviour change.** A resized panel is now whole slots wide: a tablet is two slots (796 at a 390 phone and a 16 px
+- **Default behavior change.** A resized panel is now whole slots wide: a tablet is two slots (796 at a 390 phone and a 16 px
   gap, was 768) and a desktop panel is every slot the window fits (two at a 1000 px container, was a 968 px clip), so a
   panel's edges land on the row's stops. An unmeasured row draws a desktop panel three slots wide (was 1200 px). A hand-built
   entry with no `slots` keeps the old tier widths.
-- `PanelsAPI.setFormFactor`, the `formFactor` setting and `formFactors` are deprecated in favour of `setSlots`, `slots` and
+- `PanelsAPI.setFormFactor`, the `formFactor` setting and `formFactors` are deprecated in favor of `setSlots`, `slots` and
   `maxSlots`. They keep working through 0.2.0-rc.3 and are removed in rc.4. A person's resize is now saved as
   `overrides.slots`; a file holding only `overrides.formFactor` still reads as that tier's count.
-- **Default behaviour change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters
+- **Default behavior change.** The header buttons are now one Tab stop with roving focus, as a toolbar should be: Tab enters
   the row once, Arrow Left and Right, Home and End move along it, a disabled button is skipped and never holds the stop, and
   the row carries `role="toolbar"`, `aria-orientation="horizontal"` and, for a string title, `aria-label`. Before, every button
   was its own Tab stop. Tests that tabbed button by button, and the four header goldens, changed with it.
@@ -391,7 +393,7 @@
 - A stepping row (`rowGesture` `'step'`, the default) now shows only whole panels: as many as fit the window, the leftover
   width split evenly on both sides, and every step, `scrollTo`, drag release, pin, close and window resize lands on a stop
   where the shown panels are whole, instead of stopping part-way through the first or last panel. The other panels fade
-  out, and fade in and out between stops as the row travels, so no neighbour peeks at an edge. `RowNumbers` gains `stops`,
+  out, and fade in and out between stops as the row travels, so no neighbor peeks at an edge. `RowNumbers` gains `stops`,
   `stopSpans` and `endPad`, and `computeRowNumbers` takes `wholePanels`; `free` and `off` rows are unchanged.
   `scrollTo` with `align` `'start'` or `'center'` lands on the nearest stop that shows the panel.
 
@@ -412,7 +414,7 @@
   spacing (609 px at 390 px phones and a 16 px gap) under `shrinkOutOfView` 'off' and 'hidden', and under 'visible' the row stayed on a
   stop that drew the widened panel shrunk to one slot. The Workspace now reads the panel's rect from the element when
   `setResizing(true)` is called and, at the release, lands on the stop nearest the scroll that puts that edge back (the left edge for a
-  width pinned at `'start'`). The edge rests within half the gap between neighbouring stops of where it began, and exactly where a stop
+  width pinned at `'start'`). The edge rests within half the gap between neighboring stops of where it began, and exactly where a stop
   is at that scroll. No new option, and a host that ends the mark without a drawn width settles as before.
 - While a panel is dragged by its grab bar, the page no longer selects or highlights text or photos across the other panels, and
   a photo no longer starts a native image drag. `user-select`, `-webkit-user-select` and `-webkit-user-drag` are `none` on the
@@ -476,7 +478,7 @@
   getSnapshot should be cached": `getState()` returns the same object until the panel's state changes, also before its first commit.
 - Pinning a panel under React 19.2 StrictMode left the panel it moved past (History) stuck at its old place, under the
   pinned one, until a reload: a slot that a reorder moves now restarts its slide to its new rest.
-- A panel dragged past a neighbour under React 19.2's StrictMode no longer stays at its drag offset, overlapping the
+- A panel dragged past a neighbor under React 19.2's StrictMode no longer stays at its drag offset, overlapping the
   panel beside it and leaving a gap: the box keeps its release spring running when React runs its effect cleanup and
   setup again.
 
@@ -487,7 +489,7 @@
 - Gone from `phonux`: the 22 deprecated aliases, ten values and three types, `SettingsAPI`'s four max-panels members and
   `PanelsInput.storedMaxPanels`; the Removed list below names each one and what replaces it.
 - A panel built through a workspace now scrolls where 0.1.0 parked it at capacity, and its container's `overflow-x`,
-  centring margin and `maxLiveWidth` change with it. A hand-built entry keeps parking.
+  centering margin and `maxLiveWidth` change with it. A hand-built entry keeps parking.
 - `ProvidedPanels` gains required members (`rowScroll`, `rowNumbers`, `tuning`, `scrollTo`, `followPanel`), so a typed
   fake of it stops compiling.
 - `clearAll` keeps locked entries, `usePanelCloseEligible` is `collapsible && !locked`, `undoClose` consumes its batch
@@ -537,7 +539,7 @@
   engine raises while it works and swallows whatever it throws.
 - `usePanelTuning()`: the look tuning of the panel a view sits in (`rowGap`, `dragToClose`, `slide`, `hopFraction`,
   `edgeScroll`); outside a row it returns the library defaults.
-- `usePanelReorderSteps()`: `steps(offsetX)` is `reorderStepsForOffset` over the slot's neighbours, the row gap and the
+- `usePanelReorderSteps()`: `steps(offsetX)` is `reorderStepsForOffset` over the slot's neighbors, the row gap and the
   panel's hop fraction; outside a row it is 0.
 - `slideToTransition(slide)`: the Motion transition for a `SlideTuning`, `PANEL_TRANSITION` itself for the default.
 - `Workspace` and `PanelRow` gain the optional `tuning` prop, and `ProvidedPanels` gains `tuning`, the resolved
@@ -566,7 +568,7 @@
   panel at its `placeOnAdd`, and a closed anonymous instance answers `is-closed`.
 - `PanelResult` is exported as a type.
 - `undoClose` restores a closed panel through its current settings: `undoPlacement` decides where it lands, and a
-  workspace-less host keeps the 0.1.0 behaviour.
+  workspace-less host keeps the 0.1.0 behavior.
 - `configure({ snapshot: 'never' })` asks the host's `CaptureTrigger` to `evict` that panel's stored picture once, from the
   commit's layout effect, for a live, parked, hidden or protected panel. A closed record or a panel inside its undo window
   stores the edit and asks nothing at the call.
@@ -615,11 +617,11 @@
 - `onPanelsRestored` lists only the closes that were reported and restored; it is not called when there are none.
   Before, it listed every id of the batch, including one `undoClose` skipped because the id was already back.
 - The undo window ends at the latest of each close's `undoWindowMs` after that close, and no close shortens it;
-  with the default 10 000 ms that is the 0.1.0 behaviour, where every close restarted the window.
+  with the default 10 000 ms that is the 0.1.0 behavior, where every close restarted the window.
 
 - An entry that carries `settings` is placed by `placeOnShow` when it is shown, by `placeOnReturn` when it returns on
   its own, and by `undoPlacement` when `undoClose` restores it, with `placeFallback` and an `onNote` note when the
-  value cannot be honoured; it enters from `enterFrom`, leaves by `exitTo` and `closeExit`, stacks by `layer` and
+  value cannot be honored; it enters from `enterFrom`, leaves by `exitTo` and `closeExit`, stacks by `layer` and
   skips its slide when `animated` is false. A hand-built entry places, enters and leaves as before.
 - `undoClose` reads its batch from a ref that the first call empties, so a second call in the same handler restores
   and reports nothing (it used to report the same log ids twice), and it skips a closed panel whose key is already
@@ -650,7 +652,7 @@
 - The step gesture on a scrolling row scrolls by panel where 0.1.0 swapped a parked panel in.
 - In a scrolling row `ReorderHandle.onDragEnd`'s offset includes the scroll distance the drag covered, so a hop count
   computed from it matches what the person saw.
-- A row built through a workspace sets its container's `overflow-x` to auto when it scrolls, takes its centring margin
+- A row built through a workspace sets its container's `overflow-x` to auto when it scrolls, takes its centering margin
   from the row numbers and reads `maxLiveWidth` from `computeRowNumbers`; a hand-built row keeps `overflow-x: hidden`.
 - A panel built through a workspace defaults to `overflow: 'scroll'`; set `overflow: 'park'` to keep 0.1.0's parking.
   The `PanelsAPI` doc comments now say parking applies to panels whose `overflow` is `park`.

@@ -3,7 +3,7 @@
 // DragToClose with onDragMove and onDragEnd logging, and the page draws a name strip across the top and a dot bar across the bottom (fixed,
 // z-index 2, as an app's preview strips are). A real mouse grabs panel 'two' by its handle.
 // 1. Up: with closeOnRelease off, drags up past the row's top edge into the strip, checks with elementFromPoint that the dragged panel is the
-//    topmost element at a point above the row and at one on the row edge, that its slot's z is raised and its neighbours' are not, screenshots
+//    topmost element at a point above the row and at one on the row edge, that its slot's z is raised and its neighbors' are not, screenshots
 //    mid-drag, releases over the strip, and checks the panel is back at rest, nothing closed, z back to the base layer.
 // 2. Down: the same below the row and over the dot bar.
 // 3. Controls: at rest the strip is topmost over the panel's own top (so the lift, not the strips, decides the mid-drag answer), and with

@@ -1,7 +1,7 @@
 /**
  * What the row does before row numbers and scrolling exist: the shell hides its overflow and emits no scrollbar rule,
  * a crowded row leaves a blank margin, and a park exits to the row's own origin. No jsdom here: emotion writes its
- * rules inline into static markup only when no document exists. A pin whose behaviour this entry changes is flipped
+ * rules inline into static markup only when no document exists. A pin whose behavior this entry changes is flipped
  * and renamed in the entry that changes it, never deleted.
  */
 import { test } from 'node:test';

@@ -1,4 +1,4 @@
-// The tile-picture controller: the policy (faded or hidden panels, one-colour pictures), a bounded store with
+// The tile-picture controller: the policy (faded or hidden panels, one-color pictures), a bounded store with
 // least-recently-touched eviction, and persistence through a host-supplied storage. The rasteriser is injected, so
 // this module draws nothing and names no location where pictures are kept.
 
@@ -60,7 +60,7 @@ export interface TileRequest {
 export interface TileRaster {
   /** A data: image URL, WebP where the browser can encode it. */
   readonly src: string;
-  /** RGBA pixels of the picture, exactly `pictureWidth * pictureHeight * 4` long. Used to reject one-colour pictures. */
+  /** RGBA pixels of the picture, exactly `pictureWidth * pictureHeight * 4` long. Used to reject one-color pictures. */
   readonly pixels: Uint8ClampedArray;
 }
 
@@ -205,7 +205,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     if (raster.pixels.length !== box.width * box.height * 4) return null;
     // The panel may have faded while the rasteriser ran; its picture then shows the fade.
     if (isFadedOrHidden(el)) return null;
-    // A picture of one colour is a blank or transparent panel: the last good picture stays.
+    // A picture of one color is a blank or transparent panel: the last good picture stays.
     if (isOneColour(raster.pixels)) return null;
     return { src: raster.src, width, height };
   };

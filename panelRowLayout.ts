@@ -1,5 +1,5 @@
 /**
- * Pure row-layout arithmetic: the row's centring margin, how many live panels fit, and how wide one may be.
+ * Pure row-layout arithmetic: the row's centering margin, how many live panels fit, and how wide one may be.
  * Zero DOM imports, so test/panel-layout.test.ts runs it under plain node.
  */
 

@@ -47,7 +47,7 @@ test('stepTarget over eleven panel starts', () => {
 });
 
 test('stepTarget takes the next start, not the nearest panel centre', () => {
-  // Between starts 406 and 812 the centre of panel 1 (601) is nearer than 812, and a nearest-centre step would stay put.
+  // Between starts 406 and 812 the center of panel 1 (601) is nearer than 812, and a nearest-center step would stay put.
   assert.equal(stepTarget('right', 600, starts, 3482), 812);
   assert.equal(stepTarget('left', 700, starts, 3482), 406);
 });

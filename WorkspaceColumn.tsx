@@ -1,60 +1,29 @@
 /**
  * The column component: every workspace of a `WorkspaceColumnHandle` in a cell of its own, one above the other, with the current
- * one in view. The person moves by the buttons at the top and bottom centre, which name the neighbour or offer to create one, and
+ * one in view. The person moves by the buttons at the top and bottom center, which name the neighbor or offer to create one, and
  * by whatever key the app binds to `step`; the column itself never scrolls under a wheel or a trackpad. DESIGN.md, "The workspace column".
  */
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import InputBase from '@mui/material/InputBase';
 import { slideToTransition } from './directionalTransition.js';
 import { resolveLabels } from './labels.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { columnCoreOf, type WorkspaceColumnHandle } from './columnHandle.js';
 import type { WorkspaceHandle } from './workspaceCore.js';
-import { MAX_WORKSPACE_NAME } from './workspaceName.js';
+import { Band, columnBandRoom, DEFAULT_COLUMN_BANDS, WORKSPACE_NAME_CONTROL_HEIGHT } from './columnBands.js';
 
-/** The room above a workspace's row for the name of the workspace above and the name input, in px, below the column's `topInset`. @public */
-export const COLUMN_TOP_BAND = 76;
-/** The room below a workspace's row for the name of the workspace below, in px. @public */
-export const COLUMN_BOTTOM_BAND = 26;
-
-/** The height of a workspace name input and of the column's neighbour buttons, in px. @public */
-export const WORKSPACE_NAME_CONTROL_HEIGHT = 24;
-/** The attribute the workspace name input carries, so a stylesheet can select it without a class name. @public */
-export const WORKSPACE_NAME_INPUT_ATTRIBUTE = 'data-workspace-name-input';
+/** The room above a workspace's row that the default bands keep, in px, below the column's `topInset`. With bands of its own, `columnBandRoom(bands).above`. @public */
+export const COLUMN_TOP_BAND = columnBandRoom(DEFAULT_COLUMN_BANDS).above;
+/** The room below a workspace's row that the default bands keep, in px. With bands of its own, `columnBandRoom(bands).below`. @public */
+export const COLUMN_BOTTOM_BAND = columnBandRoom(DEFAULT_COLUMN_BANDS).below;
 const TARGET = WORKSPACE_NAME_CONTROL_HEIGHT;
 
 const DefaultCell = React.lazy(() => import('./autoMount.js').then((m) => ({ default: m.AutoRoot })));
 
 // The column's own controls sit inside the device's safe areas, as the row does; env() is 0 unless the page sets viewport-fit=cover.
 const belowSafeTop = (px: number): string => `calc(${px}px + env(safe-area-inset-top, 0px))`;
-const aboveSafeBottom = (px: number): string => `calc(${px}px + env(safe-area-inset-bottom, 0px))`;
-
-function NameInput({ workspace, label, inset }: { workspace: WorkspaceHandle; label: string; inset: number }): React.ReactElement {
-  const [draft, setDraft] = React.useState<string | null>(null);
-  const commit = (): void => {
-    if (draft !== null) workspace.rename(draft);
-    setDraft(null);
-  };
-  return (
-    <InputBase
-      value={draft ?? workspace.name}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-        if (e.key === 'Escape') {
-          setDraft(null);
-          e.currentTarget.blur();
-        }
-      }}
-      inputProps={{ 'aria-label': label, maxLength: MAX_WORKSPACE_NAME, [WORKSPACE_NAME_INPUT_ATTRIBUTE]: '', style: { textAlign: 'center', padding: 0, height: TARGET } }}
-      sx={{ position: 'absolute', top: belowSafeTop(24 + inset), left: '50%', transform: 'translateX(-50%)', width: 280, maxWidth: 'calc(100% - 32px)', height: TARGET, fontSize: 14, zIndex: 1 }}
-    />
-  );
-}
 
 /** The props of `WorkspaceColumn`. @public */
 export interface WorkspaceColumnProps {
@@ -62,7 +31,7 @@ export interface WorkspaceColumnProps {
   column: WorkspaceColumnHandle;
   /**
    * What fills a workspace's cell: the app's own hand-wired row for that workspace. Omitted: the row the library mounts itself, as
-   * `createWorkspace` does. A returned row puts the column's `topInset` plus `COLUMN_TOP_BAND` plus its row gap above its panels.
+   * `createWorkspace` does. A returned row puts the column's `topInset` plus its bands' room above (`columnBandRoom`) plus its row gap above its panels.
    */
   children?: (workspace: WorkspaceHandle) => React.ReactNode | undefined;
 }
@@ -83,6 +52,8 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   const reduced = useReducedMotionConfig() === true || systemReduced;
   const move = React.useMemo(() => slideToTransition(resolveWorkspaceTuning(snap.tuning).slide), [snap.tuning]);
   const labels = React.useMemo(() => resolveLabels(snap.labels), [snap.labels]);
+  const bands = core.bands ?? DEFAULT_COLUMN_BANDS;
+  const room = React.useMemo(() => columnBandRoom(bands), [bands]);
   const cells = React.useRef(new Map<string, HTMLElement>());
   const left = React.useRef<number>(snap.current);
   // The saved workspace is selected only once the column has read it, so the move onto it is a placement, not a slide: the slide
@@ -121,6 +92,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           const above = snap.workspaces[i - 1];
           const below = snap.workspaces[i + 1];
           const own = drawn(children, ws);
+          const slotProps = { workspace: ws, column, index: i, above, below, active, labels };
           return (
             <Box
               key={ws.id}
@@ -136,32 +108,15 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
               inert={!active}
               sx={{ position: 'relative', height: '100%', outline: 'none' }}
             >
-              <Button
-                data-workspace-neighbour="above"
-                size="small"
-                onClick={() => (above === undefined ? create(i) : column.scrollTo(above))}
-                aria-label={above === undefined ? labels.newWorkspace : labels.goToWorkspace(above.name)}
-                sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: TARGET, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-              >
-                {above === undefined ? labels.newWorkspace : above.name}
-              </Button>
-              <NameInput workspace={ws} label={labels.workspaceName} inset={snap.topInset} />
+              <Band side="above" band={bands.above} inset={snap.topInset} props={slotProps} />
               {own === undefined ? (
                 <React.Suspense fallback={null}>
-                  <DefaultCell workspace={ws} columnTop={COLUMN_TOP_BAND} themed={false} />
+                  <DefaultCell workspace={ws} columnTop={room.above} columnBottom={room.below - COLUMN_BOTTOM_BAND} themed={false} />
                 </React.Suspense>
               ) : (
                 own
               )}
-              <Button
-                data-workspace-neighbour="below"
-                size="small"
-                onClick={() => (below === undefined ? create(i + 1) : column.scrollTo(below))}
-                aria-label={below === undefined ? labels.newWorkspace : labels.goToWorkspace(below.name)}
-                sx={{ position: 'absolute', bottom: aboveSafeBottom(COLUMN_BOTTOM_BAND - TARGET), left: '50%', transform: 'translateX(-50%)', maxWidth: 'calc(100% - 32px)', height: TARGET, minHeight: 0, py: 0, zIndex: 1, textTransform: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-              >
-                {below === undefined ? labels.newWorkspace : below.name}
-              </Button>
+              <Band side="below" band={bands.below} inset={snap.topInset} props={slotProps} />
             </Box>
           );
         })}

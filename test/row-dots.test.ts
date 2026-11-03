@@ -1,6 +1,6 @@
 /**
  * The dot bar's geometry (rowDots.ts), pure: a dot is as many phone dashes as its panel is phones wide, the oval is the
- * window at a fixed width and slides with the scroll without a jump at a panel boundary, a click's centring target clamps
+ * window at a fixed width and slides with the scroll without a jump at a panel boundary, a click's centering target clamps
  * to the row, and a drag maps track px to scroll px.
  */
 import test from 'node:test';

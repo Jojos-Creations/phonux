@@ -106,7 +106,7 @@ export function useWorkspacePersistence(i: {
   const setScroll = scrollStore.set;
 
   useEffect(() => {
-    // StrictMode runs this effect twice; only the run that is not cancelled may apply its result.
+    // StrictMode runs this effect twice; only the run that is not canceled may apply its result.
     let cancelled = false;
     // The file's rest, named by the id of the panel this launch gives its entry: the entry is matched by its uid, which
     // a file keeps for every panel it saves (an older file names it by the entry's id). The root keeps its own id. A malformed rest is dropped with a note.

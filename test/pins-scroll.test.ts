@@ -1,6 +1,6 @@
 /**
  * What the row's wheel and arrow gesture does before the row scrolls to panels: it swaps a parked panel in from
- * the live range's edge, once per burst. Each pin is a behaviour a later change may flip; a flipped pin is renamed,
+ * the live range's edge, once per burst. Each pin is a behavior a later change may flip; a flipped pin is renamed,
  * never deleted.
  */
 import { test, afterEach, mock } from 'node:test';

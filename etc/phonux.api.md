@@ -13,6 +13,13 @@ import { RefObject } from 'react';
 export const ACTIVE_ATTRIBUTE = "data-panel-active";
 
 // @public
+export interface AddedColumnSlot extends ColumnSlot {
+    after?: string;
+    band: 'above' | 'below';
+    before?: string;
+}
+
+// @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
     before: PanelId;
 } | {
@@ -122,16 +129,76 @@ export interface ClosedPagesTemplateOptions {
 export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
-export const COLUMN_BOTTOM_BAND = 26;
+export const COLUMN_BAND_ATTRIBUTE = "data-column-band";
 
 // @public
-export const COLUMN_TOP_BAND = 76;
+export const COLUMN_BOTTOM_BAND: number;
+
+// @public
+export const COLUMN_SLOT_ATTRIBUTE = "data-column-slot";
+
+// @public
+export const COLUMN_TOP_BAND: number;
+
+// @public
+export interface ColumnBand {
+    edge?: number;
+    justify?: 'start' | 'center' | 'end' | 'space-between' | 'space-evenly';
+    size?: string;
+    slots: readonly ColumnSlot[];
+}
+
+// @public
+export function columnBandRoom(bands: ColumnBands): {
+    above: number;
+    below: number;
+};
+
+// @public
+export interface ColumnBands {
+    above: ColumnBand;
+    below: ColumnBand;
+}
 
 // @public
 export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 'storage' | 'mount'> & {
     storage?: ColumnStorage;
     mount?: HTMLElement | false;
+    bands?: ColumnBands;
 };
+
+// @public
+export interface ColumnSlot {
+    align?: 'start' | 'center' | 'end';
+    base?: React_2.ComponentType<ColumnSlotProps>;
+    component: React_2.ComponentType<ColumnSlotProps>;
+    height: number;
+    id: string;
+}
+
+// @public
+export interface ColumnSlotChanges {
+    above?: Omit<ColumnBand, 'slots'>;
+    add?: readonly AddedColumnSlot[];
+    below?: Omit<ColumnBand, 'slots'>;
+    hide?: readonly string[];
+    replace?: Readonly<Record<string, React_2.ComponentType<ColumnSlotProps> | {
+        component: React_2.ComponentType<ColumnSlotProps>;
+        height?: number;
+    }>>;
+}
+
+// @public
+export interface ColumnSlotProps {
+    above: WorkspaceHandle | undefined;
+    active: boolean;
+    below: WorkspaceHandle | undefined;
+    column: WorkspaceColumnHandle;
+    Default: React_2.ComponentType<ColumnSlotProps> | undefined;
+    index: number;
+    labels: PhonuxLabels;
+    workspace: WorkspaceHandle;
+}
 
 // @public
 export interface ColumnState {
@@ -225,6 +292,9 @@ export function createWorkspaceColumn(o?: ColumnOptions): WorkspaceColumnHandle;
 export type CssStyle = {
     readonly [property: string]: string | number | CssStyle | undefined;
 };
+
+// @public
+export const DEFAULT_COLUMN_BANDS: ColumnBands;
 
 // @public
 export const DEFAULT_PANEL_SIZE: PanelSize;
@@ -512,6 +582,12 @@ export interface NeighborWidths {
     readonly left: readonly number[];
     readonly right: readonly number[];
 }
+
+// @public
+export function NeighbourAboveSlot(props: ColumnSlotProps): React_2.ReactElement;
+
+// @public
+export function NeighbourBelowSlot(props: ColumnSlotProps): React_2.ReactElement;
 
 // @public
 export const noopCaptureTrigger: CaptureTrigger;
@@ -898,8 +974,21 @@ export interface PanelSize {
 export function PanelSizeBox(input: {
     width?: number;
     height?: number;
+    reveal?: boolean;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
+
+// @public
+export interface PanelSizeGlide {
+    from: {
+        width: number;
+        height: number | '100%';
+    };
+    to: {
+        width: number;
+        height: number | '100%';
+    };
+}
 
 // @public
 export type PanelSnapshot = {
@@ -1520,6 +1609,9 @@ export function usePanelRowDrop(): PanelRowDrop;
 export function usePanelSetDragging(): (on: boolean) => void;
 
 // @public
+export function usePanelSizeGlide(): PanelSizeGlide | null;
+
+// @public
 export function usePanelSliding(): boolean;
 
 // @public
@@ -1535,7 +1627,7 @@ export const usePanelTuning: () => Pick<ResolvedWorkspaceTuning, "rowGap" | "dra
 export function usePhoneFit(containerRef: React_2.RefObject<HTMLDivElement | null>, containerWidth: number, preferred: {
     readonly width: number;
     readonly height: number;
-}, tuning: ResolvedWorkspaceTuning, topInset?: number): {
+}, tuning: ResolvedWorkspaceTuning, topInset?: number, bottomInset?: number): {
     readonly width: number;
     readonly height: number;
 };
@@ -1632,6 +1724,9 @@ export interface WindowOverlayProps {
 }
 
 // @public
+export function withSlotChanges(bands: ColumnBands, changes: ColumnSlotChanges): ColumnBands;
+
+// @public
 export function Workspace(props: WorkspaceProps): React_2.ReactElement;
 
 // @public
@@ -1695,6 +1790,9 @@ export type WorkspaceLive = {
     topInset?: number;
     panels?: WorkspacePanelsInput;
 };
+
+// @public
+export function WorkspaceNameSlot(input: ColumnSlotProps): React_2.ReactElement;
 
 // @public
 export type WorkspaceOptions = WorkspaceLive & {
@@ -1785,6 +1883,7 @@ export type WorkspacePanelState = {
 // @public
 export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     beforeRow?: React_2.ReactNode;
+    bottomPadding?: number;
     children: React_2.ReactNode;
     containerWidth: number;
     fixedColumnCount: number;

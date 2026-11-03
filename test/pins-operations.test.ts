@@ -1,5 +1,5 @@
 /**
- * Behaviour of the raw mutators pinned before the operations entry gives them a gate. A pin states what the code does
+ * Behavior of the raw mutators pinned before the operations entry gives them a gate. A pin states what the code does
  * today; the ones that describe a limit of the raw API are named LIMIT so a change has to rename the pin it fixes.
  */
 import { test, afterEach, mock } from 'node:test';
