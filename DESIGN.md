@@ -2258,11 +2258,11 @@ a pull request into `main` runs no cloud check.
 
 ### Release candidate base
 
-`0.2.0-rc.7` is built from this commit of `main`; library source changed since `0.2.0-rc.6`, and the CHANGELOG section
-for `0.2.0-rc.7` lists what.
+`0.2.0` is built from this commit of `main`. Its library code is that of `0.2.0-rc.7`, unchanged, and the CHANGELOG
+section for `0.2.0` says so.
 
 ```text
-base: f104a7872ef98981a43fe4fcbb382dd74dac9c4e
+base: efa3c2ba5f806c72bec75bf7d88acde1c5e0a6d1
 ```
 
 No real browser has measured this tree. Every claim about real layout, scrolling or painting stays not run; the jsdom and unit
