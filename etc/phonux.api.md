@@ -469,6 +469,25 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 };
 
 // @public
+export interface HeaderMenuAction {
+    readonly icon?: React_2.ReactNode;
+    readonly id: string;
+    readonly label: string;
+    readonly onSelect: () => void;
+    readonly shortcut?: string;
+}
+
+// @public
+export type HeaderMenuEntry = HeaderMenuAction | HeaderMenuGroup;
+
+// @public
+export interface HeaderMenuGroup {
+    readonly actions: readonly HeaderMenuAction[];
+    readonly id: string;
+    readonly title: string;
+}
+
+// @public
 export interface HistoryAPI {
     close(): void;
     readonly closed: boolean;
@@ -731,7 +750,14 @@ export interface PanelHeaderIconItem extends PanelHeaderButtonItemBase {
 }
 
 // @public
-export function PanelHeaderMenu(): React_2.JSX.Element | null;
+export function PanelHeaderMenu(input?: PanelHeaderMenuProps): React_2.JSX.Element | null;
+
+// @public
+export interface PanelHeaderMenuProps {
+    entries?: readonly HeaderMenuEntry[];
+    onPinChange?: (verb: 'pin' | 'unpin', ok: boolean) => void;
+    triggerIcon?: React_2.ReactNode;
+}
 
 // @public
 export interface PanelHeaderProps extends Omit<ElementProps, 'children'> {

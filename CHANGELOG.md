@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `PanelHeaderMenu` takes an optional `onPinChange(verb, ok)`, called after each Pin or Unpin from the menu, so a host can show its own message.
+- `PanelHeaderMenu` takes optional `entries`, which the host adds to the move menu under Pin: a `HeaderMenuAction` is one list item, and a `HeaderMenuGroup` is a titled row of icon buttons whose hover text carries each action's `shortcut`. Picking an entry closes the menu first. The move button shows whenever there is an entry, also for a panel that cannot move. `HeaderMenuEntry` is either kind.
+- `PanelHeaderMenu` takes an optional `triggerIcon`, drawn in place of the move button's own icon.
+
+### Changed
+
+- Closing the header menu returns focus to its move button, and that focus no longer snaps the row onto the panel. A Pin or Unpin from the menu is kept from scrolling the row.
+
 ## 0.2.0-rc.6
 
 ### Added
