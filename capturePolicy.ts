@@ -1,4 +1,4 @@
-// Which panels and which pictures a tile capture may use. A faded or hidden panel, or a picture of one colour, must
+// Which panels and which pictures a tile capture may use. A faded or hidden panel, or a picture of one color, must
 // never replace the last good picture of that panel.
 
 /** The largest picture a tile shows: 2x the widest tile in a three-column grid. Pixels past it are encoding cost nobody sees. */

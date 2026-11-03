@@ -3,7 +3,7 @@
 // A tile is a plain element in History's view that drives usePanelRowDrop() from a real pointer: down begins, move updates, up ends.
 // Scenario 'hidden': drags the tile of the parked 'four' across the row from right to left in steps, sampling every panel's left edge and the
 // gap at each step, screenshots mid-drag, and drops it between 'one' and 'two'. Scenario 'live': drags the tile of 'three' three hops left, to just before 'one'.
-// Prints one JSON line per sample and a verdict line; exits 1 when the neighbours did not part or the drop did not land at the pointed index.
+// Prints one JSON line per sample and a verdict line; exits 1 when the neighbors did not part or the drop did not land at the pointed index.
 // Needs esbuild, react and react-dom in <libDir>/node_modules. Headless only.
 import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -94,7 +94,7 @@ try {
   const y = tile.y + tile.height / 2;
   await page.mouse.move(startX, y);
   await page.mouse.down();
-  // The header's hop rule: the gap moves a whole slot once the pointer passes half the next neighbour's span from where the last hop ended,
+  // The header's hop rule: the gap moves a whole slot once the pointer passes half the next neighbor's span from where the last hop ended,
   // so 1100 (one hop left of three, 209 px from the gap's start) puts the gap between one and two.
   const samples = [];
   const xs = [1500, 1300, 900, 500, 1100];

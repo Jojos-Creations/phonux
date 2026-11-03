@@ -1,5 +1,5 @@
 /**
- * A stepping row keeps the neighbour of a stop cut by the window edge at its own size but does not draw it at rest (phone 390, gap 16,
+ * A stepping row keeps the neighbor of a stop cut by the window edge at its own size but does not draw it at rest (phone 390, gap 16,
  * container 1000: window 968, two panels fit). jsdom has no layout, so each element's rectangle is set from the row's own numbers.
  */
 import { test, afterEach, mock } from 'node:test';

@@ -68,7 +68,7 @@ export type ConfigureResult =
   | {
       /** The change was accepted. */
       readonly ok: true;
-      /** True when a different value was stored or a waiting flip of `parkable` was cancelled; false for an equal or empty patch. */
+      /** True when a different value was stored or a waiting flip of `parkable` was canceled; false for an equal or empty patch. */
       readonly changed: boolean;
       /** True only when a flip of `parkable` showed a parked or hidden panel under `pinningWhenNotLive` 'show'; otherwise false. */
       readonly shown: boolean;

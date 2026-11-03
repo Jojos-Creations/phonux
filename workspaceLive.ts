@@ -17,7 +17,7 @@ export type WorkspacePanelsInput = Partial<Omit<PanelsInput, 'workspace' | 'phon
 
 /**
  * What an app hands the host and can hand it again with `workspace.update`: the phone size, the settings column, the closed-page
- * history, the snapshot capture, the label overrides, the clearance above the row and the behaviour `useProvidePanels` takes.
+ * history, the snapshot capture, the label overrides, the clearance above the row and the behavior `useProvidePanels` takes.
  * `createWorkspace` accepts the same members as its starting values.
  * @public
  */

@@ -244,7 +244,7 @@ test('priority: { after: root } and { before: X } emit priority -1 and land imme
   const presentRight = [...rightRow, made('N')];
   assert.deepEqual(ids(placePanel(presentRight, 'N', { after: 'H' }, { rootId: ROOT, fallback: 'row-end' }).row), ['H', 'N', 'A', 'B']);
 
-  // Y is already the left neighbour of X at priority 0, and the present N sits before Y in the array: at priority 0 the
+  // Y is already the left neighbor of X at priority 0, and the present N sits before Y in the array: at priority 0 the
   // later entry wins a left-side tie, so only -1 lands N beside X.
   const leftRow: PanelWindow[] = [
     fixed('H'),

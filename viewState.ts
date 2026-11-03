@@ -141,7 +141,7 @@ function useRetainOnly(panelIds: Iterable<string>): void {
   const keep = new Set(panelIds);
   React.useEffect(() => {
     if (!store.hasPanelOutside(keep)) return;
-    // A task later, and cancelled by any newer commit: undoClose can commit once with a restored id in
+    // A task later, and canceled by any newer commit: undoClose can commit once with a restored id in
     // neither list (recentlyClosed already null) before the commit that puts it back in the row.
     const timer = setTimeout(() => store.releaseAllExcept(keep), 0);
     return () => clearTimeout(timer);
