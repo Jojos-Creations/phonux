@@ -6,8 +6,8 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement } from 'react';
-import { PanelHeaderMenu, type Pinning, type PanelSettings } from '../index.js';
-import { cleanup } from './support/mount-harness.js';
+import { PanelHeaderMenu, type PanelHeaderMenuProps, type Pinning, type PanelSettings } from '../index.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 
 afterEach(() => {
@@ -84,4 +84,89 @@ test('menu: it draws in the header slot only, and the panel body holds none of i
   const body = rig.m.container.querySelector<HTMLElement>('[data-slot="a"]');
   assert.ok(body, 'the panel body rendered');
   assert.equal(body.querySelector('[data-panel-header-menu]'), null, 'nothing drawn inside the body');
+});
+
+test('menu: a pin or unpin from the menu reports to onPinChange with the verb and whether it applied', async () => {
+  const calls: Array<[string, boolean]> = [];
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { onPinChange: (verb, ok) => calls.push([verb, ok]) }), settings: { a: { pinning: FIX } } });
+  let entry = await openMenu(rig, 'a');
+  act(() => void entry.click());
+  await wait();
+  entry = await openMenu(rig, 'a');
+  act(() => void entry.click());
+  await wait();
+  assert.deepEqual(calls, [
+    ['pin', true],
+    ['unpin', true],
+  ]);
+});
+
+test('menu: closing the menu without a pin returns focus to the move button', async () => {
+  const rig = await withMenu({ pinning: FIX });
+  await openMenu(rig, 'a');
+  act(() => void document.querySelector<HTMLElement>('[role="menu"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await wait();
+  const move = moveButton(rig, 'a');
+  assert.ok(move !== null && document.activeElement === move, 'focus returned to the move button');
+  assert.equal(rig.state('a').pinned, false, 'closing pins nothing');
+});
+
+test('menu: after a pin, focus lands on the move button once the header is back', async () => {
+  const rig = await withMenu({ pinning: FIX });
+  const entry = await openMenu(rig, 'a');
+  act(() => void entry.click());
+  await advanceFrames(300);
+  const move = moveButton(rig, 'a');
+  assert.ok(move !== null && document.activeElement === move, 'focus is on the move button after the pin');
+});
+
+test('menu: host entries are listed under Pin, pick and close the menu, and show it even for a panel that cannot move', async () => {
+  const picked: string[] = [];
+  const entries = [
+    { id: 'size-big', label: 'Bigger', onSelect: () => picked.push('big') },
+    { id: 'size-small', label: 'Smaller', onSelect: () => picked.push('small') },
+  ];
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { entries }), settings: { a: { movable: false } } });
+  assert.ok(moveButton(rig, 'a'), 'the move menu shows for the host entries alone');
+  act(() => void moveButton(rig, 'a')!.click());
+  await wait();
+  assert.equal(document.querySelector('[data-panel-pin-toggle]'), null, 'no Pin entry for a fixed panel');
+  const items = [...document.querySelectorAll<HTMLElement>('[data-panel-menu-entry]')];
+  assert.deepEqual(items.map((el) => el.textContent), ['Bigger', 'Smaller']);
+  act(() => void items[1]!.click());
+  await wait();
+  assert.deepEqual(picked, ['small']);
+  assert.equal(document.querySelector('[role="menu"]'), null, 'the menu closed on pick');
+});
+
+test('menu: a group draws its title and one icon button per action, with the shortcut in its hover text, and a press picks it and closes the menu', async () => {
+  const picked: string[] = [];
+  const group = {
+    id: 'view-size',
+    title: 'View Size',
+    actions: [
+      { id: 'phone', label: 'Phone', icon: createElement('i'), shortcut: 'Option+1', onSelect: () => picked.push('phone') },
+      { id: 'fullscreen', label: 'Fullscreen', icon: createElement('i'), shortcut: 'Option+Enter', onSelect: () => picked.push('fullscreen') },
+    ],
+  };
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { entries: [group] }), settings: { a: { movable: false } } });
+  act(() => void moveButton(rig, 'a')!.click());
+  await wait();
+  const row = document.querySelector<HTMLElement>('[data-panel-menu-group="view-size"]');
+  assert.ok(row, 'the group is drawn');
+  assert.equal(row.getAttribute('aria-label'), 'View Size');
+  assert.equal(row.querySelector('[data-panel-menu-entry="phone"]')?.getAttribute('aria-label'), 'Phone');
+  assert.equal(row.querySelectorAll('button').length, 2, 'one icon button per action');
+  act(() => void row.querySelector<HTMLElement>('[data-panel-menu-entry="fullscreen"]')!.click());
+  await wait();
+  assert.deepEqual(picked, ['fullscreen']);
+  assert.equal(document.querySelector('[role="menu"]'), null, 'the menu closed on pick');
+});
+
+test('menu: the trigger draws the host icon when one is given, and the library move icon when not', async () => {
+  const rig = await headerRig({ ids: ['a'], actions: createElement<PanelHeaderMenuProps>(PanelHeaderMenu, { triggerIcon: createElement('b', { 'data-host-trigger': '' }) }) });
+  assert.ok(moveButton(rig, 'a')!.querySelector('[data-host-trigger]'), 'the host icon is the trigger');
+  const plain = await headerRig({ ids: ['a'], actions: createElement(PanelHeaderMenu) });
+  assert.equal(moveButton(plain, 'a')!.querySelector('[data-host-trigger]'), null);
+  assert.ok(moveButton(plain, 'a')!.querySelector('svg'), 'the library move icon');
 });
