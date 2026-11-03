@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+The first stable 0.2 release. Its library code is that of `0.2.0-rc.7`, unchanged. The sections below, from `0.2.0-rc.7` down to `0.2.0-rc.1`, together list everything that changed since `0.1.0`, and their Breaking and Removed lists are the full migration from 0.1.
+
 ## 0.2.0-rc.7
 
 ### Added
