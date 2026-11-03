@@ -11,6 +11,7 @@
 ### Changed
 
 - Closing the header menu returns focus to its move button, and that focus no longer snaps the row onto the panel. A Pin or Unpin from the menu is kept from scrolling the row.
+- A stepping row that overflows centers its whole slots at the first and last rests too, like every rest between them: `rowMarginLeft` and `endPad` are each half the window's leftover past its whole slots, and every stop sits on the one-phone grid from 0. rc.5 ended flush at both edges, which left the whole leftover beside the hidden cut neighbor, so an end rest looked off-center.
 
 ## 0.2.0-rc.6
 

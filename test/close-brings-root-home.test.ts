@@ -50,12 +50,13 @@ test('the end element keeps the scroll range of the commit that closes, and give
   const { m, end } = scrolledToEnd();
   const pad = m.container.querySelector<HTMLElement>('[data-row-end-pad]')!;
   assert.equal(pad.style.minWidth, '', 'control: no hold before the close');
+  const marginBefore = m.latest().rowNumbers.rowMarginLeft;
   act(() => void m.latest().close('s5'));
   const n = m.latest().rowNumbers;
   // A row that fits ends left of 0, so the hold is measured from that end, not from `maxScrollOf`'s floor.
   const rowEnd = n.stripStart + n.stripWidth + n.rightInset + n.endPad - n.windowWidth;
   assert.ok(rowEnd < maxScrollOf(n), 'control: the row left ends short of the window');
-  assert.equal(pad.style.minWidth, `${n.endPad + GAP + end - rowEnd + n.rowMarginLeft}px`, 'the old range, plus the margin still to glide in');
+  assert.equal(pad.style.minWidth, `${n.endPad + GAP + end - rowEnd + n.rowMarginLeft - marginBefore}px`, 'the old range, plus the margin still to glide in');
   await advanceFrames(DURATION_SEC * 1000 + 100);
   assert.equal(pad.style.minWidth, '', 'the hold is gone once the glide has landed');
 });

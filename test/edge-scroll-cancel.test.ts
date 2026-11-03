@@ -45,7 +45,7 @@ function CancelBox({ id }: { id: string }): React.ReactElement {
 registerTestView('cancel-view', ({ panel }) => React.createElement(CancelBox, { id: panel.id }));
 
 const WINDOW = 1000;
-const MAX_SCROLL = 3482;
+const MAX_SCROLL = 3654;
 const EDGE = LIBRARY_TUNING_DEFAULTS.edgeScroll;
 const RECT = { left: 0, right: WINDOW, top: 0, bottom: 700, width: WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) };
 
@@ -93,10 +93,10 @@ function walked(n: number, from = 0): number {
   return scrollLeft;
 }
 /**
- * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0, each inner stop moved back 86, half of (968 + 16) % 406,
- * to center the whole slots the window shows, then MAX_SCROLL.
+ * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0 to MAX_SCROLL. 86, half of (968 + 16) % 406, before and
+ * after the strip centers the whole slots the window shows at every stop.
  */
-const STOPS = [0, ...Array.from({ length: 8 }, (_, k) => 406 * (k + 1) - 86), MAX_SCROLL];
+const STOPS = Array.from({ length: 10 }, (_, k) => 406 * k);
 /** True when a fresh claim can be taken, giving it back at once. */
 function claimFree(m: MountedRow): boolean {
   const claim = m.scroller.claim();
@@ -141,7 +141,7 @@ test('while the hold has the row, scrollTo, a created panel and a followed move 
   });
   assert.equal(accepted, true);
   await frames(80);
-  assert.equal(m.container.scrollLeft, 8 * 406 - 86, 's8 starts at 3248; the start align lands on the stop that shows it, 86 back by the centering shift');
+  assert.equal(m.container.scrollLeft, 8 * 406, 's8 starts at 3334, after the 86 centering margin; the start align lands on the stop that shows it, 3248')
   assert.notEqual(m.container.scrollLeft, after);
 });
 

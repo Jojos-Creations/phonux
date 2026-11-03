@@ -1,7 +1,7 @@
 /**
  * A drag released after edge scrolling in a stepping row settles on a stop, in continuous and in reduced motion. Window
- * 1000 with phone panels: two fit, so the stops are 0, 320, 726 ... (each panel start less 86, which centers the two whole
- * slots) and the last is maxScroll 3482.
+ * 1000 with phone panels: two fit, so the stops are 0, 406, 812 ... (the one-phone grid, with 86 of centering before the strip,
+ * which centers the two whole slots) and the last is maxScroll 3654.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -83,8 +83,8 @@ async function dragTo(m: MountedRow, at: number, id = 's1'): Promise<void> {
   await moveTo(at);
   await frames(1);
 }
-// The one-phone grid (390 + the 16 gap apart) from 0, each inner stop moved back 86, half of (968 + 16) % 406, then maxScroll.
-const STOPS = [0, ...Array.from({ length: 8 }, (_, k) => 406 * (k + 1) - 86), 3482];
+// The one-phone grid (390 + the 16 gap apart) from 0 to maxScroll; 86, half of (968 + 16) % 406, centers each rest.
+const STOPS = Array.from({ length: 10 }, (_, k) => 406 * k);
 const atAStop = (left: number): boolean => STOPS.some((stop) => Math.abs(left - stop) < 1e-6);
 const nearestStop = (left: number): number => STOPS.reduce((best, stop) => (Math.abs(stop - left) < Math.abs(best - left) ? stop : best));
 
@@ -100,13 +100,13 @@ test('a drag held at the right edge and released settles the row on a stop', asy
   assert.equal(m.container.scrollLeft, nearestStop(before), 'the nearest stop');
 });
 
-test('under reduced motion a held edge jumps stop by stop, to 320 and not to the panel start 406', async () => {
+test('under reduced motion a held edge jumps stop by stop, to 406 and not to the panel start 492', async () => {
   reduceMotion(true);
   const m = mountEdgeRow();
   await dragTo(m, 1000);
   await frames(60);
   assert.ok(atAStop(m.container.scrollLeft), `at ${m.container.scrollLeft}`);
-  assert.notEqual(m.container.scrollLeft % 406, 0, 'not on a panel start');
+  assert.notEqual((m.container.scrollLeft - 86) % 406, 0, 'not on a panel start');
   assert.ok(m.container.scrollLeft >= STOPS[1]!, 'positive control: it jumped');
 });
 

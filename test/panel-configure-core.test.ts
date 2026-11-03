@@ -1059,8 +1059,8 @@ test('configureTuning rowGap in a scrolling row only re-prices: nothing is parke
   assert.equal(r.m.renders() - renders, 1, 'one commit');
   r.turn(() => r.h.j!.scrollTo('start'));
   await r.settle();
-  // At gap 0 the row ends flush, so the bound is 4290 - 1000.
-  assert.equal(r.m.container.scrollLeft, 3290, 'a scroll to the last panel stops at the new bound, not the old 3482');
+  // At gap 0 the row has (1000 mod 390) / 2 = 110 of centering at each end, so the bound is 110 + 4290 + 110 - 1000.
+  assert.equal(r.m.container.scrollLeft, 3510, 'a scroll to the last panel stops at the new bound, not the old 3654');
 });
 
 test('configureTuning rowGap on a row that is not measured is stored: nothing is priced or parked', async () => {

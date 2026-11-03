@@ -187,7 +187,7 @@ test('a fixed pin never needs room: all-scroll row at 800 px, History and three 
   assert.deepEqual(['p1', 'p2', 'p3'].map((id) => r.facts(id).parkable), [false, false, false]);
   const numbers = r.provided().rowNumbers;
   assert.ok(numbers.stripWidth > numbers.windowWidth, `${numbers.stripWidth} > ${numbers.windowWidth}`);
-  assert.equal(numbers.rowMarginLeft, 0, 'control: the strip overflows, so it starts flush at the window edge');
+  assert.equal(numbers.rowMarginLeft, 189, 'control: the strip overflows, so it starts after the centering shift, ((768 + 16) mod 406) / 2');
   assert.equal(numbers.stripWidth, 5 * 390 + 4 * 16, 'History, three pins and x at 390 each with four gaps');
   assert.equal(r.order().join(' '), 'p3 p2 p1 root x');
 });
@@ -227,45 +227,45 @@ async function followRig(scrollOnMove: string | undefined, from: number): Promis
   return { r, el: r.m.container };
 }
 
-test('pin follows the person: the last panel in view at 3482 moves to the row start and the row scrolls to 0, and unpin returns it to 4076 with the row on the stop at its end', async () => {
-  const { r, el } = await followRig('follow', 3482);
+test('pin follows the person: the last panel in view at 3654 moves to the row start and the row scrolls to 0, and unpin returns it to 4162 with the row on the stop at its end', async () => {
+  const { r, el } = await followRig('follow', 3654);
   const left = (id: string): number => {
     const n = r.provided().rowNumbers;
     return n.leftOffsets[n.ids.indexOf(r.entry(id).id)]! + 16 + n.rowMarginLeft;
   };
-  // The overflowing row is flush at both ends, so j sits at 4060 + 16 and 3482 (4450 - 968) is the row's end.
-  assert.equal(left('j'), 4076);
+  // The overflowing row has 86 of centering at both ends, so j sits at 4060 + 16 + 86 and 3654 (86 + 4450 + 86 - 968) is the row's end.
+  assert.equal(left('j'), 4162);
   assert.equal(brief(r.turn(() => r.h.j!.pin())), 'T');
   await advanceFrames(900);
-  // Pinned first, j is at the strip's start, 16, and the row is on its first stop.
-  assert.equal(left('j'), 16);
+  // Pinned first, j is at the strip's start, 16 + 86, and the row is on its first stop.
+  assert.equal(left('j'), 102);
   assert.equal(el.scrollLeft, 0);
   assert.equal(brief(r.turn(() => r.h.j!.unpin())), 'T');
   await advanceFrames(900);
-  // The row follows j back to the row's end, 3482, which is a stop and shows j whole.
-  assert.equal(left('j'), 4076);
-  assert.equal(el.scrollLeft, 3482);
+  // The row follows j back to the row's end, 3654, which is a stop and shows j whole.
+  assert.equal(left('j'), 4162);
+  assert.equal(el.scrollLeft, 3654);
 });
 
 test('pin follows the person: the default scrollOnMove is follow, a code pin() on an out-of-view panel scrolls nothing, and none scrolls nothing', async () => {
-  const byDefault = await followRig(undefined, 3482);
+  const byDefault = await followRig(undefined, 3654);
   byDefault.r.turn(() => byDefault.r.h.j!.pin());
   await advanceFrames(900);
   assert.equal(byDefault.el.scrollLeft, 0, 'the library default follows');
   cleanup();
-  const outOfView = await followRig('follow', 3482);
+  const outOfView = await followRig('follow', 3654);
   assert.equal(brief(outOfView.r.turn(() => outOfView.r.h.b!.pin())), 'T');
   await advanceFrames(900);
-  assert.equal(outOfView.el.scrollLeft, 3482, 'b was out of view: nothing follows it');
+  assert.equal(outOfView.el.scrollLeft, 3654, 'b was out of view: nothing follows it');
   cleanup();
-  const none = await followRig('none', 3482);
+  const none = await followRig('none', 3654);
   none.r.turn(() => none.r.h.j!.pin());
   await advanceFrames(900);
-  assert.equal(none.el.scrollLeft, 3482, 'scrollOnMove none scrolls nothing');
+  assert.equal(none.el.scrollLeft, 3654, 'scrollOnMove none scrolls nothing');
 });
 
 test('pin records one follow request for an in-view panel: a spy on the row scroller sees one glide', async () => {
-  const { r, el } = await followRig('follow', 3482);
+  const { r, el } = await followRig('follow', 3654);
   const scroller = rowScrollerFor(el);
   const original = scroller.glideTo.bind(scroller);
   let glides = 0;
