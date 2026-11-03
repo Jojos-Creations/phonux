@@ -38,7 +38,6 @@ import { createPanelList } from './panelList.js';
 import { settleKeeping, type RowEnv } from './rowSettle.js';
 import { isQuietly } from '../quietMove.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
-
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
 

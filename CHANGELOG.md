@@ -5,6 +5,8 @@
 ### Added
 
 - `PanelHeaderMenu` takes an optional `onPinChange(verb, ok)`, called after each Pin or Unpin from the menu, so a host can show its own message.
+- `PanelHeaderMenu` takes optional `entries`, which the host adds to the move menu under Pin: a `HeaderMenuAction` is one list item, and a `HeaderMenuGroup` is a titled row of icon buttons whose hover text carries each action's `shortcut`. Picking an entry closes the menu first. The move button shows whenever there is an entry, also for a panel that cannot move. `HeaderMenuEntry` is either kind.
+- `PanelHeaderMenu` takes an optional `triggerIcon`, drawn in place of the move button's own icon.
 
 ### Changed
 
@@ -75,7 +77,6 @@
 - A panel's slide and rect events are built with its element's own window's `CustomEvent`. Where the global one is another realm's, the element refused the event and mounting a panel threw; this is a regression fix for the rect events (#475).
 
 ### Changed
-
 
 - A touch on a drag-to-close grab bar no longer drags the panel, so a touch always scrolls the page and never closes the panel. Before, a touch that held for 250 ms could drag it. A mouse or pen drag is unchanged.
 - The Workspace row sits inside the device's top and bottom safe areas: it takes `env(safe-area-inset-top)` as a margin and shrinks its height by both insets, so its measured height leaves them out. The insets are 0 unless the page's viewport meta sets `viewport-fit=cover`; the side insets are not applied.
