@@ -170,6 +170,41 @@ test('the store takes a picture of the host-set byte cap, not a fixed number', a
   assert.equal(controller.get('a'), null, 'a picture larger than the host byte cap was kept');
 });
 
+test('a panel behind its placeholder keeps its last picture, and is pictured once the load ends', async () => {
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a']);
+  const el = panel();
+  const loader = el.appendChild(document.createElement('div'));
+  const cover = loader.appendChild(document.createElement('div'));
+  cover.setAttribute('data-panel-loading', '');
+  controller.register('a', el, 'viewport');
+  controller.capture('a');
+  await flush();
+  assert.equal(calls.length, 0, 'the placeholder was pictured');
+  assert.equal(controller.get('a'), null);
+  cover.remove();
+  loader.dispatchEvent(new Event('phonux-panel-loaded', { bubbles: true }));
+  await flush();
+  assert.equal(calls.length, 1, 'the loaded panel was not pictured');
+  assert.ok(controller.get('a'));
+  loader.dispatchEvent(new Event('phonux-panel-loaded', { bubbles: true }));
+  await flush();
+  assert.equal(calls.length, 1, 'a load nobody asked to picture was pictured');
+});
+
+test('a panel showing a failed load is not pictured', async () => {
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a']);
+  const el = panel();
+  el.appendChild(document.createElement('div')).setAttribute('data-panel-load-failed', 'error');
+  controller.register('a', el, 'viewport');
+  controller.capture('a');
+  await flush();
+  assert.equal(calls.length, 0);
+});
+
 test('evidence 7 and 4: the library imports no DOM capture package and names no storage location', () => {
   const files = ['captureTiles.ts', 'capturePolicy.ts', 'captureRecapture.ts'];
   for (const file of files) {

@@ -3,7 +3,7 @@
 // this module draws nothing and names no location where pictures are kept.
 
 import type { CaptureRegistry, CaptureTrigger, SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
-import { isFadedOrHidden, isOneColour, tilePictureBox } from './capturePolicy.js';
+import { PANEL_LOADED_EVENT, isFadedOrHidden, isOneColour, isStillLoading, tilePictureBox } from './capturePolicy.js';
 
 /** A picture's stored form: what `TilePictureStorage` reads and writes. Plain data, so any storage can hold it. @public */
 export interface TilePictureRecord {
@@ -184,9 +184,16 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     return dropped;
   };
 
+  /** Panels whose capture was turned away by a load still running. */
+  const waitingForLoad = new Set<ViewId>();
+
   const register: CaptureRegistry['register'] = (viewId, el, extent) => {
     registered.set(viewId, { el, extent });
+    // The picture asked for during the load is owed now; a panel nobody asked to picture stays unpictured.
+    const onLoaded = (): void => { if (waitingForLoad.delete(viewId)) capture(viewId); };
+    el.addEventListener(PANEL_LOADED_EVENT, onLoaded);
     return () => {
+      el.removeEventListener(PANEL_LOADED_EVENT, onLoaded);
       // Only this registration's own entry: a later register() of the same id must not be undone by an older cleanup.
       if (registered.get(viewId)?.el === el) registered.delete(viewId);
     };
@@ -200,7 +207,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
       await imagesSettled(loading);
       if (!el.isConnected) return null;
     }
-    if (isFadedOrHidden(el)) return null;
+    if (isFadedOrHidden(el) || isStillLoading(el)) return null;
     // 'full' is the scroll extent, past what is visible; the client extent is what the viewport shows.
     const width = extent === 'full' ? el.scrollWidth : el.clientWidth;
     const height = extent === 'full' ? el.scrollHeight : el.clientHeight;
@@ -238,6 +245,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     const target = registered.get(viewId);
     // A faded or hidden panel would draw over its last good picture.
     if (!target || isFadedOrHidden(target.el)) return;
+    if (isStillLoading(target.el)) { waitingForLoad.add(viewId); return; }
     // Sampled now, before the async work: an evict in this same tick must already count against this capture.
     const generation = generationOf(viewId);
     const { el, extent } = target;
@@ -253,6 +261,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
 
   const evict: CaptureTrigger['evict'] = (viewId) => {
     generations.set(viewId, generationOf(viewId) + 1);
+    waitingForLoad.delete(viewId);
     if (!restored) evictedBeforeRestore.add(viewId);
     if (forget(viewId)) notify(viewId);
     if (storage) enqueue(() => storage.remove([viewId]));

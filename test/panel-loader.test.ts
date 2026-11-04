@@ -33,6 +33,18 @@ test('when load resolves the content comes in and the placeholder goes', async (
   assert.equal(c.querySelector('[data-panel-placeholder]'), null, 'the placeholder faded off');
 });
 
+test('the panel hears the load ended only after the placeholder is gone', async () => {
+  let heard = 0;
+  let coveredThen = true;
+  const { container } = mount(createElement(PanelLoader, { load: () => Promise.resolve(), children: content }));
+  container.addEventListener('phonux-panel-loaded', () => { heard += 1; coveredThen = container.querySelector('[data-panel-loading]') !== null; });
+  await later(10);
+  assert.equal(heard, 0, 'heard while the placeholder was still up');
+  await later(200);
+  assert.equal(heard, 1);
+  assert.equal(coveredThen, false);
+});
+
 test('a host placeholder answered inside the window shows; synchronous and promised alike', async () => {
   const sync = await show({ load: never, placeholder: () => createElement('i', { 'data-mine': '' }) });
   await later(0);

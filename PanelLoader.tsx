@@ -8,6 +8,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { useOptionalHost } from './hostApi.js';
+import { PANEL_LOADED_EVENT } from './capturePolicy.js';
 import { resolveLabels } from './labels.js';
 
 /** How long the host has to say what the placeholder shows, in ms. @public */
@@ -123,10 +124,17 @@ export function PanelLoader({ load, children, placeholder, failed, windowMs = PA
     };
   }, [outcome, still]);
 
+  const root = React.useRef<HTMLDivElement>(null);
+  // Bubbles to the panel's capture registration, which never sees this component: the tile can now picture the page.
+  const uncovered = outcome === 'ready' && !covering;
+  React.useEffect(() => {
+    if (uncovered) root.current?.dispatchEvent(new Event(PANEL_LOADED_EVENT, { bubbles: true }));
+  }, [uncovered]);
+
   const retry = (): void => setAttempt((n) => n + 1);
   const why = outcome === 'error' || outcome === 'timeout' ? outcome : null;
   return (
-    <Box data-panel-loader={why === null ? outcome : 'failed'} sx={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', height: '100%' }}>
+    <Box ref={root} data-panel-loader={why === null ? outcome : 'failed'} sx={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', height: '100%' }}>
       {outcome === 'ready' && children}
       {why !== null && (
         <Box data-panel-load-failed={why} role="alert" sx={{ ...FILL, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, p: 2, textAlign: 'center', bgcolor: 'background.paper', fontSize: 13 }}>
@@ -134,7 +142,7 @@ export function PanelLoader({ load, children, placeholder, failed, windowMs = PA
         </Box>
       )}
       {why === null && covering && (
-        <Box ref={cover} aria-busy={outcome === 'waiting'} sx={{ ...FILL, pointerEvents: 'none' }}>
+        <Box ref={cover} data-panel-loading="" aria-busy={outcome === 'waiting'} sx={{ ...FILL, pointerEvents: 'none' }}>
           <GenericPlaceholder windowMs={windowMs} still={still} />
           {custom && <HostPlaceholder still={still}>{custom.node}</HostPlaceholder>}
         </Box>
