@@ -65,7 +65,11 @@ function stopOfMark(n: RowNumbers, mark: RestMark | null, step: number): number 
   if (mark === null) return null;
   const index = n.ids.indexOf(mark.panel);
   if (index < 0) return null;
-  const k = snapToStopIndex(n, index, n.stripStart + n.leftOffsets[index]! + mark.offset * step);
+  const target = n.stripStart + n.leftOffsets[index]! + mark.offset * step;
+  // A mark saved at a rest names that rest exactly, whatever the panel it names shows there.
+  const exact = n.stops.find((stop) => Math.abs(stop - target) < 1);
+  if (exact !== undefined) return exact;
+  const k = snapToStopIndex(n, index, target);
   return k < 0 ? null : n.stops[k]!;
 }
 

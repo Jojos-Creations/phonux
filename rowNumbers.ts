@@ -135,7 +135,7 @@ export function computeRowNumbers(i: {
     rowMarginLeft = !measured ? 0 : overflows ? centering : (stripWindow - stripWidth) / 2;
   }
   const endPad = centering;
-  const maxScroll = stepping ? rowMarginLeft + stripWidth + endPad - stripWindow : 0;
+  const maxScroll = stepping ? flushEndRest({ rowMarginLeft, stripWidth, endPad, stripWindow }) : 0;
   // A 'both' panel keeps clear of the fixed groups and of the 'both' panels that stack on its edge. Scroll pins an earlier one
   // whenever it pins a later one, so the stack on the left runs in row order from the left group, and on the right it runs in
   // row order from the right group: the outermost panel of each stack sits nearest the window edge.
@@ -153,6 +153,62 @@ export function computeRowNumbers(i: {
   const reservedWidths = [...present.flatMap((p, k) => (admittedKs.has(k) || parksForRoom(p) ? [] : [allWidths[k]!])), ...admitted.map((a) => allWidths[a.k]!)];
   const parkLiveWidths = present.flatMap((p, k) => (admittedKs.has(k) || !parksForRoom(p) ? [] : [allWidths[k]!]));
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
+}
+
+/**
+ * The last rest of a stepping row, flush: the last panel fills the last slot, and no slot after it is empty. The one place the end
+ * rest is decided; a centered end (empty slots after the last panel) would replace this call alone.
+ */
+function flushEndRest(g: { rowMarginLeft: number; stripWidth: number; endPad: number; stripWindow: number }): number {
+  return g.rowMarginLeft + g.stripWidth + g.endPad - g.stripWindow;
+}
+
+/** The two edges of a row's slot grid, in the window's coordinates (0 is the window's left edge): nothing of a panel draws outside them. @internal */
+export function gridEdgesOf(n: RowNumbers): { lo: number; hi: number } {
+  return { lo: n.rowMarginLeft, hi: n.windowWidth - n.endPad };
+}
+
+/**
+ * The window a strip panel may show in at scroll `at`, in the window's coordinates: the grid less the held groups, and less a
+ * 'both' panel the scroll has stuck at an edge there with its gap. Nothing of the strip draws under or beside a held or stuck panel. @internal
+ */
+export function stripWindowAt(n: RowNumbers, at: number, gap: number): { lo: number; hi: number } {
+  const grid = gridEdgesOf(n);
+  let lo = grid.lo + n.leftInset;
+  let hi = grid.hi - n.rightInset;
+  for (const s of n.stuck) {
+    const k = n.ids.indexOf(s.id);
+    if (k < 0) continue;
+    const { left, right } = slotSpanAt(n, k, at);
+    if (left < s.left) lo = Math.max(lo, s.left + n.widths[k]! + gap);
+    else if (right > n.windowWidth + gap - s.right) hi = Math.min(hi, n.windowWidth - s.right - n.widths[k]!);
+  }
+  return { lo, hi };
+}
+
+/** Where the drawn entry `k` of `n` rests at scroll `at`, in the window's coordinates. @internal */
+export function slotSpanAt(n: RowNumbers, k: number, at: number): { left: number; right: number } {
+  const left = n.stripStart + n.leftOffsets[k]! - at;
+  return { left, right: left + n.widths[k]! };
+}
+
+/**
+ * How much of the drawn entry `k` of `n` lies outside its strip window at scroll `at`, in px off each side, and whether it lies
+ * wholly outside (`away`): the cut a slot is drawn with, and the reach it keeps. A whole panel at rest cuts 0 and 0. @internal
+ */
+export function slotCutAt(n: RowNumbers, k: number, at: number, gap: number): { left: number; right: number; away: boolean } {
+  const { lo, hi } = stripWindowAt(n, at, gap);
+  const span = slotSpanAt(n, k, at);
+  const width = span.right - span.left;
+  const left = Math.min(width, Math.max(0, lo - span.left));
+  const right = Math.min(width, Math.max(0, span.right - hi));
+  return { left, right, away: left + right >= width };
+}
+
+/** Whether the drawn entry `index` of `n` lies wholly inside its strip window at scroll `at`, within a pixel. @internal */
+export function drawsWhole(n: RowNumbers, index: number, at: number): boolean {
+  const { left, right } = slotCutAt(n, index, at, 0);
+  return left <= 1 && right <= 1;
 }
 
 /** One held entry: the entry's index in the present list and the edge it holds at. */
@@ -268,9 +324,13 @@ function stepGrid(maxScroll: number, step: number): number[] {
  * full width, the one nearest `target`. Of stops that share a position, the earliest. -1 when the row has no such stop. @internal
  */
 export function snapToStopIndex(n: RowNumbers, index: number, target: number): number {
+  // A stop that reaches a panel may cut it, and a cut panel is never drawn at rest: a panel narrower than its window counts as
+  // shown only where it is drawn whole. One as wide as the window or wider is stepped through, and any stop that reaches it shows it.
+  const fits = n.widths[index] !== undefined && n.widths[index]! < n.stripWindow - 1;
   let best = -1;
   for (const [k, span] of n.stopSpans.entries()) {
     if (index < span.first || index >= span.end) continue;
+    if (fits && !drawsWhole(n, index, n.stops[k]!)) continue;
     if (best < 0 || Math.abs(n.stops[k]! - target) < Math.abs(n.stops[best]! - target)) best = k;
   }
   return best;

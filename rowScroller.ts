@@ -293,7 +293,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
 
   return {
     scrollLeft: () => offset,
-    stripX: () => margin - offset,
+    // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
+    stripX: () => margin - offset - bumpAt(bump, performance.now()),
     glideTo(target, o) {
       if (claimed) return false;
       if (o.instant || o.durationSec <= 0) {

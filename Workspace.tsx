@@ -27,9 +27,8 @@ import { focusEdgePanel, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
-import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { gridEdgesOf, nearestStop, scrollHoldingEdge, slotCutAt, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
-import { screenBoxOf } from './slotMover.js';
 import { OverlaySlot } from './windowOverlay.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
@@ -192,13 +191,14 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   children: React.ReactNode;
 }
 
-// Browsers round layout to fractions of a pixel, so a slot flush with the window edge can read a hair over it.
-const EDGE_TOLERANCE_PX = 1;
+/** How far above and below its box a clip stays open, so a panel's shadow or focus ring is never cut. */
+const CLIP_OPEN_PX = 100000;
 
-/** True when `next` places or sizes a drawn entry differently from `prev`. */
-function slotsMoved(prev: RowNumbers, next: RowNumbers): boolean {
-  if (prev.rowMarginLeft !== next.rowMarginLeft || prev.ids.length !== next.ids.length) return true;
-  return next.ids.some((id, k) => id !== prev.ids[k] || next.leftOffsets[k] !== prev.leftOffsets[k] || next.widths[k] !== prev.widths[k]);
+/** The clip that cuts a slot of `width` to the band `lo..hi` of its own box; '' when nothing is cut. A style, never animated. */
+function bandClip(lo: number, hi: number, width: number): string {
+  const left = Math.max(0, lo);
+  const right = Math.max(0, width - hi);
+  return left > 0 || right > 0 ? `inset(-${CLIP_OPEN_PX}px ${right}px -${CLIP_OPEN_PX}px ${left}px)` : '';
 }
 
 /** A subscription that never fires, for a shell given no workspace. */
@@ -394,51 +394,46 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
-  // A close, reopen or move slides slots without moving scrollLeft, so the row counts as moving until that slide has landed.
-  const slideRef = React.useRef({ numbers: rowNumbers, endsAt: 0 });
-  if (rowNumbers !== undefined && slideRef.current.numbers !== undefined && slotsMoved(slideRef.current.numbers, rowNumbers)) {
-    slideRef.current = { numbers: rowNumbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
-  } else if (slideRef.current.numbers !== rowNumbers) slideRef.current = { numbers: rowNumbers, endsAt: slideRef.current.endsAt };
-  // A new phone size grows every slot over one slide, which can outlast the scroll's glide: no slot is hidden mid-growth.
-  const sizedRef = React.useRef(phoneWidth);
-  if (sizedRef.current !== phoneWidth) {
-    sizedRef.current = phoneWidth;
-    slideRef.current = { numbers: slideRef.current.numbers, endsAt: performance.now() + resolved.slide.durationSec * 1000 + 100 };
-  }
-  // Reach is written straight to the slots at every move of the row, since a state update per frame of a glide would re-render the whole row.
+  // Reach and the cut are written straight to the slots at every move of the row, since a state update per frame of a glide would
+  // re-render the whole row. Both are judged from the row's numbers and offset, never from a slot's box: a box read before a slot
+  // grew, or mid-slide, is stale, and a stale box once hid panels the window showed. No slot is ever hidden: a panel wholly inside
+  // the slot grid is drawn whole, one crossing the grid's edge is cut there, and nothing is drawn in the margins beside the grid.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
     const strip = rowRef.current;
     if (container === null || strip === null || rowNumbers === undefined) return;
+    const n = rowNumbers;
     const scroller = rowScrollerFor(container);
-    // Measured once per commit: every frame after is arithmetic over the strip's translate and each slot's pose, so judging reach
-    // never lays the row out mid-glide.
-    const view = container.getBoundingClientRect();
-    const boxes = [...strip.querySelectorAll<HTMLElement>('[data-row-slot]')].map((slot) => ({ slot, box: screenBoxOf(slot, scroller.stripX) }));
+    const slots = [...strip.querySelectorAll<HTMLElement>('[data-row-slot]')];
+    // A row whose strip fits, or that scrolls freely with no hold, has no grid edge inside the window: it renders exactly as it did.
+    const clips = n.stops.length > 0 || n.held.length > 0 || n.stuck.length > 0;
+    const grid = gridEdgesOf(n);
     const apply = (): void => {
       const held = scroller.claimHeld();
-      const atRest = !held && scroller.glideTarget() === null && performance.now() >= slideRef.current.endsAt && rowNumbers.stops.some((stop) => Math.abs(stop - scroller.scrollLeft()) <= EDGE_TOLERANCE_PX);
+      const at = scroller.scrollLeft();
+      // The strip is cut at the grid's edges in its own coordinates, which move with it: a slide, a drag's preview or the end
+      // bump moves panels inside the strip, and whatever crosses the edge is cut there. The strip starts after the left group.
+      const stripLeft = n.leftInset + scroller.stripX();
+      const stripClip = clips ? `polygon(${grid.lo - stripLeft}px -${CLIP_OPEN_PX}px, ${grid.hi - stripLeft}px -${CLIP_OPEN_PX}px, ${grid.hi - stripLeft}px ${CLIP_OPEN_PX}px, ${grid.lo - stripLeft}px ${CLIP_OPEN_PX}px)` : '';
+      if (strip.style.clipPath !== stripClip) strip.style.clipPath = stripClip;
       const seen = new Set<string>();
-      for (const { slot, box } of boxes) {
-        // A stepping row cuts the neighbor of a stop at the window edge, so only a panel the window does not reach at all is out of reach of Tab.
-        const b = box();
-        const rect = { left: b.x, right: b.x + b.width, width: b.width };
-        const away = rowNumbers.stops.length > 0 && (rect.right <= view.left || rect.left >= view.right);
-        // Published here, not in PanelRow: this loop is the only place that judges a slot against the window.
+      for (const slot of slots) {
         const id = slot.dataset.rowId;
+        // A held or stuck panel is in reach at every offset, and so is an id `n` does not draw (one still exiting).
+        const k = id === undefined || n.stuck.some((s) => s.id === id) ? -1 : n.ids.indexOf(id);
+        const cut = k < 0 ? null : slotCutAt(n, k, at, gap);
+        // A stepping row rests with whole panels past the window; a free-scrolling row keeps every slot in reach.
+        const away = n.stops.length > 0 && cut !== null && cut.away;
+        // Published here, not in PanelRow: this loop is the only place that judges a slot against the window.
         if (id !== undefined) {
           seen.add(id);
           awayStore.set(id, away);
         }
-        // A peek narrower than the gap shows only the frame's edge, a hairline that reads as a stray bar rather than a panel.
-        // Judged during a drag too, since the drag's preview slides panels into view while the claim holds reach still.
-        const shown = Math.min(rect.right, view.right) - Math.max(rect.left, view.left);
-        // At rest only whole slots draw; a panel wider than a phone may show partly. In motion a slot crossing an edge keeps drawing,
-        // or a panel leaving the window would vanish at its first pixel instead of sliding out.
-        const cut = rect.left < view.left - EDGE_TOLERANCE_PX || rect.right > view.right + EDGE_TOLERANCE_PX;
-        const wholeOnly = atRest && cut && rect.width <= phoneWidth + EDGE_TOLERANCE_PX;
-        const visibility = !away && rowNumbers.stops.length > 0 && (shown < gap || wholeOnly) ? 'hidden' : '';
-        if (slot.style.visibility !== visibility) slot.style.visibility = visibility;
+        // A strip panel beside a held or stuck panel is cut at that panel's gap, never hidden: what its window shows of it is drawn.
+        // The grid's own edges are the strip's cut above, so a slot sliding off its numbers is still cut where it is drawn.
+        const slotClip = clips && cut !== null && (n.leftInset > 0 || n.rightInset > 0 || n.stuck.length > 0) ? bandClip(cut.left, n.widths[k]! - cut.right, n.widths[k]!) : '';
+        if (slot.style.clipPath !== slotClip) slot.style.clipPath = slotClip;
+        // A drag's claim holds reach still until the release.
         if (held) continue;
         if (slot.style.pointerEvents !== (away ? 'none' : '')) slot.style.pointerEvents = away ? 'none' : '';
         // Inert too: Tab or find-in-page would otherwise move the row off its stop to reveal a panel the window does not reach.
@@ -447,33 +442,27 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       awayStore.retain(seen);
     };
     apply();
-    // A close, a move or a drag's preview slides the slots without a scroll event, so the hide is judged again on every frame of
-    // that slide, and for as long as a drag holds the row. A drag's preview renders only the row, so its pointer or key restarts this.
+    const unsubscribe = scroller.subscribe(apply);
+    // A claim's release moves no offset, so reach catches up on the next pointer or key on the row: on the frame after it, so the
+    // key itself (a Tab across an inert panel) is answered by the reach the row had.
     let frame = 0;
-    let until = 0;
-    const follow = (): void => {
-      until = performance.now() + resolved.slide.durationSec * 1000 + 100;
-      if (frame !== 0) return;
-      frame = requestAnimationFrame(function tick(): void {
+    const later = (): void => {
+      if (frame === 0) frame = requestAnimationFrame(() => {
+        frame = 0;
         apply();
-        frame = performance.now() < Math.max(until, slideRef.current.endsAt) || rowScrollerFor(container).claimHeld() ? requestAnimationFrame(tick) : 0;
       });
     };
-    follow();
-    const unsubscribe = rowScrollerFor(container).subscribe(apply);
-    container.addEventListener('pointermove', follow, { passive: true });
-    container.addEventListener('keydown', follow);
-    // A click or focus in the cut-off neighbor reveals it off a stop; the row settles back onto one.
+    container.addEventListener('pointermove', later, { passive: true });
+    container.addEventListener('keydown', later);
+    // A click or focus in a panel the grid cuts reveals it off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
-      const n = rowNumbers;
       // A held panel is in view at every scroll, so focusing it moves nothing.
       if ((event.target as Element | null)?.closest('[data-row-edge]') != null) return;
       if (n.stops.length === 0) return;
       const id = (event.target as Element | null)?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId;
       const k = n.ids.indexOf(id ?? '');
       requestAnimationFrame(() => {
-        const scroller = rowScrollerFor(container);
-        if (scroller.claimHeld() || n.stops.length === 0) return;
+        if (scroller.claimHeld()) return;
         const at = scroller.scrollLeft();
         const to = k < 0 ? nearestStop(n, at) : snapToStop(n, k, at);
         if (Math.abs(to - at) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
@@ -483,8 +472,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     return () => {
       container.removeEventListener('focusin', onFocus);
       cancelAnimationFrame(frame);
-      container.removeEventListener('pointermove', follow);
-      container.removeEventListener('keydown', follow);
+      container.removeEventListener('pointermove', later);
+      container.removeEventListener('keydown', later);
       unsubscribe();
     };
   });

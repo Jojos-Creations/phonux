@@ -431,7 +431,8 @@ export function PanelRow({
     const index = presentAll.indexOf(p);
     const h = heldById.get(p.id);
     const stuckAt = p.settings?.edgeHold === 'both' && h === undefined ? rowNumbers?.stuck.find((st) => st.id === p.id) : undefined;
-    const sticky = h !== undefined ? (h.side === 'left' ? { left: h.offset } : { right: (rowNumbers?.rightInset ?? 0) + gap - h.offset - h.width }) : stuckAt !== undefined ? { left: stuckAt.left, right: stuckAt.right } : null;
+    // A held group sits in the slot grid's first (or last) slots, inside the row's margin, so the strip's next panel is one gap from it.
+    const sticky = h !== undefined ? (h.side === 'left' ? { left: (rowNumbers?.rowMarginLeft ?? 0) + h.offset } : { right: (rowNumbers?.endPad ?? 0) + (rowNumbers?.rightInset ?? 0) + gap - h.offset - h.width }) : stuckAt !== undefined ? { left: stuckAt.left, right: stuckAt.right } : null;
     const stripStart = rowNumbers?.stripStart ?? 0;
     // A right hold's group starts where the strip's row box ends (the row box is the strip's first item).
     const spacer = h !== undefined ? (h.side === 'left' ? h.offset : stripStart + reservedWidth + gapSpan + h.offset) : stuckAt !== undefined ? stripStart + rest.leftOffset : 0;
