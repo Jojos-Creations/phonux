@@ -65,6 +65,17 @@ function GenericPlaceholder({ windowMs, still }: { windowMs: number; still: bool
   );
 }
 
+/** The host's placeholder, faded in over the generic one so one that is up only briefly does not read as a blink. */
+function HostPlaceholder({ children, still }: { children: React.ReactNode; still: boolean }): React.JSX.Element {
+  const box = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (still) return undefined;
+    const fade = box.current?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS });
+    return () => fade?.cancel();
+  }, [still]);
+  return <Box ref={box} data-panel-placeholder="host" sx={{ ...FILL, bgcolor: 'background.paper' }}>{children}</Box>;
+}
+
 /** Shows `placeholder` until `load` resolves, then `children`. Mount it where the content goes; it fills its parent. @public */
 export function PanelLoader({ load, children, placeholder, failed, windowMs = PANEL_PLACEHOLDER_WINDOW_MS, timeoutMs = PANEL_LOAD_TIMEOUT_MS }: PanelLoaderProps): React.JSX.Element {
   const labels = resolveLabels(useOptionalHost()?.labels);
@@ -125,7 +136,7 @@ export function PanelLoader({ load, children, placeholder, failed, windowMs = PA
       {why === null && covering && (
         <Box ref={cover} aria-busy={outcome === 'waiting'} sx={{ ...FILL, pointerEvents: 'none' }}>
           <GenericPlaceholder windowMs={windowMs} still={still} />
-          {custom && <Box data-panel-placeholder="host" sx={{ ...FILL, bgcolor: 'background.paper' }}>{custom.node}</Box>}
+          {custom && <HostPlaceholder still={still}>{custom.node}</HostPlaceholder>}
         </Box>
       )}
     </Box>
