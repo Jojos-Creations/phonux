@@ -23,6 +23,7 @@
   ],
   "exclude": [
     "**/*.typecheck.ts",
+    "*.config.ts",
     "api-extractor-temp",
     "dist",
     "node_modules",
