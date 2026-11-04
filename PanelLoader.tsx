@@ -16,6 +16,8 @@ export const PANEL_PLACEHOLDER_WINDOW_MS = 200;
 export const PANEL_LOAD_TIMEOUT_MS = 15_000;
 /** How long the placeholder takes to fade off the content, in ms. */
 const FADE_MS = 120;
+/** One breath of the generic placeholder, in ms. */
+const PULSE_MS = 1400;
 
 /** Why a load ended without content. @public */
 export type PanelLoadFailure = 'error' | 'timeout';
@@ -38,17 +40,23 @@ export interface PanelLoaderProps {
 
 const FILL = { position: 'absolute', inset: 0 } as const;
 
-/** Blocks in the shape of a page. They are still until the host's window closes, so a quick load shows no motion at all. */
+/**
+ * Blocks in the shape of a page. They are still until the host's window closes, so a quick load shows no motion at all.
+ * The pulse and the fade below use the Web Animations API: a theme's `animation: none` and `transition: none` reset would silence CSS.
+ */
 function GenericPlaceholder({ windowMs, still }: { windowMs: number; still: boolean }): React.JSX.Element {
   const block = { bgcolor: 'action.hover', borderRadius: 1 } as const;
+  const box = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (still) return undefined;
+    const pulses = [...(box.current?.children ?? [])].map((el) => el.animate?.([{ opacity: 1 }, { opacity: 0.45 }, { opacity: 1 }], { duration: PULSE_MS, delay: windowMs, iterations: Infinity, easing: 'ease-in-out' }));
+    return () => pulses.forEach((pulse) => pulse?.cancel());
+  }, [windowMs, still]);
   return (
     <Box
+      ref={box}
       data-panel-placeholder="generic"
-      sx={{
-        ...FILL, display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, bgcolor: 'background.paper',
-        '@keyframes phonuxPanelLoading': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.45 } },
-        '& > *': still ? {} : { animation: `phonuxPanelLoading 1.4s ease-in-out ${windowMs}ms infinite` },
-      }}
+      sx={{ ...FILL, display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, bgcolor: 'background.paper' }}
     >
       <Box sx={{ ...block, flex: 1 }} />
       <Box sx={{ ...block, height: 16, width: '70%' }} />
@@ -92,16 +100,20 @@ export function PanelLoader({ load, children, placeholder, failed, windowMs = PA
     };
   }, [attempt, windowMs, timeoutMs]);
 
+  const cover = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (outcome !== 'ready') return undefined;
     if (still) { setCovering(false); return undefined; }
+    const fade = cover.current?.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, fill: 'forwards' });
     const done = setTimeout(() => setCovering(false), FADE_MS);
-    return () => clearTimeout(done);
+    return () => {
+      clearTimeout(done);
+      fade?.cancel();
+    };
   }, [outcome, still]);
 
   const retry = (): void => setAttempt((n) => n + 1);
   const why = outcome === 'error' || outcome === 'timeout' ? outcome : null;
-  const fade = still ? 'none' : `opacity ${FADE_MS}ms linear`;
   return (
     <Box data-panel-loader={why === null ? outcome : 'failed'} sx={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', height: '100%' }}>
       {outcome === 'ready' && children}
@@ -111,7 +123,7 @@ export function PanelLoader({ load, children, placeholder, failed, windowMs = PA
         </Box>
       )}
       {why === null && covering && (
-        <Box aria-busy={outcome === 'waiting'} sx={{ ...FILL, opacity: outcome === 'ready' ? 0 : 1, transition: fade, pointerEvents: 'none' }}>
+        <Box ref={cover} aria-busy={outcome === 'waiting'} sx={{ ...FILL, pointerEvents: 'none' }}>
           <GenericPlaceholder windowMs={windowMs} still={still} />
           {custom && <Box data-panel-placeholder="host" sx={{ ...FILL, bgcolor: 'background.paper' }}>{custom.node}</Box>}
         </Box>
