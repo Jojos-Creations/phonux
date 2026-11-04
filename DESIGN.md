@@ -1,6 +1,6 @@
 # phonux: design notes
 
-This package is the seam between a host app and any view -- Settings, History, a live web panel, or a
+This package is the seam between a host app and any view -- Settings, History, a Picture panel, or a
 third-party one. Nothing here may depend on the app that hosts it.
 
 The panel-facing API is additive from here: breaking changes ship as a new API level, not by changing an existing one.
@@ -1769,7 +1769,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 
 ## Panel boxes are reported, never drawn over
 
-A native view a host draws over a panel (a Simple Browser WebContentsView, a Capacitor webview) needs the panel's box
+A native view a host draws over a panel (a Tiamat Browser WebContentsView, a Capacitor webview) needs the panel's box
 while it moves. phonux reports boxes and owns no native view; `PanelsInput.onPanelRect` is the one channel out.
 
 Each `PanelRowSlot` runs its own frame loop (`createRectReporter` in `panelChrome.ts`) only while its slot is moving:
@@ -2251,7 +2251,7 @@ The library began as a folder inside phonux-app and was extracted with `git filt
 so `git log --follow` on a source file runs back through its years inside the app. The first entry of `CHANGELOG.md` names the
 phonux-app commit the extraction was taken at.
 
-A release is `npm run release:check`, then the maintainer's own `npm publish` from `dist/` (`npm publish --tag next` for a prerelease version). Nothing in this repository publishes,
+A release is `npm run release:check`, then a publish: either the manual `.github/workflows/publish-release.yml` run (it waits for approval in the `npm-release` environment, then publishes `dist/` under the right dist-tag through npm trusted publishing), or the maintainer's own `npm publish` from `dist/` (`npm publish --tag next` for a prerelease version). A push to `main` publishes nothing,
 and a published version is never edited: a fix is a new version, and `CHANGELOG.md` says what changed. `.github/workflows/ci.yml`
 runs the typecheck, the tests, the build, the API report check and the smoke on a pull request into `release` and on dispatch;
 a pull request into `main` runs no cloud check.
