@@ -2513,6 +2513,10 @@ the footer's height, in every theme), `PANEL_FOOTER_ROOM_PX` (the footer's offse
 and `rowFootReserve(gap)` (the gap, or the footer's room when that is more, which the phone fit's height budget counts) are
 the numbers the row prices with, so a host centering the row in its page counts them the same way.
 
+## `PanelLoader`
+
+A panel is never an empty space while it loads. `PanelLoader` puts a placeholder up on the first frame and mounts its children when `load` resolves. The host's `placeholder` has `windowMs` (200 by default) to answer; a later answer is dropped so the placeholder never swaps late. The generic blocks are still until that window closes, then pulse, so a quick load shows no motion. An error or a timeout ends in a view with Try again, and content that arrives after a timeout still comes in.
+
 ## `PanelSizeControl`
 
 One width control for every resizable panel: a header button that shows the panel's own width (`savedSlots ?? slots`, so a

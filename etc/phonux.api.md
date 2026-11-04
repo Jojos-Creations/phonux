@@ -604,6 +604,12 @@ export const PANEL_CORNER_RADIUS_UNITS = 4;
 export const PANEL_FOOTER_ROOM_PX: number;
 
 // @public
+export const PANEL_LOAD_TIMEOUT_MS = 15000;
+
+// @public
+export const PANEL_PLACEHOLDER_WINDOW_MS = 200;
+
+// @public
 export const PANEL_ROOT_ATTRIBUTE = "data-panel-root";
 
 // @public
@@ -765,6 +771,22 @@ export interface PanelHeaderTextItem extends PanelHeaderButtonItemBase {
 
 // @public
 export type PanelId = string;
+
+// @public
+export function PanelLoader(input: PanelLoaderProps): React_2.JSX.Element;
+
+// @public
+export interface PanelLoaderProps {
+    readonly children: React_2.ReactNode;
+    readonly failed?: (retry: () => void, why: PanelLoadFailure) => React_2.ReactNode;
+    readonly load: () => Promise<unknown>;
+    readonly placeholder?: () => React_2.ReactNode | Promise<React_2.ReactNode>;
+    readonly timeoutMs?: number;
+    readonly windowMs?: number;
+}
+
+// @public
+export type PanelLoadFailure = 'error' | 'timeout';
 
 // @public
 export interface PanelManager {
@@ -1183,6 +1205,7 @@ export interface PhonuxLabels {
     close: string;
     closed: (title: string) => string;
     couldNotFullscreen: string;
+    couldNotLoad: string;
     couldNotResize: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
@@ -1196,6 +1219,7 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     row: string;
     sizeName: (slots: number) => string;
+    tryAgain: string;
     undo: string;
     undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;

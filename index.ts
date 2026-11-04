@@ -96,6 +96,7 @@ export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox, usePanelSizeGlide, type PanelSizeGlide } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 export { PanelSizeControl, type PanelSizeControlProps } from './panelSizeControl.js';
+export { PANEL_LOAD_TIMEOUT_MS, PANEL_PLACEHOLDER_WINDOW_MS, PanelLoader, type PanelLoadFailure, type PanelLoaderProps } from './PanelLoader.js';
 export { PanelFooter } from './panelFooter.js';
 export type { PanelHeaderButtonItem, PanelHeaderButtonItemBase, PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
 export { Workspace } from './Workspace.js';

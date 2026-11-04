@@ -427,6 +427,7 @@ export interface PhonuxLabels {
     close: string;
     closed: (title: string) => string;
     couldNotFullscreen: string;
+    couldNotLoad: string;
     couldNotResize: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
@@ -440,6 +441,7 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     row: string;
     sizeName: (slots: number) => string;
+    tryAgain: string;
     undo: string;
     undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;

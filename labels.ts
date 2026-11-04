@@ -46,6 +46,10 @@ export interface PhonuxLabels {
   workspaceEmpty: string;
   /** The name of a panel's width control and of the group of widths it opens. Default `View Size`. */
   viewSize: string;
+  /** What a panel says when its content could not load. Default `This page could not load`. */
+  couldNotLoad: string;
+  /** The button that loads it again. Default `Try again`. */
+  tryAgain: string;
   /** The name of the width that is `slots` phones wide. Default `Phone`, `Fold`, `Tablet`, `Desktop`, `Ultrawide`, then `<slots> phones`. */
   sizeName: (slots: number) => string;
   /** The name of the width control's entry that grows the panel to fill the window. Default `Fullscreen`. */
@@ -81,6 +85,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   workspaceUntitled: 'Untitled',
   workspaceEmpty: 'No panels yet.',
   viewSize: 'View Size',
+  couldNotLoad: 'This page could not load',
+  tryAgain: 'Try again',
   sizeName: (slots) => SIZE_NAMES[slots - 1] ?? `${slots} phones`,
   fullscreen: 'Fullscreen',
   couldNotResize: 'Could not resize this panel',
