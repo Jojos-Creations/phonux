@@ -42,6 +42,7 @@ test('the menu offers the widths maxSlots allows, named by the labels, with the 
   await openSizes(rig);
   assert.deepEqual(widths().map((b) => b.getAttribute('aria-label')), ['Phone', 'Fold', 'Tablet']);
   assert.deepEqual(widths().filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.viewSize), ['phone']);
+  assert.deepEqual(widths().filter((b) => b.disabled).map((b) => b.dataset.viewSize), ['phone'], 'the current size is disabled, the others are not');
   assert.ok(document.querySelector('[role="group"][aria-label="View Size"] [data-view-fullscreen]'), 'Fullscreen is in the group');
 });
 

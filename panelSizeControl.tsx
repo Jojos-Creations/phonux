@@ -10,6 +10,7 @@ import Menu from '@mui/material/Menu';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { AnnounceContext } from './announce.js';
+import { PHONE_FRAME_ATTRIBUTE } from './PanelFrame.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
@@ -17,17 +18,26 @@ import { usePanelMaximize } from './panelMaximize.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
 import { panelRootOf } from './rowDom.js';
 
-/** Grows from the button's edge toward the panel's middle and no wider than the panel, so the menu never covers the next panel. */
-function insidePanel(button: HTMLElement | null): { side: 'left' | 'right'; maxWidth: number | undefined } {
-  const icon = button?.getBoundingClientRect();
-  const panel = button ? panelRootOf(button)?.getBoundingClientRect() : undefined;
-  return { side: icon && panel && icon.left + icon.width / 2 > panel.left + panel.width / 2 ? 'right' : 'left', maxWidth: panel?.width };
+/** The menu's inset from the panel's sides, in px. */
+const MENU_INSET_PX = 8;
+
+/** A pill across the panel under the button, inset the same on both sides, its corners the panel's own, so the menu never covers the next panel. */
+function insidePanel(button: HTMLElement | null): { top: number; left: number; width: number | undefined; radius: string | undefined } {
+  const root = button ? panelRootOf(button) : null;
+  const frame = root?.querySelector<HTMLElement>(`[${PHONE_FRAME_ATTRIBUTE}]`) ?? root;
+  const panel = frame?.getBoundingClientRect();
+  return {
+    top: button?.getBoundingClientRect().bottom ?? 0,
+    left: (panel?.left ?? 0) + MENU_INSET_PX,
+    width: panel ? panel.width - 2 * MENU_INSET_PX : undefined,
+    radius: frame ? getComputedStyle(frame).borderTopLeftRadius : undefined,
+  };
 }
 
 const SIZE_KEYS = ['phone', 'fold', 'tablet', 'desktop', 'ultrawide'] as const;
 
 const ICON = { color: 'inherit' } as const;
-const ENTRY = { color: 'text.primary' } as const;
+const ENTRY = { color: 'text.primary', '&.Mui-disabled': { color: 'primary.contrastText', bgcolor: 'primary.main' } } as const;
 
 /** Whether the control draws anything in this slot, so `Panel` leaves its header's placeholder alone when it does not. */
 export const drawsSizeControl = (slot: PanelSlotValue | undefined): boolean =>
@@ -48,7 +58,7 @@ export interface PanelSizeControlProps {
 /**
  * The width control of the panel the call is made in, for its header. It draws nothing outside a row, nor for a panel that is
  * not resizable or may take fewer than two slots. The menu offers the widths up to five phones that `maxSlots` allows and the
- * window fits, with the panel's own width pressed, then Fullscreen. Focus goes back to the button once a width is picked.
+ * window fits, with the panel's current size highlighted and disabled, then Fullscreen. Focus goes back to the button once a width is picked.
  * @public
  */
 export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys, onRefused }: PanelSizeControlProps = {}): React.JSX.Element | null {
@@ -100,47 +110,59 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
         open={anchor !== null}
         onClose={() => setAnchor(null)}
         disableRestoreFocus
-        anchorOrigin={{ vertical: 'bottom', horizontal: place.side }}
-        transformOrigin={{ vertical: 'top', horizontal: place.side }}
-        slotProps={{ paper: { sx: { maxWidth: place.maxWidth } } }}
+        anchorReference="anchorPosition"
+        anchorPosition={{ top: place.top, left: place.left }}
+        marginThreshold={0}
+        slotProps={{ paper: { sx: { width: place.width, maxWidth: place.width, borderRadius: place.radius } }, list: { sx: { p: 0 } } }}
       >
-        <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ px: 2, pt: 1, pb: 0.5 }}>
-          <Typography variant="caption" component="div" color="text.secondary">
+        <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, px: 2, py: 1 }}>
+          <Typography variant="caption" component="div" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
             {labels.viewSize}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            {Array.from({ length: limit }, (_, i) => i + 1).map((slots) => (
-              <Tooltip key={slots} title={labels.sizeName(slots)}>
+            {Array.from({ length: limit }, (_, i) => i + 1).map((slots) => {
+              const current = !maximize.maximized && (summary.slots ?? 1) === slots;
+              return (
+                <Tooltip key={slots} title={labels.sizeName(slots)}>
+                  {/* The span keeps the hover text on the current size, which is disabled. */}
+                  <span>
+                    <IconButton
+                      size="small"
+                      data-view-size={SIZE_KEYS[slots - 1]}
+                      aria-label={labels.sizeName(slots)}
+                      aria-pressed={current}
+                      disabled={current}
+                      onClick={() => {
+                        close();
+                        if (maximize.maximized) maximize.toggle();
+                        if (!handle.setSlots(slots, 'person').ok) refused('resize');
+                      }}
+                      sx={ENTRY}
+                    >
+                      {icons.size(slots)}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              );
+            })}
+            <Tooltip title={fullscreenLabel}>
+              <span>
                 <IconButton
                   size="small"
-                  data-view-size={SIZE_KEYS[slots - 1]}
-                  aria-label={labels.sizeName(slots)}
-                  aria-pressed={(summary.slots ?? 1) === slots}
+                  data-view-fullscreen=""
+                  aria-label={labels.fullscreen}
+                  {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}
+                  aria-pressed={maximize.maximized}
+                  disabled={maximize.maximized}
                   onClick={() => {
                     close();
-                    if (!handle.setSlots(slots, 'person').ok) refused('resize');
+                    maximize.toggle();
                   }}
                   sx={ENTRY}
                 >
-                  {icons.size(slots)}
+                  {icons.fullscreen}
                 </IconButton>
-              </Tooltip>
-            ))}
-            <Tooltip title={fullscreenLabel}>
-              <IconButton
-                size="small"
-                data-view-fullscreen=""
-                aria-label={labels.fullscreen}
-                {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}
-                aria-pressed={maximize.maximized}
-                onClick={() => {
-                  close();
-                  maximize.toggle();
-                }}
-                sx={ENTRY}
-              >
-                {icons.fullscreen}
-              </IconButton>
+              </span>
             </Tooltip>
           </Box>
         </Box>
