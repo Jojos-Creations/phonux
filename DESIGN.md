@@ -347,8 +347,7 @@ In a scrolling row with `rowGesture` `'step'` whose strip is wider than the wind
 The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`, except in a panel resize: a grow that overflows the window adds its stops in the render that moves the margin, so the margin glides there (a panel's width changed under an unchanged container width, or a width is held), and the settle onto a stop waits for the slide. A window resize keeps the snap. A strip that fits the window keeps its centering and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbor of the shown set peeks `m_i` px at each edge, cut by the window
-edge. Nothing fades or shrinks, but at rest a cut slot no wider than a phone is `visibility: hidden` (Workspace writes it with reach), so only
-whole slots draw; a wider panel the edge cuts draws partly, and a slot crossing an edge in a glide, a held drag or a slide after a close, reopen or move keeps drawing until the row rests (the numbers changed, plus one slide and 100 ms). A slot the window does not reach at all is `inert` and takes no
+edge. Nothing fades, shrinks or is hidden: the strip carries a `clip-path` at the slot grid's edges (`gridEdgesOf`: the margin on each side), written from the row's numbers and the strip's x on every move, so a whole panel in the grid draws whole, a panel crossing a grid edge in a glide, a slide or the end bump is cut there, and nothing draws in the margins. A strip panel beside a held or stuck panel is cut at that panel's gap by its own clip (`slotCutAt`). Reach is judged from the numbers too, never from a measured box. A slot wholly outside its strip window is `inert` and takes no
 pointer events, so Tab and find-in-page cannot scroll the row off a stop; Workspace writes that on scroll events and on every
 render. A click or focus in the cut-off neighbor makes the browser scroll, and the row then settles onto the nearest stop that
 shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
@@ -424,6 +423,7 @@ place in the strip, wrapped in a `PanelHold` host that is sticky while the panel
 and right holds out of the strip's widths and rests (`held`, `ids`, `leftOffsets`, `stops`), and `Workspace.tsx` draws two plain
 spacers in the scroller, as wide as the left and right groups, so the strip starts and ends where the groups do. Nothing is portaled.
 
+- A fixed hold sits in the slot grid, not at the window edge: the left group starts at `rowMarginLeft`, so the held panel is slot 0 and the strip's first panel is one gap after it; the right group ends `endPad` before the window's right edge.
 - The element's insets are its own: the left one `left: 0`, the right one `right: gap`. Chromium counts the scroller's padding inside a sticky
   inset, so a `left: gap` on the left element pushes it a gap too far and it overlaps the strip.
 - The insets are `leftInset` (the group and its trailing gap) and `rightInset` (its leading gap and the group), so the strip starts at

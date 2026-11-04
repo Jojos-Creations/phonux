@@ -111,5 +111,5 @@ test('the whole-panel grid of a held row is measured in the strip window, and it
   const n = numbers([scrollRoot(), made('a', { edgeHold: 'left' }), made('b'), made('c'), made('d')], 1000, true);
   assert.deepEqual(n.stops, [0, 406, 812, maxScrollOf(n)], 'the grid, in the 562 between the held panel and the window edge');
   assert.equal(n.stops.at(-1), 1218, 'the 1608 strip with ((562 + 16) mod 406) / 2 = 86 at each end, in the 562 window: 86 + 1608 + 86 - 562');
-  assert.equal(snapToStop(n, 2, 500), 406, 'of the stops whose span draws strip panel c, the one nearest the target');
+  assert.equal(snapToStop(n, 2, 500), 812, 'of the stops that draw strip panel c whole, the one nearest the target: at 406 the window cuts c at 562');
 });

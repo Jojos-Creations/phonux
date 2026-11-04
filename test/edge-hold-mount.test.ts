@@ -55,7 +55,7 @@ test('a left-held panel is drawn in the strip, pinned by its own host, and its v
   assert.ok(slot, 'the held panel is in the strip, at its React place');
   const host = slot.closest<HTMLElement>('[data-row-hold]');
   assert.equal(host?.style.position, 'relative', 'the host holds it at its edge');
-  assert.equal(host?.dataset.holdLeft, '0px', 'the left hold is its offset in the left group');
+  assert.equal(host?.dataset.holdLeft, '86px', 'the left hold sits in the slot grid, at the row margin plus its offset in the left group');
   assert.equal(probeOf(m.container, 'a').dataset.movable, 'false', 'a held panel cannot be moved by a person');
   assert.equal(probeOf(m.container, 'b').dataset.movable, 'true', 'a strip panel still can');
 });
@@ -88,8 +88,8 @@ test('the edge elements are spacers as wide as their groups, and the held panels
   assert.equal(left.style.position, '', 'a spacer, not a held element');
   const aHost = slotOf(m.container, 'a')!.closest<HTMLElement>('[data-row-hold]');
   const cHost = slotOf(m.container, 'c')!.closest<HTMLElement>('[data-row-hold]');
-  assert.equal(aHost?.dataset.holdLeft, '0px');
-  assert.equal(cHost?.dataset.holdRight, '16px', 'the right group: its gap, less the panel offset and width');
+  assert.equal(aHost?.dataset.holdLeft, '83px', 'the left group starts at the grid margin: ((1368 - 812 + 16) mod 406) / 2');
+  assert.equal(cHost?.dataset.holdRight, '99px', 'the right group ends at the grid margin: 83 plus its gap, less the panel offset and width');
 });
 
 test('a held panel keeps its view when its hold starts and when it lets go, for left, right and both', () => {
