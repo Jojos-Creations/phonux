@@ -185,12 +185,23 @@ test('a reader of usePhoneSize sees what the slot draws, and device.size stays t
 test('a resize holds the previous size until the width has settled, then draws the new fit', async () => {
   const m = await mounted({ tuning: { phoneFit: 'fit' } }, 1000, 1117);
   assert.equal(m.slotWidth(), 440);
-  await resize(1400);
+  for (const width of [1100, 1200, 1300, 1400]) await resize(width);
   assert.equal(m.slotWidth(), 440, 'held while the window is still moving');
   // The settle is counted on frames, so the virtual clock runs it.
   await advanceFrames(1000);
   await until('the settled fit', () => m.slotWidth() !== 440);
   assert.equal(m.slotWidth(), 330, '4 slots of 330 fill 1400 (3 would need 445, over the cap)');
+});
+
+test('a window jump draws the new fit in its own step, with no wait and no old size in between', async () => {
+  const m = await mounted({ tuning: { phoneFit: 'fit' } }, 1000, 1117);
+  assert.equal(m.slotWidth(), 440);
+  await resize(1400);
+  assert.equal(m.slotWidth(), 330, 'the jump lands at the new fit at once');
+  const margin = stripMarginOf(document.body);
+  await advanceFrames(1000);
+  assert.equal(m.slotWidth(), 330, 'and nothing refits after it');
+  assert.equal(stripMarginOf(document.body), margin, 'and nothing glides after it');
 });
 
 test('a window still moving keeps the phone size and moves the row at once on every step; holding still 200 ms refits', async () => {

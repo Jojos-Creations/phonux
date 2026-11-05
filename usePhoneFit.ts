@@ -3,7 +3,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
-import { fitPhone, useRowHeightBudget } from './phoneFit.js';
+import { fitPhone, useRowHeightBudget, useWindowJump } from './phoneFit.js';
 import { resizeSettleDelayMs } from './Workspace.js';
 
 /**
@@ -51,7 +51,7 @@ export interface PhoneFitResult {
  * and `tuning.phoneFitMax`; off, or before the container is measured, `preferred` itself. Under `tuning.phoneHeight` 'auto' the
  * height is as tall as the row's room, never shorter than the fit. A new fit is drawn only after the
  * container's width and height have held still for the resize settle (`tuning.resizeSettleSlides` slide durations), and at once
- * under Reduce Motion, so a window held at a breakpoint does not flip the count. `topInset` is the room the row leaves above
+ * on a window jump and under Reduce Motion, so a window held at a breakpoint does not flip the count. `topInset` is the room the row leaves above
  * itself, as `Workspace`'s `topPadding`, and `bottomInset` the room under it, as its `bottomPadding`; omitted, the row gap; either way never less than a header's room unless `tuning.rowTop` is
  * set, which is taken as given. `containerWidth` is the measured width; pass the `containerWidth` and `heightBudget` this
  * returns on to the row.
@@ -71,9 +71,11 @@ export function usePhoneFit(
   const reduced = motionReduced || osReduced;
   const on = tuning.phoneFit === 'fit';
   const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset, tuning.rowTop, tuning.rowGap), rowBottomReservePx(tuning.rowGap, bottomInset, tuning.chrome.where));
-  const settled = useSettledSize(containerWidth, budget, resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides), reduced);
+  const settleMs = resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides);
+  const jumping = useWindowJump(containerWidth, budget, settleMs);
+  const settled = useSettledSize(containerWidth, budget, settleMs, reduced || jumping);
   const previous = React.useRef<number | undefined>(undefined);
-  const fit = on ? fitPhone({ windowWidth: settled.width, heightBudget: settled.height, rowCount: 1, preferred, gap: tuning.rowGap, edge: tuning.rowGap, min: tuning.phoneFitMin, max: tuning.phoneFitMax, ...(previous.current !== undefined ? { previousCount: previous.current } : {}) }) : undefined;
+  const fit = on ? fitPhone({ windowWidth: settled.width, heightBudget: settled.height, rowCount: 1, preferred, gap: tuning.rowGap, edge: tuning.rowGap, min: tuning.phoneFitMin, max: tuning.phoneFitMax, ...(previous.current !== undefined && !jumping ? { previousCount: previous.current } : {}) }) : undefined;
   React.useLayoutEffect(() => {
     previous.current = fit?.count || undefined;
   });

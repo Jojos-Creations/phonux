@@ -18,7 +18,7 @@ import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
-import { LandingContext, PhoneSizeContext, useRowHeightBudget } from './phoneFit.js';
+import { LandingContext, PhoneSizeContext, useRowHeightBudget, useWindowJump } from './phoneFit.js';
 import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, isPanelPress, type DrawnPin } from './panelChrome.js';
@@ -227,10 +227,12 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const announce = React.useCallback((text: string) => setSaid((prev) => ({ n: prev.n + 1, text })), []);
   const derived = useResizeSettled(containerWidth, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides), reduced);
   // Unmeasured until the container has a width: the first measurement is the commit that lands the fitted size.
-  const [landing, setLanding] = React.useState(containerWidth === 0);
+  const [firstLanding, setLanding] = React.useState(containerWidth === 0);
   React.useLayoutEffect(() => {
-    if (landing && containerWidth > 0) setLanding(false);
-  }, [landing, containerWidth]);
+    if (firstLanding && containerWidth > 0) setLanding(false);
+  }, [firstLanding, containerWidth]);
+  // A window jump lands the same way: the new size and panel count in one commit, nothing sliding or growing to reach them.
+  const landing = useWindowJump(containerWidth, heightBudget ?? 0, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides)) || firstLanding;
   // What the last commit drew. A window step moves the row with no animation; any other change past the first measurement glides.
   const drawn = React.useRef({ numbers: rowNumbers, containerWidth, heightBudget });
   const windowStep = drawn.current.containerWidth !== containerWidth || drawn.current.heightBudget !== heightBudget;

@@ -10,7 +10,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
 import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
-import { useOptionalPhoneSize } from './phoneFit.js';
+import { LandingContext, useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
@@ -298,6 +298,8 @@ export function PanelRowSlot({
   // A drag of any axis lifts its slot above the row's others until it has settled; the slot is its own stacking context, so only its z can do it.
   const lifted = usePanelDragging();
   const [present, safeToRemove] = usePresence();
+  // A leaving slot's props no longer change, but context still reaches it: a panel the window's jump left no room for goes in that commit.
+  const landing = React.useContext(LandingContext);
   // The slot's rank from either end of the row follows the row through this context even while the slot leaves, when its props no longer change.
   const { ranks, mounted } = React.useContext(SlotRanksContext);
   const rank = panelId === undefined ? 0 : (ranks.get(panelId) ?? 0);
@@ -339,6 +341,12 @@ export function PanelRowSlot({
     if (!present) {
       if (exiting.current) return;
       exiting.current = true;
+      if (landing) {
+        // Hidden in this commit; AnimatePresence only takes the removal after its own layout effect, which runs after this one.
+        node.style.visibility = 'hidden';
+        queueMicrotask(() => safeToRemove?.());
+        return;
+      }
       const timing = reducedMotion === true ? { duration: 0, ease: transition.ease } : timingOf(exit.transition as { duration?: number; ease?: unknown } | undefined, transition);
       glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
       return;

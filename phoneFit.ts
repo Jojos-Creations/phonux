@@ -83,6 +83,39 @@ export function fitPhone(i: PhoneFitInput): PhoneFit {
 /** The size the default mount fits to the window; unset where nothing fits, so a reader falls back to the host's own. */
 export const PhoneSizeContext = React.createContext<{ readonly width: number; readonly height: number } | undefined>(undefined);
 
+/** How far the row's room moves in one step, in px, for that step to be a jump: past any hand drag of a window edge. */
+const WINDOW_JUMP_PX = 120;
+
+/**
+ * True from a jump of the row's room (a window maximized, restored or snapped) until `width` and `height` have held still for
+ * `holdMs`. A jump has no in-between sizes to follow, so the row lands it in that commit, at the new phone size and panel count, with
+ * no motion: the window's own animation is the transition. A hand drag steps a few px at a time and is never a jump.
+ * @internal
+ */
+export function useWindowJump(width: number, height: number, holdMs: number): boolean {
+  const last = React.useRef({ width, height });
+  const until = React.useRef(0);
+  const [, wake] = React.useReducer((n: number) => n + 1, 0);
+  const dw = Math.abs(width - last.current.width);
+  const dh = Math.abs(height - last.current.height);
+  const measured = last.current.width > 0 && last.current.height > 0;
+  const now = performance.now();
+  // The steps a jump arrives in stay part of it.
+  if (measured && (dw >= WINDOW_JUMP_PX || dh >= WINDOW_JUMP_PX || ((dw > 0 || dh > 0) && now < until.current))) until.current = now + holdMs;
+  last.current = { width, height };
+  const jumping = now < until.current;
+  React.useEffect(() => {
+    if (!jumping) return undefined;
+    // Counted on animation frames, as the settle is, so a virtual frame clock runs this wait too.
+    let frame = requestAnimationFrame(function wait(): void {
+      if (performance.now() >= until.current) wake();
+      else frame = requestAnimationFrame(wait);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [jumping, width, height]);
+  return jumping;
+}
+
 /**
  * True in the commit that first measures the row's container, and in every commit before it. The fitted size lands in that
  * commit, so the slots moved to it snap there: a slide from the preferred size would be a move nobody asked for.
