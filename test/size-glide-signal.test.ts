@@ -118,3 +118,22 @@ test('without reveal the content is not wrapped and the box does not clip', () =
   assert.equal(revealOf(m.container), null);
   assert.deepEqual([boxOf(m.container).style.overflow, boxOf(m.container).style.clipPath], ['', '']);
 });
+
+test('the size glide fills backwards, so a start time ahead of the frame clock draws the old size and not the landing one', async () => {
+  const seenOptions: KeyframeAnimationOptions[] = [];
+  const proto = Element.prototype as unknown as { animate?: unknown };
+  const before = proto.animate;
+  proto.animate = (_frames: unknown, options: KeyframeAnimationOptions) => {
+    seenOptions.push(options);
+    return { startTime: 0, cancel() {}, effect: null };
+  };
+  try {
+    const m = mount(boxed(390, 700));
+    m.rerender(boxed(800, 700));
+    await advanceFrames(16);
+    assert.equal(seenOptions.length, 1, 'the glide ran on a Web Animation');
+    assert.equal(seenOptions[0]!.fill, 'backwards');
+  } finally {
+    proto.animate = before;
+  }
+});

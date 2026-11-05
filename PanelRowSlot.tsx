@@ -569,10 +569,14 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
     }
     const start = { width: from.width, height: h0 };
     setGlide({ from: start, to });
-    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, slide === undefined ? PANEL_TRANSITION : slideToTransition(slide), sharedStartTime(), () => {
+    const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
+    const startMs = sharedStartTime();
+    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, transition, startMs, () => {
       run.current = undefined;
       setGlide(null);
     });
+    const row = closestRowScroller(node);
+    if (row !== null) rowScrollerFor(row).followSize({ startMs, durationSec: transition.duration, ease: transition.ease });
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
   // It fills the box above, so it eases with that box rather than snapping to its own size.
@@ -643,7 +647,8 @@ function runSizeGlide(
   const last = sizeFrame(kind, to, to, heightEases);
   if (typeof node.animate === 'function') {
     // A Web Animation, not a style written each frame: it leaves no style behind when it ends or is cancelled.
-    const animation = node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})` });
+    // `startTime` can be ahead of the timeline, whose clock only moves per frame; without the backwards fill that frame shows the landing size.
+    const animation = node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards' });
     animation.startTime = startTime;
     animation.onfinish = onLand;
     return {

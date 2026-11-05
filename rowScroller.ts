@@ -33,6 +33,9 @@ export interface GlideOptions {
   fade?: boolean;
 }
 
+// The scroll a size change asks for comes a frame or two after the glide starts, once focus has returned to the panel.
+const SIZE_FOLLOW_MS = 150;
+
 /** What may move one row's offset. */
 export interface RowScroller {
   /** The row's current offset: how far its content is moved left, in the units a `scrollLeft` would be. */
@@ -41,6 +44,8 @@ export interface RowScroller {
   glideTo(target: number, o: GlideOptions): boolean;
   /** Where the glide in flight ends; null when none is. */
   glideTarget(): number | null;
+  /** A panel's size glide started at `startMs`: a glide asked for just after rides its clock and curve, so the row and the panel's edge move as one. */
+  followSize(o: { startMs: number; durationSec: number; ease: readonly [number, number, number, number] }): void;
   /** Moves the strip's centering margin to `left`, gliding beside any offset glide. Not counted as a scroll. */
   setMargin(left: number, o: GlideOptions): void;
   /** The strip's translate now: its margin less the offset. */
@@ -291,6 +296,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
     { passive: true },
   );
 
+  let sizeMove: Parameters<RowScroller['followSize']>[0] | null = null;
+
   return {
     scrollLeft: () => offset,
     // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
@@ -312,12 +319,16 @@ function createRowScroller(el: HTMLElement): RowScroller {
         const t = progress(before, now);
         glide = glideOf(from, target, now - (t < 0.5 ? t : 1 - t) * o.durationSec * 1000, o);
       } else if (o.carry === true && before !== null && !before.fade) glide = carried(from, target, now, speedOf(before, now), o);
+      else if (o.fade !== true && sizeMove !== null && now - sizeMove.startMs < SIZE_FOLLOW_MS) glide = glideOf(from, target, sizeMove.startMs, { ...o, durationSec: sizeMove.durationSec, ease: [...sizeMove.ease] });
       else glide = glideOf(from, target, now, o);
       draw(now);
       run();
       return true;
     },
     glideTarget: () => (glide === null ? null : glide.to),
+    followSize(o) {
+      sizeMove = o;
+    },
     setMargin(left, o) {
       const now = performance.now();
       const target = marginGlide === null ? margin : marginGlide.to;
