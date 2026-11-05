@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- `tuning.chrome.where` (`'outside'`, default, or `'inside'`) moves a panel's header and footer inside its frame, as frosted pills inset from its edges, and gives the row the room back. Inside, `mode` does not apply: a panel that cannot scroll always keeps them, and one that scrolls slides them off on a scroll down and back on any scroll up, or while Option (Alt) is held. A panel's root carries `CHROME_INSIDE_ATTRIBUTE` and the `--panel-chrome-inset` variable, which a scrolling view pads its content by (`PANEL_CHROME_INSET_PX`). `rowBottomReservePx` and `rowFootReserve` take the placement as a last argument.
+- Holding Option (Alt) shows every panel's header and footer, whatever `tuning.chrome.mode` says.
+- `tuning.chrome.where` (`'outside'`, default, or `'inside'`) moves a panel's header and footer inside its frame, as frosted pills inset from its edges, and gives the row the room back. `mode` applies as it does outside, and a panel that scrolls also slides them off on a scroll down and back on any scroll up. A panel's root carries `CHROME_INSIDE_ATTRIBUTE` and the `--panel-chrome-inset` variable, which a scrolling view pads its content by (`PANEL_CHROME_INSET_PX`). `rowBottomReservePx` and `rowFootReserve` take the placement as a last argument.
 - A capture turned away while a panel is still loading runs when its `PanelLoader` uncovers it, so a tile never keeps a picture of the placeholder.
 - `PanelLoader` shows a placeholder from a panel's first frame until its `load` promise resolves. The host has 200ms to say what the placeholder shows, with a generic one otherwise. A failed or timed-out load ends in a view with Try again, and two new labels, `couldNotLoad` and `tryAgain`, name it.
 - The View Size menu is a pill across the panel with the panel's corners, and the current size is highlighted and disabled.

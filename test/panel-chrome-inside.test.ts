@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement, useRef } from 'react';
 import { cleanup, mount } from './support/mount-harness.js';
-import { shownMode } from '../panelChrome.js';
 import { rowBottomReservePx } from '../panelChromeSize.js';
 import { useChromeScrollAway } from '../panelChromeInside.js';
 
@@ -65,12 +64,6 @@ test('outside the frame a scroll changes nothing', async () => {
 test('inside, the row keeps no footer room under the frames', () => {
   assert.equal(rowBottomReservePx(8), 40);
   assert.equal(rowBottomReservePx(8, undefined, 'inside'), 8);
-});
-
-test('inside the frame the hover fade does not apply, so a panel that cannot scroll keeps its pills', () => {
-  const chrome = { mode: 'hover-or-active', fadeMs: 120, fadeEase: 'easeOut' } as const;
-  assert.equal(shownMode({ ...chrome, where: 'inside' }), 'always');
-  assert.equal(shownMode({ ...chrome, where: 'outside' }), 'hover-or-active');
 });
 
 test('holding Option brings hidden pills back, and letting go hides them again', async () => {

@@ -1,11 +1,11 @@
 /**
  * The header and footer drawn inside the frame (`tuning.chrome.where` 'inside'): inset pills over the content, which a panel
- * that scrolls hides while it scrolls down and brings back as soon as it scrolls up, or while Option (Alt) is held. A panel
- * that never scrolls keeps them.
+ * that scrolls hides while it scrolls down and brings back as soon as it scrolls up, or while Option (Alt) is held. At rest
+ * they follow `tuning.chrome.mode` like chrome outside the frame.
  */
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
-import { CHROME_ATTRIBUTE, CHROME_PARTS } from './panelChrome.js';
+import { CHROME_ATTRIBUTE, CHROME_PARTS, useOptionHeld } from './panelChrome.js';
 import { BAR_HEIGHT_PX } from './panelChromeSize.js';
 
 /** The attribute on a panel's root while its header and footer are inside its frame. @public */
@@ -44,37 +44,31 @@ export const chromeInsideSx = {
   [`& ${footer}`]: { top: 'auto', bottom: INSET_PX, left: INSET_PX, right: INSET_PX, zIndex: 2 },
 } as const;
 
+const slides = new WeakMap<HTMLElement, Animation>();
+
 /** Slides `el` off toward `edge` or back, from wherever it is. The default theme turns CSS motion off, so this goes through the animation API. */
 function slide(el: HTMLElement, edge: -1 | 1, away: boolean, reduced: boolean): void {
   const gone = { transform: `translateY(${edge * 100}%)`, opacity: 0 };
   const here = { transform: 'none', opacity: 1 };
   el.style.pointerEvents = away ? 'none' : '';
-  el.animate?.(away ? [here, gone] : [gone, here], { duration: reduced ? 0 : SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
+  slides.get(el)?.cancel();
+  const motion = el.animate?.(away ? [here, gone] : [gone, here], { duration: reduced ? 0 : SLIDE_MS, easing: 'ease-out', fill: 'forwards' });
+  if (motion === undefined) return;
+  slides.set(el, motion);
+  // Back in place it lets go, so the chrome's own hover fade decides the opacity again.
+  if (!away) motion.onfinish = () => motion.cancel();
 }
 
 /** Tracks scrolling under `root` while `inside`, and slides its header and footer. Returns the root's capture-phase scroll handler. */
 export function useChromeScrollAway(root: React.RefObject<HTMLElement | null>, inside: boolean): (event: React.UIEvent<HTMLElement>) => void {
   const reduced = useReducedMotionConfig() === true || useReducedMotion() === true;
   const [away, setAway] = React.useState(false);
-  const [held, setHeld] = React.useState(false);
+  const held = useOptionHeld();
   const gone = away && !held;
   const last = React.useRef(new WeakMap<EventTarget, number>());
   const shown = React.useRef(false);
   React.useEffect(() => {
     if (!inside) setAway(false);
-  }, [inside]);
-  React.useEffect(() => {
-    if (!inside) return undefined;
-    const onKey = (event: KeyboardEvent): void => setHeld(event.altKey);
-    const onBlur = (): void => setHeld(false);
-    window.addEventListener('keydown', onKey, true);
-    window.addEventListener('keyup', onKey, true);
-    window.addEventListener('blur', onBlur);
-    return () => {
-      window.removeEventListener('keydown', onKey, true);
-      window.removeEventListener('keyup', onKey, true);
-      window.removeEventListener('blur', onBlur);
-    };
   }, [inside]);
   React.useEffect(() => {
     if (shown.current === gone) return;

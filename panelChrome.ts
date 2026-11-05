@@ -4,7 +4,7 @@
  */
 import * as React from 'react';
 import { animate, useReducedMotion, useReducedMotionConfig } from 'motion/react';
-import { LIBRARY_TUNING_DEFAULTS, type ChromeTuning, type PanelId } from './panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, type PanelId } from './panelSettings.js';
 import type { ReorderHandle } from './dragToClose.js';
 import { warnCounterId } from './panelIds.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -492,15 +492,31 @@ export interface ChromeRootHandlers {
   onBlur: React.FocusEventHandler<HTMLElement>;
 }
 
-/** Chrome inside the frame shows by scroll alone, so a panel that cannot scroll always has it; `mode` is for chrome outside. */
-export const shownMode = (chrome: ChromeTuning): ChromeTuning['mode'] => (chrome.where === 'inside' ? 'always' : chrome.mode);
+/** Whether Option (Alt) is down, which shows every panel's header and footer. Leaving the window lets it go, since its key-up then lands elsewhere. */
+export function useOptionHeld(): boolean {
+  const [held, setHeld] = React.useState(false);
+  React.useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => setHeld(event.altKey);
+    const onBlur = (): void => setHeld(false);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
+  return held;
+}
 
 /**
  * Whether the panel above shows its chrome in full, and the root handlers that track hover and focus. Shown while the mode is
  * 'always', while the panel is hovered, holds focus, is active or is dragged, and on a device that cannot hover.
  */
 export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootHandlers } {
-  const mode = shownMode(React.useContext(PanelSlotContext)?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome);
+  const { mode } = React.useContext(PanelSlotContext)?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
+  const held = useOptionHeld();
   const active = usePanelActive();
   const dragging = usePanelDragging();
   const cannotHover = React.useSyncExternalStore(subscribeHoverNone, hoverNone, () => false);
@@ -517,7 +533,7 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
     }),
     [],
   );
-  return { visible: mode === 'always' || hovered || focused || active || dragging || cannotHover, handlers };
+  return { visible: mode === 'always' || held || hovered || focused || active || dragging || cannotHover, handlers };
 }
 
 /**
@@ -528,9 +544,7 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
  */
 export function useChromeFade(visible: boolean): (node: HTMLElement | null) => void {
   const slot = React.useContext(PanelSlotContext);
-  const chrome = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
-  const { fadeMs, fadeEase } = chrome;
-  const mode = shownMode(chrome);
+  const { mode, fadeMs, fadeEase } = slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
   // The system preference counts whatever the app's MotionConfig says, as it does for the row's own slides.
   const configReduced = useReducedMotionConfig() === true;
   const systemReduced = useReducedMotion() === true;
