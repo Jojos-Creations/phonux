@@ -72,6 +72,8 @@ export function useChromeScrollAway(root: React.RefObject<HTMLElement | null>, i
   return React.useCallback((event) => {
     if (!inside) return;
     const target = event.target as HTMLElement;
+    // React carries a scroll out of a portal, so a dialog the panel opened reports here without being under it.
+    if (!event.currentTarget.contains(target)) return;
     const now = target.scrollTop;
     const before = last.current.get(target) ?? 0;
     if (now <= 0) {
