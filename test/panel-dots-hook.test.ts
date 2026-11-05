@@ -1,6 +1,6 @@
 /**
  * usePanelDots' handlers, rendered: an oval drag writes the row only while it holds the claim and releases it on end,
- * and a dot click glides, or snaps under Reduce Motion from either source.
+ * and a dot click glides, or snaps under Reduce Motion from either source; in a row that parks it steps toward the center.
  */
 import './support/jsdom-globals.js';
 import { rowOffsetOf } from './support/strip.js';
@@ -113,6 +113,32 @@ test('parked entries get dots in row order, and a click on one steps the row tow
   assert.deepEqual(steps, ['right']);
   React.act(() => out.dots!.selectDot('p0'));
   assert.equal(steps.at(-1), 'left');
+});
+
+test('in a row that parks, a drawn panel off center steps toward the center only while a panel waits on that side', () => {
+  const steps: string[] = [];
+  const out: { dots?: PanelDots } = {};
+  const parks = { ...numbers, windowWidth: 1008, stripWindow: 664, stripStart: 344, stripWidth: 644, ids: ['a', 'b'], widths: [320, 320], leftOffsets: [0, 344] } as unknown as RowNumbers;
+  const Probe = ({ all }: { all: { id: string; live?: boolean; collapsible?: boolean }[] }) => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => registerRowKeys(scroller.current!, { step: (d) => steps.push(d) }), []);
+    out.dots = usePanelDots({ rowNumbers: parks, entries: all as never, scroller, tuning: resolveWorkspaceTuning({}) });
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });
+  };
+  const m = mount(React.createElement(Probe, { all: [{ id: 'a' }, { id: 'b' }, { id: 'p', live: false }] }));
+  React.act(() => out.dots!.selectDot('a'));
+  assert.deepEqual(steps, [], 'a panel already centered stays');
+  m.rerender(React.createElement(Probe, { all: [{ id: 'a' }, { id: 'b', collapsible: false }, { id: 'p', live: false }] }));
+  React.act(() => out.dots!.selectDot('b'));
+  assert.deepEqual(steps, [], 'a panel that never parks does not move, so no step centers it');
+  m.rerender(React.createElement(Probe, { all: [{ id: 'a' }, { id: 'b' }, { id: 'p', live: false }] }));
+  React.act(() => out.dots!.selectDot('b'));
+  assert.deepEqual(steps, ['right'], 'a panel right of center steps, with one waiting to its right');
+  cleanup();
+  steps.length = 0;
+  mount(React.createElement(Probe, { all: [{ id: 'a' }, { id: 'b' }] }));
+  React.act(() => out.dots!.selectDot('b'));
+  assert.deepEqual(steps, [], 'the last panel has nothing to take its slot, so it stays');
 });
 
 test('a bar that unmounts mid-drag releases its claim, so the row still takes steps', async () => {

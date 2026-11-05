@@ -22,7 +22,7 @@ export interface PanelDots {
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
   readonly width: number;
-  /** Centers the panel `id` in the window, or for a parked panel steps the row until it is drawn. Does nothing while a drag holds the row. */
+  /** Centers the panel `id` in the window. A row that parks steps until the panel is as near the center as the panels beside it allow, bringing a parked one in on the way. Does nothing while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
   startOvalDrag(): { drag(dx: number): void; end(): void } | null;
@@ -75,6 +75,18 @@ function ovalCursor(x: number | null, oval: { left: number; width: number }, sid
   if (x === null) return 'default';
   // The dots lie over the oval, so a cursor set per dot would leave the part of a dot that straddles the oval's edge as a pointer.
   return x >= oval.left && x <= oval.left + oval.width + 2 * side ? 'grab' : overDot ? 'pointer' : 'default';
+}
+
+/** The step that brings the drawn panel `id` nearer the window's center in a row that parks, or null when none does: it is as near as a step gets, or no panel waits on that side. */
+function centerStep(n: RowNumbers, id: string, maxScroll: number, bar: { dots: readonly { id: string; left: number }[]; oval: { left: number }; parked: ReadonlySet<string> }): 'left' | 'right' | null {
+  const index = n.ids.indexOf(id);
+  if (maxScroll > 0 || index < 0 || n.ids.length < 2) return null;
+  const off = n.stripStart + n.leftOffsets[index]! + n.widths[index]! / 2 - n.windowWidth / 2;
+  const slot = n.leftOffsets[1]! - n.leftOffsets[0]!;
+  if (Math.abs(off) <= slot / 2 + 1) return null;
+  const direction = off > 0 ? 'right' : 'left';
+  const waits = bar.dots.some((d) => bar.parked.has(d.id) && (direction === 'left' ? d.left < bar.oval.left : d.left > bar.oval.left));
+  return waits ? direction : null;
 }
 
 /** The parked panels of `entries` a scroll can bring in, each placed after the drawn panels ahead of it in the row's order. */
@@ -142,15 +154,17 @@ export function usePanelDots(i: {
 
   // A click on a parked dot steps the row toward it, one step each time the parked set changes, until it is drawn. A step that
   // only scrolls a row toward its end changes no parked panel, so the wait for the next step also ends after one slide.
+  // A row that parks then goes on stepping toward the center, for a drawn panel's dot too, while a panel waits on that side to take the slot it leaves.
   const [seek, setSeek] = React.useState<{ id: string; direction: 'left' | 'right'; steps: number } | null>(null);
   const parkedKey = parked.map((p) => p.id).join(' ');
   React.useEffect(() => {
     if (seek === null) return undefined;
-    if (!bar.parked.has(seek.id) || seek.steps <= 0) {
+    const direction = bar.parked.has(seek.id) ? seek.direction : entries.find((e) => e.id === seek.id)?.collapsible === false ? null : centerStep(n, seek.id, maxScroll, bar);
+    if (direction === null || seek.steps <= 0) {
       setSeek(null);
       return undefined;
     }
-    step(seek.direction);
+    step(direction);
     // The steps toward a far dot come at the fast-scroll floor, each retargeting the last, not one whole slide apiece.
     const next = window.setTimeout(() => setSeek((s) => (s === null ? s : { ...s, steps: s.steps - 1 })), Math.min(tuning.slide.durationSec, FAST_SCROLL_FLOOR_SEC) * 1000 + 50);
     return () => window.clearTimeout(next);
@@ -164,7 +178,7 @@ export function usePanelDots(i: {
       // One step per parked dot between the window and this one, and one more for a row that must first scroll to its end.
       const left = dot.left < bar.oval.left;
       const between = bar.dots.filter((d) => bar.parked.has(d.id) && (left ? d.left >= dot.left && d.left < bar.oval.left : d.left <= dot.left && d.left > bar.oval.left)).length;
-      setSeek({ id, direction: left ? 'left' : 'right', steps: between + 1 });
+      setSeek({ id, direction: left ? 'left' : 'right', steps: between + 1 + (maxScroll > 0 ? 0 : parked.length) });
       return;
     }
     const index = n.ids.indexOf(id);
@@ -172,7 +186,10 @@ export function usePanelDots(i: {
     rowScrollerFor(el).noteInput();
     rowScrollerFor(el).noteMove();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
-    if (target === null) return;
+    if (target === null) {
+      if (!rowScrollerFor(el).claimHeld()) setSeek({ id, direction: 'right', steps: parked.length });
+      return;
+    }
     // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted center.
     // Numbers built by hand may omit the stops; such a row has none to snap to.
     const at = Math.min(maxScroll, target + n.stripStart);
