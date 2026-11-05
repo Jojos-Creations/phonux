@@ -72,3 +72,22 @@ test('inside the frame the hover fade does not apply, so a panel that cannot scr
   assert.equal(shownMode({ ...chrome, where: 'inside' }), 'always');
   assert.equal(shownMode({ ...chrome, where: 'outside' }), 'hover-or-active');
 });
+
+test('holding Option brings hidden pills back, and letting go hides them again', async () => {
+  const { container } = mount(createElement(Harness));
+  await scrollTo(container.querySelector<HTMLElement>('[data-scroller]')!, 100);
+  const key = async (type: string, altKey: boolean): Promise<void> => {
+    await act(async () => { window.dispatchEvent(new window.KeyboardEvent(type, { key: 'Alt', altKey })); });
+    await later();
+  };
+  assert.equal(away(container, 'header'), true);
+  await key('keydown', true);
+  assert.equal(away(container, 'header'), false);
+  assert.equal(away(container, 'footer'), false);
+  await key('keyup', false);
+  assert.equal(away(container, 'header'), true);
+  await key('keydown', true);
+  await act(async () => { window.dispatchEvent(new window.Event('blur')); });
+  await later();
+  assert.equal(away(container, 'header'), true, 'leaving the window lets Option go');
+});

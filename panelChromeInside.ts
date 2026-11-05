@@ -1,6 +1,7 @@
 /**
  * The header and footer drawn inside the frame (`tuning.chrome.where` 'inside'): inset pills over the content, which a panel
- * that scrolls hides while it scrolls down and brings back as soon as it scrolls up. A panel that never scrolls keeps them.
+ * that scrolls hides while it scrolls down and brings back as soon as it scrolls up, or while Option (Alt) is held. A panel
+ * that never scrolls keeps them.
  */
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
@@ -55,20 +56,35 @@ function slide(el: HTMLElement, edge: -1 | 1, away: boolean, reduced: boolean): 
 export function useChromeScrollAway(root: React.RefObject<HTMLElement | null>, inside: boolean): (event: React.UIEvent<HTMLElement>) => void {
   const reduced = useReducedMotionConfig() === true || useReducedMotion() === true;
   const [away, setAway] = React.useState(false);
+  const [held, setHeld] = React.useState(false);
+  const gone = away && !held;
   const last = React.useRef(new WeakMap<EventTarget, number>());
   const shown = React.useRef(false);
   React.useEffect(() => {
     if (!inside) setAway(false);
   }, [inside]);
   React.useEffect(() => {
-    if (shown.current === away) return;
-    shown.current = away;
+    if (!inside) return undefined;
+    const onKey = (event: KeyboardEvent): void => setHeld(event.altKey);
+    const onBlur = (): void => setHeld(false);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [inside]);
+  React.useEffect(() => {
+    if (shown.current === gone) return;
+    shown.current = gone;
     const box = root.current;
     const top = box?.querySelector<HTMLElement>(header);
     const bottom = box?.querySelector<HTMLElement>(footer);
-    if (top) slide(top, -1, away, reduced);
-    if (bottom) slide(bottom, 1, away, reduced);
-  }, [away, reduced, root]);
+    if (top) slide(top, -1, gone, reduced);
+    if (bottom) slide(bottom, 1, gone, reduced);
+  }, [gone, reduced, root]);
   return React.useCallback((event) => {
     if (!inside) return;
     const target = event.target as HTMLElement;
