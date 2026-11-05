@@ -234,6 +234,7 @@ export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';
 export { stepRow } from './rowStep.js';
 export { useRowFrameBand } from './rowFrameBand.js';
 export type { RowFrameBand } from './rowFrameBand.js';
+export { CHROME_INSIDE_ATTRIBUTE, PANEL_CHROME_INSET_PX } from './panelChromeInside.js';
 export { PANEL_BAR_HEIGHT_PX, PANEL_FOOTER_ROOM_PX, rowFootReserve } from './panelChromeSize.js';
 export { showPanels, whenAccepted, whenColumnReady, whenPanel } from './panelWaits.js';
 export type { WaitOptions } from './panelWaits.js';

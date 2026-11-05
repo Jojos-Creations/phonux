@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `tuning.chrome.where` (`'outside'`, default, or `'inside'`) moves a panel's header and footer inside its frame, as frosted pills inset from its edges, and gives the row the room back. Inside, `mode` does not apply: a panel that cannot scroll always keeps them, and one that scrolls slides them off on a scroll down and back on any scroll up. A panel's root carries `CHROME_INSIDE_ATTRIBUTE` and the `--panel-chrome-inset` variable, which a scrolling view pads its content by (`PANEL_CHROME_INSET_PX`). `rowBottomReservePx` and `rowFootReserve` take the placement as a last argument.
+- A capture turned away while a panel is still loading runs when its `PanelLoader` uncovers it, so a tile never keeps a picture of the placeholder.
 - `PanelLoader` shows a placeholder from a panel's first frame until its `load` promise resolves. The host has 200ms to say what the placeholder shows, with a generic one otherwise. A failed or timed-out load ends in a view with Try again, and two new labels, `couldNotLoad` and `tryAgain`, name it.
 - The View Size menu is a pill across the panel with the panel's corners, and the current size is highlighted and disabled.
 - A stepping row draws whole panels in its slot grid and nothing beside it. No slot is hidden any more (a stale measured box once hid panels the window showed): the strip is clipped at the grid's edges from the row's numbers, a panel crossing an edge mid-move is cut there, and reach is judged from the numbers. A left or right `edgeHold` panel sits in the grid's first or last slot, inside the row's margin, with the strip's next panel one gap from it. `snapToStop` and a restored rest land only on stops that draw the panel whole. The flush end rest lives in one function (`flushEndRest`).

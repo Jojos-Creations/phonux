@@ -37,6 +37,8 @@ const VALUE_EXPORTS = [
   'noopCaptureTrigger',
   'createTileCapture',
   'useRecaptureOnSettle',
+  'CHROME_INSIDE_ATTRIBUTE',
+  'PANEL_CHROME_INSET_PX',
   'useViewState',
   'ViewStateMissingProviderError',
   'DEFAULT_PANEL_SIZE',

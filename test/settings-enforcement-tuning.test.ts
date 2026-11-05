@@ -262,7 +262,7 @@ test('the library tuning defaults are exactly these numbers, by key name', () =>
     rowGesture: 'step',
     fastScroll: 'coalesce',
     initialScroll: 'start',
-    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' },
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', where: 'outside' },
     maxLivePanels: null,
     phoneFit: 'off',
     phoneFitMin: 0.82,

@@ -297,6 +297,8 @@ export type ChromeTuning = {
   fadeMs: number;
   /** The curve of that fade: 'easeIn', 'easeOut', 'easeInOut', 'linear' or four cubic-bezier numbers. */
   fadeEase: FadeEase;
+  /** 'outside' floats the header above the frame and the footer below it. 'inside' draws them over the frame as inset pills, and a panel that scrolls hides them while it scrolls down. */
+  where: 'outside' | 'inside';
 };
 
 /** The workspace's tuning: the row-wide numbers, set through `createWorkspace({ tuning })` and `configureTuning`. A panel carries none. @public */
@@ -1134,8 +1136,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.chrome',
     group: 'tuning',
-    values: "object: mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]) (workspace only)",
-    default: "always, 120, easeOut (CHROME)",
+    values: "object: where 'outside' or 'inside', mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]) (workspace only)",
+    default: "always, 120, easeOut, outside (CHROME)",
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1590,6 +1592,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     mode: oneOf('always', 'hover-or-active'),
     fadeMs: integer(0, 10000),
     fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
+    where: oneOf('outside', 'inside'),
   },
 };
 

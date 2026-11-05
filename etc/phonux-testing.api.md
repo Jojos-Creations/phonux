@@ -38,6 +38,7 @@ export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
     fadeEase: FadeEase;
+    where: 'outside' | 'inside';
 };
 
 // @public

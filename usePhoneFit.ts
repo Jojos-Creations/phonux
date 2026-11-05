@@ -70,7 +70,7 @@ export function usePhoneFit(
   const osReduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const reduced = motionReduced || osReduced;
   const on = tuning.phoneFit === 'fit';
-  const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset, tuning.rowTop, tuning.rowGap), rowBottomReservePx(tuning.rowGap, bottomInset));
+  const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset, tuning.rowTop, tuning.rowGap), rowBottomReservePx(tuning.rowGap, bottomInset, tuning.chrome.where));
   const settled = useSettledSize(containerWidth, budget, resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides), reduced);
   const previous = React.useRef<number | undefined>(undefined);
   const fit = on ? fitPhone({ windowWidth: settled.width, heightBudget: settled.height, rowCount: 1, preferred, gap: tuning.rowGap, edge: tuning.rowGap, min: tuning.phoneFitMin, max: tuning.phoneFitMax, ...(previous.current !== undefined ? { previousCount: previous.current } : {}) }) : undefined;

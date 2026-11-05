@@ -128,7 +128,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
   const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
   // A column's band below that outgrows the default pushes the row up by the difference.
-  const bottomPadding = columnBottom > 0 ? rowBottomReservePx(tuning.rowGap) + columnBottom : undefined;
+  const bottomPadding = columnBottom > 0 ? rowBottomReservePx(tuning.rowGap, undefined, tuning.chrome.where) + columnBottom : undefined;
   const phone = usePhoneFit(ref, measuredWidth, preferred, tuning, topPadding, bottomPadding);
   const phoneWidth = phone.width;
   const containerWidth = phone.containerWidth;

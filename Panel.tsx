@@ -9,6 +9,8 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import type { CssStyle, ElementProps } from './cssStyle.js';
+import { CHROME_INSIDE_ATTRIBUTE, chromeInsideSx, useChromeScrollAway } from './panelChromeInside.js';
+import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { type PanelSize, useOptionalHost } from './hostApi.js';
 import { resolveIcons } from './icons.js';
@@ -108,6 +110,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   const touchProps = usePanelTouch(rootRef, React.useContext(PanelTouchContext));
   const dragging = usePanelDragging();
   const { visible, handlers } = useChromeVisibility();
+  const inside = (slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome).where === 'inside';
+  const onScrollCapture = useChromeScrollAway(rootRef, inside);
   const fadeHeader = useChromeFade(visible);
   const fadeGrab = useChromeFade(visible);
   const warned = React.useRef(false);
@@ -141,9 +145,14 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
-      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...sx }}
+      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...(inside ? chromeInsideSx : {}), ...sx }}
       {...{ [PANEL_ROOT_ATTRIBUTE]: '' }}
       {...rest}
+      {...(inside ? { [CHROME_INSIDE_ATTRIBUTE]: '' } : {})}
+      onScrollCapture={(e: React.UIEvent<HTMLDivElement>) => {
+        onScrollCapture(e);
+        rest.onScrollCapture?.(e);
+      }}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
       {...touchProps}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}

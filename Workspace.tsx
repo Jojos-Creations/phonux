@@ -371,7 +371,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const style = workspaceShellStyle({ containerWidth, rowResizeSettled, panelResizing, phoneWidth, fixedColumnCount, liveWidths, gap, slide: resolved.slide, rowScroll, rowNumbers, rowGesture: resolved.rowGesture });
   // The room the row has to grow into: the container's height less its padding. 0 (unmeasured) applies no height limit.
   const topPad = rowTopReservePx(topPadding, resolved.rowTop, gap);
-  const bottomPad = rowBottomReservePx(gap, bottomPadding);
+  const bottomPad = rowBottomReservePx(gap, bottomPadding, resolved.chrome.where);
   // A settled budget stands in for the measured one, so a panel that fills the row's height grows in the same glide.
   const measuredHeight = useRowHeightBudget(overflowContainerRef, topPad, bottomPad, heightBudget === undefined);
   const availableHeight = heightBudget ?? measuredHeight;

@@ -1535,15 +1535,15 @@ test('matrix:tuning.chrome', async () => {
   await wrongScopeInEveryStatus({ tuning: { chrome: { mode: 'hover-or-active' } } }, 'tuning.chrome');
   const r = await matrixRig();
   await r.settle();
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' });
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', where: 'outside' });
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))) }, { ok: true, changed: true, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] });
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut' }, 'a one-member patch keeps the other members');
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut', where: 'outside' }, 'a one-member patch keeps the other members');
   assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))).changed, false, 'an equal patch changes nothing');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 10001 } })), 'invalid-settings', 'outside 0 to 10000 throws');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { mode: 'sometimes' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeMs, 60, 'a refused patch left the value');
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'linear' } }))) }, { ok: true, changed: true, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] } as never, 'fadeEase applies at once, like the other members');
-  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'linear' }, 'a fadeEase-only patch keeps the other members');
+  assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'linear', where: 'outside' }, 'a fadeEase-only patch keeps the other members');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'cubic-out' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeEase, 'linear', 'a refused patch left the value');
 });

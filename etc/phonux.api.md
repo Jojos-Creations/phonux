@@ -76,6 +76,9 @@ export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof Workspac
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
 
 // @public
+export const CHROME_INSIDE_ATTRIBUTE = "data-panel-chrome-inside";
+
+// @public
 export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
@@ -90,6 +93,7 @@ export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
     fadeEase: FadeEase;
+    where: 'outside' | 'inside';
 };
 
 // @public
@@ -596,6 +600,9 @@ export const PANEL_API: PanelApiLevel;
 
 // @public
 export const PANEL_BAR_HEIGHT_PX: number;
+
+// @public
+export const PANEL_CHROME_INSET_PX: number;
 
 // @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
@@ -1364,7 +1371,7 @@ export const ROW_SLOT_ATTRIBUTE = "data-row-slot";
 export const ROW_STRIP_ATTRIBUTE = "data-row-strip";
 
 // @public
-export const rowFootReserve: (gap: number) => number;
+export const rowFootReserve: (gap: number, where?: "outside" | "inside") => number;
 
 // @public
 export interface RowFrameBand {
