@@ -122,7 +122,7 @@ test('in a row that parks, a drawn panel off center steps toward the center only
   const Probe = ({ all }: { all: { id: string; live?: boolean; collapsible?: boolean }[] }) => {
     const scroller = React.useRef<HTMLDivElement>(null);
     React.useEffect(() => registerRowKeys(scroller.current!, { step: (d) => steps.push(d) }), []);
-    out.dots = usePanelDots({ rowNumbers: parks, entries: all as never, scroller, tuning: resolveWorkspaceTuning({}) });
+    out.dots = usePanelDots({ rowNumbers: parks, entries: all, scroller, tuning: resolveWorkspaceTuning({}) });
     return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });
   };
   const m = mount(React.createElement(Probe, { all: [{ id: 'a' }, { id: 'b' }, { id: 'p', live: false }] }));

@@ -13,6 +13,8 @@ export interface WorkspaceRowEntry {
   readonly uid?: string;
   /** False while the panel is parked: in the row's order but not drawn. Absent reads as drawn. */
   readonly live?: boolean;
+  /** False for an always-shown column, which the row never parks. Absent on a hand-built entry. */
+  readonly collapsible?: boolean;
   /** True only for the row's reserved anchor entry, which is never drawn and has no dot. */
   readonly marker?: true;
   /** How many phone widths wide the panel is set to. Absent reads as one. */
