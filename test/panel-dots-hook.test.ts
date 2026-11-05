@@ -167,3 +167,29 @@ test('on a row that cannot scroll, a dragged oval moves with the pointer, the ro
   React.act(() => out.dots!.barProps.onPointerUp({} as never));
   assert.equal(out.dots!.oval.left, rest, 'release settles the oval on the window the row is at');
 });
+
+test('a press off the oval never drags it: only the oval itself can be grabbed', () => {
+  const out: { dots?: PanelDots } = {};
+  const fits = { ...numbers, stripWidth: 600, windowWidth: 1300, stripWindow: 1300 } as unknown as RowNumbers;
+  const all = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'p1', live: false }, { id: 'p2', live: false }];
+  const Probe = () => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    out.dots = usePanelDots({ rowNumbers: fits, entries: all, scroller, tuning: resolveWorkspaceTuning({}) });
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '' });
+  };
+  const m = mount(React.createElement(Probe));
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const bar = { setPointerCapture() {}, getBoundingClientRect: () => ({ left: 0 }) };
+  const { left, width } = out.dots!.oval;
+  const off = left + width + 10;
+  assert.ok(off < out.dots!.width, 'precondition: the press lands on the bar, past the oval');
+  React.act(() => out.dots!.barProps.onPointerDown({ button: 0, clientX: off, target: el, currentTarget: bar, pointerId: 1 } as never));
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: off + 40, target: el, currentTarget: bar } as never));
+  assert.equal(out.dots!.oval.left, left, 'the oval stays');
+  assert.notEqual(out.dots!.cursor, 'grabbing');
+  React.act(() => out.dots!.barProps.onPointerUp({} as never));
+  React.act(() => out.dots!.barProps.onPointerDown({ button: 0, clientX: left + 1, target: el, currentTarget: bar, pointerId: 1 } as never));
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: left + 21, target: el, currentTarget: bar } as never));
+  assert.equal(out.dots!.oval.left, left + 20, 'control: a press on the oval drags it');
+  React.act(() => out.dots!.barProps.onPointerUp({} as never));
+});
