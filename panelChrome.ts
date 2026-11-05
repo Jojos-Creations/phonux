@@ -34,6 +34,12 @@ export const DRAGGING_ATTRIBUTE = 'data-panel-dragging';
 export const CHROME_ATTRIBUTE = 'data-panel-chrome-part';
 
 /**
+ * Set on a panel's root while its header and footer are showing, so a host can draw around them.
+ * @public
+ */
+export const CHROME_SHOWN_ATTRIBUTE = 'data-panel-chrome-shown';
+
+/**
  * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`), `footer` and `resize`. A panel
  * carries at most one element of each, except `resize`, which marks the grip on each side.
  * @public

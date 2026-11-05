@@ -24,7 +24,7 @@ import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import { GRAB_HANDLE_PX } from './rowConstants.js';
 import { PanelTouchContext, usePanelTouch } from './panelTouch.js';
-import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
+import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, CHROME_SHOWN_ATTRIBUTE, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
 export type { Host } from './hostApi.js';
@@ -154,6 +154,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
         rest.onScrollCapture?.(e);
       }}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
+      {...(visible || (slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome).mode === 'always' ? { [CHROME_SHOWN_ATTRIBUTE]: '' } : {})}
       {...touchProps}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
       onPointerEnter={(e: React.PointerEvent<HTMLDivElement>) => {

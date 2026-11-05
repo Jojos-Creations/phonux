@@ -204,7 +204,7 @@ export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
 export type { ConfigureResult, PanelManager, PanelResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from './panels/usePanelStates.js';
-export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
+export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, CHROME_SHOWN_ATTRIBUTE, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
 export type { PanelRect, PanelRectEvent } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
 export { usePanelPresence } from './panelPresence.js';
