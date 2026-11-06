@@ -5,8 +5,9 @@
  */
 import { computeMaxLiveWidth, computeRowLayout } from './panelRowLayout.js';
 import { isPresent, type PanelRowEntry } from './panelRowEntry.js';
-import { panelWidthOf } from './panelTiers.js';
+import { drawnSlotsOf, panelWidthOf } from './panelTiers.js';
 import { parksForRoom } from './panelWindow.js';
+import { layoutOf, type RowModel } from './rowModel.js';
 import type { RowRest } from './rowRest.js';
 
 /** What `computeRowNumbers` returns: one row's measurements, derived from its entries and never stored. @public */
@@ -87,7 +88,18 @@ export interface RowNumbers {
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */
-export function computeRowNumbers(i: {
+export function computeRowNumbers(i: Parameters<typeof legacyRowNumbers>[0]): RowNumbers {
+  return rowNumbersViaModel(i) ?? legacyRowNumbers(i);
+}
+
+/**
+ * The row's numbers by the arithmetic that predates the position model, kept as the reference the model's adapter is compared with.
+ * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the numbers of a row that
+ * never scrolls (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
+ * and no wider than the window, and centers only a strip that fits.
+ * @internal
+ */
+export function legacyRowNumbers(i: {
   /** The row's whole list; the entries `isPresent` drops (parked ones, the marker) are not drawn and are ignored. */
   entries: readonly PanelRowEntry[];
   /** The phone frame's width in px: what a phone panel and a fixed column are drawn at. */
@@ -168,6 +180,70 @@ export function computeRowNumbers(i: {
   const reservedWidths = [...present.flatMap((p, k) => (admittedKs.has(k) || parksForRoom(p) ? [] : [allWidths[k]!])), ...admitted.map((a) => allWidths[a.k]!)];
   const parkLiveWidths = present.flatMap((p, k) => (admittedKs.has(k) || !parksForRoom(p) ? [] : [allWidths[k]!]));
   return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad, ...(rest !== null && rest.lead > 0 ? { leadPx: rest.lead * slotPx } : {}) };
+}
+
+/**
+ * The row's numbers read off the position model, or null for a row the model does not express: an unmeasured window, a row
+ * that does not scroll, a window narrower than a phone, a hold that is not the first panel's left hold, and rests that draw
+ * blanks. `computeRowNumbers` then answers with the older arithmetic. @internal
+ */
+export function rowNumbersViaModel(i: Parameters<typeof legacyRowNumbers>[0]): RowNumbers | null {
+  const present = i.entries.filter(isPresent);
+  const measured = i.containerWidth !== 0;
+  if (!measured || !present.some((p) => p.settings?.overflow === 'scroll')) return null;
+  const windowWidth = Math.max(0, i.containerWidth - 2 * i.gap);
+  if (windowWidth < i.phoneWidth) return null;
+  const holds = present.flatMap((p, k) => (p.settings?.edgeHold === 'left' || p.settings?.edgeHold === 'right' || p.settings?.edgeHold === 'both' ? [{ k, hold: p.settings.edgeHold }] : []));
+  if (holds.some((h) => h.hold !== 'left' || h.k !== 0)) return null;
+  const maxLiveWidth = Math.max(i.phoneWidth, windowWidth);
+  const model: RowModel = {
+    panels: present.map((p) => ({ id: p.id, slots: drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap) ?? 1 })),
+    heldLeft: holds.length > 0 ? present[0]!.id : null,
+    phonePx: i.phoneWidth,
+    gapPx: i.gap,
+    windowPx: windowWidth,
+    view: 0,
+  };
+  const l = layoutOf(model);
+  const overflows = l.stripPx > windowWidth;
+  if (!overflows && i.rest != null) return null;
+  // Only a row that overflows holds: a row that fits gives the hold back, as it always has.
+  const held = overflows ? l.held : null;
+  const leftInset = held === null ? 0 : held.w + i.gap;
+  const strip = l.drawn.filter((d) => d !== held);
+  const widths = strip.map((d) => d.w);
+  const leftOffsets = strip.map((d) => d.x - leftInset);
+  const stripWidth = strip.length === 0 ? 0 : l.stripPx - leftInset;
+  const stripWindow = windowWidth - leftInset;
+  const stepping = i.wholePanels === true && overflows;
+  const rowMarginLeft = stepping || !overflows ? l.centerPx : 0;
+  const endPad = stepping ? l.centerPx : 0;
+  // The model's rests are views; the row's are scroll offsets, which start where the strip's first slot does.
+  const stops = stepping ? l.stops.map((s) => s + l.centerPx) : [];
+  const allWidths = l.drawn.map((d) => d.w);
+  const heldAt = held === null ? -1 : 0;
+  return {
+    rowScroll: true,
+    windowWidth,
+    stripWidth,
+    rowMarginLeft,
+    ids: strip.map((d) => d.id),
+    widths,
+    leftOffsets,
+    held: held === null ? [] : [{ id: held.id, side: 'left', width: held.w, offset: 0 }],
+    stuck: [],
+    leftInset,
+    rightInset: 0,
+    stripStart: leftInset + rowMarginLeft,
+    stripWindow,
+    maxLiveWidth,
+    reservedWidths: [...present.flatMap((p, k) => (k === heldAt || parksForRoom(p) ? [] : [allWidths[k]!])), ...(held === null ? [] : [held.w])],
+    parkLiveWidths: present.flatMap((p, k) => (k === heldAt || !parksForRoom(p) ? [] : [allWidths[k]!])),
+    stops,
+    stepStops: stops,
+    stopSpans: stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow)),
+    endPad,
+  };
 }
 
 /**
