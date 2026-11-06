@@ -6,6 +6,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import type { PanelWindow } from '../index.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
 import { cleanup } from './support/mount-harness.js';
@@ -53,14 +54,13 @@ for (const [name, entries] of Object.entries(rows)) {
   }
 }
 
-test('mounted at 2240: stepping to the last stop lands the scroll at maxScrollOf, the last panel centered, and the end element is the gap plus the shift', () => {
+test('mounted at 2240: stepping to the last stop lands the scroll at maxScrollOf, and the last panel centered', () => {
   const m = mountRow(rows['[root, 1, 1, 5-slot, 1]']!(), 2240, { tuning: { rowGesture: 'step' } });
   const n = m.latest().rowNumbers;
   const last = n.stops.at(-1)!;
   m.scroller.glideTo(last, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  assert.equal(m.container.scrollLeft, maxScrollOf(n), 'the scroll range ends at the new last stop');
+  assert.equal(rowOffsetOf(m.container), maxScrollOf(n), 'the scroll range ends at the new last stop');
   const end = n.widths.length - 1;
   assert.equal(n.endPad, 97, 'the end pad is the centering shift');
   assert.equal(maxScrollOf(n) + n.windowWidth - (n.rowMarginLeft + n.leftOffsets[end]! + n.widths[end]!), 97, 'the last panel sits the shift short of the window edge');
-  assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, `0 0 ${GAP + 97}px`, 'the end space is the row gap plus the shift');
 });

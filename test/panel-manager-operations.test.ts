@@ -5,6 +5,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
@@ -410,10 +411,10 @@ async function scrolled(settings: Record<string, PanelSettings>, from: number, p
   const r = await freeRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], width: 1000, settings });
   prepare(r);
   await advanceFrames(900);
-  r.m!.container.scrollLeft = from;
+  setRowOffset(r.m!.container, from);
   const result = r.turn(() => run(r));
   await advanceFrames(900);
-  const out = { result: brief(result), left: r.m!.container.scrollLeft };
+  const out = { result: brief(result), left: rowOffsetOf(r.m!.container) };
   cleanup();
   return out;
 }
@@ -481,12 +482,12 @@ test('the owner example: a button in panel two toggles panel one through a closu
   assert.equal(one.getState().status, 'live', 'the second click shows it again');
 });
 
-test('a ViewHandle has exactly the seventeen sorted keys, pin, unpin and configure among them', async () => {
+test('a ViewHandle has exactly the fifteen sorted keys, configure among them', async () => {
   const { createWorkspace } = await import('../index.js');
   const { mountWorkspace } = await import('./support/workspace-row.js');
   const w = createWorkspace({ mount: false, templates: [markerTemplate('probe')] });
   w.addPanel('probe');
   const m = mountWorkspace(w);
   const node = m.container.querySelector('[data-template="probe"]') as HTMLElement;
-  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'pin', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility', 'unpin']);
+  assert.deepEqual(node.dataset.handleKeys!.split(',').sort(), ['close', 'configure', 'getSettings', 'getState', 'hide', 'id', 'move', 'open', 'place', 'scrollTo', 'setSlots', 'show', 'subscribe', 'templateId', 'toggleVisibility']);
 });

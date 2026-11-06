@@ -17,16 +17,13 @@ import {
   type PanelWindow,
   appendPanel,
   closePanel,
-  createHistoryPanel,
-  firstParkedAfter,
-  lastParkedBefore,
-  leftmostLiveIndex,
+  createRootPanel,
   movePanel,
+  parkedToReveal,
   promoteToLive,
   reanchorPanel,
   reorderStepsForOffset,
   restorePanel,
-  rightmostLiveIndex,
   setSlots,
   sideOfLiveRange,
 } from '../panelWindow.js';
@@ -35,7 +32,7 @@ import {
 const ROOT_ID = 'history';
 
 test('appendPanel: appends a new LIVE extra panel carrying the hostData and url', () => {
-  const next = appendPanel([], { hostData: { sourceWebContentsId: 7, webContentsId: null }, url: 'https://example.com/new-tab' }, 'w1', ROOT_ID);
+  const next = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: 7, webContentsId: null }, url: 'https://example.com/new-tab' }, 'w1', ROOT_ID);
   assert.deepEqual(next, [
     {
       id: 'w1', uid: next[0]!.uid, url: 'https://example.com/new-tab', hostData: { sourceWebContentsId: 7, webContentsId: null }, live: true, view: 'web', collapsible: true, listed: true, anchor: { panel: ROOT_ID, position: 'right', priority: 0 }, layer: 'base', anchoredEnter: false,
@@ -44,16 +41,16 @@ test('appendPanel: appends a new LIVE extra panel carrying the hostData and url'
   ]);
 });
 
-test('createHistoryPanel: an always-shown, unlisted, live entry -- never a plain web panel', () => {
-  const history = createHistoryPanel(ROOT_ID);
+test('createRootPanel: an always-shown, unlisted, live entry -- never a plain web panel', () => {
+  const history = createRootPanel(ROOT_ID);
   assert.deepEqual(
     [history.id, history.view, history.collapsible, history.listed, history.live],
     [ROOT_ID, 'history', false, false, true],
   );
 });
 
-test('createHistoryPanel: no anchor (it is the root every anchor chain ends at), raised, anchored enter -- matching its own layer/enter behavior exactly', () => {
-  const history = createHistoryPanel(ROOT_ID);
+test('createRootPanel: no anchor (it is the root every anchor chain ends at), raised, anchored enter -- matching its own layer/enter behavior exactly', () => {
+  const history = createRootPanel(ROOT_ID);
   assert.equal('anchor' in history, false, 'History carries no anchor key at all');
   assert.deepEqual([history.layer, history.anchoredEnter], ['raised', true]);
 });
@@ -82,7 +79,7 @@ test('appendPanel: permanent:true forces collapsible:false and listed:false, eve
 });
 
 test('appendPanel: permanent:true with `view` OMITTED (the single most obvious create({ permanent: true }) call) still defaults to the built-in "web" view, collapsible:false -- the exact combination a host panel component must render with no framework close handle', () => {
-  const next = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID);
+  const next = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID);
   assert.deepEqual([next[0]!.view, next[0]!.collapsible], ['web', false], 'permanent:true alone reaches the built-in view, not just a caller-supplied custom one');
 });
 
@@ -92,38 +89,38 @@ test('appendPanel: permanent:true with `view` OMITTED (the single most obvious c
 // ---------------------------------------------------------------------------
 
 test('appendPanel: slots default to 1 for a plain panel AND a permanent:true one alike -- the default applies uniformly regardless of collapsible', () => {
-  const plain = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w1', ROOT_ID)[0]!;
-  const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!;
+  const plain = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w1', ROOT_ID)[0]!;
+  const permanent = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!;
   assert.equal(plain.slots, 1);
   assert.equal('size' in plain, false, 'size is derived, never stored');
   assert.equal(permanent.slots, 1, 'a permanent column gets the SAME default -- only setSlots\'s later eligibility differs, not the default itself');
 });
 
-test('createHistoryPanel: it carries no slot count and no stored size', () => {
-  const history = createHistoryPanel(ROOT_ID);
+test('createRootPanel: it carries no slot count and no stored size', () => {
+  const history = createRootPanel(ROOT_ID);
   assert.deepEqual([history.slots, 'size' in history], [undefined, false]);
 });
 
 test('summarisePanel: forwards slots from PanelWindow into PanelSummary and adds no size -- red if summarisePanel drops the field or stores one', () => {
-  const [wide] = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://t.example' }, 't1', ROOT_ID).map((p) => ({ ...p, slots: 2 }));
+  const [wide] = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://t.example' }, 't1', ROOT_ID).map((p) => ({ ...p, slots: 2 }));
   const summary = summarisePanel(wide!);
   assert.deepEqual([summary.slots, 'size' in summary], [2, false], 'a panel set to two slots reads two back through summarisePanel, not the 1 it was created with');
 });
 
 test('summarisePanel: round-trip through create -> panelList for the DEFAULT slot count too (a panel created with no override reads 1 back, not undefined)', () => {
-  const created = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://d.example' }, 'd1', ROOT_ID)[0]!;
+  const created = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://d.example' }, 'd1', ROOT_ID)[0]!;
   const summary = summarisePanel(created);
   assert.deepEqual([summary.slots, 'size' in summary], [1, false]);
 });
 
 test('summarisePanel: every entry this file creates (a plain panel, a permanent column) summarises to exactly the PanelSummary keys -- slots included, no stored size, no desktop-only field', () => {
   const entries = [
-    appendPanel([], { hostData: { sourceWebContentsId: 3, webContentsId: null }, url: 'https://w.example', title: 'W', params: { a: 1 } }, 'w1', ROOT_ID)[0]!,
-    appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!,
+    appendPanel([], { view: 'web', hostData: { sourceWebContentsId: 3, webContentsId: null }, url: 'https://w.example', title: 'W', params: { a: 1 } }, 'w1', ROOT_ID)[0]!,
+    appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'p1', ROOT_ID)[0]!,
   ];
   const keys = ['id', 'live', 'params', 'slots', 'title', 'url'];
   assert.deepEqual(entries.map((p) => Object.keys(summarisePanel(p)).sort()), [keys, keys]);
-  assert.deepEqual(Object.keys(summarisePanel(createHistoryPanel(ROOT_ID))).sort(), ['id', 'live', 'params', 'title', 'url'], 'History carries no slot count');
+  assert.deepEqual(Object.keys(summarisePanel(createRootPanel(ROOT_ID))).sort(), ['id', 'live', 'params', 'title', 'url'], 'History carries no slot count');
 });
 
 test('summarisePanel: a record that carries no slots summarises with those keys ABSENT, not present as undefined', () => {
@@ -132,31 +129,31 @@ test('summarisePanel: a record that carries no slots summarises with those keys 
 });
 
 test('appendPanel: anchor { position: "right", priority: -1 } lands immediately right of History, never left of it; the default still appends to the array end -- red if appendPanel ignores an explicit priority', () => {
-  const withHistory = [createHistoryPanel(ROOT_ID), ...makeExtraPanels('w1', 'w2')];
-  const front = appendPanel(withHistory, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://front.example', anchor: { position: 'right', priority: -1 } }, 'front', ROOT_ID);
+  const withHistory = [createRootPanel(ROOT_ID), ...makeExtraPanels('w1', 'w2')];
+  const front = appendPanel(withHistory, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://front.example', anchor: { position: 'right', priority: -1 } }, 'front', ROOT_ID);
   assert.deepEqual(front.map((p) => p.id), [ROOT_ID, 'front', 'w1', 'w2'], 'right after History, never before it');
   assert.deepEqual(front.map((p) => p.anchor?.priority), [undefined, 0, 1, 2], 'priorities renumbered from 0 on that side, so -1 means "nearest" again next time');
-  const again = appendPanel(front, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://again.example', anchor: { position: 'right', priority: -1 } }, 'again', ROOT_ID);
+  const again = appendPanel(front, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://again.example', anchor: { position: 'right', priority: -1 } }, 'again', ROOT_ID);
   assert.deepEqual(again.map((p) => p.id), [ROOT_ID, 'again', 'front', 'w1', 'w2'], 'a second -1 is nearest in turn');
-  const end = appendPanel(withHistory, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://end.example' }, 'end', ROOT_ID);
+  const end = appendPanel(withHistory, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://end.example' }, 'end', ROOT_ID);
   assert.deepEqual(end.map((p) => p.id), [ROOT_ID, 'w1', 'w2', 'end'], 'a plain create() still appends to the array end');
 });
 
 test('appendPanel with no anchor option on [History, A, B] appends C at the far right end, anchored right of History one past B -- red if the default lands anywhere else', () => {
-  const start = [createHistoryPanel(ROOT_ID), ...makeExtraPanels('a', 'b')];
-  const next = appendPanel(start, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://c.example' }, 'c', ROOT_ID);
+  const start = [createRootPanel(ROOT_ID), ...makeExtraPanels('a', 'b')];
+  const next = appendPanel(start, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://c.example' }, 'c', ROOT_ID);
   assert.deepEqual(next.map((p) => p.id), [ROOT_ID, 'a', 'b', 'c']);
   assert.deepEqual(next[3]!.anchor, { panel: ROOT_ID, position: 'right', priority: 2 });
   next.slice(0, 3).forEach((p, i) => assert.equal(p, start[i], `${p.id} is the very same object: nothing else was re-anchored`));
   const leftOfHistory = reanchorPanel(start, 'a', { position: 'left' }, ROOT_ID);
-  assert.deepEqual(appendPanel(leftOfHistory, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://c.example' }, 'c', ROOT_ID).map((p) => p.id), ['a', ROOT_ID, 'b', 'c'], 'with a panel left of History the default is still the far right end');
+  assert.deepEqual(appendPanel(leftOfHistory, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://c.example' }, 'c', ROOT_ID).map((p) => p.id), ['a', ROOT_ID, 'b', 'c'], 'with a panel left of History the default is still the far right end');
 });
 
 test('appendPanel: always appends to the end, regardless of which panel the request came from', () => {
-  let panels = appendPanel([], { hostData: { sourceWebContentsId: 1, webContentsId: null }, url: 'https://a.example' }, 'w1', ROOT_ID);
-  panels = appendPanel(panels, { hostData: { sourceWebContentsId: 1, webContentsId: null }, url: 'https://b.example' }, 'w2', ROOT_ID);
+  let panels = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: 1, webContentsId: null }, url: 'https://a.example' }, 'w1', ROOT_ID);
+  panels = appendPanel(panels, { view: 'web', hostData: { sourceWebContentsId: 1, webContentsId: null }, url: 'https://b.example' }, 'w2', ROOT_ID);
   // A third panel opened FROM w1 (source id 1 again, not w2's own id) still lands last, not next to its source.
-  panels = appendPanel(panels, { hostData: { sourceWebContentsId: 1, webContentsId: null }, url: 'https://c.example' }, 'w3', ROOT_ID);
+  panels = appendPanel(panels, { view: 'web', hostData: { sourceWebContentsId: 1, webContentsId: null }, url: 'https://c.example' }, 'w3', ROOT_ID);
   assert.deepEqual(
     panels.map((p) => p.id),
     ['w1', 'w2', 'w3'],
@@ -165,7 +162,7 @@ test('appendPanel: always appends to the end, regardless of which panel the requ
 
 function makeExtraPanels(...ids: string[]): PanelWindow[] {
   return ids.reduce(
-    (acc, id) => appendPanel(acc, { hostData: { sourceWebContentsId: 1, webContentsId: null }, url: `https://${id}.example` }, id, ROOT_ID),
+    (acc, id) => appendPanel(acc, { view: 'web', hostData: { sourceWebContentsId: 1, webContentsId: null }, url: `https://${id}.example` }, id, ROOT_ID),
     [] as PanelWindow[],
   );
 }
@@ -224,9 +221,9 @@ test('closePanel then restorePanel in REVERSE order undoes a run of closes exact
 });
 
 test('restorePanel re-reads anchors from the restored order: A closed right of History, B moved left, undo A at index 1 -> [B, A, History] with A anchored LEFT, and the next computeRowOrder/appendPanel keeps it there -- red if restorePanel keeps A\'s stale right-of-History anchor', () => {
-  let panels: PanelWindow[] = [createHistoryPanel(ROOT_ID)];
-  panels = appendPanel(panels, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://a.example' }, 'a', ROOT_ID);
-  panels = appendPanel(panels, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://b.example' }, 'b', ROOT_ID);
+  let panels: PanelWindow[] = [createRootPanel(ROOT_ID)];
+  panels = appendPanel(panels, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://a.example' }, 'a', ROOT_ID);
+  panels = appendPanel(panels, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://b.example' }, 'b', ROOT_ID);
   const { remaining, closed, index } = closePanel(panels, 'a', ROOT_ID)!;
   assert.deepEqual([closed.anchor, index], [{ panel: ROOT_ID, position: 'right', priority: 0 }, 1], 'precondition: A closed at index 1, anchored right of History');
   const moved = movePanel(remaining, 'b', 'left', ROOT_ID);
@@ -239,12 +236,12 @@ test('restorePanel re-reads anchors from the restored order: A closed right of H
     'A is anchored where it now sits (left of History, nearest), B one farther',
   );
   assert.deepEqual(computeRowOrder(restored, ROOT_ID).map((p) => p.id), ['b', 'a', ROOT_ID], 'computeRowOrder leaves A where undo put it');
-  const opened = appendPanel(restored, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://c.example' }, 'c', ROOT_ID);
+  const opened = appendPanel(restored, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://c.example' }, 'c', ROOT_ID);
   assert.deepEqual(opened.map((p) => p.id), ['b', 'a', ROOT_ID, 'c'], 'so does the next open: A never jumps across History');
 });
 
 // ---------------------------------------------------------------------------
-// sideOfLiveRange / leftmostLiveIndex / rightmostLiveIndex / firstParkedAfter / lastParkedBefore: the
+// sideOfLiveRange / parkedToReveal: the
 // row-gesture and exit-direction primitives -- pure, so their edge cases are pinned without a hook or a
 // DOM.
 // ---------------------------------------------------------------------------
@@ -261,26 +258,27 @@ test('sideOfLiveRange: a parked id (about to be revived) is judged the same way,
   assert.equal(sideOfLiveRange(panels, 'w3'), 'right', 'w3 sits right of it');
 });
 
-test('leftmostLiveIndex / rightmostLiveIndex: -1 with nothing live, otherwise the array index of the edge panel', () => {
-  assert.equal(leftmostLiveIndex([]), -1);
-  assert.equal(rightmostLiveIndex([]), -1);
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1');
-  assert.equal(leftmostLiveIndex(panels), 1, 'w2, the first live one');
-  assert.equal(rightmostLiveIndex(panels), 2, 'w3, the last live one');
+test('parkedToReveal: the next parked panel toward each side, or null with nothing parked that way', () => {
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4'), 'w1', 'w4');
+  assert.equal(parkedToReveal(panels, 'right')?.id, 'w4');
+  assert.equal(parkedToReveal(panels, 'left')?.id, 'w1');
+  assert.equal(parkedToReveal(park(makeExtraPanels('w1', 'w2'), 'w1'), 'right'), null, 'nothing parked to the right');
 });
 
-test('firstParkedAfter / lastParkedBefore: the next parked panel toward each side, or null with nothing parked that way', () => {
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4'), 'w1', 'w4');
-  assert.equal(firstParkedAfter(panels, rightmostLiveIndex(panels))?.id, 'w4');
-  assert.equal(lastParkedBefore(panels, leftmostLiveIndex(panels))?.id, 'w1');
-  assert.equal(firstParkedAfter(panels, panels.length - 1), null, 'nothing after the last entry');
-  assert.equal(lastParkedBefore(panels, 0), null, 'nothing before the first entry');
+test('parkedToReveal: a run parked between drawn panels counts on the side nearer its place, nearest first, as the dot bar draws it', () => {
+  // Drawn: w1, w5, w6, w7. w2-w4 have one drawn panel before them and three after, so they wait on the left.
+  const panels = park(makeExtraPanels('w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7'), 'w2', 'w3', 'w4');
+  assert.equal(parkedToReveal(panels, 'left')?.id, 'w4', 'the one beside the drawn run comes in first');
+  assert.equal(parkedToReveal(panels, 'right'), null);
+  const nearEnd = park(makeExtraPanels('w1', 'w2', 'w3', 'w4', 'w5'), 'w4');
+  assert.equal(parkedToReveal(nearEnd, 'right')?.id, 'w4', 'three drawn before it and one after: it waits on the right');
+  assert.equal(parkedToReveal(nearEnd, 'left'), null);
 });
 
 test('History stays at array index 0 through appendPanel, closePanel and restorePanel -- for panels with no explicit left anchor', () => {
-  let panels: PanelWindow[] = [createHistoryPanel(ROOT_ID)];
-  panels = appendPanel(panels, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://a.example' }, 'a', ROOT_ID);
-  panels = appendPanel(panels, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://b.example' }, 'b', ROOT_ID);
+  let panels: PanelWindow[] = [createRootPanel(ROOT_ID)];
+  panels = appendPanel(panels, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://a.example' }, 'a', ROOT_ID);
+  panels = appendPanel(panels, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'https://b.example' }, 'b', ROOT_ID);
   assert.equal(panels[0]!.id, ROOT_ID, 'append never disturbs index 0');
   const closedA = closePanel(panels, 'a', ROOT_ID)!;
   assert.equal(closedA.remaining[0]!.id, ROOT_ID, 'closing a later entry leaves History at 0');
@@ -346,7 +344,7 @@ test('promoteToLive: an unknown id returns null -- nothing to promote', () => {
 });
 
 test('promoteToLive: demotion never targets a collapsible:false entry (History) -- a manual activation must not bump an always-shown column', () => {
-  const panels = park([createHistoryPanel(ROOT_ID), ...makeExtraPanels('w1')], 'w1'); // History live; w1 parked
+  const panels = park([createRootPanel(ROOT_ID), ...makeExtraPanels('w1')], 'w1'); // History live; w1 parked
   const result = promoteToLive(panels, 'w1', 1, untouched)!; // capacity 1: something should demote, but History is exempt
   assert.equal(result.find((p) => p.id === ROOT_ID)!.live, true, 'History stays live: it is the only OTHER live entry, but it is exempt');
   assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 was promoted -- nothing was left to demote');
@@ -375,14 +373,14 @@ test('movePanel: the mirror direction (right-to-left) crosses the same parked bl
 });
 
 test('movePanel: the root moves like any entry (only a person\'s drag is barred, by its movable setting) and a live panel may cross it', () => {
-  const panels = [createHistoryPanel(ROOT_ID), ...makeExtraPanels('w1', 'w2')];
+  const panels = [createRootPanel(ROOT_ID), ...makeExtraPanels('w1', 'w2')];
   assert.deepEqual(movePanel(panels, ROOT_ID, 'right', ROOT_ID).map((p) => p.id), ['w1', ROOT_ID, 'w2']);
   assert.equal(movePanel(panels, ROOT_ID, 'left', ROOT_ID), panels, 'nothing lies to its left');
   assert.notEqual(movePanel(panels, 'w1', 'left', ROOT_ID), panels, 'the guard is on the source only: w1 does cross History');
 });
 
 test('movePanel: a live panel immediately right of History moved left crosses it -- the swap succeeds and the dragged panel is re-anchored LEFT of History; red if the neighbor guard still rejects a collapsible:false neighbor', () => {
-  const panels = [createHistoryPanel(ROOT_ID), ...makeExtraPanels('live1', 'live2')];
+  const panels = [createRootPanel(ROOT_ID), ...makeExtraPanels('live1', 'live2')];
   const moved = movePanel(panels, 'live1', 'left', ROOT_ID);
   assert.deepEqual(moved.map((p) => p.id), ['live1', ROOT_ID, 'live2'], 'live1 now sits left of History');
   assert.deepEqual(moved[0]!.anchor, { panel: ROOT_ID, position: 'left', priority: 0 }, 'its anchor says so');
@@ -393,7 +391,7 @@ test('movePanel: a live panel immediately right of History moved left crosses it
 
 test('movePanel: with TWO collapsible:false entries (History + a permanent column) present, the permanent column is moved by the developer, and a live neighbor crosses either one -- red if the neighbor guard still rejects a collapsible:false neighbor', () => {
   const perm = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', view: 'perm-view', permanent: true }, 'perm', ROOT_ID)[0]!;
-  const panels = [createHistoryPanel(ROOT_ID), perm, ...makeExtraPanels('live1', 'live2')];
+  const panels = [createRootPanel(ROOT_ID), perm, ...makeExtraPanels('live1', 'live2')];
   assert.deepEqual(movePanel(panels, 'perm', 'right', ROOT_ID).map((p) => p.id), [ROOT_ID, 'live1', 'perm', 'live2'], 'the permanent column is moved: only a person\'s drag is barred, by its movable setting');
   const pastPerm = movePanel(panels, 'live1', 'left', ROOT_ID);
   assert.deepEqual(pastPerm.map((p) => p.id), [ROOT_ID, 'live1', 'perm', 'live2'], 'live1 crossed the permanent column');
@@ -450,21 +448,21 @@ test('reorderStepsForOffset: crossing a DIFFERENTLY-sized neighbour hops exactly
 });
 
 test('panelWidthOf: a one-slot panel, or an entry carrying no slots, ALWAYS uses the live phoneWidth argument, never a stored size', () => {
-  const phonePanel = createHistoryPanel(ROOT_ID); // no slots
+  const phonePanel = createRootPanel(ROOT_ID); // no slots
   assert.equal(panelWidthOf(phonePanel, 430, Number.POSITIVE_INFINITY), 430, 'the LIVE phoneWidth (430)');
   assert.equal(panelWidthOf({ ...phonePanel, slots: 1 }, 430, Number.POSITIVE_INFINITY), 430, 'an explicit one slot is the same width as an omitted count');
 });
 
 test('panelWidthOf: a multi-slot panel is that many LIVE phone widths with the row gap between them, from the slots alone', () => {
-  const two: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 2 };
+  const two: PanelWindow = { ...createRootPanel(ROOT_ID), slots: 2 };
   assert.equal(panelWidthOf(two, 430, Number.POSITIVE_INFINITY), 2 * 430 + GAP, 'two live phone widths and a gap, from the live phone width');
-  const three: PanelWindow = { ...createHistoryPanel(ROOT_ID), slots: 3 };
+  const three: PanelWindow = { ...createRootPanel(ROOT_ID), slots: 3 };
   assert.equal(panelWidthOf(three, 430, Number.POSITIVE_INFINITY), 3 * 430 + 2 * GAP);
 });
 
 test('panelWidthOf caps a multi-slot panel at the whole slots that fit in maxLiveWidth. History alone, phone 390: two slots (796) at the default 1280 window, three (1202) at 1920 for any larger count, and one slot at the 844 minimum', () => {
-  const [two] = setSlots(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'd', ROOT_ID), 'd', 2);
-  const [all] = setSlots(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 't', ROOT_ID), 't', 64);
+  const [two] = setSlots(appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'd', ROOT_ID), 'd', 2);
+  const [all] = setSlots(appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 't', ROOT_ID), 't', 64);
   const cap = (containerWidth: number) => computeMaxLiveWidth({ containerWidth, phoneWidth: 390, gap: GAP, fixedItemCount: 1 });
   assert.equal(cap(1280), 842, 'precondition: the budget beside History in the default window');
   assert.equal(panelWidthOf(all!, 390, cap(1280)), 796, 'a 64-slot panel in the default window is the two whole slots that fit, never the full budget');
@@ -479,12 +477,12 @@ test('panelWidthOf caps a multi-slot panel at the whole slots that fit in maxLiv
 });
 
 test('panelWidthOf caps a multi-slot panel at its own maxSlots too', () => {
-  const [wide] = setSlots(appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w', ROOT_ID), 'w', 3);
+  const [wide] = setSlots(appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank' }, 'w', ROOT_ID), 'w', 3);
   assert.equal(panelWidthOf({ ...wide!, settings: { maxSlots: 2 } as unknown as PanelRowEntry['settings'] }, 390, Number.POSITIVE_INFINITY), 796);
 });
 
 test('panelWidthOf never caps a one-slot panel: it is always the live phone width, whatever maxLiveWidth says', () => {
-  const phone = createHistoryPanel(ROOT_ID);
+  const phone = createRootPanel(ROOT_ID);
   assert.equal(panelWidthOf(phone, 430, 300), 430, 'a cap below the phone width leaves a one-slot panel alone');
   assert.equal(panelWidthOf({ ...phone, slots: undefined }, 390, 100), 390);
 });
@@ -493,10 +491,10 @@ test('panelWidthOf never caps a one-slot panel: it is always the live phone widt
 // setSlots: one panel's own slot count, replaced in place.
 // ---------------------------------------------------------------------------
 
-const webEntry = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({ ...appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: `https://${id}.example` }, id, ROOT_ID)[0]!, ...more });
+const webEntry = (id: string, more: Partial<PanelWindow> = {}): PanelWindow => ({ ...appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: `https://${id}.example` }, id, ROOT_ID)[0]!, ...more });
 
 test('setSlots: changes ONLY the named panel\'s slot count, grow and shrink alike; every other entry is the same object, in the same place', () => {
-  const start = [createHistoryPanel(ROOT_ID), webEntry('a'), webEntry('b'), webEntry('c', { live: false })];
+  const start = [createRootPanel(ROOT_ID), webEntry('a'), webEntry('b'), webEntry('c', { live: false })];
   const grown = setSlots(start, 'b', 64);
   assert.deepEqual(grown.map((p) => p.id), ['history', 'a', 'b', 'c'], 'order unchanged');
   assert.equal(grown[2]!.slots, 64);
@@ -510,7 +508,7 @@ test('setSlots: changes ONLY the named panel\'s slot count, grow and shrink alik
 });
 
 test('setSlots: clamps to 1 and to the panel\'s maxSlots, rounding a fraction', () => {
-  const start = [createHistoryPanel(ROOT_ID), webEntry('a')];
+  const start = [createRootPanel(ROOT_ID), webEntry('a')];
   assert.equal(setSlots(start, 'a', 0), start, 'zero clamps to the one slot it already has');
   assert.equal(setSlots(start, 'a', 2.4)[1]!.slots, 2, '2.4 rounds to 2');
   assert.equal(setSlots(start, 'a', 1000)[1]!.slots, 64, 'past the library cap: ALL_SLOTS');
@@ -518,8 +516,8 @@ test('setSlots: clamps to 1 and to the panel\'s maxSlots, rounding a fraction', 
 });
 
 test('setSlots: a no-op (the SAME array back) for History, a permanent column, an unknown id, and a panel already at that count', () => {
-  const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'perm', ROOT_ID)[0]!;
-  const start = [createHistoryPanel(ROOT_ID), permanent, webEntry('a')];
+  const permanent = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'perm', ROOT_ID)[0]!;
+  const start = [createRootPanel(ROOT_ID), permanent, webEntry('a')];
   assert.equal(setSlots(start, 'history', 64), start, 'History (collapsible:false) never changes size');
   assert.equal(setSlots(start, 'perm', 2), start, 'nor does a permanent column');
   assert.equal(setSlots(start, 'nope', 2), start, 'an unknown id');
@@ -529,15 +527,15 @@ test('setSlots: a no-op (the SAME array back) for History, a permanent column, a
 });
 
 test('setSlots: a PARKED panel may change slots and stays parked', () => {
-  const start = [createHistoryPanel(ROOT_ID), webEntry('a', { live: false })];
+  const start = [createRootPanel(ROOT_ID), webEntry('a', { live: false })];
   const next = setSlots(start, 'a', 2);
   assert.deepEqual([next[1]!.slots, next[1]!.live], [2, false]);
 });
 
 test('appendPanel: slots lands on a new panel; a permanent column ignores it and stays one slot', () => {
-  const two = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', slots: 2 }, 't1', ROOT_ID)[0]!;
+  const two = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', slots: 2 }, 't1', ROOT_ID)[0]!;
   assert.equal(two.slots, 2);
-  const permanent = appendPanel([], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true, slots: 64 }, 'p1', ROOT_ID)[0]!;
+  const permanent = appendPanel([], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true, slots: 64 }, 'p1', ROOT_ID)[0]!;
   assert.equal(permanent.slots, 1, 'a permanent column is always one slot');
 });
 
@@ -574,7 +572,7 @@ test('property: computeRowOrder(deriveAnchorsFromOrder(x)) reproduces x exactly 
       const anchor = random() < 0.2 ? undefined : { panel: target, position: pick(['left', 'right'] as const), priority: Math.floor(random() * 7) - 2 };
       return webEntry(id, { collapsible: random() < 0.85, live: random() < 0.7, anchor });
     });
-    const x = [...records, createHistoryPanel(ROOT_ID)];
+    const x = [...records, createRootPanel(ROOT_ID)];
     for (let i = x.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
       [x[i], x[j]] = [x[j]!, x[i]!];
@@ -597,7 +595,7 @@ test('computeRowOrder: priority is nearness on BOTH sides (lower = nearer), ties
   const row = [
     anchored('far-left', left(7)),
     anchored('near-left', left(-3)),
-    createHistoryPanel(ROOT_ID),
+    createRootPanel(ROOT_ID),
     anchored('b', right(5)),
     anchored('a', right(5)),
     anchored('child', right(0, 'a')),
@@ -609,7 +607,7 @@ test('computeRowOrder: priority is nearness on BOTH sides (lower = nearer), ties
 });
 
 test('computeRowOrder: A anchored to B and B anchored to A (and a panel anchored to itself) never recurse forever -- each lands at the {History, "right"} fallback; red (stack overflow or a vanished panel) without the visiting-set guard', () => {
-  const row = [createHistoryPanel(ROOT_ID), anchored('x', right(0)), anchored('a', right(1, 'b')), anchored('b', right(0, 'a')), anchored('self', left(0, 'self')), anchored('hangs-off-a', left(0, 'a'))];
+  const row = [createRootPanel(ROOT_ID), anchored('x', right(0)), anchored('a', right(1, 'b')), anchored('b', right(0, 'a')), anchored('self', left(0, 'self')), anchored('hangs-off-a', left(0, 'a'))];
   const ordered = computeRowOrder(row, ROOT_ID);
   assert.deepEqual([...ids(ordered)].sort(), [...ids(row)].sort(), 'every panel is still there, exactly once');
   for (const id of ['a', 'b', 'self']) {
@@ -622,16 +620,16 @@ test('computeRowOrder: A anchored to B and B anchored to A (and a panel anchored
 });
 
 test('computeRowOrder: an anchor naming a panel that is not in the row falls back to {History, "right"} -- never throws, never drops the panel; red if a dangling target is looked up blindly', () => {
-  const row = [anchored('l', left(0)), createHistoryPanel(ROOT_ID), anchored('a', right(0)), anchored('orphan', left(0, 'gone')), anchored('b', right(1))];
+  const row = [anchored('l', left(0)), createRootPanel(ROOT_ID), anchored('a', right(0)), anchored('orphan', left(0, 'gone')), anchored('b', right(1))];
   const ordered = computeRowOrder(row, ROOT_ID);
   assert.deepEqual(ids(ordered), ['l', ROOT_ID, 'a', 'orphan', 'b'], 'the orphan keeps its priority (0) on the right of History; the tie with a keeps row order');
   assert.deepEqual(ordered[3]!.anchor, right(1), 'and its stored anchor now says so');
-  assert.deepEqual(ids(appendPanel(row, { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', anchor: { panel: 'also-gone', position: 'left' } }, 'new', ROOT_ID)), ['l', ROOT_ID, 'a', 'orphan', 'new', 'b'], 'appendPanel with a dangling anchor.panel places the panel too');
+  assert.deepEqual(ids(appendPanel(row, { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', anchor: { panel: 'also-gone', position: 'left' } }, 'new', ROOT_ID)), ['l', ROOT_ID, 'a', 'orphan', 'new', 'b'], 'appendPanel with a dangling anchor.panel places the panel too');
 });
 
 test('closePanel: every panel anchored to the closed one inherits ITS anchor (target and side), so they close up where it sat -- red if a reparented child is reset to the right of History instead', () => {
   // P sits LEFT of History with one dependent on each side of it.
-  const leftSide = [anchored('l1', left(0, 'p')), anchored('p', left(0)), anchored('r1', right(0, 'p')), createHistoryPanel(ROOT_ID), anchored('a', right(0))];
+  const leftSide = [anchored('l1', left(0, 'p')), anchored('p', left(0)), anchored('r1', right(0, 'p')), createRootPanel(ROOT_ID), anchored('a', right(0))];
   assert.deepEqual(ids(computeRowOrder(leftSide, ROOT_ID)), ids(leftSide), 'precondition: the hand-built row is already in anchor order');
   const closed = closePanel(leftSide, 'p', ROOT_ID)!;
   assert.deepEqual(ids(closed.remaining), ['l1', 'r1', ROOT_ID, 'a'], 'both dependents stay left of History, in the place p held');
@@ -639,14 +637,14 @@ test('closePanel: every panel anchored to the closed one inherits ITS anchor (ta
   assert.deepEqual([closed.closed.id, closed.index], ['p', 1]);
 
   // P anchored to another panel: its dependent inherits that panel, not History.
-  const chained = [createHistoryPanel(ROOT_ID), anchored('a', right(0)), anchored('p', right(0, 'a')), anchored('q', right(0, 'p')), anchored('b', right(1))];
+  const chained = [createRootPanel(ROOT_ID), anchored('a', right(0)), anchored('p', right(0, 'a')), anchored('q', right(0, 'p')), anchored('b', right(1))];
   const reparented = closePanel(chained, 'p', ROOT_ID)!.remaining;
   assert.deepEqual(ids(reparented), [ROOT_ID, 'a', 'q', 'b'], 'q takes p\'s place, right after a');
   assert.deepEqual(reparented[2]!.anchor, right(0, 'a'), 'anchored to a, as p was');
 });
 
 test('reanchorPanel: applies the anchor and reorders; panel defaults to History, priority to one past that side\'s far end; the SAME array for an unknown id or the root -- red if it skips computeRowOrder', () => {
-  const row = appendPanel([createHistoryPanel(ROOT_ID), ...makeExtraPanels('a', 'b', 'c')], { hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'perm', ROOT_ID);
+  const row = appendPanel([createRootPanel(ROOT_ID), ...makeExtraPanels('a', 'b', 'c')], { view: 'web', hostData: { sourceWebContentsId: -1, webContentsId: null }, url: 'about:blank', permanent: true }, 'perm', ROOT_ID);
   assert.deepEqual(ids(row), [ROOT_ID, 'a', 'b', 'c', 'perm'], 'precondition');
   assert.deepEqual(ids(reanchorPanel(row, 'c', { position: 'left' }, ROOT_ID)), ['c', ROOT_ID, 'a', 'b', 'perm']);
   assert.deepEqual(ids(reanchorPanel(row, 'a', { position: 'right' }, ROOT_ID)), [ROOT_ID, 'b', 'c', 'perm', 'a'], 'priority omitted: past the far end of that side');
@@ -660,7 +658,7 @@ test('reanchorPanel: applies the anchor and reorders; panel defaults to History,
 test('a 64-slot panel keeps its slots, hostData and params byte-identical (the same objects) while a DIFFERENT panel moves, reanchors or closes around it -- red if any rebuild reconstructs records instead of spreading them', () => {
   const params = { notes: ['kept'], depth: { n: 1 } };
   const wide = anchored('wide', right(1), { slots: 64, hostData: { webContentsId: 42 }, params });
-  const row = [createHistoryPanel(ROOT_ID), anchored('a', right(0)), wide, anchored('b', right(2)), anchored('q', right(0, 'b'))];
+  const row = [createRootPanel(ROOT_ID), anchored('a', right(0)), wide, anchored('b', right(2)), anchored('q', right(0, 'b'))];
   const check = (panels: readonly PanelWindow[], what: string, rebuilt: boolean): void => {
     const w = panels.find((p) => p.id === 'wide')!;
     assert.deepEqual([w.slots, (w.hostData as { webContentsId: number } | undefined)?.webContentsId], [64, 42], what);

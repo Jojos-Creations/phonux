@@ -6,6 +6,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import { act } from 'react';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';
@@ -53,7 +54,7 @@ test('a finger dragged left steps the row right once, and its glide lands on the
   drag(m, [700, 300], [300, 300], 40);
   assert.equal(m.scroller.glideTarget(), stops[1]);
   await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(m.container.scrollLeft, stops[1]);
+  assert.equal(rowOffsetOf(m.container), stops[1]);
 });
 
 test('a finger dragged up leaves the row where it is', async () => {
@@ -61,5 +62,5 @@ test('a finger dragged up leaves the row where it is', async () => {
   mock.timers.enable({ apis: ['setTimeout'] });
   drag(m, [500, 600], [500, 100], 40);
   await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
 });

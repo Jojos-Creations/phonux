@@ -10,9 +10,9 @@ import Box from '@mui/material/Box';
 import type { ElementProps } from './cssStyle.js';
 import type { Theme } from '@mui/material/styles';
 import type { PhonuxTheme } from './defaultTheme.js';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
+import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -37,11 +37,15 @@ export interface PanelFrameProps extends Omit<ElementProps, 'children'> {
 export const PHONE_FRAME_ATTRIBUTE = 'data-phone-frame';
 /** The phone's corner radius in theme shape units (4 x 6px = 24px). @public */
 export const PANEL_CORNER_RADIUS_UNITS = 4;
-/** That radius in px for `theme`. @public */
-export const panelCornerRadiusPx = (theme: PhonuxTheme): number => PANEL_CORNER_RADIUS_UNITS * theme.radiusUnitPx;
+/** The panel corner radius in px for `theme`: its `radius`. @public */
+export const panelCornerRadiusPx = (theme: PhonuxTheme): number => theme.radius;
 
-// The same radius read off the styling theme the frame's own sx callbacks receive.
-const radiusOf = (theme: Theme): number => PANEL_CORNER_RADIUS_UNITS * Number(theme.shape.borderRadius);
+// The same radius read off the styling theme the frame's own sx callbacks receive: px units from an app's own theme, a
+// `var(--phonux-radius)` expression from the mount's.
+const radiusOf = (theme: Theme): string => {
+  const unit = theme.shape.borderRadius;
+  return typeof unit === 'number' ? `${PANEL_CORNER_RADIUS_UNITS * unit}px` : `calc(${PANEL_CORNER_RADIUS_UNITS} * ${unit})`;
+};
 
 // One width for the padding and the inset shadow, so the content box begins exactly where the ring ends.
 const EDGE_PX = 1;
@@ -83,7 +87,7 @@ const PanelFrame = React.forwardRef<HTMLDivElement, PanelFrameProps>(function Pa
         // The edge is an inset shadow inside padding of the same width, so it draws over nothing the content lays out.
         p: `${EDGE_PX}px`,
         boxShadow: (theme: Theme) => `inset 0 0 0 ${EDGE_PX}px ${theme.palette.divider}`,
-        borderRadius: (theme: Theme) => `${radiusOf(theme)}px`,
+        borderRadius: radiusOf,
         bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
@@ -187,13 +191,13 @@ const placeholderTitle = (text: string) => (
 
 /** A dimmed "more" glyph reads as "no actions here" rather than a missing icon, and keeps the
  * row's right edge occupied so the header's height never depends on whether any were passed. */
-const PLACEHOLDER_ACTIONS = (
+const placeholderActions = (glyph: React.ReactNode) => (
   <Box
     data-header-placeholder-action=""
     aria-hidden="true"
     sx={{ display: 'flex', alignItems: 'center', color: 'text.disabled' }}
   >
-    <MoreHorizIcon fontSize="small" />
+    {glyph}
   </Box>
 );
 
@@ -204,7 +208,8 @@ const PLACEHOLDER_ACTIONS = (
  * @public
  */
 export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, onTitleChange, ...rest }: PanelHeaderRowProps) {
-  const labels = resolveLabels(useOptionalHost()?.labels);
+  const host = useOptionalHost();
+  const labels = resolveLabels(host?.labels);
   const [draft, setDraft] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const editing = draft !== null;
@@ -212,7 +217,7 @@ export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, o
     if (editing) inputRef.current?.focus();
   }, [editing]);
   const resolvedTitle = isEmptyHeaderContent(title) ? placeholderTitle(labels.untitledHeader) : title;
-  const resolvedActions = isEmptyHeaderContent(actions) ? PLACEHOLDER_ACTIONS : actions;
+  const resolvedActions = isEmptyHeaderContent(actions) ? placeholderActions(resolveIcons(host?.icons).noActions) : actions;
   const editable = isInput && typeof title === 'string' && onTitleChange !== undefined;
   const commit = (): void => {
     if (draft === null) return;

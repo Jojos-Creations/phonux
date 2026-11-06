@@ -1,10 +1,11 @@
 /**
  * The Workspace's own resize settle: the row's centering margin snaps while the container width is moving and glides
- * once it has held still for 1.25 slide durations, with no help from the host. A host-supplied `rowResizeSettled` wins.
+ * once it has held still for 1/3 slide durations, with no help from the host. A host-supplied `rowResizeSettled` wins.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { Workspace, createWorkspace } from '../index.js';
@@ -22,10 +23,10 @@ const SLIDES = LIBRARY_TUNING_DEFAULTS.resizeSettleSlides;
 const SLIDE_MS = SLIDE_DURATION_SEC * 1000;
 const DEFAULT_DELAY_MS = Math.round(SLIDES * SLIDE_MS);
 
-test('the settle delay is resizeSettleSlides slide durations: 1.25 default slides at the defaults, scaling with the slide and the leaf, 0 for either at 0', () => {
-  assert.equal(SLIDES, 1.25);
+test('the settle delay is resizeSettleSlides slide durations: 1/3 default slides at the defaults, scaling with the slide and the leaf, 0 for either at 0', () => {
+  assert.equal(SLIDES, 1 / 3);
   assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, SLIDES), DEFAULT_DELAY_MS);
-  assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.8 }, SLIDES), 1000);
+  assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0.8 }, SLIDES), 267);
   assert.equal(resizeSettleDelayMs({ ...LIBRARY_TUNING_DEFAULTS.slide, durationSec: 0 }, SLIDES), 0);
   assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0.5), Math.round(0.5 * SLIDE_MS));
   assert.equal(resizeSettleDelayMs(LIBRARY_TUNING_DEFAULTS.slide, 0), 0);
@@ -92,7 +93,7 @@ function workspaceAt(width: number, liveWidths: number[] = [], extra: Record<str
     ),
   );
 }
-const marginOf = (container: HTMLElement): number => Number.parseFloat((container.querySelector('[data-row-strip]') as HTMLElement).style.marginLeft);
+const marginOf = (container: HTMLElement): number => stripMarginOf(container);
 
 /**
  * Whether the row's margin glides when a panel joins: true when, 32 ms after the change, the margin is neither where it
@@ -148,12 +149,12 @@ test("the wait follows the workspace's slide", async () => {
   const slow = { workspace: createWorkspace({ mount: false, tuning: { slide: { durationSec: 0.8 } } }) };
   const m = mount(workspaceAt(1000, [], slow));
   m.rerender(workspaceAt(1200, [], slow));
-  act(() => mock.timers.tick(999));
+  act(() => mock.timers.tick(266));
   m.rerender(workspaceAt(1200, [390], slow));
   await advanceFrames(32);
   const early = marginOf(m.container);
   await advanceFrames(2000);
-  assert.equal(early, marginOf(m.container), '999 ms is one short of 1.25 x 0.8 s: still snapping');
+  assert.equal(early, marginOf(m.container), '266 ms is one short of 1/3 x 0.8 s: still snapping');
 });
 
 test('a supplied rowResizeSettled wins, either way', async () => {
@@ -181,6 +182,6 @@ test('tuning.resizeSettleSlides sets the wait: 2 default slides is the whole wai
   };
   assert.equal(await marginAfter(2 * SLIDE_MS - 1, { resizeSettleSlides: 2 }), 'snapped', 'one ms short of 2 default slides');
   assert.equal(await marginAfter(2 * SLIDE_MS, { resizeSettleSlides: 2 }), 'glided');
-  assert.equal(await marginAfter(DEFAULT_DELAY_MS - 1, {}), 'snapped', 'control: the default 1.25 still waits its full delay');
+  assert.equal(await marginAfter(DEFAULT_DELAY_MS - 1, {}), 'snapped', 'control: the default 1/3 still waits its full delay');
   assert.equal(await marginAfter(0, { resizeSettleSlides: 0 }), 'glided', '0 settles at once');
 });

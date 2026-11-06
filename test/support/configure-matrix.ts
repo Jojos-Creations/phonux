@@ -10,11 +10,12 @@ import * as React from 'react';
 import { createElement, useEffect } from 'react';
 import { act } from 'react';
 import { mock } from 'node:test';
-import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps } from '../../index.js';
+import { DragToClose, LIBRARY_TUNING_DEFAULTS, PANEL_SETTINGS_CATALOG, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, useViewState, usePanelCapabilities, usePanelNeighborWidths, usePanelReorderSteps } from '../../index.js';
 import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSettings, PanelState, PanelTemplate, PanelWindow, PanelsInput, ProvidedPanels, WorkspaceHandle, WorkspaceOptions } from '../../index.js';
 import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
 import { createFakeHost } from '../../fakeHost.js';
+import { rowOffsetOf } from './strip.js';
 import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js';
 import { FRAME_MS } from './jsdom-globals.js';
 import { flush, mountWorkspace, rowEntries, type MountedWorkspace } from './workspace-row.js';
@@ -120,7 +121,7 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
 export const CATALOG_NAMES: readonly string[] = PANEL_SETTINGS_CATALOG.map((d) => d.name);
 
 /** The thirteen catalog names whose instance-door call is wrong-scope: three template keys, ten workspace-only tuning keys. */
-export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.initialScroll', 'tuning.maxLivePanels'];
+export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels'];
 
 const probesRun = new Set<string>();
 const cellsRun = new Set<string>();
@@ -172,7 +173,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
       useFrameClaim('frame');
       const caps = usePanelCapabilities();
       const neighbors = usePanelNeighborWidths();
-      const pinned = usePanelPinned();
       const steps = usePanelReorderSteps();
       const [n, setN] = useViewState('n', 0);
       useEffect(() => {
@@ -196,7 +196,6 @@ export const matrixTemplate = (id: string, over: Partial<PanelTemplate> = {}): P
         'data-reorder': String(caps.movable),
         'data-caps': JSON.stringify({ closable: caps.closable, movable: caps.movable, resizable: caps.resizable, maxSlots: caps.maxSlots }),
         'data-neighbors': JSON.stringify(neighbors),
-        'data-pinned': String(pinned),
         'data-n': String(n),
         'data-steps': JSON.stringify([150, 250].map(steps)),
       });
@@ -222,6 +221,7 @@ export const dragTemplate = (id: string, over: Partial<PanelTemplate> = {}): Pan
   definePanel({
     id,
     view: ({ panel, handle }) => createElement(DragBox, { id: engineOf.current(panel.id), close: () => void handle.close() }),
+    verticalDrag: true,
     ...over,
     settings: over.settings,
   });
@@ -524,10 +524,10 @@ export async function lift(x: number): Promise<void> {
 export const hold = (n: number): Promise<void> => advanceFrames(n * FRAME_MS);
 
 export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<number> {
-  const from = r.m.container.scrollLeft;
+  const from = rowOffsetOf(r.m.container);
   await pressAndMove(r, id, x);
   await hold(50);
-  const gained = r.m.container.scrollLeft - from;
+  const gained = rowOffsetOf(r.m.container) - from;
   await lift(x);
   return gained;
 }

@@ -39,7 +39,7 @@ const row = (entries: PanelWindow[]): React.ReactElement =>
 const slotPresent = (container: HTMLElement): boolean => container.querySelector('[data-probe="a"]') !== null;
 /** The slot's current translateX in px: an exit toward the left only ever lowers it from the rest position. */
 const slotX = (container: HTMLElement): number => {
-  const slot = container.querySelector('[data-probe="a"]')?.parentElement;
+  const slot = container.querySelector('[data-probe="a"]')?.closest<HTMLElement>('[data-row-slot]');
   const match = /translateX\((-?[\d.]+)px\)/.exec(slot?.style.transform ?? '');
   assert.ok(match, 'the slot carries a translateX while it animates');
   return Number(match[1]);

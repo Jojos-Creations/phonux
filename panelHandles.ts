@@ -4,7 +4,7 @@
  * before the panel exists, while it is live and after the workspace detaches.
  */
 import type { JsonValue } from './hostApi.js';
-import type { ConfigureResult, PanelOpSource, PanelResult, PinResult, ResetResult } from './panelManager.js';
+import type { ConfigureResult, PanelOpSource, PanelResult, ResetResult } from './panelManager.js';
 import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign, WorkspaceTuning } from './panelSettings.js';
 import type { InstancePatch, SettingsPatch, ViewPatch } from './settingsPatch.js';
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, ViewHandle } from './panelTemplate.js';
@@ -27,7 +27,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   hide(source?: 'code' | 'person'): PanelResult;
   /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
   toggleVisibility(source?: 'code' | 'person'): PanelResult;
-  /** Closes the panel completely; the undo window of the row applies. A call from code is not limited by `closable`, but the root is never closed; with source `'person'` a panel whose `closable` is false answers `not-closable`. */
+  /** Closes the panel completely; the undo window of the row applies. A call from code is not limited by `closable`, but the root is never closed; with source `'person'` a panel whose `closable` is false answers `not-closable`, and a close the workspace accepts shows its undo-close toast. */
   close(source?: 'code' | 'person'): PanelResult;
   /** Brings a closed declared panel back where its `placeOnAdd` says; a panel that is already open stays as it is. */
   open(source?: 'code' | 'person'): PanelResult;
@@ -43,12 +43,8 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
   /** Scrolls the row to a live panel, to `align` or, left out, where the panel's `scrollOnOpen` says. */
   scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
-  /** Applies the pinned half of the panel's `pinning` in one commit: it is placed, then fixed when the half says so; a panel that is not live follows `pinningWhenNotLive`. The root answers `root-fixed`: it cannot be anchored to itself. */
-  pin(source?: 'code' | 'person'): PinResult;
-  /** Applies the unpinned half of the panel's `pinning` in one commit: the panel is freed, then placed, so a fixed pin can always be undone. The root answers `root-fixed` as `pin` does. */
-  unpin(source?: 'code' | 'person'): PinResult;
   /**
-   * Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live follows `pinningWhenNotLive`: it may be refused with `would-reshape-row` or `is-closed`, show the panel, or wait and be listed in `later`.
+   * Changes settings of this panel after it was added; `null` removes an instance value. All or nothing, in one update; the result says what acts now and what waits. A flip of `parkable` on a panel that is not live is refused with `would-reshape-row` or `is-closed`.
    * @throws PanelManagerError with code `invalid-settings` when the patch is not an object or names an unknown key.
    */
   configure(patch: InstancePatch): ConfigureResult;
@@ -61,8 +57,7 @@ export type PanelVerbCall =
   | { verb: 'place'; value: AddPlacement | 'in-place' }
   | { verb: 'land'; value: AddPlacement | 'in-place' }
   | { verb: 'setSlots'; slots: number }
-  | { verb: 'scrollTo'; align: ScrollAlign | undefined }
-  | { verb: 'pin' | 'unpin' };
+  | { verb: 'scrollTo'; align: ScrollAlign | undefined };
 
 /** What a handle or reader asks a workspace for. @internal */
 export interface ReadSource {
@@ -76,11 +71,13 @@ export interface ReadSource {
   /** The read-only handle of `id`, or undefined when the workspace knows no such panel. */
   readHandleOf(id: PanelId): PanelReadHandle | undefined;
   /** Runs one operation on `id` for `source`. */
-  operate(id: PanelId, call: PanelVerbCall, source: PanelOpSource): PinResult;
+  operate(id: PanelId, call: PanelVerbCall, source: PanelOpSource): PanelResult;
   /** The handle `id`'s own view receives: the operable one, whose `configure` takes only the keys a view may set. */
   viewHandleOf(id: PanelId): ViewHandle | undefined;
   /** Resets one panel, or every panel but the root. */
   resetLayout(target: PanelId | 'all'): ResetResult;
+  /** Parks `hide` and shows `show` in one update. */
+  swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult;
   /** Patches one panel's settings, for a panel's own caller or for its view. */
   configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
   /** Patches the template-scope settings of a template. */
@@ -119,8 +116,6 @@ export function makeViewHandle<P extends JsonValue = JsonValue>(source: ReadSour
     place: (value, src = 'code') => source.operate(id, { verb: 'place', value }, src),
     setSlots: (slots, src = 'code') => source.operate(id, { verb: 'setSlots', slots }, src),
     scrollTo: (align, src = 'code') => source.operate(id, { verb: 'scrollTo', align }, src),
-    pin: (src = 'code') => source.operate(id, { verb: 'pin' }, src),
-    unpin: (src = 'code') => source.operate(id, { verb: 'unpin' }, src),
     configure: (patch) => source.configure(id, patch, 'panel'),
   };
 }

@@ -138,7 +138,7 @@ const unknownSlot = (id: string, verb: string): void => {
  * Call it once, not on every render: each call makes new slot objects.
  * @example
  * ```ts
- * const bands = withSlotChanges(DEFAULT_COLUMN_BANDS, { replace: { 'neighbour-above': DiscoverLink }, hide: ['workspace-name'] });
+ * const bands = withSlotChanges(DEFAULT_COLUMN_BANDS, { replace: { 'neighbor-above': DiscoverLink }, hide: ['workspace-name'] });
  * ```
  * @public
  */

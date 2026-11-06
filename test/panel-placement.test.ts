@@ -16,7 +16,7 @@ import { placePanel, reportNotes, resolvePlacement, restorePlaced, type NamedPla
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { applyTemplate } from '../panelSettings.js';
 import type { AddPlacement } from '../panelSettings.js';
-import { anchorPanel, appendPanel, createHistoryPanel, sideOfLiveRange, type AnchorRequest } from '../panelWindow.js';
+import { anchorPanel, appendPanel, createRootPanel, sideOfLiveRange, type AnchorRequest } from '../panelWindow.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, withHost, useSeededInput, type SeedOptions } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
@@ -36,7 +36,7 @@ function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   return { ...applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create'), instance: { overflow: 'park', ...layer } };
 }
 /** A fixed column: never parked, anchored to nothing when it is the root. */
-const fixed = (id: string): PanelWindow => applyTemplate({ ...createHistoryPanel(id), title: id }, resolvePanelSettings({ template: { title: id } }, { root: true }).value, 'create');
+const fixed = (id: string): PanelWindow => applyTemplate({ ...createRootPanel(id), title: id }, resolvePanelSettings({ template: { title: id } }, { root: true }).value, 'create');
 const rowOf = (entries: PanelWindow[], rootId = ROOT): PanelWindow[] => deriveAnchorsFromOrder(entries, rootId);
 
 // ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ const ROWS: readonly Row[] = [
 function landNew(row: PanelWindow[], v: Value): { ids: string[]; anchor: AnchorRequest | null; notes: SettingNote[] } {
   const o: PlacementOptions = { fallback: FALLBACK, ...(v.order === undefined ? {} : { order: v.order }) };
   const { anchor, notes } = resolvePlacement(row, ROOT, 'N', v.value, o);
-  const landed = appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT);
+  const landed = appendPanel(row, { view: 'web', url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT);
   return { ids: ids(landed), anchor, notes };
 }
 
@@ -217,7 +217,7 @@ test('pinned zone: in [P H* A B] a new panel lands anchored { H, left } under ro
   assert.equal(sideOf(request(row, ROOT, 'after-fixed')), 'H right');
   assert.equal(sideOf(request(row, ROOT, { after: 'H' })), 'H right');
   assert.equal(sideOf(request(row, ROOT, 'row-end')), 'H right');
-  const landed = appendPanel(row, { url: 'https://n.example', anchor: request(row, ROOT, 'parkable-start') }, 'N', ROOT);
+  const landed = appendPanel(row, { view: 'web', url: 'https://n.example', anchor: request(row, ROOT, 'parkable-start') }, 'N', ROOT);
   assert.equal(landed.find((p) => p.id === 'N')!.anchor!.position, 'left', 'the landed anchor reads left of the root: the panel is pinned');
 });
 
@@ -226,7 +226,7 @@ test("root marker: in a root-less row [M A B] row-start lands left of the marker
   const row = rowOf([marker, made('A'), made('B')], '__root__');
   const landedIds = (value: AddPlacement): string[] => {
     const { anchor } = resolvePlacement(row, '__root__', 'N', value, { fallback: 'row-end' });
-    return ids(appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', '__root__'));
+    return ids(appendPanel(row, { view: 'web', url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', '__root__'));
   };
   assert.deepEqual(landedIds('row-start'), ['N', '__root__', 'A', 'B']);
   assert.deepEqual(landedIds('row-end'), ['__root__', 'A', 'B', 'N']);
@@ -240,7 +240,7 @@ test("root marker: in a root-less row [M A B] row-start lands left of the marker
 test('priority: { after: root } and { before: X } emit priority -1 and land immediately next to the target, appended or already present', () => {
   const rightRow = rowOf([fixed('H'), made('A'), made('B')]);
   assert.equal(request(rightRow, ROOT, { after: 'H' }).priority, -1);
-  assert.deepEqual(ids(appendPanel(rightRow, { url: 'https://n.example', anchor: request(rightRow, ROOT, { after: 'H' }) }, 'N', ROOT)), ['H', 'N', 'A', 'B'], 'A already holds priority 0 beside H; an appended panel at priority 0 would sit behind it');
+  assert.deepEqual(ids(appendPanel(rightRow, { view: 'web', url: 'https://n.example', anchor: request(rightRow, ROOT, { after: 'H' }) }, 'N', ROOT)), ['H', 'N', 'A', 'B'], 'A already holds priority 0 beside H; an appended panel at priority 0 would sit behind it');
   const presentRight = [...rightRow, made('N')];
   assert.deepEqual(ids(placePanel(presentRight, 'N', { after: 'H' }, { rootId: ROOT, fallback: 'row-end' }).row), ['H', 'N', 'A', 'B']);
 
@@ -256,7 +256,7 @@ test('priority: { after: root } and { before: X } emit priority -1 and land imme
   const placed = placePanel(leftRow, 'N', { before: 'X' }, { rootId: ROOT, fallback: 'row-end' }).row;
   assert.deepEqual(ids(placed), ['H', 'Y', 'N', 'X'], 'N is X\'s nearest left neighbour, ahead of Y');
   assert.equal(request(leftRow, ROOT, { before: 'X' }).priority, -1);
-  const appended = appendPanel(leftRow.filter((p) => p.id !== 'N'), { url: 'https://n.example', anchor: request(leftRow, ROOT, { before: 'X' }) }, 'N', ROOT);
+  const appended = appendPanel(leftRow.filter((p) => p.id !== 'N'), { view: 'web', url: 'https://n.example', anchor: request(leftRow, ROOT, { before: 'X' }) }, 'N', ROOT);
   assert.deepEqual(ids(appended), ['H', 'Y', 'N', 'X']);
 });
 
@@ -286,8 +286,8 @@ test('row-end is the 0.1.0 default { position: right } by computeRowOrder id seq
     const row = computeRowOrder(rowOf(nested), ROOT);
     const resolved = resolvePlacement(row, ROOT, 'N', 'row-end', { fallback: 'row-start' });
     assert.deepEqual(resolved.notes, [], 'row-end never needs its fallback');
-    const viaValue = appendPanel(row, { url: 'https://n.example', anchor: resolved.anchor! }, 'N', ROOT);
-    const viaDefault = appendPanel(row, { url: 'https://n.example', anchor: { position: 'right' } }, 'N', ROOT);
+    const viaValue = appendPanel(row, { view: 'web', url: 'https://n.example', anchor: resolved.anchor! }, 'N', ROOT);
+    const viaDefault = appendPanel(row, { view: 'web', url: 'https://n.example', anchor: { position: 'right' } }, 'N', ROOT);
     assert.deepEqual(ids(viaValue), ids(viaDefault), `row ${seed}: ${ids(row).join(',')}`);
     checked += 1;
     if (rootAt >= 0) withRoot += 1;
@@ -389,7 +389,7 @@ test('differential placeOnAdd: the resolved setting decides where an appended pa
       run(value, () => {
         const settings = resolve({ placeOnAdd: value });
         const { anchor } = resolvePlacement(row, ROOT, 'N', settings.placeOnAdd, { fallback: 'row-end' });
-        return ids(appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
+        return ids(appendPanel(row, { view: 'web', url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
       });
     }
   });
@@ -404,7 +404,7 @@ afterEach(() => cleanup());
 const O: PlacementOptions & { rootId: string } = { rootId: ROOT, fallback: 'row-start' };
 const landed = (row: PanelWindow[], value: AddPlacement): string[] => {
   const { anchor } = resolvePlacement(row, ROOT, 'N', value, O);
-  return ids(appendPanel(row, { url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
+  return ids(appendPanel(row, { view: 'web', url: 'https://n.example', ...(anchor === null ? {} : { anchor }) }, 'N', ROOT));
 };
 const anchored = (p: PanelWindow, panel: string, position: 'left' | 'right', priority: number): PanelWindow => ({ ...p, anchor: { panel, position, priority } });
 
@@ -612,7 +612,7 @@ function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote
     settle: () => advanceFrames(600),
     /** Which way `id`'s slot starts from its rest position: -1 left of it, 1 right of it. Read straight after the act that mounted it. */
     entersFrom: async (id: string): Promise<number> => {
-      const slot = mounted.container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+      const slot = mounted.container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
       assert.ok(slot, `slot ${id} is mounted`);
       const initial = translateX(slot);
       await advanceFrames(600);
@@ -702,7 +702,7 @@ for (const c of SIDE_CASES) {
     act(() => provided!.activate('B'));
     assert.equal(provided!.enterSideById.get('B'), c.side, 'the explicit mark');
     assert.equal(provided!.enterSideById.get('B'), sideOfLiveRange([...provided!.entries], 'B'), 'equals sideOfLiveRange of the landing slot');
-    const slot = mounted.container.querySelector('[data-slot="B"]')?.parentElement;
+    const slot = mounted.container.querySelector('[data-slot="B"]')?.closest<HTMLElement>('[data-row-slot]');
     assert.ok(slot, 'the new slot is mounted');
     const initial = Number(/translateX\((-?[\d.]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
     await advanceFrames(600);

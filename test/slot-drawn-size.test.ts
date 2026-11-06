@@ -55,17 +55,17 @@ test('in a row with a 24 px gap a two-slot panel size box equals the drawn width
   assert.equal(r.box.style.width, `${drawn}px`, 'the size box is the slot width, not 2 phones and the default gap');
   assert.equal(getComputedStyle(r.frame).width, '100%', 'PanelFrame fills the box');
   assert.equal(getComputedStyle(r.frame).height, '100%', 'PanelFrame fills the box in height');
-  assert.equal(getComputedStyle(r.box.firstElementChild!).width, '100%', 'Panel fills the box');
-  assert.equal(getComputedStyle(r.box.firstElementChild!).height, '100%', 'Panel fills the box in height');
+  assert.equal(getComputedStyle(r.frame.parentElement!).width, '100%', 'Panel fills the box');
+  assert.equal(getComputedStyle(r.frame.parentElement!).height, '100%', 'Panel fills the box in height');
   assert.notEqual(r.box.style.width, `${2 * PHONE + 16}px`, 'control: the default 16 px gap would price it differently');
 });
 
-test('in a row with a 24 px gap a two-slot Panel and PanelFrame with no size box equal the drawn width', async () => {
+test('in a row with a 24 px gap a two-slot Panel and PanelFrame the view draws with no size box fill the row\'s box, which is the drawn width', async () => {
   const r = await rowWith(24, 2, UNBOXED);
   const drawn = 2 * PHONE + 24;
-  assert.equal(r.box, null, 'control: nothing boxes them');
-  assert.equal(getComputedStyle(r.frame).width, `${drawn}px`, 'PanelFrame');
-  assert.equal(getComputedStyle(r.frame.parentElement!).width, `${drawn}px`, 'Panel');
+  assert.equal(r.box.style.width, `${drawn}px`, 'the row boxes them all the same');
+  assert.equal(getComputedStyle(r.frame).width, '100%', 'PanelFrame');
+  assert.equal(getComputedStyle(r.frame.parentElement!).width, '100%', 'Panel');
 });
 
 test('a one-slot panel in the same row is the phone width', async () => {

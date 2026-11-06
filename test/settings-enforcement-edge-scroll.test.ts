@@ -7,6 +7,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
@@ -56,7 +57,7 @@ async function scrolledUnder(tuning: WorkspaceTuning): Promise<number> {
   await act(async () => void document.dispatchEvent(pointer('pointermove', POINTER)));
   await advanceFrames(FRAME_MS);
   await advanceFrames(50 * FRAME_MS);
-  const at = m.container.scrollLeft;
+  const at = rowOffsetOf(m.container);
   await act(async () => void document.dispatchEvent(pointer('pointerup', POINTER)));
   await advanceFrames(30 * FRAME_MS);
   cleanup();

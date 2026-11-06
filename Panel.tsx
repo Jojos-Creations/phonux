@@ -9,16 +9,19 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import type { CssStyle, ElementProps } from './cssStyle.js';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
-import { type PanelSize } from './hostApi.js';
+import { type PanelSize, useOptionalHost } from './hostApi.js';
+import { resolveIcons } from './icons.js';
 import { usePhoneSize } from './phoneFit.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
+import { PANEL_ROOT_ATTRIBUTE } from './rowDom.js';
 import { HEADER_ROW_ATTRIBUTE, PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
+import { PanelSizeControl, drawsSizeControl } from './panelSizeControl.js';
 import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import { GRAB_HANDLE_PX } from './rowConstants.js';
+import { PanelTouchContext, usePanelTouch } from './panelTouch.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
@@ -63,6 +66,11 @@ export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'titl
    * `usePanelHeaderButtons` or `PanelHeaderButtons` still can. Default: they are drawn with the title.
    */
   headerButtons?: boolean;
+  /**
+   * `false` keeps the library's width control (`PanelSizeControl`) out of the header, for a view that places it itself among
+   * its own `actions`. Default: a resizable panel with a title shows it first among the actions.
+   */
+  sizeControl?: boolean;
   /** Extra styles for the panel's root box, merged over the width and positioning it sets itself. */
   sx?: CssStyle;
   /** The panel's content, rendered inside the root box below the header. */
@@ -83,19 +91,21 @@ export interface PanelProps extends Omit<ElementProps, 'children' | 'sx' | 'titl
  * optional header above it, an optional grab handle and an optional overlay.
  * @public
  */
-export function Panel({ title, actions, headerProps, headerButtons = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
+export function Panel({ title, actions, headerProps, headerButtons = true, sizeControl = true, grabProps, overlay, sx, children, viewId, capture = 'auto', size, ...rest }: PanelProps) {
   const phoneSize = usePhoneSize();
   useFrameClaim('panel');
   const registry = React.useContext(CaptureRegistryContext);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const slot = React.useContext(PanelSlotContext);
-  // Below a size box the panel fills it on both axes, so it eases with the box and its frame's 100% has a height to resolve against.
+  // Below a size box the panel fills it on both axes, so it glides with the box and its frame's 100% has a height to resolve against.
   const boxed = useInsideSizeBox();
   const declared = slot?.headerButtonSlots;
   const buttons = usePanelHeaderButtons();
   const drawn = headerButtons && declared !== undefined && title !== undefined && buttons.some((b) => !b.hidden);
   const untitled = headerButtons && declared !== undefined && title === undefined && buttons.some((b) => !b.hidden);
+  const sized = sizeControl && title !== undefined && drawsSizeControl(slot);
   const active = usePanelActive();
+  const touchProps = usePanelTouch(rootRef, React.useContext(PanelTouchContext));
   const dragging = usePanelDragging();
   const { visible, handlers } = useChromeVisibility();
   const fadeHeader = useChromeFade(visible);
@@ -116,7 +126,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
       ...grabProps?.sx,
     },
   };
-  const grabIcon = <DragIndicatorIcon aria-hidden="true" fontSize="small" />;
+  const grabIcon = resolveIcons(useOptionalHost()?.icons).grab;
   const grabHandle = grabProps && title !== undefined ? <Box {...grabHandleProps}>{grabIcon}</Box> : undefined;
   React.useEffect(() => {
     if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
@@ -132,8 +142,10 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
       sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...sx }}
+      {...{ [PANEL_ROOT_ATTRIBUTE]: '' }}
       {...rest}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
+      {...touchProps}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
       onPointerEnter={(e: React.PointerEvent<HTMLDivElement>) => {
         handlers.onPointerEnter(e);
@@ -158,10 +170,11 @@ export function Panel({ title, actions, headerProps, headerButtons = true, grabP
           ref={fadeHeader}
           {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.header }}
           title={title}
-          actions={drawn ? (
+          actions={drawn || sized ? (
             <>
+              {sized ? <PanelSizeControl /> : null}
               {actions}
-              <PanelHeaderButtons side="end" />
+              {drawn ? <PanelHeaderButtons side="end" /> : null}
             </>
           ) : actions}
           {...headerProps}

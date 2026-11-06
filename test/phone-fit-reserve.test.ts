@@ -60,7 +60,7 @@ test('a row gap wider than the footer room is the reserve', async () => {
 });
 
 test('a mount theme with another corner radius: the reserve is 40 for the fit and the scroller padding alike', async () => {
-  const theme = { ...createDefaultTheme('light'), radiusUnitPx: 6 };
+  const theme = { ...createDefaultTheme('light'), radius: 24 };
   await autoMounted({ theme });
   assert.equal(padBottom(), 40);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - 40, 'the fit reserve is the padding');
@@ -75,8 +75,9 @@ test('a live row gap change re-fits the phone to the new reserve', async () => {
   await until('the first fit', () => phoneHeight() > 0 && phoneHeight() >= WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX - 2);
   assertFills(phoneHeight(), WINDOW_HEIGHT - TOP - FOOTER_ROOM_PX, 'gap under the footer room');
   act(() => ws.panels.configureTuning({ rowGap: 60 }));
-  await until('the re-fit', () => phoneHeight() <= WINDOW_HEIGHT - TOP - 60);
+  // The new budget is drawn once it has settled, which is counted on frames.
   await advanceFrames(1000);
+  await until('the re-fit', () => phoneHeight() <= WINDOW_HEIGHT - TOP - 60);
   assert.ok(phoneHeight() <= WINDOW_HEIGHT - TOP - 60, `the wider gap is the reserve: ${phoneHeight()} against ${WINDOW_HEIGHT - TOP - 60}`);
   assert.equal(padBottom(), 60);
 });

@@ -1,5 +1,5 @@
 // The tile-picture controller: the policy (faded or hidden panels, one-color pictures), a bounded store with
-// least-recently-touched eviction, and persistence through a host-supplied storage. The rasteriser is injected, so
+// least-recently-touched eviction, and persistence through a host-supplied storage. The rasterizer is injected, so
 // this module draws nothing and names no location where pictures are kept.
 
 import type { CaptureRegistry, CaptureTrigger, SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
@@ -37,7 +37,7 @@ export interface TilePictureStorage {
   remove(viewIds: readonly ViewId[]): Promise<void>;
 }
 
-/** What the rasteriser is asked to draw. @public */
+/** What the rasterizer is asked to draw. @public */
 export interface TileRequest {
   /**
    * The live panel element. Read it before the returned promise settles; the panel may leave the page soon after
@@ -56,7 +56,7 @@ export interface TileRequest {
   readonly pictureHeight: number;
 }
 
-/** A rasterised picture. @public */
+/** A rasterized picture. @public */
 export interface TileRaster {
   /** A data: image URL, WebP where the browser can encode it. */
   readonly src: string;
@@ -65,7 +65,7 @@ export interface TileRaster {
 }
 
 /**
- * The host's rasteriser: draws a panel to a picture of the requested size. Resolve `null` when there is nothing to
+ * The host's rasterizer: draws a panel to a picture of the requested size. Resolve `null` when there is nothing to
  * draw. Never called for a faded or hidden panel. @public
  */
 export type TileRasteriser = (request: TileRequest) => Promise<TileRaster | null>;
@@ -192,8 +192,14 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     };
   };
 
-  /** Measures, rasterises and checks one picture. Null when there is nothing worth keeping. */
+  /** Measures, rasterizes and checks one picture. Null when there is nothing worth keeping. */
   const pictureOf = async (el: HTMLElement, extent: 'viewport' | 'full'): Promise<Picture | null> => {
+    const loading = loadingImages(el);
+    // Only a wait can let the panel leave the page; with nothing loading the picture is taken on this turn, as before.
+    if (loading.length > 0) {
+      await imagesSettled(loading);
+      if (!el.isConnected) return null;
+    }
     if (isFadedOrHidden(el)) return null;
     // 'full' is the scroll extent, past what is visible; the client extent is what the viewport shows.
     const width = extent === 'full' ? el.scrollWidth : el.clientWidth;
@@ -203,7 +209,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     const raster = await rasterise({ element: el, extent, width, height, pictureWidth: box.width, pictureHeight: box.height });
     if (!raster?.src.startsWith('data:image/')) return null;
     if (raster.pixels.length !== box.width * box.height * 4) return null;
-    // The panel may have faded while the rasteriser ran; its picture then shows the fade.
+    // The panel may have faded while the rasterizer ran; its picture then shows the fade.
     if (isFadedOrHidden(el)) return null;
     // A picture of one color is a blank or transparent panel: the last good picture stays.
     if (isOneColour(raster.pixels)) return null;
@@ -315,4 +321,28 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
   };
 
   return { register, capture, evict, get, subscribe, restore };
+}
+
+/** How long a capture waits for a panel's pictures to load before it takes what is there. */
+const IMAGE_WAIT_MS = 5000;
+
+/** The `<img>`s under `el` still loading. */
+const loadingImages = (el: HTMLElement): HTMLImageElement[] => [...el.querySelectorAll('img')].filter((img) => !img.complete);
+
+/** Settles once every image in `pending` has loaded or failed, or after `IMAGE_WAIT_MS`: a panel still loading is not pictured blank. */
+function imagesSettled(pending: readonly HTMLImageElement[]): Promise<void> {
+  return new Promise((resolve) => {
+    let left = pending.length;
+    const timer = setTimeout(resolve, IMAGE_WAIT_MS);
+    const one = (): void => {
+      left -= 1;
+      if (left > 0) return;
+      clearTimeout(timer);
+      resolve();
+    };
+    for (const img of pending) {
+      img.addEventListener('load', one, { once: true });
+      img.addEventListener('error', one, { once: true });
+    }
+  });
 }

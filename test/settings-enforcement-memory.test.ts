@@ -14,7 +14,7 @@ import type { PanelSettings, PanelWindow, ProvidedPanels, SettingNote, Workspace
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
-import { appendPanel, createHistoryPanel, recordOverride } from '../panelWindow.js';
+import { appendPanel, createRootPanel, recordOverride } from '../panelWindow.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { placePanel } from '../panelPlacement.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
@@ -78,7 +78,7 @@ async function launch(mem: Memory, over: Partial<SeededOver> = {}): Promise<Laun
   const notes: SettingNote[] = [];
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage: mem.storage, tuning: { saveQuietMs: QUIET_MS }, onNote: (n) => void notes.push(n), ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createRootPanel(ROOT)], storage: mem.storage, tuning: { saveQuietMs: QUIET_MS }, onNote: (n) => void notes.push(n), ...over }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
@@ -210,8 +210,8 @@ test('the file has no instance key for a code-declared panel and one for an anon
 });
 
 test('a code placement through the engine-level placePanel is not recorded as an override', () => {
-  const made = (id: string): PanelWindow => applyTemplate(appendPanel([], { url: id, title: id }, id, ROOT)[0]!, resolvePanelSettings().value, 'create');
-  const row = computeRowOrder([createHistoryPanel(ROOT), made('a'), made('b')], ROOT);
+  const made = (id: string): PanelWindow => applyTemplate(appendPanel([], { view: 'web', url: id, title: id }, id, ROOT)[0]!, resolvePanelSettings().value, 'create');
+  const row = computeRowOrder([createRootPanel(ROOT), made('a'), made('b')], ROOT);
   const placed = placePanel(row, 'b', 'row-start', { fallback: 'row-end', rootId: ROOT }).row;
   assert.deepEqual(placed.map((p) => p.id), ['b', ROOT, 'a']);
   assert.deepEqual(placed.map((p) => p.overrides), [undefined, undefined, undefined]);
@@ -503,7 +503,7 @@ test('a file written by the vendored 0.1.0 projectWorkspaceState restores with o
   const solo = { ...legacyPanel('s', 'solo'), view: 'solo' };
   const web = { ...legacyPanel('w', 'web'), formFactor: 'tablet' as const };
   const other = legacyPanel('o', 'other');
-  const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), web, solo, other]), ROOT);
+  const file = legacyProject(deriveAnchors([createRootPanel(ROOT), web, solo, other]), ROOT);
   const mem = memory();
   await mem.storage.save(file);
   const l = await launch(mem, { workspaceDefaults: {}, templates: [tpl('solo')], declared: [{ id: 'solo', templateId: 'solo', settings: { title: 'solo' } }] });
@@ -515,7 +515,7 @@ test('a file written by the vendored 0.1.0 projectWorkspaceState restores with o
 test('a plain 0.1.0 file restores through a workspace with no templates or declarations: its panels keep their title, slots and no key', async () => {
   const { projectWorkspaceState: legacyProject } = await vendored();
   const tablet = { ...legacyPanel('b', 'b'), formFactor: 'tablet' as const };
-  const file = legacyProject(deriveAnchors([createHistoryPanel(ROOT), legacyPanel('a', 'a'), tablet]), ROOT);
+  const file = legacyProject(deriveAnchors([createRootPanel(ROOT), legacyPanel('a', 'a'), tablet]), ROOT);
   const mem = memory();
   await mem.storage.save(file);
   const l = await launch(mem);

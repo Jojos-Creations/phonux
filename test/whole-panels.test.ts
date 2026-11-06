@@ -7,9 +7,10 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
 import { workspaceShellStyle } from '../Workspace.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -25,7 +26,7 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'scroll-row-view' }, id, ROOT)[0]!;
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
-const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+const root = (): PanelWindow => applyTemplate({ ...createRootPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
 const numbers = (entries: PanelWindow[], containerWidth = 1000, wholePanels = true) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels });
 const six = () => [root(), ...['a', 'b', 'c', 'd', 'e'].map((id) => made(id))];
 
@@ -87,21 +88,11 @@ test('snapToStop picks the nearest stop that shows the panel; nearestStop the ne
   assert.equal(nearestStop(none, 33), 33);
 });
 
-test('mounted in free mode: the one-phone grid stops, and the row centers at both ends once the strip overflows', () => {
+test('mounted in free mode: the one-phone grid stops, and the row centers once the strip overflows', () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218, 1624], 'a free row rests on the grid too, so a scroll that ends settles on a stop');
   assert.equal(m.latest().rowNumbers.rowMarginLeft, 86);
-  assert.equal(m.container.querySelector<HTMLElement>('[data-row-end-pad]')!.style.flex, '0 0 102px', 'the right edge space is the row gap plus endPad, 16 + 86');
 });
-
-test('mounted in step mode the trailing room is one spacer element, the row gap plus endPad wide, outside the strip', () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  const spacer = m.container.querySelector<HTMLElement>('[data-row-end-pad]');
-  assert.ok(spacer, 'a spacer is drawn');
-  assert.equal(spacer.style.flex, '0 0 102px', 'the row gap plus the centering endPad, 16 + 86');
-  assert.equal(spacer.parentElement, m.container, 'a child of the scroll container, not of the strip');
-});
-
 
 test('a window exactly two panels wide fits two, not one', () => {
   const n = numbers(six(), 828);
@@ -113,11 +104,11 @@ test('a window exactly two panels wide fits two, not one', () => {
 test('a resize that changes how many fit brings a row resting past the new last stop back to a stop', async () => {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  assert.equal(m.container.scrollLeft, 1624, 'the last stop at two fit');
+  assert.equal(rowOffsetOf(m.container), 1624, 'the last stop at two fit');
   m.rerender(1500);
   await advanceFrames(600);
   assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218], 'three fit at 1500: the grid, with ((1468 + 16) mod 406) / 2 = 133 at each end, and the new end, 133 + 2420 + 133 - 1468');
-  assert.equal(m.container.scrollLeft, 1218);
+  assert.equal(rowOffsetOf(m.container), 1218);
 });
 
 test('the strip margin snaps while stops exist and glides otherwise', () => {

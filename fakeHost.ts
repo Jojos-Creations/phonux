@@ -3,7 +3,7 @@
  * `createFakeHost({ panels: { panelList: [...] } })`, render under `<HostProvider>`, interact, then assert on
  * `host.calls`. Every method records `{ api, method, args }` in call order and does nothing else (async ones
  * resolve). The fakes hold no state: a test wanting a different live value re-renders with new overrides. An
- * override replaces a whole member (a nested object such as `closedPagesViewer` too), and an overridden
+ * override replaces a whole member, and an overridden
  * method no longer records. `createFakePanel` is the one exception: it holds the single panel state it was given.
  * Why it lives here: DESIGN.md, "Testing without a host".
  */
@@ -12,14 +12,12 @@ import { PHONE_MODELS } from './phoneModels.js';
 import {
   DEFAULT_PHONE_SIZE,
   type CreatePanelOptions,
-  type HistoryAPI,
   type Host,
   type PanelsAPI,
   type PhoneDeviceAPI,
-  type SettingsAPI,
 } from './hostApi.js';
 import type { SnapshotsAPI } from './snapshots.js';
-import type { ConfigureResult, PanelResult, PinResult } from './panelManager.js';
+import type { ConfigureResult, PanelResult } from './panelManager.js';
 import { resolvePanelSettings, type PanelId } from './panelSettings.js';
 import type { JsonValue, PanelSummary } from './hostApi.js';
 import type { ListFilter, PanelReader, PanelSnapshot, PanelState, PanelViewProps, ViewHandle } from './panelTemplate.js';
@@ -28,36 +26,37 @@ import type { WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 import { ROOT_MARKER_ID } from './workspaceCore.js';
 
 // The ./testing entry point has to name every type FakeHost's own declaration reaches, not just Host.
-export type { Host, PhoneSize, ClosedPageEntry, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, SettingsAPI, HistoryAPI, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
+export type { Host, PhoneSize, JsonValue, PanelSize, PanelSummary, CreatePanelOptions, PanelsAPI, PhoneDeviceAPI } from './hostApi.js';
 export type { PhonuxLabels } from './labels.js';
+export type { PhonuxIcons } from './icons.js';
 export type { SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
 export type { PhoneModel } from './phoneModels.js';
 export type { WorkspacePanelState, WorkspaceState, WorkspaceStorage } from './workspaceState.js';
 export type { AddPlacement, AnchorRequest, PanelId, PanelSettingsResolution, ResolvedPanelSettings, ScrollAlign, SettingValues, HeaderButton, SourceLayer, SettingNote, SettingConflict, CatalogName } from './panelSettings.js';
-export type { ConfigureResult, PanelResult, PinResult } from './panelManager.js';
+export type { ConfigureResult, PanelResult } from './panelManager.js';
 export type { PanelRefusal } from './panelManagerError.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelStatus, PanelViewProps, ViewHandle, DeferredPin, WorkspaceStatus } from './panelTemplate.js';
+export type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelStatus, PanelViewProps, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 export type { ViewPatch } from './settingsPatch.js';
 export type { BezierEase, FadeEase } from './panelSettings.js';
-export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext, PinHalf, PinWhenNotLive } from './panelSettings.js';
+export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext } from './panelSettings.js';
 export type { SettingsPatch } from './settingsPatch.js';
 export type { CssStyle, ElementProps } from './cssStyle.js';
-export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, Pinning, PinningWhenNotLive, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
+export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
 export type { InstancePatch } from './settingsPatch.js';
 
 /** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */
 export interface FakeCall {
   /** Which `Host` member the method belongs to, e.g. 'panels'; 'handle' for a call on a `createFakePanel` handle. */
   api: keyof Host | 'handle';
-  /** The method's name; a method of a nested object is dotted, e.g. 'settingsColumn.show'. */
+  /** The method's name; a method of a nested object is dotted. */
   method: string;
   /** The arguments the method received, in order. */
   args: unknown[];
 }
 
 /** The `Host` members a host may leave out, which `FakeOverrides.absent` can leave out of a fake. @public */
-export type AbsentHostMember = 'history' | 'snapshots';
+export type AbsentHostMember = 'snapshots';
 
 /**
  * Replacement members, per API. `absent` leaves the named optional members out of the fake altogether, so a view test renders
@@ -82,31 +81,6 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
   const calls: FakeCall[] = [];
   const log = (api: keyof Host, method: string, args: unknown[]): void => {
     calls.push({ api, method, args });
-  };
-
-  const settings: SettingsAPI = {
-    settingsColumn: {
-      visible: false,
-      show: () => log('settings', 'settingsColumn.show', []),
-      hide: () => log('settings', 'settingsColumn.hide', []),
-    },
-  };
-
-  const history: HistoryAPI = {
-    loadClosedPages: async () => {
-      log('history', 'loadClosedPages', []);
-      return [];
-    },
-    closedPagesViewer: {
-      isOpen: false,
-      loading: false,
-      entries: [],
-      open: () => log('history', 'closedPagesViewer.open', []),
-      close: () => log('history', 'closedPagesViewer.close', []),
-    },
-    locked: true,
-    closed: false,
-    close: () => log('history', 'close', []),
   };
 
   const panels: PanelsAPI = {
@@ -141,8 +115,6 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
 
   const absent = new Set<AbsentHostMember>(overrides.absent);
   return {
-    settings: { ...settings, ...overrides.settings },
-    ...(absent.has('history') ? {} : { history: { ...history, ...overrides.history } }),
     panels: { ...panels, ...overrides.panels },
     device: { ...device, ...overrides.device },
     ...(absent.has('snapshots') ? {} : { snapshots: { ...snapshots, ...overrides.snapshots } }),
@@ -267,8 +239,7 @@ export interface FakePanel<P extends JsonValue = JsonValue> {
 }
 
 const ACCEPTED: PanelResult = { ok: true, changed: false };
-const ACCEPTED_PIN: PinResult = { ok: true, changed: false };
-const ACCEPTED_CONFIGURE: ConfigureResult = { ok: true, changed: false, shown: false, now: [], later: [], shadowed: [], notes: [] };
+const ACCEPTED_CONFIGURE: ConfigureResult = { ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] };
 
 /**
  * Builds a handle and a reader over one in-memory panel, so a view takes `props` from a test with no cast. The panel holds
@@ -290,8 +261,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
     title: undefined,
     listed: true,
     settings: resolution.value,
-    pinned: false,
-    deferredPin: null,
     ...state,
     params: state.params,
   };
@@ -315,8 +284,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
     place: (...args) => answer('place', args, ACCEPTED),
     setSlots: (...args) => answer('setSlots', args, ACCEPTED),
     scrollTo: (...args) => answer('scrollTo', args, ACCEPTED),
-    pin: (...args) => answer('pin', args, ACCEPTED_PIN),
-    unpin: (...args) => answer('unpin', args, ACCEPTED_PIN),
     configure: (...args) => answer('configure', args, ACCEPTED_CONFIGURE),
   };
   const manager: PanelReader = {
@@ -334,3 +301,6 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
   };
   return { props: { panel, handle, manager }, handle, manager, calls };
 }
+
+export { reportMaximized } from './maximizedStore.js';
+export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';

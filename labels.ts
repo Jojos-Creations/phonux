@@ -10,24 +10,8 @@ export interface PhonuxLabels {
   untitledPanel: string;
   /** The text a `PanelHeaderRow` shows when its title is empty. Default `Untitled`. */
   untitledHeader: string;
-  /** The title `createHistoryPanel` gives the History root entry. Default `History`. */
-  historyTitle: string;
-  /** The name of a pin button or action. Default `Pin`. */
-  pin: string;
-  /** The name of an unpin button or action. Default `Unpin`. */
-  unpin: string;
-  /** The text a host announces when a pin request is refused. Default `Could not pin this panel`. */
-  pinFailed: string;
-  /** The text a host announces when an unpin request is refused. Default `Could not unpin this panel`. */
-  unpinFailed: string;
-  /** The accessible name of a panel's move menu button, which holds Pin or Unpin. Default `Move`. */
-  move: string;
   /** The accessible name of a panel's close button. Default `Close`. */
   close: string;
-  /** The name of a lock button or action, which makes a panel not closable. Default `Lock`. */
-  lock: string;
-  /** The name of an unlock button or action. Default `Unlock`. */
-  unlock: string;
   /** The text of the button that creates a workspace where the column has none above or below. Default `Create new workspace`. */
   newWorkspace: string;
   /** The accessible name of the button that moves to the workspace called `name`. Default `Go to <name>`. */
@@ -52,50 +36,34 @@ export interface PhonuxLabels {
   cannotMove: (title: string, steps: number) => string;
   /** Said after a panel closed. Default `Closed <title>`. */
   closed: (title: string) => string;
-  /** The title of the closed-pages panel when a template is made without one. Default `Closed pages`. */
-  closedPagesTitle: string;
-  /** The placeholder and accessible name of the closed-pages search field. Default `Search closed pages`. */
-  closedPagesSearch: string;
-  /** The text the closed-pages panel shows until its stored log is read. Default `Loading`. */
-  closedPagesLoading: string;
-  /** The text the closed-pages panel shows when nothing has been closed. Default `No closed pages yet`. */
-  closedPagesEmpty: string;
-  /** The text the closed-pages panel shows when the search matches nothing. Default `No matches`. */
-  closedPagesNoMatches: string;
-  /** The text a closed page with no title shows. Default `Untitled`. */
-  closedPagesUntitled: string;
-  /** The button under a closed-pages list with more rows than it shows. Default `Show more`. */
-  closedPagesShowMore: string;
-  /** The heading over a workspace grid's pinned panels. Default `Pinned`. */
-  workspacePinned: string;
-  /** The heading over a workspace grid's live, unpinned panels. Default `Viewing`. */
-  workspaceViewing: string;
-  /** The heading over a workspace grid's parked, unpinned panels. Default `Hidden`. */
-  workspaceHidden: string;
-  /** The search field's name and placeholder in a workspace grid. Default `Search panels`. */
-  workspaceSearch: string;
+  /** The undo-close toast's text, given the titles of the panels the undo would bring back (at least one). Default `Closed <title>`, or `Closed <count> panels`. */
+  undoCloseMessage: (titles: readonly string[]) => string;
+  /** The undo-close toast's button. Default `Undo`. */
+  undo: string;
   /** The title a workspace grid gives a panel with no title and no url. Default `Untitled`. */
   workspaceUntitled: string;
   /** Shown in a workspace grid when there are no panels to list. Default `No panels yet.`. */
   workspaceEmpty: string;
-  /** Shown in a workspace grid when the search matches no panel. Default `No panels match.`. */
-  workspaceNoMatches: string;
+  /** The name of a panel's width control and of the group of widths it opens. Default `View Size`. */
+  viewSize: string;
+  /** The name of the width that is `slots` phones wide. Default `Phone`, `Fold`, `Tablet`, `Desktop`, `Ultrawide`, then `<slots> phones`. */
+  sizeName: (slots: number) => string;
+  /** The name of the width control's entry that grows the panel to fill the window. Default `Fullscreen`. */
+  fullscreen: string;
+  /** Said when a width picked in the width control was refused. Default `Could not resize this panel`. */
+  couldNotResize: string;
+  /** Said when the browser refused to grow the panel to fill the window. Default `Could not make this panel fullscreen`. */
+  couldNotFullscreen: string;
 }
+
+const SIZE_NAMES = ['Phone', 'Fold', 'Tablet', 'Desktop', 'Ultrawide'] as const;
 
 /** The English text every label takes when a host overrides none. @public */
 export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   panelTitle: (id) => `Panel ${id}`,
   untitledPanel: 'Untitled panel',
   untitledHeader: 'Untitled',
-  historyTitle: 'History',
-  pin: 'Pin',
-  unpin: 'Unpin',
-  pinFailed: 'Could not pin this panel',
-  unpinFailed: 'Could not unpin this panel',
-  move: 'Move',
   close: 'Close',
-  lock: 'Lock',
-  unlock: 'Unlock',
   newWorkspace: 'Create new workspace',
   goToWorkspace: (name) => `Go to ${name}`,
   workspaceName: 'Workspace name',
@@ -108,20 +76,15 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   moved: (title, steps) => `Moved ${title} ${steps < 0 ? 'left' : 'right'}`,
   cannotMove: (title, steps) => `${title} cannot move ${steps < 0 ? 'left' : 'right'}`,
   closed: (title) => `Closed ${title}`,
-  closedPagesTitle: 'Closed pages',
-  closedPagesSearch: 'Search closed pages',
-  closedPagesLoading: 'Loading',
-  closedPagesEmpty: 'No closed pages yet',
-  closedPagesNoMatches: 'No matches',
-  closedPagesUntitled: 'Untitled',
-  closedPagesShowMore: 'Show more',
-  workspacePinned: 'Pinned',
-  workspaceViewing: 'Viewing',
-  workspaceHidden: 'Hidden',
-  workspaceSearch: 'Search panels',
+  undoCloseMessage: (titles) => (titles.length === 1 ? `Closed ${titles[0]}` : `Closed ${titles.length} panels`),
+  undo: 'Undo',
   workspaceUntitled: 'Untitled',
   workspaceEmpty: 'No panels yet.',
-  workspaceNoMatches: 'No panels match.',
+  viewSize: 'View Size',
+  sizeName: (slots) => SIZE_NAMES[slots - 1] ?? `${slots} phones`,
+  fullscreen: 'Fullscreen',
+  couldNotResize: 'Could not resize this panel',
+  couldNotFullscreen: 'Could not make this panel fullscreen',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

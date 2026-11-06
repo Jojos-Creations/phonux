@@ -6,16 +6,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { effectiveMaxPanels } from '../panelCapacity.js';
-import { createFakeHost } from '../fakeHost.js';
 
 test('pin P1 (flipped): effectiveMaxPanels takes (fitCount, fixedColumnCount) and follows the fit count above the floor', () => {
   assert.equal(effectiveMaxPanels(null, 2), Number.POSITIVE_INFINITY);
   assert.equal(effectiveMaxPanels(5, 2), 5);
   assert.equal(effectiveMaxPanels(1, 3), 4);
-});
-
-test('pin P2 (flipped): the fake host settings member holds settingsColumn alone', () => {
-  assert.deepEqual(Object.keys(createFakeHost().settings), ['settingsColumn']);
 });
 
 const RETIRED = /maxPanelsOnScreen|minPanelsOnScreen|setMaxPanelsOnScreen|storedMaxPanels|SettingsAPI.{1,5}fitCount|settings[.]fitCount|readonly fitCount/;

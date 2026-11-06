@@ -15,7 +15,6 @@ import {
   useHost,
   useWorkspace,
   useWorkspaceManager,
-  usePanelPinned,
   usePanelState,
   usePanelStates,
   usePanelTuning,
@@ -26,7 +25,6 @@ import type { PanelTemplate } from '../../../index.js';
 import type { LevelOneProps } from './types.js';
 
 function View({ panel, handle, manager }: LevelOneProps): React.ReactElement {
-  const pinned = usePanelPinned();
   const tuning = usePanelTuning();
   const [count, setCount] = useViewState('count', 0);
   // PanelsAPI block: one run of lines, so retiring the Host bag deletes it whole.
@@ -45,7 +43,6 @@ function View({ panel, handle, manager }: LevelOneProps): React.ReactElement {
       'data-fixture-view': panel.id,
       'data-fixture-handle': `${handle.id}:${handle.templateId}:${handle.getState().status}`,
       'data-fixture-manager': manager.list().map((p) => p.id).join(',') + '|' + manager.getSnapshot().panels.length,
-      'data-fixture-pinned': String(pinned),
       'data-fixture-gap': String(typeof tuning.rowGap),
       'data-fixture-count': String(count),
       ...panelsApiAttrs,

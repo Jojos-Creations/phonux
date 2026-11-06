@@ -106,8 +106,11 @@ test('press clicks a control the way a person does', async () => {
   });
   ws.addPanel('btn');
   const rendered = await render(ws);
-  await rendered.press(rendered.panel('btn')!.root.querySelector('[data-press]')!);
-  assert.deepEqual(seen, ['down', 'up', 'click']);
+  const button = rendered.panel('btn')!.root.querySelector('[data-press]')!;
+  await rendered.press(button);
+  assert.deepEqual(seen, ['down', 'up', 'click'], 'the first press puts the panel in use and clicks');
+  await rendered.press(button);
+  assert.deepEqual(seen, ['down', 'up', 'click', 'down', 'up', 'click']);
 });
 
 test('a workspace that does not render itself fails with a message that says so', async () => {

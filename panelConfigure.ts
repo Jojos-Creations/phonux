@@ -6,9 +6,8 @@
 import type { ConfigureResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import { reparked, withoutDeferral, type PinChange } from './panelPin.js';
-import { PANEL_SETTINGS_CATALOG, checkTuningLeaf, resolvePanelSettings, sameSettingsValue, viewMayAsk } from './panelSettings.js';
-import type { PanelSettings, PanelSettingsResolution, PanelUserLayer, ResolvedPanelSettings, SettingConflict, SettingDescriptor, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import { PANEL_SETTINGS_CATALOG, applyTemplate, checkTuningLeaf, resolvePanelSettings, sameSettingsValue, viewMayAsk } from './panelSettings.js';
+import type { PanelSettings, PanelSettingsResolution, PanelUserLayer, SettingConflict, SettingDescriptor, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { mergePatch, mergeTuningPatch, type SettingsPatch } from './settingsPatch.js';
 import type { PanelWindow } from './panelWindow.js';
 
@@ -103,7 +102,7 @@ export function checkPatch(call: ConfigureCall, patch: unknown): { names: string
 /** The settings whose configure class acts at this commit; `parkable` and `maxSlots` are STATE keys that change what the panel is or may be at once. */
 const NOW_STATE: ReadonlySet<string> = new Set(['parkable', 'maxSlots']);
 /** What a parked or held panel shows or answers at once: its permissions, its listing and its title. The rest waits for it to be drawn. */
-const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'movable', 'crossable', 'resizable', 'listed', 'title', 'pinning', 'parkable', 'maxSlots']);
+const WHILE_PARKED: ReadonlySet<string> = new Set(['closable', 'movable', 'crossable', 'resizable', 'listed', 'title', 'parkable', 'maxSlots']);
 
 /** Whether `name` acts at this commit on a panel in `status`. */
 export function actsNow(name: string, status: 'live' | 'parked' | 'hidden' | 'closed'): boolean {
@@ -128,8 +127,6 @@ export type InstancePlan =
       later: string[];
       shadowed: string[];
       notes: SettingNote[];
-      /** True when the patch asked for `parkable`: a deferred pin is canceled. */
-      cancelsPin: boolean;
       /** The Host-bag split after the patch; undefined for a panel no view created. */
       split: HostSplit | undefined;
     };
@@ -147,8 +144,6 @@ export interface InstanceInput {
   split: HostSplit | undefined;
   /** The person's overrides; absent for a closed record. */
   person: PanelUserLayer | undefined;
-  /** The settings the entry carries, to tell a `parkable` a pin from code flipped from the layers' own. */
-  current: ResolvedPanelSettings | undefined;
   root: boolean;
   /** The slot count the entry is at; absent for a closed record. */
   slots?: number | undefined;
@@ -213,7 +208,6 @@ export function planInstance(i: InstanceInput): InstancePlan {
     layer = restored as PanelSettings;
     split = { host: split.host, touched };
   }
-  const asksParkable = asked.parkable !== undefined;
   const layers = (instance: PanelSettings, user: PanelUserLayer | undefined, of: HostSplit | undefined) => ({
     ...(i.workspace !== undefined ? { workspace: i.workspace } : {}),
     ...(i.template !== undefined ? { template: i.template } : {}),
@@ -222,12 +216,8 @@ export function planInstance(i: InstanceInput): InstancePlan {
     ...(user !== undefined ? { user } : {}),
   });
   const resolve = (instance: PanelSettings, user: PanelUserLayer | undefined, of: HostSplit | undefined): PanelSettingsResolution => resolvePanelSettings(layers(instance, user, of), { root: i.root });
-  const plain = resolve(base, i.person, i.split);
-  // A pin from code flips `parkable` for the session without recording it; the flip outvotes the layers until a patch asks for `parkable` itself.
-  const session = i.current !== undefined && i.current.parkable !== plain.value.parkable ? i.current.parkable : undefined;
-  const userBefore = session === undefined ? i.person : { ...i.person, parkable: session };
-  const before = session === undefined ? plain : resolve(base, userBefore, i.split);
-  const after = resolve(layer, asksParkable ? i.person : userBefore, split);
+  const before = resolve(base, i.person, i.split);
+  const after = resolve(layer, i.person, split);
 
   const fresh = after.conflicts.find((c) => !before.conflicts.some((b) => sameConflict(b, c)));
   if (fresh !== undefined) return { ok: false, code: 'settings-conflict', message: fresh.message, setting: fresh.key };
@@ -240,16 +230,16 @@ export function planInstance(i: InstanceInput): InstancePlan {
   const later = changed.filter((n) => !now.includes(n));
   const shadowed = changed.filter((n) => asked[n] !== null && after.source[n] !== 'instance');
   const notes = after.notes.filter((n) => !before.notes.some((b) => sameNote(b, n)));
-  return { ok: true, changed: true, layer, resolution: after, now, later, shadowed, notes, cancelsPin: asksParkable, split };
+  return { ok: true, changed: true, layer, resolution: after, now, later, shadowed, notes, split };
 }
 
 /** The success a plan answers with. */
 export function configured(plan: Extract<InstancePlan, { changed: true }>): Extract<ConfigureResult, { ok: true }> {
-  return { ok: true, changed: true, shown: false, now: plan.now, later: plan.later, shadowed: plan.shadowed, notes: plan.notes };
+  return { ok: true, changed: true, now: plan.now, later: plan.later, shadowed: plan.shadowed, notes: plan.notes };
 }
 
 /** The success of a call that changed nothing. */
-export const unchanged = (): Extract<ConfigureResult, { ok: true }> => ({ ok: true, changed: false, shown: false, now: [], later: [], shadowed: [], notes: [] });
+export const unchanged = (): Extract<ConfigureResult, { ok: true }> => ({ ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] });
 
 /** The refusal a plan carries, as the result for panel `name`. */
 export const refusedPlan = (name: string, plan: Extract<InstancePlan, { ok: false }>): Extract<ConfigureResult, { ok: false }> => ({
@@ -259,38 +249,26 @@ export const refusedPlan = (name: string, plan: Extract<InstancePlan, { ok: fals
   ...(plan.setting === undefined ? {} : { setting: plan.setting }),
 });
 
-/** The success of a call whose only effect was to cancel a flip of `parkable` waiting on the panel. */
-export const cancelled = (): Extract<ConfigureResult, { ok: true }> => ({ ok: true, changed: true, shown: false, now: [], later: [], shadowed: [], notes: [] });
-
-/** The success of a flip that showed the panel: `plan` answers as it would for a live one, with `shown` true. */
-export const shownResult = (plan: Extract<InstancePlan, { changed: true }>): Extract<ConfigureResult, { ok: true }> => ({ ...configured(plan), shown: true });
-
-/** The refusal of a flip of `parkable` that the panel's `pinningWhenNotLive` turns away. */
-export const refusedFlip = (name: string, code: PanelRefusal): Extract<ConfigureResult, { ok: false }> => ({ ok: false, code, message: `panel '${name}': its pinningWhenNotLive does not let configure change parkable while it is not live` });
-
-/**
- * The flip of `parkable` that `plan` asks of a panel reading `reads` now, or undefined when the patch does not name
- * `parkable` or leaves the panel reading what it did: already as asked, or outvoted by the person's override.
- */
-export function askedFlip(patch: SettingsPatch, plan: Extract<InstancePlan, { changed: true }>, reads: boolean): PinChange | undefined {
-  const asks = plan.resolution.value.parkable;
-  return patch.parkable === undefined || asks === reads ? undefined : { parkable: asks };
+/** The refusal a flip of `parkable` earns on a panel that is not live: only a live panel can change what it is. */
+export function flipRefusal(status: 'live' | 'parked' | 'hidden' | 'pending' | 'closed'): PanelRefusal | undefined {
+  if (status === 'live') return undefined;
+  if (status === 'pending') return 'is-pending';
+  return status === 'closed' ? 'is-closed' : 'would-reshape-row';
 }
 
-/** `patch` and `names` without `parkable`: what a flip that waits or shows leaves for the ordinary write. */
-export function withoutFlip(patch: SettingsPatch, names: readonly string[]): { patch: SettingsPatch; names: string[] } {
-  const { parkable: _flip, ...rest } = patch;
-  return { patch: rest, names: names.filter((n) => n !== 'parkable') };
+/** The refusal of a flip of `parkable` on a panel that is not live. */
+export const refusedFlip = (name: string, code: PanelRefusal): Extract<ConfigureResult, { ok: false }> => ({ ok: false, code, message: `panel '${name}': parkable cannot change while it is not live` });
+
+/** Whether `plan` flips `parkable` of a panel reading `reads` now: not when the patch leaves it out, or the panel already reads as asked or is outvoted by the person's override. */
+export function flipsParkable(patch: SettingsPatch, plan: Extract<InstancePlan, { changed: true }>, reads: boolean): boolean {
+  return patch.parkable !== undefined && plan.resolution.value.parkable !== reads;
 }
 
-/** Whether `stored` is the very change `flip` asks for. */
-export const sameDeferral = (stored: PinChange | undefined, flip: PinChange): boolean => JSON.stringify(stored) === JSON.stringify(flip);
-
-/** What a flip that waits answers: the rest of the patch as `rest` plans it, and `parkable` among `later` when the flip is new. */
-export function deferredResult(rest: Extract<InstancePlan, { ok: true }>, fresh: boolean): Extract<ConfigureResult, { ok: true }> {
-  if (!rest.changed) return fresh ? { ...unchanged(), changed: true, later: ['parkable'] } : unchanged();
-  return { ok: true, changed: true, shown: false, now: rest.now, later: fresh ? [...rest.later, 'parkable'] : rest.later, shadowed: rest.shadowed, notes: rest.notes };
-}
+/** `entry` carrying `resolution`: the mirror fields follow, and a panel that became a fixed column is live, because a fixed column is never parked. */
+export const reparked = (entry: PanelWindow, resolution: PanelSettingsResolution): PanelWindow => {
+  const next = applyTemplate(entry, resolution.value, 'reconfigure');
+  return resolution.value.parkable ? next : { ...next, live: true };
+};
 
 /**
  * `entry` carrying what `plan` resolved: the fields that mirror the settings follow, the instance layer is kept for an
@@ -304,19 +282,7 @@ export function reconfigured(entry: PanelWindow, plan: Extract<InstancePlan, { c
     const { title: _gone, ...rest } = next;
     next = rest;
   }
-  return plan.cancelsPin ? withoutDeferral(next) : next;
-}
-
-/** `entry` with the rest of the patch written and `flip` waiting on it, or `entry` itself when that changes nothing. */
-export function deferredEntry(entry: PanelWindow, rest: Extract<InstancePlan, { ok: true }>, patch: SettingsPatch, flip: PinChange): PanelWindow {
-  const settled = rest.changed ? reconfigured(entry, rest, patch) : entry;
-  return sameDeferral(entry.deferredPin, flip) ? settled : { ...settled, deferredPin: flip };
-}
-
-/** `entry` as it is handed to the show path of a flip: the rest of the patch written, the whole patch's instance layer, and nothing left waiting. */
-export function shownEntry(entry: PanelWindow, rest: Extract<InstancePlan, { ok: true }>, patch: SettingsPatch, plan: Extract<InstancePlan, { changed: true }>): PanelWindow {
-  const settled = rest.changed ? reconfigured(entry, rest, patch) : entry;
-  return withoutDeferral(entry.declared === true ? settled : { ...settled, instance: plan.layer });
+  return next;
 }
 
 /** `prev` with `target` replaced by `next`, or `prev` itself when the row no longer holds `target`: something changed the entry between the call and the commit. */
@@ -325,8 +291,8 @@ export function applyConfigure(prev: PanelWindow[], target: PanelWindow, next: P
   return at < 0 ? prev : prev.map((p, k) => (k === at ? next : p));
 }
 
-/** What the engine's `configure` op is handed by the workspace: an answer, and for a change the entry to write and, when the flip shows the panel, the change its show path applies. */
-export type ConfigureOutcome = { done: ConfigureResult } | { done: Extract<ConfigureResult, { ok: true }>; next: PanelWindow; show?: PinChange };
+/** What the engine's `configure` op is handed by the workspace: an answer, and for a change the entry to write. */
+export type ConfigureOutcome = { done: ConfigureResult } | { done: Extract<ConfigureResult, { ok: true }>; next: PanelWindow };
 
 /** What `planTuning` decided. */
 export type TuningPlan =

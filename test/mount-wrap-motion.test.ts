@@ -35,7 +35,7 @@ registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { i
 /** An app's wrap: reduced motion for everything under it. */
 const appWrap = ({ children }: WorkspaceWrapProps): React.ReactElement => React.createElement(MotionConfig, { reducedMotion: 'always' }, children);
 
-const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.parentElement!;
+const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.closest<HTMLElement>('[data-row-slot]')!;
 const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));
 const SPAN = 406;
 

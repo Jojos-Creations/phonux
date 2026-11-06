@@ -15,6 +15,7 @@ import { fitPhone, PHONE_FIT_MARGIN, type PhoneFitInput } from '../phoneFit.js';
 import { PHONE_FIT_MAX, PHONE_FIT_MIN } from '../rowConstants.js';
 import { differential } from './support/differential.js';
 import { resize, rigCleanup, slots, track, until, win } from './support/auto-rig.js';
+import { stripMarginOf } from './support/strip.js';
 
 afterEach(rigCleanup);
 
@@ -186,8 +187,29 @@ test('a resize holds the previous size until the width has settled, then draws t
   assert.equal(m.slotWidth(), 440);
   await resize(1400);
   assert.equal(m.slotWidth(), 440, 'held while the window is still moving');
+  // The settle is counted on frames, so the virtual clock runs it.
+  await advanceFrames(1000);
   await until('the settled fit', () => m.slotWidth() !== 440);
   assert.equal(m.slotWidth(), 330, '4 slots of 330 fill 1400 (3 would need 445, over the cap)');
+});
+
+test('a window still moving keeps the phone size and moves the row at once on every step; holding still 200 ms refits', async () => {
+  const m = await mounted({ tuning: { phoneFit: 'fit' } }, 1000, 1117);
+  const margin = (): number => stripMarginOf(document.body);
+  const seen: number[] = [margin()];
+  for (const width of [1100, 1200, 1300, 1400]) {
+    await resize(width);
+    await advanceFrames(2 * 16);
+    const now = margin();
+    await advanceFrames(100);
+    assert.equal(margin(), now, `${width}: the row landed in the step's own frame, no glide follows it`);
+    assert.equal(m.slotWidth(), 440, `${width}: the phone size waits while the window moves`);
+    seen.push(now);
+  }
+  assert.equal(new Set(seen).size, seen.length, 'control: every step moved the row');
+  await advanceFrames(300);
+  await until('the settled fit', () => m.slotWidth() !== 440);
+  assert.equal(m.slotWidth(), 330, 'held still: one refit, 4 slots of 330');
 });
 
 test('a hand-wired flow: usePhoneFit before useProvidePanels, the pair to Workspace, and every reader sees the fitted size', async () => {

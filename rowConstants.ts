@@ -62,11 +62,13 @@ export const CLOSE_EXIT_EASE = 'easeIn' as const;
 export const GLIDE_EASE = 'cubic-out' as const;
 
 /**
- * The z-index of a row's slots: a `raised` panel sits above a `base` one, so a park that exits left crosses its footprint
- * on the way out, and the panel being dragged is drawn above both. Every `OVERLAY_Z` value is higher.
+ * The z-index tiers of a row's slots: a `raised` panel sits above a `base` one, so a park that exits left crosses its
+ * footprint on the way out, and the panel being dragged is drawn above both. Within a tier a slot's z-index is the tier
+ * plus twice its distance in slots from the nearer end of the row (at most 2 * 31 under `ALL_SLOTS`), and a slot entering
+ * or leaving sits one under that, so the tiers are 99 apart. Every `OVERLAY_Z` value is higher.
  * @public
  */
-export const ROW_LAYER_Z = Object.freeze({ BASE: 1, RAISED: 2, DRAGGED: 3 });
+export const ROW_LAYER_Z = Object.freeze({ BASE: 1, RAISED: 100, DRAGGED: 200 });
 
 /** Which of two equal-priority panels returns or lands first. */
 export const RETURN_TIE_BREAK = 'latest-first' as const;
@@ -74,6 +76,7 @@ export const DROP_TIE_BREAK = 'leftmost' as const;
 
 /** What the row's own scroll input does, and where the strip starts. */
 export const ROW_GESTURE = 'step' as const;
+export const FAST_SCROLL = 'coalesce' as const;
 export const INITIAL_SCROLL = 'start' as const;
 
 /** When a panel's header, grab bar and footer show, and how they fade. */
@@ -96,8 +99,8 @@ export const HEADER_INSET_PX = 13;
 export const FOOTER_PAD_X_PX = 12;
 export const FOOTER_PAD_Y_PX = 8;
 
-/** How many slide durations the container width must hold still before the row's centering margin glides again. */
-export const RESIZE_SETTLE_SLIDES = 1.25;
+/** How many slide durations the container width must hold still before the phone size is fitted again: 200 ms at the default slide, short of one macOS zoom. */
+export const RESIZE_SETTLE_SLIDES = 1 / 3;
 
 /** Scrolling the row while a dragged panel is held near the window's edge. */
 export const EDGE_SCROLL_ZONE_PX = 48;

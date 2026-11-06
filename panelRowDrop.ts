@@ -12,7 +12,7 @@ import { panelKey } from './panelSettings.js';
 import type { AddPlacement } from './panelSettings.js';
 import type { DragScroll } from './panelSlotContext.js';
 import { openEdgeHold, endEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
-import { closestRowScroller } from './rowScroller.js';
+import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import { landPanelIn, type WorkspaceHandle } from './workspaceCore.js';
 
 /** A panel a drag would cross, with the width the row draws it at. */
@@ -204,7 +204,7 @@ export function useRowDrop(input: RowDropInput): { preview: DropPreview | null; 
         const scrollerEl = row.boxRef.current === null ? null : closestRowScroller(row.boxRef.current);
         const slot = row.dragScroll;
         if (scrollerEl !== null && slot !== undefined && slot.mode === 'edge') {
-          a.hold = openEdgeHold(scrollerEl, scrollerEl.scrollLeft, slot);
+          a.hold = openEdgeHold(scrollerEl, rowScrollerFor(scrollerEl).scrollLeft(), slot, a.engineId);
           if (a.hold !== null) a.hold.frame = requestAnimationFrame(tick(a));
         }
         setPreview({ id: a.engineId, steps: 0, hidden: !a.live });

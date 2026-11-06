@@ -11,7 +11,7 @@ import { useProvidePanels, type PanelWindow, type ProvidedPanels, type Workspace
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import { PANEL_UID_FORM, newPanelUid } from '../panelUid.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { summarisePanel } from '../panelRowEntry.js';
 import { reconcileWorkspace, type ReconcileInput } from '../workspacePlan.js';
 import { projectWorkspaceState, hydrateWorkspaceState, type WorkspacePanelState } from '../workspaceState.js';
@@ -94,7 +94,7 @@ test('a plain panel\'s key and public summary are unchanged: the uid is never it
 });
 
 test('the file writes each saved panel\'s uid', () => {
-  const plain = appendPanel([createHistoryPanel(ROOT)], { view: 'uid-view' }, 'p1', ROOT, U1);
+  const plain = appendPanel([createRootPanel(ROOT)], { view: 'uid-view' }, 'p1', ROOT, U1);
   const state = projectWorkspaceState(plain, ROOT);
   assert.deepEqual(state.panels.map((s) => s.uid), [U1]);
 });
@@ -175,7 +175,7 @@ function mountProvider(load: () => Promise<WorkspaceState | null>, over: Partial
   const storage: WorkspaceStorage = { load, save: (state) => void saves.push(state) };
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [createHistoryPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [createRootPanel(ROOT)], storage, tuning: { saveQuietMs: QUIET_MS }, ...over }));
     return React.createElement('output');
   }
   mount(React.createElement(Probe));
@@ -230,7 +230,7 @@ test('a declared panel made before the restore takes the uid the file holds, and
   const t = tpl('t');
   const mine = applyTemplate({ ...appendPanel([], { view: 't' }, 'live1', ROOT)[0]!, key: 'a', declared: true }, resolvePanelSettings({}).value, 'create');
   const m = mountProvider(() => Promise.resolve(file(entry('x', { view: 't', key: 'a', uid: U1, overrides: {} }))), {
-    initialEntries: [createHistoryPanel(ROOT), mine],
+    initialEntries: [createRootPanel(ROOT), mine],
     templates: [t],
     declared: [{ id: 'a', templateId: 't' }],
   });

@@ -6,7 +6,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LIBRARY_TUNING_DEFAULTS } from '../index.js';
-import { DEFAULT_LABELS, resolveLabels } from '../labels.js';
 import { checkTuningLeaf } from '../panelSettings.js';
 import { resolveWorkspaceTuning, slotTuning } from '../panelTuning.js';
 
@@ -70,9 +69,3 @@ test("every slot carries the workspace's chrome and the same tuning object for t
   assert.equal(slotTuning(workspace), slotTuning(workspace));
 });
 
-test('the pin, unpin, lock and unlock labels default to English and a host overrides each one', () => {
-  assert.deepEqual([DEFAULT_LABELS.pin, DEFAULT_LABELS.unpin, DEFAULT_LABELS.lock, DEFAULT_LABELS.unlock], ['Pin', 'Unpin', 'Lock', 'Unlock']);
-  const german = resolveLabels({ pin: 'Anheften', unpin: 'Lösen', lock: 'Sperren', unlock: 'Entsperren' });
-  assert.deepEqual([german.pin, german.unpin, german.lock, german.unlock], ['Anheften', 'Lösen', 'Sperren', 'Entsperren']);
-  assert.equal(german.historyTitle, 'History', 'a label not given keeps its default');
-});

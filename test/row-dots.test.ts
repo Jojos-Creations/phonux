@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DOT_GAP_PX, DOT_PHONE_PX, centreScroll, dotLayout, dotMap, dragScroll, toScroll, toTrack } from '../rowDots.js';
+import { DOT_GAP_PX, DOT_PHONE_PX, centreScroll, dotLayout, dotMap, dragScroll, toScroll, toTrack, withParked } from '../rowDots.js';
 
 // Three phones 390 wide with a 16 gap: one slot is 406 strip px and 30 track px (a 22 dash and an 8 gap).
 const row = { ids: ['a', 'b', 'c'], widths: [390, 390, 390], leftOffsets: [0, 406, 812], windowWidth: 600, maxScroll: 602 };
@@ -80,4 +80,33 @@ test('a drag maps track px to scroll px and clamps to the row', () => {
   near(dragScroll({ startScroll: 0, dx: SLOT / 2, map, maxScroll: 602 }), 203, 'half a slot');
   assert.equal(dragScroll({ startScroll: 100, dx: -5000, map, maxScroll: 602 }), 0);
   assert.equal(dragScroll({ startScroll: 100, dx: 5000, map, maxScroll: 602 }), 602);
+});
+
+test('parked panels get dots at their places in the row order, and the oval moves with the drawn dots it covers', () => {
+  const drawn = dotLayout({ ...row, hollow: [], map, scrollLeft: 0 });
+  const bar = withParked(drawn, map, [
+    { id: 'p0', before: 0, slots: 1, hollow: false },
+    { id: 'p1', before: 0, slots: 2, hollow: false },
+    { id: 'p3', before: 3, slots: 1, hollow: true },
+  ]);
+  assert.deepEqual(bar.dots.map((d) => d.id), ['p0', 'p1', 'a', 'b', 'c', 'p3']);
+  assert.deepEqual(bar.dots.map((d) => d.left), [0, 30, 90, 120, 150, 180]);
+  assert.equal(bar.dots[1]!.width, 52, 'a parked panel two phones wide draws a two-phone dot');
+  assert.equal(bar.dots[5]!.hollow, true);
+  assert.equal(bar.width, 202);
+  near(bar.oval.left, drawn.oval.left + 90, 'the oval sits over the drawn dots, past the parked ones on the left');
+  near(bar.oval.width, drawn.oval.width, 'width');
+  assert.deepEqual([...bar.parked], ['p0', 'p1', 'p3']);
+  const none = withParked(drawn, map, []);
+  assert.deepEqual(none.dots, drawn.dots, 'control: with nothing parked the bar is the drawn layout');
+  assert.deepEqual(none.oval, drawn.oval);
+});
+
+test('parked dots between an always-shown panel and the panels on screen wait outside the oval, the always-shown dot inside it', () => {
+  const drawn = dotLayout({ ...row, hollow: [true, false, false], map, scrollLeft: 0 });
+  const bar = withParked(drawn, map, [{ id: 'p0', before: 1, slots: 1, hollow: false }, { id: 'p1', before: 1, slots: 1, hollow: false }, { id: 'p9', before: 3, slots: 1, hollow: false }]);
+  assert.deepEqual(bar.dots.map((d) => d.id), ['p0', 'p1', 'a', 'b', 'c', 'p9']);
+  const a = bar.dots.find((d) => d.id === 'a')!;
+  near(bar.oval.left, a.left, 'the oval starts at the always-shown dot');
+  assert.ok(bar.oval.left >= bar.dots[1]!.left + bar.dots[1]!.width, 'no parked dot inside the oval');
 });

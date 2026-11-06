@@ -1,8 +1,9 @@
 # phonux
 
 A phone-shaped view host for React: write each view as a component, give phonux a template for it, and it lays the panels
-out in a scrolling row of phone-sized columns, with a title bar, drag to reorder and drag to close. A view never touches
-`localStorage` or anything else app-internal (see `DESIGN.md` in this folder for why).
+out in a row of phone-sized columns that steps one phone width at a time, each panel with a header, a width control and a grab
+bar (drag sideways to reorder; a touch never drags it). A view never touches `localStorage` or anything else
+app-internal (see `DESIGN.md` in this folder for why).
 
 ## Install
 
@@ -10,16 +11,16 @@ While 0.2 is a release candidate, install the `next` tag, together with the peer
 
 ```sh
 npm install phonux@next
-npm install react react-dom @mui/material @mui/icons-material @emotion/react @emotion/styled motion
+npm install react react-dom @mui/material @emotion/react @emotion/styled motion
 ```
 
 `@dnd-kit/core` is a dependency of phonux, not a peer: npm installs it for you. The package also ships `DESIGN.md`, which explains
 the design decisions behind the API.
 
-## Testing a release candidate without a publish
+## Testing main without a publish
 
-Every push to `release` force-pushes the built package to the `dist` branch, a test channel and not a release. An app that
-wants to try the release branch before a publish depends on `github:Jojos-Creations/phonux#dist`. The package version on that branch is the source
+Every push to `main` force-pushes the built package to the `dist` branch, a test channel and not a release. An app that wants
+to try main before a publish depends on `github:Jojos-Creations/phonux#dist`. The package version on that branch is the source
 version, so the commit SHA in the app's lockfile, not the version, says which build it is. A shipped app never depends on
 `dist`. `npm publish` and its publish gate are unchanged. The repository is private, so whoever installs it, CI included,
 needs a GitHub credential.
@@ -42,17 +43,38 @@ workspace.addPanel('notes');
 <!-- quickstart:end -->
 
 That is the whole app: `createWorkspace` renders itself into a full-window element, so there is no component to mount, no
-host to build and no width to track. A template takes two optional fields beyond `view`: `footer`, a component drawn at the
-bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), and `api`, the panel API level
-the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
-drag to close, reorder). Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
+host to build and no width to track. A template takes four optional fields beyond `view`: `footer`, a component drawn at the
+bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), `touch: true`, which makes a mouse
+drag in the panel in use scroll its content as a finger does on a phone (`touch: 'content'` keeps the header and footer
+to the mouse; see `DESIGN.md`, "A touch template"), `verticalDrag: true`, which lets a person drag the grab bar down to
+close the panel (off by default, so the grab bar only reorders), and `api`, the
+panel API level the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
+drag sideways to reorder), and after the person closes a panel the workspace shows a toast whose Undo puts it back where it was, at the same size and with its state. Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
-Pass the app's own values as options (`device`, `settings`, `history`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `history`, `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
-component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => Theme` for its own MUI theme (the mount draws it with one `CssBaseline`; the `mode` is the window's color scheme), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
+Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
+component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme; each field is also a CSS custom property, such as `--phonux-primary`, that a stylesheet rule overrides), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
 A view unmounts when its panel parks or closes, so audio, a web view or a socket started inside a view stops with it. Start those in the `wrap` component instead, which stays mounted for the workspace's life, and let the panel render controls for them (see `DESIGN.md`, "A parked view unmounts").
+
+## The row
+
+The row is a strip of slots one phone width apart; a panel is a whole number of slots wide. The row steps one phone width per
+scroll step and rests with its whole slots centered in the window, at the ends too; a sideways wheel or Shift+wheel anywhere
+on the row steps it (Option held gives the gesture to the content), a vertical wheel goes to the content, and ArrowLeft and
+ArrowRight on the page step it (`stepRow(event, direction)` gives a host's own chord the same answer). A panel that no longer
+fits parks, and a scroll at the row's end brings a parked panel back. Motion follows one rule set: a new panel grows from its
+center, a closing one shrinks into its center, a parking one shrinks into the edge it leaves by and a returning one grows out of
+that edge, all on one 0.6 s in-out clock (`DESIGN.md`, "Motion").
+
+Where a new panel lands is the template's `placeOnAdd` (default: the far right, the leftmost panel in view leaving when there is
+no room) or the caller's `addPanel(template, { place })` function, which picks the slot among the panels in view, what the
+panel there does (shift left, shift right or close) and the entrance. `usePanelDots` gives a host the dots and the oval of a
+dot bar in place of a scrollbar, parked panels included; `usePanelMaximize` and `toggleMaximize` grow a panel to fill the window;
+`whenAccepted`, `whenPanel`, `showPanels` and `whenColumnReady` wait on the row instead of a timer; `rowDom.ts` exports the
+`data-*` attribute names the library draws; `useRowFrameBand`, `PANEL_BAR_HEIGHT_PX`, `PANEL_FOOTER_ROOM_PX` and
+`rowFootReserve` give a host the numbers to lay its page out around the row. Each has a section in `DESIGN.md`.
 
 ## Several workspaces
 
@@ -83,30 +105,32 @@ the workspace with `mount: false`, then render the row inside `PhonuxThemeProvid
 <!-- advanced:start -->
 ```tsx
 import * as React from 'react';
-import { HostProvider, PanelRow, Workspace, useProvidePanels, type WorkspaceHandle } from 'phonux';
-
-const PHONE_WIDTH = 390;
+import { DEFAULT_PHONE_SIZE, HostProvider, PanelRow, Workspace, usePhoneFit, useProvidePanels, type WorkspaceHandle } from 'phonux';
 
 export function Row({ workspace }: { workspace: WorkspaceHandle }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = React.useState(0);
+  const [measuredWidth, setMeasuredWidth] = React.useState(0);
   React.useLayoutEffect(() => {
     const el = ref.current!;
-    const read = () => setContainerWidth(el.clientWidth);
+    const read = () => setMeasuredWidth(el.clientWidth);
     read();
     const observer = new ResizeObserver(read);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const provided = useProvidePanels({ workspace, phoneWidth: PHONE_WIDTH, containerWidth, overflowContainerRef: ref });
+  // The fit hands back the width and height it settled on, so the row's place, capacity and phone size change in one glide.
+  const phone = usePhoneFit(ref, measuredWidth, DEFAULT_PHONE_SIZE, workspace.tuning);
+  const provided = useProvidePanels({ workspace, phoneWidth: phone.width, containerWidth: phone.containerWidth, overflowContainerRef: ref });
   return (
     <HostProvider host={{ panels: provided }}>
       <Workspace
         overflowContainerRef={ref}
         rowRef={rowRef}
-        containerWidth={containerWidth}
-        phoneWidth={PHONE_WIDTH}
+        containerWidth={phone.containerWidth}
+        phoneWidth={phone.width}
+        phoneHeight={phone.height}
+        heightBudget={phone.heightBudget}
         fixedColumnCount={provided.fixedViewCount}
         liveWidths={provided.liveWidths}
         rowScroll={provided.rowScroll}
@@ -181,7 +205,7 @@ jsdom window and the clock, and `jsdom` is an optional peer dependency):
 import { renderWorkspace } from 'phonux/testing/row';
 import { createWorkspace, definePanel } from 'phonux';
 
-const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes })] });
+const workspace = createWorkspace({ templates: [definePanel({ id: 'notes', view: Notes, verticalDrag: true })] });
 workspace.addPanel('notes');
 const row = await renderWorkspace(workspace, { width: 1200 });
 await row.drag(row.panel('notes')!.grabBar!, { dx: 0, dy: 120 }); // closes the panel
@@ -194,11 +218,42 @@ await row.dispose();
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
 
+## Build for phones, tablets and desktop
+
+`npx phonux build` builds your app for the devices you pick from a list: Android phone, Android tablet, iPhone, iPad and
+desktop. Phones and tablets are wrapped with [Capacitor](https://capacitorjs.com), so the app needs `@capacitor/core`,
+`@capacitor/cli`, `@capacitor/android`, `@capacitor/ios` and a `capacitor.config.ts` whose `webDir` is your web build.
+The first build adds the native projects; commit them.
+
+```sh
+npx phonux build                                # pick from the list; the choice is remembered
+npx phonux build --targets iphone,ipad,desktop  # skip the list
+npx phonux build --check                        # say what this machine is missing, build nothing
+```
+
+Builds run side by side when the machine has the cores and memory, one at a time when it does not (`--jobs` caps it).
+A target this machine cannot build, such as iPhone off a Mac, is skipped with what to install. Logs and remembered
+choices go in `.phonux/build/`, and so do finished builds (`android/`, `ios/`); add it to `.gitignore`.
+
+Without signing set up, Android makes a test APK and iOS a simulator app. Add signing to `package.json` to get store
+builds from the same command (`--debug` still makes test builds):
+
+```json
+"phonux": { "build": {
+  "web": "build:web", "desktop": "build:desktop",
+  "android": { "keystore": "release.jks", "alias": "upload" },
+  "ios": { "teamId": "ABCDE12345" }
+} }
+```
+
+The keystore passwords come from `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD`, never from a file. `web` and
+`desktop` name npm scripts, and default to the two shown.
+
 ## License
 
-phonux is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0): personal and other noncommercial use is free. Commercial use needs a separate paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>).
+phonux is licensed under the phonux Public License 1.0.0, the [Prosperity Public License 3.0.0](https://prosperitylicense.com/versions/3.0.0) with a ninety-day commercial trial in place of thirty days. Noncommercial use is free, and a company may try phonux for commercial purposes for ninety days, one trial for the whole company. After that, commercial use needs a paid license. For commercial licensing, contact Jojos-Creations on GitHub (<https://github.com/Jojos-Creations>). The full text is in LICENSE.
 
-Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. From 0.2.0-rc.3 on, phonux is PolyForm Noncommercial. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
+Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. Versions 0.2.0-rc.3 through 0.2.0-rc.5 were published under the PolyForm Noncommercial License 1.0.0 and stay under it. From 0.2.0-rc.6 on, phonux is under the phonux Public License 1.0.0. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 
 `npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on). `npm run phone:webkit` runs the iPhone profile in WebKit, which needs WebKit installed; `PHONE_PROJECTS` picks any set of them.
 

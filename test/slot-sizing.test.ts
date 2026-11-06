@@ -12,7 +12,7 @@ import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSummary, PanelWindow, WorkspaceTuning } from '../index.js';
 import { RowHeightContext } from '../panelTuning.js';
 import { applyTemplate } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel, setSlots } from '../panelWindow.js';
+import { appendPanel, createRootPanel, setSlots } from '../panelWindow.js';
 import { projectWorkspaceState } from '../workspaceState.js';
 import { ALL_SLOTS, fitSlots, slotWidth } from '../rowConstants.js';
 import { differential, differentialsCovered } from './support/differential.js';
@@ -46,7 +46,7 @@ const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning, available = 0, 
   React.createElement(RowHeightContext.Provider, { value: available }, withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, maxLiveWidth, ...(tuning === undefined ? {} : { seed: { tuning } }) })));
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => {
-  const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+  const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
   return slot as HTMLElement;
 };
@@ -188,7 +188,7 @@ test('resolver: resizable set with maxSlots at 1 is kept and noted', () => {
 });
 
 test('the root\'s slot count is saved as rootSlots only when it is more than one slot', () => {
-  const root = (slots?: number): PanelWindow => ({ ...createHistoryPanel(ROOT), ...(slots === undefined ? {} : { slots }) });
+  const root = (slots?: number): PanelWindow => ({ ...createRootPanel(ROOT), ...(slots === undefined ? {} : { slots }) });
   assert.equal(projectWorkspaceState([root(3)], ROOT).rootSlots, 3);
   assert.equal(projectWorkspaceState([root(1)], ROOT).rootSlots, undefined);
   assert.equal(projectWorkspaceState([root()], ROOT).rootSlots, undefined);

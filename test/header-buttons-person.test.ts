@@ -6,7 +6,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement, type ReactElement } from 'react';
-import type { HeaderButton, PanelResult, Pinning, SettingNote } from '../index.js';
+import type { HeaderButton, PanelResult, SettingNote } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
@@ -22,7 +22,6 @@ const wait = (): Promise<void> => act(async () => void (await new Promise((done)
 const icon = (name: string): ReactElement => createElement('i', { 'data-icon': name });
 const slot = (label: string, extra: Partial<HeaderButton> = {}): HeaderButton => ({ icon: icon(label), label, onClick: () => undefined, ...extra });
 const press = (rig: HeaderRig, panel: string, label: string): void => void act(() => rig.buttons(panel).find((b) => b.getAttribute('aria-label') === label)!.click());
-const FIX: Pinning = { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end', parkable: true } };
 /** A storage holding a file with one unchanged panel under `key`, so a test that expects no override reads a file that exists. */
 const fileWith = (key: string): ReturnType<typeof memoryWorkspaceStorage> =>
   memoryWorkspaceStorage({
@@ -49,28 +48,6 @@ test('click: onClick gets this panel\'s handle and nothing else', async () => {
   assert.equal(seen[0]!.keys.includes('manager'), false);
   assert.equal(seen[0]!.id, 'b');
   assert.deepEqual(seen[0]!.ctxKeys, ['announce', 'settings', 'state']);
-});
-
-test('click: a pin slot by h.pin() then h.unpin() equals the default pin over literal rows, and a drag across the root unpins with no click', async () => {
-  let clicks = 0;
-  const rig = await headerRig({ slots: { pin: slot('Pin', { pressed: (c) => c.state.pinned, onClick: (h) => { clicks += 1; if (h.getState().pinned) h.unpin(); else h.pin(); } }) } });
-  assert.equal(rig.order().join(' '), 'root a b c');
-  press(rig, 'c', 'Pin');
-  assert.equal(rig.order().join(' '), 'c root a b');
-  press(rig, 'b', 'Pin');
-  assert.equal(rig.order().join(' '), 'b c root a');
-  assert.equal(rig.buttons('c')[0]!.getAttribute('aria-pressed'), 'true');
-  press(rig, 'c', 'Pin');
-  assert.equal(rig.order().join(' '), 'b root a c', 'back to the far right');
-  press(rig, 'b', 'Pin');
-  assert.equal(rig.order().join(' '), 'root a c b');
-  press(rig, 'a', 'Pin');
-  assert.equal(rig.order().join(' '), 'a root c b');
-  const before = clicks;
-  act(() => void rig.m.latest().reanchor(rig.entry('a').id, { position: 'right' }));
-  assert.equal(rig.state('a').pinned, false, 'a drag across the root unpins');
-  assert.equal(rig.buttons('a')[0]!.getAttribute('aria-pressed'), 'false');
-  assert.equal(clicks, before, 'with no click');
 });
 
 test('click: a size slot cycles one, two, three, one slots as one resize per press and never parks the panel', async () => {
@@ -119,32 +96,31 @@ test('click: a second press in one turn gets busy from the verb', async () => {
   assert.deepEqual(results.map((r) => (r.ok ? 'ok' : r.code)), ['ok', 'busy']);
 });
 
-test('person: a press records the person\'s anchor, parkable and form factor; a pin after an await and a pin from code record nothing', async () => {
-  const pin = (extra: Partial<HeaderButton> = {}): HeaderButton => slot('Pin', { onClick: (h) => void h.pin(), ...extra });
+test('person: a press records the person\'s anchor and form factor; a place after an await and a place from code record nothing', async () => {
+  const pin = (extra: Partial<HeaderButton> = {}): HeaderButton => slot('Pin', { onClick: (h) => void h.place('row-start'), ...extra });
   const store = memoryWorkspaceStorage();
-  const rig = await headerRig({ ids: ['c', 'd'], settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
+  const rig = await headerRig({ ids: ['c', 'd'], workspace: { storage: store, ...quiet }, slots: { pin: pin(), size: slot('Size', { onClick: (h) => void cycle(h) }) } });
   press(rig, 'c', 'Pin');
   press(rig, 'd', 'Size');
   await wait();
-  const [saved, sized] = (await overridesOf(store)) as [{ anchor?: unknown; parkable?: boolean }, { slots?: number }];
+  const [saved, sized] = (await overridesOf(store)) as [{ anchor?: unknown }, { slots?: number }];
   assert.ok(saved.anchor !== undefined, 'overrides.anchor');
-  assert.equal(saved.parkable, false, 'overrides.parkable for a half naming parkable');
   assert.equal(sized.slots, 2, 'overrides.slots');
 
   cleanup();
   const later = fileWith('c');
-  const after = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: later, ...quiet }, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.pin(); } }) } });
+  const after = await headerRig({ ids: ['c'], workspace: { storage: later, ...quiet }, slots: { pin: slot('Pin', { onClick: async (h) => { await Promise.resolve(); h.place('row-start'); } }) } });
   press(after, 'c', 'Pin');
   await wait();
-  assert.equal(after.state('c').pinned, true, 'the pin itself still ran');
+  assert.equal(after.entry('c').anchor?.position, 'left', 'the place itself still ran');
   assert.deepEqual(await overridesOf(later), [{}], 'a verb after an await is code');
 
   cleanup();
   const code = fileWith('c');
-  const fromCode = await headerRig({ ids: ['c'], settings: { c: { pinning: FIX } }, workspace: { storage: code, ...quiet }, slots: { pin: pin() } });
-  fromCode.turn(() => fromCode.h.c!.pin());
+  const fromCode = await headerRig({ ids: ['c'], workspace: { storage: code, ...quiet }, slots: { pin: pin() } });
+  fromCode.turn(() => fromCode.h.c!.place('row-start'));
   await wait();
-  assert.deepEqual(await overridesOf(code), [{}], 'handle.pin() from code');
+  assert.deepEqual(await overridesOf(code), [{}], 'handle.place() from code');
 });
 
 test('safety: a throwing onClick and a rejecting promise reach onError with the row unchanged; without onError it is console.error', async () => {

@@ -121,6 +121,7 @@ export interface RenderedWorkspace {
   release(dx: number, dy: number): Promise<void>;
   /**
    * Presses `target` as a person does (pointer down, pointer up, click), then runs frames until every animation has finished.
+   * A press inside a panel not in use only puts it in use, so its target gets no click; press again to click it.
    * @param target - The element to press.
    */
   press(target: Element): Promise<void>;

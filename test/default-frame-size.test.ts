@@ -1,6 +1,6 @@
 /**
- * The library's default frame animates its size like a `PanelSizeBox` view does: one box around the header, the grab bar and
- * the phone frame, whose real width eases from the size it had to the size it has, on the clock the slot's own slide runs on.
+ * Every panel in a row animates its size in the row's one box, the default frame included: one box around the header, the grab bar
+ * and the phone frame, laid out once at its new size and scaled from the size it had to the size it has, on the clock the slot's own slide runs on.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,33 +42,52 @@ async function rig(templates: PanelTemplate[], add: string[], o: { width?: numbe
 
 const slotOf = (m: ResizableWorkspace, id: string): HTMLElement => m.container.querySelector(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const boxOf = (m: ResizableWorkspace, id: string): HTMLElement => slotOf(m, id).querySelector<HTMLElement>('[data-panel-size-box]')!;
-/** The width the box is drawn at, in px. */
-const widthOf = (el: HTMLElement): number => Number.parseFloat(el.style.width);
+/** The width the box is drawn at, in px: its laid-out width times the glide's scale. */
+const widthOf = (el: HTMLElement): number => Number.parseFloat(el.style.width) * Number(/scale\((-?[\d.e-]+)/.exec(el.style.transform)?.[1] ?? 1);
 
 test('a bare view is drawn inside one size box that holds the header, the grab bar and the phone frame', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
   const slot = slotOf(r.m, 'bare');
   assert.equal(slot.querySelectorAll('[data-panel-size-box]').length, 1, 'one box in the slot');
-  assert.equal(slot.querySelectorAll('[data-panel-size-plain]').length, 0, 'and no second one inside it');
+  assert.equal(slot.querySelectorAll('[data-panel-size-plain]').length, 1, "the frame's own box is a plain div inside it");
   const box = boxOf(r.m, 'bare');
   for (const part of ['[data-panel-chrome-part="header"]', '[data-panel-grab-bar]', '[data-phone-frame]']) assert.ok(box.querySelector(part), `${part} is inside the box, so it eases with the box`);
-  assert.equal(box.style.transform, '', 'the box eases its real size, with no scale');
-  assert.equal(box.style.transformOrigin, '', 'and so has no origin to scale from');
+  assert.equal(box.style.transform, '', 'at rest the box is drawn at its own size, unscaled');
+  assert.equal(box.style.transformOrigin, '', 'and leaves its origin alone');
 });
 
-test('a self-framed view is not wrapped in a box of the library', async () => {
+test('a self-framed view that draws a bare Panel is drawn in the row\'s one size box all the same', async () => {
   const own = definePanel({ id: 'own', settings: { title: 'Own' }, view: () => React.createElement(Panel, { title: 'Own', children: React.createElement(PanelFrame, null, React.createElement('p', { 'data-body': 'own' })) }) });
   const r = await rig([own], ['own']);
-  assert.equal(slotOf(r.m, 'own').querySelectorAll('[data-panel-size-box]').length, 0);
+  assert.equal(slotOf(r.m, 'own').querySelectorAll('[data-panel-size-box]').length, 1);
+  assert.equal(slotOf(r.m, 'own').querySelectorAll('[data-panel-size-plain]').length, 0);
 });
 
-test('a PanelSizeBox below the default frame draws a plain div, so the two never ease the same size twice', async () => {
+test('a bare Panel glides on a resize, with no PanelSizeBox of its own', async () => {
+  const own = definePanel({ id: 'own', settings: { title: 'Own', multiple: true }, view: () => React.createElement(Panel, { title: 'Own', children: React.createElement(PanelFrame, null, React.createElement('p', { 'data-body': 'own' })) }) });
+  const r = await rig([own], ['own']);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const box = boxOf(r.m, 'own');
+  await act(async () => void r.handles[0]!.setSlots(2));
+  const wide = 2 * 390 + 16;
+  const seen: number[] = [];
+  for (let frame = 0; frame < 40; frame++) {
+    await advanceFrames(16);
+    seen.push(widthOf(box));
+  }
+  assert.ok(seen.some((w) => w > 390 + 0.05 * (wide - 390) && w < wide - 0.05 * (wide - 390)), `eased widths, not a snap: ${seen.slice(0, 6).map((w) => w.toFixed(0)).join(', ')}`);
+  await advanceFrames(800);
+  assert.equal(box.style.width, `${wide}px`);
+});
+
+test('a PanelSizeBox below the row\'s box draws a plain div that fills it, so the two never ease the same size twice', async () => {
   const inner = definePanel({ id: 'inner', settings: { title: 'Inner' }, view: () => React.createElement(PanelSizeBox, { width: 100, height: 100, children: React.createElement('p', { 'data-body': 'inner' }) }) });
   const r = await rig([inner], ['inner']);
   const slot = slotOf(r.m, 'inner');
-  assert.equal(slot.querySelectorAll('[data-panel-size-box]').length, 1, "the frame's box only");
-  assert.equal(slot.querySelectorAll('[data-panel-size-plain]').length, 1, "and the view's draws a div");
-  assert.equal(slot.querySelector<HTMLElement>('[data-panel-size-plain]')!.style.width, '100px');
+  assert.equal(slot.querySelectorAll('[data-panel-size-box]').length, 1, "the row's box only");
+  const plain = [...slot.querySelectorAll<HTMLElement>('[data-panel-size-plain]')];
+  assert.equal(plain.length, 2, "the frame's and the view's each draw a div");
+  for (const div of plain) assert.deepEqual([div.style.width, div.style.height], ['100%', '100%'], 'each fills the box above it, so it eases with it');
 });
 
 test('the box is as wide as the frame at a phone, at two slots and at three slots, and as high as the phone or as the row for fill', async () => {
@@ -95,7 +114,7 @@ test('the box is as wide as the frame at a phone, at two slots and at three slot
   assert.match(dims()[1], /^(\d+px|100%)$/, "and as high as the phone, or as the row's own height for fill");
 });
 
-test('a resize eases the real width of the box from the old size to the new one over the slide, with no scale', async () => {
+test('a resize lays the box out once at the new width and scales it from the old one over the slide', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
   mock.timers.enable({ apis: ['setTimeout'] });
   const box = boxOf(r.m, 'bare');
@@ -107,7 +126,7 @@ test('a resize eases the real width of the box from the old size to the new one 
   for (let frame = 0; frame < 40; frame++) {
     await advanceFrames(16);
     seen.push(widthOf(box));
-    assert.equal(box.style.transform, '', `no scale (frame ${frame})`);
+    assert.equal(box.style.width, `${wide}px`, `laid out at the new width, never written again (frame ${frame})`);
   }
   for (let k = 1; k < seen.length; k++) assert.ok(seen[k]! >= seen[k - 1]! - 1e-6, `the width only grows (frame ${k})`);
   assert.ok(seen.some((w) => w > 390 + 0.05 * (wide - 390) && w < wide - 0.05 * (wide - 390)), 'and passes through widths between');
@@ -139,12 +158,12 @@ test('a box that is mounted, or mounted again by the library frame, is not drawn
   assert.equal(boxOf(r.m, 'bare').style.width, '390px', 'the first mount');
   await act(async () => void r.ws.addPanel('bare', { id: 'bare-2' }));
   await act(async () => undefined);
-  const added = r.m.container.querySelectorAll<HTMLElement>('[data-panel-size-box]');
+  const added = [...r.m.container.querySelectorAll<HTMLElement>('[data-panel-size-box]')].filter((box) => box.querySelector('[data-body]') !== null);
   assert.equal(added.length, 2);
   for (const box of added) assert.equal(box.style.width, '390px', 'a panel added after the first is framed at once, at its size');
 });
 
-test('a view that draws its Panel late releases the library box with the frame, so no size box is left', async () => {
+test('a view that draws its Panel late releases the library frame, and its panel stays in the row\'s one box', async () => {
   let ready = false;
   const listeners = new Set<() => void>();
   const lazy = definePanel({
@@ -162,11 +181,12 @@ test('a view that draws its Panel late releases the library box with the frame, 
     },
   });
   const r = await rig([lazy], ['lazy']);
-  assert.equal(slotOf(r.m, 'lazy').querySelectorAll('[data-panel-size-box]').length, 1);
+  assert.equal(slotOf(r.m, 'lazy').querySelectorAll('[data-panel-size-plain]').length, 1, "the library frame's box");
   ready = true;
   await act(async () => void listeners.forEach((l) => l()));
   await advanceFrames(400);
-  assert.equal(slotOf(r.m, 'lazy').querySelectorAll('[data-panel-size-box]').length, 0, 'the view is self-framed now');
+  assert.equal(slotOf(r.m, 'lazy').querySelectorAll('[data-panel-size-plain]').length, 0, 'the view is self-framed now');
+  assert.equal(slotOf(r.m, 'lazy').querySelectorAll('[data-panel-size-box]').length, 1, "and still in the row's box");
 });
 
 test("a growing panel's box and its neighbour's slide run as one curve, the same share of the way at every frame, after a commit that took 64 ms", async () => {

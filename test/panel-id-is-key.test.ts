@@ -5,6 +5,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, definePanel, useActivePanel, usePanelActive } from '../index.js';
@@ -85,7 +86,7 @@ test('tuning.initialScroll.panel takes a key, and a counter id lands in the same
   const rowOf = () => row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, {}, { key: `web~${k + 1}` })));
   const at = (panel: string): number => {
     const m = mountRow(rowOf(), 1000, { tuning: { initialScroll: { panel } } });
-    const scrolled = m.container.scrollLeft;
+    const scrolled = rowOffsetOf(m.container);
     cleanup();
     return scrolled;
   };

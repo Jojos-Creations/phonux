@@ -9,13 +9,10 @@ export {
 } from './hostApi.js';
 export type {
   PhoneSize,
-  ClosedPageEntry,
   JsonValue,
   PanelSize,
   PanelSummary,
   CreatePanelOptions,
-  SettingsAPI,
-  HistoryAPI,
   PanelsAPI,
   PhoneDeviceAPI,
   Host,
@@ -23,6 +20,7 @@ export type {
 } from './hostApi.js';
 
 export type { PhonuxLabels } from './labels.js';
+export type { PhonuxIcons } from './icons.js';
 
 export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
@@ -80,7 +78,7 @@ export type {
 export { PHONE_MODELS, findPhoneModel } from './phoneModels.js';
 export type { PhoneModel } from './phoneModels.js';
 export { usePhoneSize } from './phoneFit.js';
-export { usePhoneFit } from './usePhoneFit.js';
+export { usePhoneFit, type PhoneFitResult } from './usePhoneFit.js';
 
 export type { PanelAnchor } from './panelRowOrder.js';
 export type { NeighborWidths, PanelRowEntry } from './panelRowEntry.js';
@@ -91,20 +89,14 @@ export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
-export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelPinned, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
+export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { usePanelRowDrop } from './usePanelRowDrop.js';
 export type { PanelRowDrop } from './usePanelRowDrop.js';
 export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox, usePanelSizeGlide, type PanelSizeGlide } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
-export { PanelHeaderMenu, type HeaderMenuAction, type HeaderMenuEntry, type HeaderMenuGroup, type PanelHeaderMenuProps } from './PanelHeaderMenu.js';
+export { PanelSizeControl, type PanelSizeControlProps } from './panelSizeControl.js';
 export { PanelFooter } from './panelFooter.js';
-export { useClosedPages } from './closedPagesList.js';
-export type { ClosedPagesList, ClosedPagesStorage, UseClosedPagesOptions } from './closedPagesList.js';
-export { ClosedPagesPanel } from './ClosedPagesPanel.js';
-export type { ClosedPagesPanelProps } from './ClosedPagesPanel.js';
-export { createClosedPagesTemplate } from './closedPagesTemplate.js';
-export type { ClosedPagesTemplateOptions } from './closedPagesTemplate.js';
 export type { PanelHeaderButtonItem, PanelHeaderButtonItemBase, PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
 export { Workspace } from './Workspace.js';
 export type { WorkspaceProps } from './Workspace.js';
@@ -112,6 +104,7 @@ export { WorkspacePanel, WorkspaceTrash } from './WorkspacePanel.js';
 export type { WorkspacePanelProps, WorkspaceTrashProps } from './WorkspacePanel.js';
 export type { WorkspacePanelEntry, WorkspaceTileCounts, WorkspaceTileSize } from './workspacePanelModel.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
+export { feedRowWheel } from './panels/useRowScrollGesture.js';
 export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';
 export { reorderStepsForOffset } from './panelWindow.js';
@@ -139,10 +132,6 @@ export type {
   HeaderButtonBase,
   HeaderButtonIconForm,
   HeaderButtonTextForm,
-  PinHalf,
-  Pinning,
-  PinWhenNotLive,
-  PinningWhenNotLive,
   SettingValues,
   PanelSettings,
   ResolvedPanelSettings,
@@ -176,10 +165,10 @@ export type { PanelApiLevel } from './panelApiLevel.js';
 export { definePanel } from './panelTemplate.js';
 export type {
   PanelTemplate,
+  PanelTouch,
   PanelViewProps,
   AnyPanelTemplate,
   PanelStatus,
-  DeferredPin,
   PanelState,
   ListFilter,
   PanelSnapshot,
@@ -190,6 +179,7 @@ export type {
 } from './panelTemplate.js';
 
 export { createWorkspace } from './workspaceCore.js';
+export type { OccupantMove, OpenPlacement, OpenRow, PlaceOpen } from './openPlacement.js';
 export { MAX_WORKSPACE_NAME } from './workspaceName.js';
 export { createWorkspaceColumn } from './columnHandle.js';
 export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
@@ -208,10 +198,10 @@ export {
 } from './columnBands.js';
 export type { AddedColumnSlot, ColumnBand, ColumnBands, ColumnSlot, ColumnSlotChanges, ColumnSlotProps } from './columnBands.js';
 export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
-export type { MovePanelOptions, MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
+export type { AddPanelOptions, MovePanelOptions, MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { ConfigureResult, PanelManager, PanelResult, PinResult, ResetResult } from './panelManager.js';
+export type { ConfigureResult, PanelManager, PanelResult, ResetResult } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from './panels/usePanelStates.js';
 export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
 export type { PanelRect, PanelRectEvent } from './panelChrome.js';
@@ -223,3 +213,26 @@ export { PanelManagerError } from './panelManagerError.js';
 export type { PanelRefusal, PanelManagerErrorCode } from './panelManagerError.js';
 export { usePanelDots, type PanelDots } from './usePanelDots.js';
 export { useWorkspaceRow, type WorkspaceRow, type WorkspaceRowEntry } from './workspaceRow.js';
+
+export {
+  PANEL_ROOT_ATTRIBUTE,
+  ROW_ID_ATTRIBUTE,
+  ROW_SCROLLER_ATTRIBUTE,
+  ROW_SLOT_ATTRIBUTE,
+  ROW_STRIP_ATTRIBUTE,
+  UNDO_CLOSE_TOAST_ATTRIBUTE,
+  WORKSPACE_CELL_ATTRIBUTE,
+  WORKSPACE_COLUMN_ATTRIBUTE,
+  panelRootOf,
+  rowPanelIdOf,
+} from './rowDom.js';
+export { MAXIMIZED_ATTRIBUTE, toggleMaximize, usePanelMaximize } from './panelMaximize.js';
+export type { PanelMaximize } from './panelMaximize.js';
+export { maximizedPanel, useMaximizedPanel } from './maximizedStore.js';
+export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';
+export { stepRow } from './rowStep.js';
+export { useRowFrameBand } from './rowFrameBand.js';
+export type { RowFrameBand } from './rowFrameBand.js';
+export { PANEL_BAR_HEIGHT_PX, PANEL_FOOTER_ROOM_PX, rowFootReserve } from './panelChromeSize.js';
+export { showPanels, whenAccepted, whenColumnReady, whenPanel } from './panelWaits.js';
+export type { WaitOptions } from './panelWaits.js';

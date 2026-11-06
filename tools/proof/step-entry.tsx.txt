@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'motion/react';
 import { HostProvider, Panel, PanelFrame, PanelRow, PanelSizeBox, Workspace, createWorkspace, definePanel, usePanelResizing, useProvidePanels } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
+import { rowScrollerFor } from 'LIB/rowScroller.js';
 
 const q = new URLSearchParams(location.search);
 const MODE = (q.get('mode') ?? 'visible') as 'off' | 'visible' | 'hidden';
@@ -99,7 +100,7 @@ function App() {
   const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: 390, containerWidth: w, overflowContainerRef: ref } as any);
   latest = p;
   const host = createFakeHost({ panels: p });
-  (window as any).__g = { container: () => ref.current, provided: () => latest, stops: () => latest.rowNumbers.stops, cap: () => Math.floor((latest.maxLiveWidth + GAP) / (PHONE + GAP)) };
+  (window as any).__g = { container: () => ref.current, offset: () => rowScrollerFor(ref.current!).scrollLeft(), provided: () => latest, stops: () => latest.rowNumbers.stops, cap: () => Math.floor((latest.maxLiveWidth + GAP) / (PHONE + GAP)) };
   const tree = (
     <HostProvider host={host}>
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>

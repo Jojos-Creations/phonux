@@ -6,28 +6,28 @@
     {
       "name": "the pinned canonical hash no longer matches the shipped text",
       "file": "test/license.test.ts",
-      "find": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5",
-      "replace": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe6",
+      "find": "8238c1f42828e9f3e734c5076dca2291e2126ffc0a453b4e953d54ca0c440797",
+      "replace": "8238c1f42828e9f3e734c5076dca2291e2126ffc0a453b4e953d54ca0c440798",
       "expectRed": [
-        "LICENSE is the Required Notice line over the unmodified canonical PolyForm Noncommercial 1.0.0 text"
+        "LICENSE is the canonical Prosperity Public License 3.0.0 text, retitled, with a ninety-day trial and no other change"
       ]
     },
     {
-      "name": "the expected SPDX id is not the one package.json carries",
+      "name": "the trial edit the test undoes is not the one LICENSE makes",
       "file": "test/license.test.ts",
-      "find": "const SPDX = 'PolyForm-Noncommercial-1.0.0';",
-      "replace": "const SPDX = 'MIT';",
+      "find": "['to a ninety-day trial period.', 'to a thirty-day trial period.'],",
+      "replace": "['to a sixty-day trial period.', 'to a thirty-day trial period.'],",
       "expectRed": [
-        "package.json and the package-lock.json root entry carry the SPDX id"
+        "LICENSE is the canonical Prosperity Public License 3.0.0 text, retitled, with a ninety-day trial and no other change"
       ]
     },
     {
-      "name": "the copyright notice line differs from the one LICENSE opens with",
+      "name": "the expected license field is not the one package.json carries",
       "file": "test/license.test.ts",
-      "find": "Copyright (c) 2026 Jojos-Creations\\n\\n';",
-      "replace": "Copyright (c) 2025 Jojos-Creations\\n\\n';",
+      "find": "const LICENSE_FIELD = 'SEE LICENSE IN LICENSE';",
+      "replace": "const LICENSE_FIELD = 'Prosperity-3.0.0';",
       "expectRed": [
-        "LICENSE is the Required Notice line over the unmodified canonical PolyForm Noncommercial 1.0.0 text"
+        "package.json and the package-lock.json root entry point at the LICENSE file"
       ]
     }
   ]

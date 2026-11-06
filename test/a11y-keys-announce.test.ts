@@ -146,7 +146,7 @@ test('the grab strip\'s name follows its handle\'s title when nothing renders th
   document.body.append(host);
   const { createRoot } = await import('react-dom/client');
   const root = createRoot(host);
-  await act(async () => root.render(React.createElement(PanelSlotContext.Provider, { value: { collapsible: true, closable: true, movable: true, resizable: true, maxSlots: 4, neighborWidths: { left: [], right: [] }, pinned: false, tuning: slotTuning(LIBRARY_TUNING_DEFAULTS), handle } }, React.createElement(DragToClose, { onClose: () => undefined, children: ({ sx: _sx, ...h }) => React.createElement('div', { ...h, 'data-own-strip': '' }, 'strip') }))));
+  await act(async () => root.render(React.createElement(PanelSlotContext.Provider, { value: { collapsible: true, closable: true, movable: true, resizable: true, maxSlots: 4, neighborWidths: { left: [], right: [] }, tuning: slotTuning(LIBRARY_TUNING_DEFAULTS), handle } }, React.createElement(DragToClose, { onClose: () => undefined, children: ({ sx: _sx, ...h }) => React.createElement('div', { ...h, 'data-own-strip': '' }, 'strip') }))));
   const label = (): string => host.querySelector('[data-own-strip]')!.getAttribute('aria-label')!;
   assert.equal(label(), 'Move or close Untitled panel');
   title = 'After';

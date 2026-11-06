@@ -57,14 +57,12 @@ test('every operation records one call with its arguments and answers an accepte
     handle.place('in-place'),
     handle.setSlots(3),
     handle.scrollTo('start'),
-    handle.pin(),
-    handle.unpin(),
     handle.configure({ title: 'T' }),
   ];
   assert.ok(results.every((r) => r.ok && !r.changed));
   assert.deepEqual(
     fake.calls.map((c) => c.method),
-    ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo', 'pin', 'unpin', 'configure'],
+    ['show', 'hide', 'toggleVisibility', 'close', 'open', 'move', 'place', 'setSlots', 'scrollTo', 'configure'],
   );
   assert.deepEqual(fake.calls[0], { api: 'handle', method: 'show', args: ['person'] });
   assert.equal(handle.getState().title, undefined, 'the fake keeps the state it was given');

@@ -12,9 +12,10 @@ import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useR
 import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
-import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type DragScroll } from './panelSlotContext.js';
 import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { useInsideSizeBox } from './PanelRowSlot.js';
 import type { CssStyle } from './cssStyle.js';
 import type { DragToCloseTuning } from './panelSettings.js';
 import { CLOSE_EXIT_EASE, DIRECTION_LOCK_PX, DRAG_CLOSE_NUMBERS, DRAG_REST_MS, DRAG_VELOCITY_WINDOW_MS, PREVIEW_OUT_PX, ROW_LAYER_Z, SLIDE_CLOSE_EXIT_SECONDS, SNAP_BACK_SPRING } from './rowConstants.js';
@@ -141,7 +142,7 @@ export interface ReorderHandle {
  * requestAnimationFrame loop that scrolls it while the pointer rests in a band, and the scroll distance the release
  * adds to the pointer offset. Reads only `dragScroll` from the slot, so what scrolls is decided by the row.
  */
-function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, x: MotionValue<number>, scrollX: MotionValue<number>) {
+function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: DragScroll | undefined, reduceMotion: boolean, x: MotionValue<number>, scrollX: MotionValue<number>, panelId: string | undefined) {
   // The loop outlives the render that started it: the bound, the stops and `instant` come from the latest slot, while the
   // mode and the three edge numbers stay with the hold, because a drag in flight keeps what it locked with.
   const latest = React.useRef({ dragScroll, reduceMotion });
@@ -149,6 +150,14 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
   const pressed = React.useRef<{ scrollerEl: HTMLElement; startScroll: number; downX: number } | null>(null);
   const hold = React.useRef<EdgeHold | null>(null);
   const pointer = React.useRef({ x: 0, offset: 0 });
+  // The slot's x in the strip when the hold began: a swap at the edge slides the slot inside the strip, so the box rides that slide as well as the scroll.
+  const slotStart = React.useRef<{ el: HTMLElement; strip: HTMLElement; left: number } | null>(null);
+  const inStrip = (s: { el: HTMLElement; strip: HTMLElement }): number => s.el.getBoundingClientRect().left - s.strip.getBoundingClientRect().left;
+  const travel = (h: EdgeHold): number => {
+    const s = slotStart.current;
+    const scrolled = h.scroller.scrollLeft() - h.startScroll;
+    return s === null || !s.el.isConnected ? scrolled : scrolled + s.left - inStrip(s);
+  };
   const cancelled = React.useRef(false);
   // How far the box may be drawn right of its slot before it passes the row's end, in content px. A box drawn past the end
   // adds to the scroll container's scrollable width; Infinity when nothing is measured.
@@ -165,8 +174,18 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     }
     unwatch();
   });
-  /** The drawn offset for a wanted pointer offset: the box and the row's scroll distance together never carry it past the row's end. */
-  const cap = (wanted: number): number => Math.min(wanted, slack.current - scrollX.get());
+  // How far left the box may be drawn before it passes a panel no drag may cross (the root), in screen px; -Infinity when none.
+  const floor = React.useRef(Number.NEGATIVE_INFINITY);
+  /** The drawn offset for a wanted pointer offset: the box and the row's scroll distance together never carry it past the row's end, and the box stops at the root. */
+  const cap = (wanted: number): number => {
+    const h = hold.current;
+    const scrolled = h === null ? scrollX.get() : h.scroller.scrollLeft() - h.startScroll;
+    // Pushing past the root nudges it left, up to half the band at a push of the band's width, and the box stays against it.
+    const zone = latest.current.dragScroll?.zonePx ?? 0;
+    const nudge = Math.min(Math.max(floor.current - wanted, 0), zone) / 2;
+    if (Number.isFinite(floor.current)) latest.current.dragScroll?.nudgeBarrier?.(nudge);
+    return Math.max(Math.min(wanted, slack.current - scrolled), floor.current - nudge);
+  };
   function unwatch(): void {
     window.removeEventListener('pointerup', onLift.current, true);
     window.removeEventListener('pointercancel', onLift.current, true);
@@ -179,16 +198,20 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     h.frame = null;
     if (h.stopped || slot === undefined) return;
     stepEdgeHold(h, nowMs, pointer.current.x, slot, latest.current.reduceMotion);
-    scrollX.set(h.scroller.scrollLeft() - h.startScroll);
+    scrollX.set(travel(h));
     h.frame = requestAnimationFrame(tick);
   };
 
-  /** Gives the claim back and returns how far the row scrolled since the pointer went down; 0 when no claim was held. */
+  /** Gives the claim back and returns how far the slot moved with the row (a scroll or a swap at the edge) since the pointer went down; 0 when no claim was held. */
   const end = (): number => {
     const h = hold.current;
     if (h === null) return 0;
     hold.current = null;
-    return endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
+    const moved = travel(h);
+    slotStart.current = null;
+    if (Number.isFinite(floor.current)) latest.current.dragScroll?.nudgeBarrier?.(0);
+    endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
+    return moved;
   };
 
   React.useEffect(
@@ -208,6 +231,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     press(event: React.PointerEvent<HTMLElement>): void {
       const scrollerEl = box.current === null ? null : closestRowScroller(box.current);
       slack.current = Number.POSITIVE_INFINITY;
+      floor.current = Number.NEGATIVE_INFINITY;
       // A touch swipe is a native pan that ends in pointercancel, so only a mouse or pen drags to the edge.
       pressed.current = scrollerEl === null || event.pointerType === 'touch' ? null : { scrollerEl, startScroll: rowScrollerFor(scrollerEl).scrollLeft(), downX: event.clientX };
       cancelled.current = false;
@@ -226,8 +250,14 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       // Rects and the translations drawn now are in the same screen px; both ends scroll together, so the gap holds as the row scrolls.
       slack.current = rowEnd === undefined || own === undefined || rowEnd.width === 0 ? Number.POSITIVE_INFINITY : rowEnd.right - (own.right - x.get() - scrollX.get());
       if (p === null || slot === undefined || slot.mode !== 'edge') return;
-      const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot);
+      const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot, panelId);
       if (opened === null) return;
+      const slotEl = box.current?.closest<HTMLElement>('[data-row-slot]') ?? null;
+      const strip = p.scrollerEl.querySelector<HTMLElement>(':scope > [data-row-strip]');
+      // A slot with no layout (no width) has no slide to ride.
+      slotStart.current = slotEl === null || strip === null || slotEl.getBoundingClientRect().width === 0 ? null : { el: slotEl, strip, left: inStrip({ el: slotEl, strip }) };
+      const barrier = slot.barrierRight?.();
+      floor.current = barrier === undefined || own === undefined ? Number.NEGATIVE_INFINITY : barrier - (own.left - x.get() - scrollX.get());
       pointer.current = { x: clientX, offset: clientX - p.downX };
       hold.current = opened;
       hold.current.frame = requestAnimationFrame(tick);
@@ -395,7 +425,8 @@ export interface PreviewOut {
 
 /**
  * A box whose grab handle, dragged down far enough, calls `onClose`; with `reorder`, the same handle also drags
- * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors.
+ * sideways. `onClose` must remove the view, because a close never unlocks the scroll ancestors. In a row the handle drags
+ * up and down only for a panel whose template sets `verticalDrag: true`; otherwise it drags only sideways.
  * @public
  */
 export function DragToClose(input: {
@@ -418,6 +449,11 @@ export function DragToClose(input: {
    * let go. Not called when the gesture is canceled (a native pan, the Escape key), and not for a press that never became a drag.
    */
   onDragEnd?: (end: GrabDragEnd) => void;
+  /**
+   * Called once when a drag ends without a release: the Escape key, a native pan that takes the pointer, or the box going away
+   * mid-drag. Every drag that called `onDragMove` ends in exactly one of `onDragEnd` or this.
+   */
+  onDragCancel?: () => void;
   /**
    * When set, a vertical drag past `PREVIEW_OUT_PX` grabs a tile-size preview instead of moving the box, and the box stays in its slot.
    * Pair with `exitFor` to say where a dropped preview's panel leaves to.
@@ -456,6 +492,7 @@ function DragToCloseBox({
   closeOnRelease = true,
   onDragMove,
   onDragEnd,
+  onDragCancel,
   previewOut,
   exitFor,
   children,
@@ -465,6 +502,7 @@ function DragToCloseBox({
   closeOnRelease?: boolean;
   onDragMove?: (move: GrabDragMove) => void;
   onDragEnd?: (end: GrabDragEnd) => void;
+  onDragCancel?: () => void;
   previewOut?: PreviewOut;
   exitFor?: (end: GrabDragEnd) => PreviewExit | null;
   children: (handle: DragHandleProps) => React.ReactNode;
@@ -512,6 +550,10 @@ function DragToCloseBox({
   // Read by the window listener, which is made once and outlives the render that made it.
   const dragMoveRef = React.useRef(onDragMove);
   dragMoveRef.current = onDragMove;
+  const dragCancelRef = React.useRef(onDragCancel);
+  dragCancelRef.current = onDragCancel;
+  // True from a drag's first reported move until its release is reported; still true when the drag mark ends means no release came.
+  const reportedDrag = React.useRef(false);
   const previewOutRef = React.useRef(previewOut);
   previewOutRef.current = previewOut;
   const exitForRef = React.useRef(exitFor);
@@ -524,7 +566,10 @@ function DragToCloseBox({
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
   const drag = slot?.tuning.dragToClose ?? OUTSIDE_ROW_DRAG;
-  const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX);
+  // Read by the frame step and the release, which outlive the render that started them.
+  const vertical = React.useRef(true);
+  vertical.current = React.useContext(PanelVerticalDragContext) || slot === undefined;
+  const edge = useEdgeScroll(box, reorder === undefined ? undefined : slot?.dragScroll, reduceMotion === true, x, scrollX, slot?.id);
   const exitSeconds = slot?.tuning.slide.closeExitSeconds ?? SLIDE_CLOSE_EXIT_SECONDS;
   const exitEase = slot?.tuning.slide.closeExitEase ?? CLOSE_EXIT_EASE;
   // Read again when the exit ends: a lock that lands mid-exit must stop the close.
@@ -546,6 +591,7 @@ function DragToCloseBox({
   // Set once the first `DIRECTION_LOCK_PX` of movement decides; null until then, and always for a vertical-only handle.
   const axisLock = React.useRef<'x' | 'y' | null>(null);
   const snapBack = DRAG_CLOSE.snapBack;
+  const boxed = useInsideSizeBox();
 
   // overflow-y: hidden while a drag is live: the transformed box would otherwise add a scrollbar.
   const lockScrollParents = () => {
@@ -560,6 +606,10 @@ function DragToCloseBox({
   const unlockScrollParents = () => {
     for (const [el, previous] of locked.current.splice(0)) el.style.overflowY = previous;
     slotRef.current?.setDragging?.(false);
+    if (reportedDrag.current) {
+      reportedDrag.current = false;
+      dragCancelRef.current?.();
+    }
   };
   // The cleanup leaves a running spring alone: React 19.2 re-runs it for a keyed child a reorder moves under StrictMode, and
   // Activity runs it on a hide; a stopped release spring leaves the box at its drag offset.
@@ -644,7 +694,10 @@ function DragToCloseBox({
     }
     if (event.type === 'pointermove') {
       latestMove.current();
-      if (engaged.current) dragMoveRef.current?.({ x: clientX - pointer.current.downX, y: clientY - pointer.current.downY, clientX, clientY });
+      if (engaged.current) {
+        reportedDrag.current = true;
+        dragMoveRef.current?.({ x: clientX - pointer.current.downX, y: clientY - pointer.current.downY, clientX, clientY });
+      }
       return;
     }
     pressedDoc.current = null;
@@ -661,7 +714,7 @@ function DragToCloseBox({
     const dx = pointer.current.x - pointer.current.downX;
     const dy = pointer.current.y - pointer.current.downY;
     if (axisLock.current === null) {
-      axisLock.current = reorder !== undefined && Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      axisLock.current = reorder !== undefined && (!vertical.current || Math.abs(dx) >= Math.abs(dy)) ? 'x' : 'y';
       if (axisLock.current === 'x') edge.lock(pointer.current.x);
     }
     edge.track(pointer.current.x, x);
@@ -674,6 +727,9 @@ function DragToCloseBox({
     // The losing axis is held at zero on every move: a locked box moves on one axis only.
     if (axisLock.current === 'x') {
       x.set(edge.cap(dx));
+      y.set(0);
+    } else if (!vertical.current) {
+      x.set(0);
       y.set(0);
     } else if (previewOutRef.current !== undefined) {
       x.set(0);
@@ -726,7 +782,10 @@ function DragToCloseBox({
       axisLock.current = null;
       const dx = pointer.current.x - pointer.current.downX;
       const dy = pointer.current.y - pointer.current.downY;
-      if (wasEngaged) onDragEnd?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y });
+      if (wasEngaged && reportedDrag.current) {
+        reportedDrag.current = false;
+        onDragEnd?.({ offsetX: dx, offsetY: dy, clientX: pointer.current.x, clientY: pointer.current.y });
+      }
       const cancelled = reorder ? edge.release() : false;
       if (reorder && lockedAxis === 'x') {
         // The claim goes back before the hop is reported: the move the hop causes may ask the row to scroll, and a held claim would drop that request.
@@ -777,6 +836,7 @@ function DragToCloseBox({
         return; // never a close: shouldCloseOnRelease is not even consulted for a horizontal-locked release
       }
       if (reorder) x.jump(0); // residual sub-threshold horizontal drift from a gesture that never locked (or locked vertical)
+      if (!vertical.current) return unlockScrollParents();
       const rect = box.current?.getBoundingClientRect();
       const height = rect?.height ?? 0;
       if (previewOutRef.current !== undefined) {
@@ -905,7 +965,8 @@ function DragToCloseBox({
           draggable.setNodeRef(el);
         }}
         data-drag-to-close=""
-        style={reorder ? { x, y, translate: scrollTranslate } : { y }}
+        // Below a size box it fills the box, so a Panel inside it has a height to fill.
+        style={{ ...(reorder ? { x, y, translate: scrollTranslate } : { y }), ...(boxed ? { height: '100%' } : {}) }}
       >
         {children(handle)}
       </motion.div>

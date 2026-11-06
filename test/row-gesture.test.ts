@@ -8,6 +8,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import { act } from 'react';
 import type { PanelWindow } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -49,7 +50,7 @@ test('a wheel burst of 30 events scrolls exactly one stop, and its later events 
   for (let n = 0; n < 30; n += 1) m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), stops[1]);
   await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(m.container.scrollLeft, stops[1]);
+  assert.equal(rowOffsetOf(m.container), stops[1]);
 });
 
 test('a step waits 30 ms after the last one, however far the wheel has travelled; later events do not extend the lock', () => {
@@ -230,21 +231,21 @@ test('a wheel that stops leaves the row where its last step put it', async () =>
   m.wheel({ deltaX: 400 });
   tick(1000);
   await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(m.container.scrollLeft, stops[2]);
+  assert.equal(rowOffsetOf(m.container), stops[2]);
 });
 
-test('Shift+deltaY acts as horizontal and a plain deltaY does not; no wheel is ever cancelled, so the browser keeps it', () => {
+test('Shift+deltaY acts as horizontal and a plain deltaY does not; the row cancels the sideways wheels it takes and leaves the vertical one', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   const plain = m.wheel({ deltaY: 100 });
   assert.equal(plain.defaultPrevented, false);
   assert.equal(m.scroller.glideTarget(), null);
   const shifted = m.wheel({ deltaY: 100, shiftKey: true });
-  assert.equal(shifted.defaultPrevented, false);
+  assert.equal(shifted.defaultPrevented, true);
   assert.equal(m.scroller.glideTarget(), stops[1]);
   const horizontal = m.wheel({ deltaX: -100 });
-  assert.equal(horizontal.defaultPrevented, false);
-  assert.equal(m.scroller.glideTarget(), stops[0], 'a horizontal wheel steps without being cancelled');
+  assert.equal(horizontal.defaultPrevented, true);
+  assert.equal(m.scroller.glideTarget(), stops[0], 'a horizontal wheel steps and is cancelled');
 });
 
 test('ten ArrowRight repeats advance ten stops from the in-flight target', () => {
@@ -263,20 +264,42 @@ test('ten ArrowRight repeats advance ten stops from the in-flight target', () =>
 test('the last step clamps to the strip end', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
-  m.container.scrollLeft = stops[stops.length - 2]!;
+  setRowOffset(m.container, stops[stops.length - 2]!);
   m.key('ArrowRight');
   // The last stop is the farthest legal scroll, so the clamp and the stop agree.
   assert.equal(m.scroller.glideTarget(), maxScrollOf(numbersOf(m, 1000)));
   assert.equal(m.scroller.glideTarget(), stops[stops.length - 1]);
 });
 
-test('at the strip end an arrow and a swipe do nothing', () => {
+test('at the strip end an arrow and a swipe move no offset: the strip bumps past the end and springs back', async () => {
   const m = stepRow(eleven(), 1000);
-  m.container.scrollLeft = maxScrollOf(numbersOf(m, 1000));
+  const end = maxScrollOf(numbersOf(m, 1000));
+  setRowOffset(m.container, end);
+  const rest = m.scroller.stripX();
+  const drawn = (): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(m.container.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1]);
   m.key('ArrowRight');
   assert.equal(m.scroller.glideTarget(), null);
+  await advanceFrames(160);
+  assert.ok(drawn() < rest - 20, `pushed left past the end: ${drawn()} against ${rest}`);
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), null);
+  await advanceFrames(1000);
+  assert.equal(drawn(), rest);
+  assert.equal(rowOffsetOf(m.container), end);
+});
+
+test('at the strip end the bump holds while the wheel keeps coming and springs back only once it stops', async () => {
+  const m = stepRow(eleven(), 1000);
+  setRowOffset(m.container, maxScrollOf(numbersOf(m, 1000)));
+  const rest = m.scroller.stripX();
+  const drawn = (): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(m.container.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1]);
+  for (let k = 0; k < 50; k += 1) {
+    m.wheel({ deltaX: 3 });
+    await advanceFrames(16);
+    if (k > 12) assert.equal(drawn(), rest - 36, `held at frame ${k}`);
+  }
+  await advanceFrames(1000);
+  assert.equal(drawn(), rest);
 });
 
 test('arrows skip INPUT, TEXTAREA, SELECT and contentEditable targets and any modifier, and still step with a button focused', () => {
@@ -390,7 +413,7 @@ function listenersFor(rowGesture: 'step' | 'off'): number {
     return spy.mock.calls.filter((c) => {
       const target = c.this as unknown;
       const type = c.arguments[0];
-      return (type === 'wheel' && target instanceof HTMLElement && target.hasAttribute('data-row-scroller')) || (type === 'keydown' && target === window);
+      return (type === 'wheel' && target instanceof HTMLElement && target.hasAttribute('data-row-scroller')) || (type === 'keydown' && target === window && c.arguments[2] !== true);
     }).length;
   } finally {
     spy.mock.restore();
@@ -410,7 +433,7 @@ test('the gesture does nothing while a claim is held, and steps again after the 
   for (let n = 0; n < 3; n += 1) m.key('ArrowRight');
   m.wheel({ deltaX: 50 });
   assert.equal(m.scroller.glideTarget(), null);
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
   claim.release();
   m.key('ArrowRight');
   assert.equal(m.scroller.glideTarget(), stopsOf(m, 1000)[1]);
@@ -445,10 +468,10 @@ test('a held panel after the last panel in view is reached only once no live pan
     const heldId = m.latest().entries[m.latest().entries.length - 1]!.id;
     await advanceFrames(GLIDE_DONE_MS);
     const stops = stopsOf(m, narrow);
-    assert.equal(m.container.scrollLeft, 0, `${policy}: a hidden create scrolls nothing`);
+    assert.equal(rowOffsetOf(m.container), 0, `${policy}: a hidden create scrolls nothing`);
     assert.deepEqual(m.live(), ['c']);
     await swipe(m, 50);
-    assert.equal(m.container.scrollLeft, stops[1], `${policy}: c lies between the window and the held panel, so the swipe steps to it`);
+    assert.equal(rowOffsetOf(m.container), stops[1], `${policy}: c lies between the window and the held panel, so the swipe steps to it`);
     assert.ok(!m.live().includes(heldId), policy);
     await swipe(m, 50);
     if (policy === 'never') {
@@ -470,7 +493,7 @@ test('a swipe toward a held panel past three live panels steps over each and rev
   const reached: number[] = [];
   for (let n = 0; n < 3; n += 1) {
     await swipe(m, 50);
-    reached.push(m.container.scrollLeft);
+    reached.push(rowOffsetOf(m.container));
     assert.ok(!m.live().includes(heldId), `step ${n}: not skipped to`);
   }
   assert.deepEqual(reached, stops.slice(1));
@@ -484,10 +507,10 @@ test('an engine-parked panel between the live ones: edges and never step past it
       const m = stepRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: policy }, { live: false }), made('c')), narrow);
       mock.timers.enable({ apis: ['setTimeout'] });
       const stops = stopsOf(m, narrow);
-      if (direction === 'left') m.container.scrollLeft = stops[1]!;
+      if (direction === 'left') setRowOffset(m.container, stops[1]!);
       await swipe(m, direction === 'right' ? 50 : -50);
       assert.equal(m.live().includes('b'), reached, `${policy} ${direction}`);
-      if (!reached) assert.equal(m.container.scrollLeft, direction === 'right' ? stops[1] : 0, `${policy} ${direction}: it stepped instead`);
+      if (!reached) assert.equal(rowOffsetOf(m.container), direction === 'right' ? stops[1] : 0, `${policy} ${direction}: it stepped instead`);
       mock.timers.reset();
       cleanup();
     }

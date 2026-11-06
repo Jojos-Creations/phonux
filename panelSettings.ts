@@ -30,6 +30,7 @@ import {
   RETURN_TIE_BREAK,
   ROW_GAP,
   ROW_GESTURE,
+  FAST_SCROLL,
   SAVE_QUIET_MS,
   PHONE_FIT,
   PHONE_FIT_MIN,
@@ -84,8 +85,9 @@ export type Overflow = 'scroll' | 'park';
  * How a panel enters the row. 'auto' takes the workspace's `tuning.defaultEnterFrom`, whose own 'auto' slides in from the side
  * the row picks (an engine mark, else the anchor's side for a panel entering via its anchor, else the right). 'anchor'
  * slides in from its anchor's side whenever it enters. 'left', 'right', 'top' and 'bottom' slide in from that side,
- * 'fade' fades in where it rests, and 'expand' scales the panel up from its center point, width and height together,
- * while its neighbors part to make room; the center keeps to where they part. Every entrance takes the workspace's `slide` timing.
+ * 'fade' fades in where it rests, and 'expand' scales the panel up, width and height together, while its neighbors part to
+ * make room: an open grows from its center point, which keeps to where they part, and a reveal grows out of the edge on the
+ * side it comes in from, which holds still. Every entrance takes the workspace's `slide` timing.
  * @public
  */
 export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' | 'fade' | 'expand';
@@ -94,8 +96,9 @@ export type EnterFrom = 'auto' | 'left' | 'right' | 'anchor' | 'top' | 'bottom' 
  * How a panel leaves the row, when it parks and when it closes. 'auto' takes the workspace's `tuning.defaultExitTo`, whose own
  * 'auto' parks off the side the row picks and closes downward along `slide.closeExitSeconds` and `slide.closeExitEase`.
  * 'left', 'right', 'top' and 'bottom' slide out to that side, 'fade' fades out where it rests, and 'shrink' scales
- * the panel down to its center point, width and height together, while its neighbors close up; the center keeps to
- * where they meet, so in a centered row it holds still. Those take the workspace's `slide` timing.
+ * the panel down, width and height together, while its neighbors close up: a close shrinks to its center point, which
+ * keeps to where they meet, and a park shrinks into the edge on the side it leaves by, which holds still. Those take the
+ * workspace's `slide` timing.
  * @public
  */
 export type ExitTo = 'auto' | 'left' | 'right' | 'top' | 'bottom' | 'fade' | 'shrink';
@@ -165,37 +168,6 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 /** One generic title-bar button slot: the icon form or the text form, told apart by the `icon` key. @public */
 export type HeaderButton = HeaderButtonIconForm | HeaderButtonTextForm;
 
-/** One half of a pin definition: where the panel goes and, optionally, whether it is parkable in that state. @public */
-export type PinHalf = {
-  /** Where the panel is placed in this state. */
-  placement?: AddPlacement;
-  /** The `parkable` value the panel takes in this state. */
-  parkable?: boolean;
-};
-
-/** What pin() and unpin() do. Valid only when a drag cannot make the pinned state unreadable. @public */
-export type Pinning = {
-  /** What `pin()` does, and what the panel reads as when pinned. */
-  pinned: PinHalf;
-  /** What `unpin()` does. */
-  unpinned: PinHalf;
-};
-
-/** What a pin change does to a panel that is not live: place it only, refuse, show it, or apply on its next show. @public */
-export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
-
-/** What a pin change does to a panel that is not live: one answer, or one per status. @public */
-export type PinningWhenNotLive =
-  | PinWhenNotLive
-  | {
-      /** The answer for a parked panel. */
-      parked?: PinWhenNotLive;
-      /** The answer for a hidden panel. */
-      hidden?: PinWhenNotLive;
-      /** The answer for a closed panel: refuse, or apply on its next show. */
-      closed?: 'refuse' | 'apply-on-next-show';
-    };
-
 /** Which layer a resolved value came from. A rule overrides the rest and 'derived' marks a value filled from another resolved field. @public */
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
@@ -205,7 +177,7 @@ export type SettingValues = {
   closable: boolean;
   /** Whether the panel can be parked; false makes it a fixed column, which needs one slot. */
   parkable: boolean;
-  /** Whether a person can move the panel, by a reorder drag or by dropping it at a placement. The developer's own `move()`, `place()` and pin with a placement are not limited by it. Defaults to the resolved `parkable`. */
+  /** Whether a person can move the panel, by a reorder drag or by dropping it at a placement. The developer's own `move()` and `place()` are not limited by it. Defaults to the resolved `parkable`. */
   movable: boolean;
   /** Whether another panel's drag can cross this panel. */
   crossable: boolean;
@@ -235,9 +207,11 @@ export type SettingValues = {
   revealOnScroll: 'edges' | 'any' | 'never';
   /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' is in the strip while it is in view, and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
   edgeHold: 'off' | 'left' | 'right' | 'both';
+  /** How the panel's content follows a size glide. 'reveal' lays it out once at the glide's larger size and the panel's eased edge clips it, so the content is resized when a grow starts and when a shrink ends. 'reflow' lays it out at the new size when the glide starts and draws it scaled to the eased size. */
+  resize: 'reveal' | 'reflow';
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
-  /** Whether the row follows the panel when it is moved, placed, resized, pinned, unpinned or its layout reset. */
+  /** Whether the row follows the panel when it is moved, placed, resized or its layout reset. */
   scrollOnMove: ScrollOnMove;
   /** What `toggleVisibility()` does to a closed declared panel: nothing ('ignore') or reopen it ('reopen'). */
   toggleWhenClosed: 'ignore' | 'reopen';
@@ -259,10 +233,6 @@ export type SettingValues = {
   maxSlots: number;
   /** The panel's title. */
   title: string;
-  /** What `pin()` and `unpin()` do, and what the panel reads as pinned. */
-  pinning: Pinning;
-  /** What a pin change does to a panel that is not live. */
-  pinningWhenNotLive: PinningWhenNotLive;
   /** Whether the panel is restored as it was saved ('saved'), live or parked. */
   restoreVisibility: 'saved' | 'live' | 'parked';
   /** Whether a closed panel stays closed ('stay-closed') or returns at the next launch ('return-next-launch'). */
@@ -351,7 +321,7 @@ export type WorkspaceTuning = {
   gestureLockMs?: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs?: number;
-  /** How many `slide.durationSec` the container width must hold still before the row's centering margin glides again; 0 settles at once. */
+  /** How many `slide.durationSec` the container width must hold still before the phone size is fitted again; 0 settles at once. */
   resizeSettleSlides?: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
@@ -359,13 +329,19 @@ export type WorkspaceTuning = {
   dropTieBreak?: 'leftmost' | 'rightmost';
   /** What the row's own scroll input does: 'step' or 'off'. */
   rowGesture?: 'step' | 'off';
+  /**
+   * How a run of fast steps or a far dot moves the row. 'coalesce': the steps add to one target the row glides to in one
+   * motion, each glide shorter as input speeds up, down to a quarter second. 'jump': the same, but a move of more than a
+   * window fades the row out, moves it unseen and fades it back in.
+   */
+  fastScroll?: 'coalesce' | 'jump';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll?: 'start' | 'end' | 'root' | { panel: PanelId };
   /** Overrides for the chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
   /**
-   * The most unpinned parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
-   * it park the way they do when the window is full; a pinned panel neither counts nor parks for it. In a row that
+   * The most parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
+   * it park the way they do when the window is full. In a row that
    * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
    * Raising it (or setting `null`) through `configureTuning` brings back the most recently capacity-parked panels, up to the new
    * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
@@ -390,6 +366,16 @@ export type WorkspaceTuning = {
   defaultEnterFrom?: EnterFrom;
   /** How a panel whose own `exitTo` is 'auto' leaves the row; any value of `ExitTo`, and 'auto' parks sideways and closes downward. Default 'shrink'. */
   defaultExitTo?: ExitTo;
+  /**
+   * Whether a panel wider than one phone goes back to one phone width when the person scrolls the row or another panel
+   * becomes active, and back to its own width the next time it is active. Its own width is what the workspace saves. Default false.
+   */
+  shrinkUnfocused?: boolean;
+  /**
+   * Whether a press on a panel that is not in use only puts it in use, so the control under the press gets no click until
+   * the next press. Default false: the first press reaches the content and puts the panel in use at once.
+   */
+  firstPressFocusOnly?: boolean;
 };
 
 /** Every tuning leaf after resolving, each present. @public */
@@ -414,7 +400,7 @@ export type ResolvedWorkspaceTuning = {
   gestureLockMs: number;
   /** Milliseconds without a wheel event that end a row scroll gesture, so the next event steps whatever its size. */
   gestureQuietMs: number;
-  /** How many `slide.durationSec` the container width must hold still before the row's centering margin glides again; 0 settles at once. */
+  /** How many `slide.durationSec` the container width must hold still before the phone size is fitted again; 0 settles at once. */
   resizeSettleSlides: number;
   /** Which of two equally ranked parked panels returns first: the latest parked, the earliest parked, or the earlier in the row. */
   returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
@@ -422,11 +408,13 @@ export type ResolvedWorkspaceTuning = {
   dropTieBreak: 'leftmost' | 'rightmost';
   /** What the row's own scroll input does: 'step' or 'off'. */
   rowGesture: 'step' | 'off';
+  /** How a run of fast steps or a far dot moves the row: one coalesced glide, or a fade past a move of more than a window. */
+  fastScroll: 'coalesce' | 'jump';
   /** Where the row starts scrolled: its 'start', its 'end', the 'root', or a given panel. */
   initialScroll: 'start' | 'end' | 'root' | { panel: PanelId };
   /** The chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome: ChromeTuning;
-  /** The most unpinned parkable panels the row keeps live, or `null` for no cap. */
+  /** The most parkable panels the row keeps live, or `null` for no cap. */
   maxLivePanels: number | null;
   /** Whether the default mount fits the phone size to the window: 'off' or 'fit'. */
   phoneFit: 'off' | 'fit';
@@ -438,6 +426,10 @@ export type ResolvedWorkspaceTuning = {
   defaultEnterFrom: EnterFrom;
   /** How a panel whose own `exitTo` is 'auto' leaves the row. */
   defaultExitTo: ExitTo;
+  /** Whether a panel wider than one phone rests at one phone width while it is not the active one. */
+  shrinkUnfocused: boolean;
+  /** Whether a press on a panel not in use only puts it in use, its content seeing no click. */
+  firstPressFocusOnly: boolean;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -810,6 +802,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
+    name: 'resize',
+    group: 'motion',
+    values: 'reveal, reflow',
+    default: 'reflow',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-engine-placement-and-motion-settings',
+    configure: { cls: 'NOW', doors: ['instance'] },
+  },
+  {
     name: 'scrollOnOpen',
     group: 'scrolling',
     values: 'into-view, start, center, none',
@@ -942,28 +945,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NOW', doors: ['instance'] },
   },
   {
-    name: 'pinning',
-    group: 'pinning',
-    values: 'object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin',
-    default: '{ pinned: { placement: \'row-start\' }, unpinned: { placement: \'row-end\' } } (0.1.0\'s one pin rule)',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'today',
-    ownerEntry: 'phonux-pin-and-reset',
-    configure: { cls: 'NOW', doors: ['instance'] },
-  },
-  {
-    name: 'pinningWhenNotLive',
-    group: 'pinning',
-    values: 'place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show)',
-    default: 'place-only',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-pin-and-reset',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'headerButtons',
     group: 'header',
     values: 'object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon?, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6); with icon the label is the accessible name, without it the label is the text drawn',
@@ -1088,7 +1069,7 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     name: 'tuning.resizeSettleSlides',
     group: 'tuning',
     values: 'number [0, 10], multiplies slide.durationSec (workspace only)',
-    default: '1.25',
+    default: '1/3',
     scope: 'workspace',
     viewSettable: false,
     exists: 'today',
@@ -1122,6 +1103,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     group: 'tuning',
     values: 'step, off (workspace only)',
     default: 'step',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-row-scroll-gesture-and-requests',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.fastScroll',
+    group: 'tuning',
+    values: 'coalesce, jump (workspace only)',
+    default: 'coalesce',
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1238,6 +1230,28 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'lib-enter-expand',
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.shrinkUnfocused',
+    group: 'tuning',
+    values: 'boolean (workspace only)',
+    default: 'false',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-shrink-unfocused',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
+  {
+    name: 'tuning.firstPressFocusOnly',
+    group: 'tuning',
+    values: 'boolean (workspace only)',
+    default: 'false',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'lib-first-press',
+    configure: { cls: 'NEXT', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1284,6 +1298,7 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   overflow: 'scroll' as Overflow,
   revealOnScroll: 'edges' as const,
   edgeHold: 'off' as const,
+  resize: 'reflow' as const,
   scrollOnOpen: 'into-view' as ScrollOnOpen,
   scrollOnMove: 'follow' as ScrollOnMove,
   toggleWhenClosed: 'ignore' as const,
@@ -1296,8 +1311,6 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   slots: 1,
   maxSlots: ALL_SLOTS,
   title: undefined,
-  pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } as Pinning,
-  pinningWhenNotLive: 'place-only' as PinningWhenNotLive,
   headerButtons: {},
   restoreVisibility: 'saved' as const,
   afterClose: 'stay-closed' as const,
@@ -1329,6 +1342,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   returnTieBreak: RETURN_TIE_BREAK as ResolvedWorkspaceTuning['returnTieBreak'],
   dropTieBreak: DROP_TIE_BREAK as ResolvedWorkspaceTuning['dropTieBreak'],
   rowGesture: ROW_GESTURE as ResolvedWorkspaceTuning['rowGesture'],
+  fastScroll: FAST_SCROLL as ResolvedWorkspaceTuning['fastScroll'],
   initialScroll: INITIAL_SCROLL as ResolvedWorkspaceTuning['initialScroll'],
   chrome: { ...CHROME },
   maxLivePanels: null,
@@ -1337,6 +1351,8 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   phoneFitMax: PHONE_FIT_MAX,
   defaultEnterFrom: 'expand',
   defaultExitTo: 'shrink',
+  shrinkUnfocused: false,
+  firstPressFocusOnly: false,
 });
 
 // ---------------------------------------------------------------------------
@@ -1432,60 +1448,6 @@ const headerButtonsProblem: Check = (v) => {
   return undefined;
 };
 
-const PIN_HALF_KEYS: readonly string[] = ['placement', 'parkable'];
-
-const pinHalfProblem = (half: unknown, which: string): string | undefined => {
-  if (!isPlain(half)) return `${which} must be an object`;
-  for (const key of Object.keys(half)) if (!PIN_HALF_KEYS.includes(key)) return `unknown key '${key}' in ${which}`;
-  if (half.placement !== undefined) {
-    const problem = placementProblem(half.placement);
-    if (problem !== undefined) return `${which}.placement: ${problem}`;
-  }
-  if (half.parkable !== undefined && typeof half.parkable !== 'boolean') return `${which}.parkable must be a boolean`;
-  return undefined;
-};
-
-/** Pinned is read from facts a drag cannot erase: the parkable pair, or row-start with row-end or after-fixed; an empty definition reads false. */
-function pinIsReadable(pinned: Plain, unpinned: Plain): boolean {
-  if (Object.keys(pinned).length === 0 && Object.keys(unpinned).length === 0) return true;
-  if (pinned.parkable !== undefined) return true;
-  return pinned.placement === 'row-start' && (unpinned.placement === 'row-end' || unpinned.placement === 'after-fixed');
-}
-
-const pinningProblem: Check = (v) => {
-  if (!isPlain(v)) return 'expected { pinned, unpinned }';
-  for (const key of Object.keys(v)) if (key !== 'pinned' && key !== 'unpinned') return `unknown key '${key}'`;
-  const pinned = v.pinned ?? {};
-  const unpinned = v.unpinned ?? {};
-  const halves = pinHalfProblem(pinned, 'pinned') ?? pinHalfProblem(unpinned, 'unpinned');
-  if (halves !== undefined) return halves;
-  const pinnedHalf = pinned as Plain;
-  const unpinnedHalf = unpinned as Plain;
-  if ((pinnedHalf.parkable === undefined) !== (unpinnedHalf.parkable === undefined)) return 'parkable is named in one half only';
-  if (pinnedHalf.parkable !== undefined && pinnedHalf.parkable === unpinnedHalf.parkable) return 'both halves name the same parkable value';
-  if (!pinIsReadable(pinnedHalf, unpinnedHalf)) return 'a drag would make the pinned state unreadable: name parkable in both halves, or use row-start with row-end or after-fixed';
-  return undefined;
-};
-
-const PIN_WHEN_NOT_LIVE: readonly string[] = ['place-only', 'refuse', 'show', 'apply-on-next-show'];
-
-const pinningWhenNotLiveProblem: Check = (v) => {
-  if (typeof v === 'string') return PIN_WHEN_NOT_LIVE.includes(v) ? undefined : `expected one of ${PIN_WHEN_NOT_LIVE.join(', ')}`;
-  if (!isPlain(v)) return 'expected a word or { parked?, hidden?, closed? }';
-  for (const key of Object.keys(v)) {
-    const value = v[key];
-    if (value === undefined) continue;
-    if (key === 'parked' || key === 'hidden') {
-      if (typeof value !== 'string' || !PIN_WHEN_NOT_LIVE.includes(value)) return `${key} must be one of ${PIN_WHEN_NOT_LIVE.join(', ')}`;
-    } else if (key === 'closed') {
-      if (value !== 'refuse' && value !== 'apply-on-next-show') return "closed must be 'refuse' or 'apply-on-next-show'";
-    } else {
-      return `unknown key '${key}'`;
-    }
-  }
-  return undefined;
-};
-
 /** What the removed per-panel settings do, typed as the values they once took so the code that reads them keeps its branches. @internal */
 export interface FixedBehaviour {
   readonly hideWhenLast: 'allow' | 'refuse';
@@ -1509,8 +1471,8 @@ export interface FixedBehaviour {
 }
 
 /**
- * What the per-panel settings the library removed do now: each is fixed at the value it had as a default, for every
- * panel. A template that still names one is told once in development and the value is ignored; a later release refuses it.
+ * What the per-panel settings this version removed do now: each is fixed at the value it had as a default, for every
+ * panel. A template that still names one is told once in development and the value is ignored; a later rc refuses it.
  * @internal
  */
 export const FIXED: FixedBehaviour = Object.freeze({
@@ -1577,6 +1539,7 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   overflow: oneOf('scroll', 'park'),
   revealOnScroll: oneOf('edges', 'any', 'never'),
   edgeHold: oneOf('off', 'left', 'right', 'both'),
+  resize: oneOf('reveal', 'reflow'),
   scrollOnOpen: oneOf('into-view', 'start', 'center', 'none'),
   scrollOnMove: oneOf('follow', 'none'),
   toggleWhenClosed: oneOf('ignore', 'reopen'),
@@ -1589,8 +1552,6 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   slots: integer(1, ALL_SLOTS),
   maxSlots: integer(1, ALL_SLOTS),
   title: text,
-  pinning: pinningProblem,
-  pinningWhenNotLive: pinningWhenNotLiveProblem,
   headerButtons: headerButtonsProblem,
   restoreVisibility: oneOf('saved', 'live', 'parked'),
   afterClose: oneOf('stay-closed', 'return-next-launch'),
@@ -1632,7 +1593,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureLockMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'returnTieBreak' | 'dropTieBreak' | 'rowGesture' | 'fastScroll' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused' | 'firstPressFocusOnly', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
@@ -1644,6 +1605,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneH
   returnTieBreak: oneOf('latest-first', 'earliest-first', 'row-order'),
   dropTieBreak: oneOf('leftmost', 'rightmost'),
   rowGesture: oneOf('step', 'off'),
+  fastScroll: oneOf('coalesce', 'jump'),
   initialScroll: (v) => {
     if (v === 'start' || v === 'end' || v === 'root') return undefined;
     if (isPlain(v) && Object.keys(v).length === 1 && nonEmptyString(v.panel)) return undefined;
@@ -1656,6 +1618,8 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneH
   phoneFitMax: num(1, 4),
   defaultEnterFrom: oneOf(...ENTER_FROM),
   defaultExitTo: oneOf(...EXIT_TO),
+  shrinkUnfocused: bool,
+  firstPressFocusOnly: bool,
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);
@@ -1742,9 +1706,6 @@ function reject(layer: string, key: string, problem: string, lenientLayer: boole
   throw new PanelManagerError('invalid-settings', `${where}: ${problem}`, key === '' ? { layer } : { layer, key });
 }
 
-/** A pin definition may leave a half out; the resolved value always has both. */
-const withBothHalves = (v: Plain): Pinning => ({ pinned: (v.pinned ?? {}) as PinHalf, unpinned: (v.unpinned ?? {}) as PinHalf });
-
 function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
   const accepted: Accepted = { flat: new Map() };
   if (raw === undefined) return accepted;
@@ -1792,7 +1753,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       env.pending.push({ key, layer, kind: 'not-view-settable', asked: value });
       continue;
     }
-    accepted.flat.set(key, key === 'pinning' ? withBothHalves(value as Plain) : value);
+    accepted.flat.set(key, value);
   }
   return accepted;
 }
@@ -1906,7 +1867,7 @@ function applyRules(s: State, root: boolean): void {
   }
   if (s.values.closable === false) force(s, 'clearable', false, 'C2', 'closable');
   if ((s.values.slots as number) > (s.values.maxSlots as number)) force(s, 'slots', s.values.maxSlots, 'C4', 'maxSlots');
-  // `movable` is not forced: code moves the root whatever it says, and it gates only the person's drag. The root is never closed, placed, pinned or unpinned.
+  // `movable` is not forced: code moves the root whatever it says, and it gates only the person's drag. The root is never closed or placed.
 }
 
 const PARK_LEVERS = ['capacityReturn'] as const;
@@ -1968,10 +1929,6 @@ export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: 
   const resizableAsked = state.source.resizable === 'template' || state.source.resizable === 'host' || state.source.resizable === 'instance';
   if (resolved.resizable === true && resizableAsked && resolved.maxSlots === 1) {
     notes.push({ code: 'resizable-capped', key: 'maxSlots', message: `maxSlots: resizable is set by the ${state.source.resizable} layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots too` });
-  }
-  const pinning = resolved.pinning as Pinning;
-  if (pinning.pinned.parkable === false && state.source.listed === 'derived') {
-    notes.push({ code: 'pin-unlists', key: 'pinning', message: 'pinning: the pinned half makes the panel a fixed column, which is unlisted unless listed is set' });
   }
   if (resolved.overflow === 'scroll') {
     for (const key of PARK_LEVERS) {

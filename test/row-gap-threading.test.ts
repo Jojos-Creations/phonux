@@ -7,6 +7,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { Workspace, createWorkspace, useProvidePanels, usePanelTuning } from '../index.js';
@@ -45,7 +46,7 @@ const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, ...(tuning === undefined ? {} : { seed: { tuning } }) }));
 const slotX = (container: HTMLElement, id: string): number => {
-  const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+  const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
   const match = /translateX\((-?[\d.]+)px\)/.exec(slot.style.transform);
   return match === null ? 0 : Number(match[1]);
@@ -269,15 +270,6 @@ const inWorkspace = (
     }),
   );
 };
-/** The props of the nearest motion component above `el` that carries `key`. */
-function motionProps(el: Element, key: string): Record<string, unknown> {
-  const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
-  assert.ok(fiberKey, 'the node has a React fiber');
-  for (let fiber = (el as unknown as Record<string, { return: unknown; memoizedProps?: Record<string, unknown> }>)[fiberKey]!; fiber; fiber = fiber.return as typeof fiber) {
-    if (fiber.memoizedProps !== undefined && key in fiber.memoizedProps) return fiber.memoizedProps;
-  }
-  assert.fail(`no motion component above the node carries ${key}`);
-}
 
 test('the row gap reaches the slot that is entering: through a PanelRow at gap 40 it starts one own span, 40 included, beyond its rest', () => {
   const m = mountRow(row(rootEntry(), made('a')), 2400, { tuning: { rowGap: 40 } });
@@ -298,5 +290,5 @@ test('a row whose restore has not settled puts an added slot at its rest, with n
 test('the Workspace hands its row gap to the shell margin: with live widths [768, 390] at gap 40 the shell sits 346 left', () => {
   const rowRef = NO_ROW_REF();
   mount(inWorkspace({ rowGap: 40 }, [entry('a')], rowRef, [768, 390]));
-  assert.deepEqual(motionProps(rowRef.current!, 'animate').animate, { marginLeft: 346 });
+  assert.equal(stripMarginOf(rowRef.current!), 346);
 });

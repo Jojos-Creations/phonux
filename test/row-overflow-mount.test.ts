@@ -4,6 +4,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { PanelRow, Workspace, useProvidePanels } from '../index.js';
@@ -11,7 +12,7 @@ import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceHandle } from
 import { createFakeHost } from '../fakeHost.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { computeMaxLiveWidth } from '../panelRowLayout.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { fitSlots, slotWidth } from '../rowConstants.js';
 import { cleanup, mount, withHost, useSeededInput } from './support/mount-harness.js';
@@ -39,7 +40,7 @@ const scrollEntry = (id: string, over: PanelSettings = {}): PanelWindow => {
   return applyTemplate(skeleton, resolvePanelSettings({ template: over }).value, 'create');
 };
 const scrollRoot = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel('root'), view: 'ro-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel('root'), view: 'ro-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
 registerTestView('ro-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const NONE: ReadonlySet<string> = new Set();
@@ -79,11 +80,11 @@ test('a row that stops scrolling resets the container scrollLeft to 0 in the sam
     withHost(React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowNumbers: rowNumbers(entries), children: null }));
   const scrolling = [scrollRoot(), scrollEntry('a')];
   const mounted = mount(at(scrolling));
-  ref.current!.scrollLeft = 300;
+  setRowOffset(ref.current!, 300);
   mounted.rerender(at(scrolling));
-  assert.equal(ref.current!.scrollLeft, 300, 'a row that still scrolls keeps its offset');
-  mounted.rerender(at([{ ...createHistoryPanel('root'), view: 'ro-view' }]));
-  assert.equal(ref.current!.scrollLeft, 0);
+  assert.equal(rowOffsetOf(ref.current!), 300, 'a row that still scrolls keeps its offset');
+  mounted.rerender(at([{ ...createRootPanel('root'), view: 'ro-view' }]));
+  assert.equal(rowOffsetOf(ref.current!), 0);
 });
 
 test('maxLiveWidth comes from computeRowNumbers at every gap: a 64-slot panel is drawn at the slots that fit the window', () => {

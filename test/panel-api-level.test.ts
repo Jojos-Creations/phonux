@@ -251,7 +251,6 @@ test('the frozen level-1 fixture panel renders in a workspace with everything it
   assert.match(view.dataset.fixtureHandle!, /^[^:]+:fixture-level-1:(pending|live)$/);
   assert.equal(view.dataset.fixtureView, view.dataset.fixtureHandle!.split(':')[0], 'panel.id is handle.id');
   assert.equal(view.dataset.fixtureManager, `${w.panels.getSnapshot().panels.map((p) => p.id).join(',')}|1`);
-  assert.equal(view.dataset.fixturePinned, 'false');
   assert.equal(view.dataset.fixtureGap, 'number');
   assert.equal(view.dataset.fixtureCount, '0');
   assert.equal(view.dataset.fixtureHost, '1', 'useHost().panels.panelList');
@@ -281,7 +280,7 @@ test('the frozen level-1 framed fixture draws its own frame from the frame compo
 
 test('DESIGN lists every workspace-scope tuning row as not covered by a level', () => {
   const rows = PANEL_SETTINGS_CATALOG.filter((d) => d.scope === 'workspace').map((d) => d.name.replace(/^tuning\./, ''));
-  assert.equal(rows.length, 22);
+  assert.equal(rows.length, 25);
   const line = readFileSync(new URL('../DESIGN.md', import.meta.url), 'utf8').split('\n').find((l) => l.startsWith('| `useHost().panels`'));
   assert.ok(line, 'the level table row naming the workspace-only options');
   const notCovered = line.split('|')[2]!;
@@ -480,7 +479,7 @@ test('real props in many panel states have the shape the table describes', async
   await flush();
   titled.setSlots(2);
   parked.hide();
-  bare.pin();
+  bare.move(1);
   await flush();
   parked.show();
   await flush();

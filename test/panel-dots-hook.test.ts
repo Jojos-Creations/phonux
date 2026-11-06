@@ -3,6 +3,7 @@
  * and a dot click glides, or snaps under Reduce Motion from either source.
  */
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import * as React from 'react';
@@ -13,6 +14,7 @@ import type { WorkspaceTuning } from '../panelSettings.js';
 import { usePanelDots, type PanelDots } from '../usePanelDots.js';
 import type { RowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
+import { registerRowKeys } from '../rowStep.js';
 
 afterEach(() => cleanup());
 
@@ -54,7 +56,7 @@ test('an oval drag writes the row through its claim, and end releases the claim'
   assert.notEqual(drag, null);
   assert.equal(dots.startOvalDrag(), null, 'a second drag cannot take a held row');
   drag!.drag(50);
-  assert.ok(el.scrollLeft > 0, 'the drag moved the row');
+  assert.ok(rowOffsetOf(el) > 0, 'the drag moved the row');
   drag!.end();
   assert.notEqual(dots.startOvalDrag(), null, 'end released the claim');
 });
@@ -72,7 +74,7 @@ test('a dot click snaps at once under Reduce Motion', () => {
   const m = mount(probe(out, 'always'));
   out.dots!.selectDot('b');
   const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
-  assert.equal(el.scrollLeft, 406 + 195 - 300);
+  assert.equal(rowOffsetOf(el), 406 + 195 - 300);
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 
@@ -84,7 +86,7 @@ test("a dot click glides with the workspace's slide: duration and glide ease, no
     out.dots!.selectDot('b');
     const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
     await advanceFrames(25 * 16);
-    const at = el.scrollLeft;
+    const at = rowOffsetOf(el);
     cleanup();
     return at / target;
   };
@@ -92,4 +94,76 @@ test("a dot click glides with the workspace's slide: duration and glide ease, no
   assert.ok(Math.abs(linear - 0.25) < 0.02, `a quarter of a linear 1.6 s glide has covered a quarter, got ${linear}`);
   const cubic = await quarter({ slide: { durationSec: 1.6, glideEase: 'cubic-out' } });
   assert.ok(cubic > 0.5, `the same quarter along cubic-out has covered most of it, got ${cubic}`);
+});
+
+test('parked entries get dots in row order, and a click on one steps the row toward it', () => {
+  const out: { dots?: PanelDots } = {};
+  const steps: string[] = [];
+  const all = [{ id: 'p0', live: false }, { id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'p1', live: false }, { id: 'p2', live: false, settings: { hollowDot: false, revealOnScroll: 'never' as const } }];
+  const Probe = () => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => registerRowKeys(scroller.current!, { step: (d) => steps.push(d) }), []);
+    out.dots = usePanelDots({ rowNumbers: numbers, entries: all, scroller, tuning: resolveWorkspaceTuning({}) });
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } });
+  };
+  mount(React.createElement(Probe));
+  assert.deepEqual(out.dots!.dots.map((d) => d.id), ['p0', 'a', 'b', 'c', 'p1'], 'a panel no scroll can bring in has no dot');
+  assert.ok(out.dots!.oval.left >= 30, 'the oval is past the parked dot on the left');
+  React.act(() => out.dots!.selectDot('p1'));
+  assert.deepEqual(steps, ['right']);
+  React.act(() => out.dots!.selectDot('p0'));
+  assert.equal(steps.at(-1), 'left');
+});
+
+test('a bar that unmounts mid-drag releases its claim, so the row still takes steps', async () => {
+  const out: { dots?: PanelDots } = {};
+  const Bar = ({ scroller }: { scroller: React.RefObject<HTMLDivElement | null> }) => {
+    out.dots = usePanelDots({ rowNumbers: numbers, entries, scroller, tuning: resolveWorkspaceTuning({}) });
+    return null;
+  };
+  const Row = ({ bar }: { bar: boolean }) => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '', style: { overflowX: 'auto', width: 300 } }, bar ? React.createElement(Bar, { scroller }) : null);
+  };
+  const m = mount(React.createElement(Row, { bar: true }));
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const bar = { setPointerCapture() {}, getBoundingClientRect: () => ({ left: 0 }) };
+  out.dots!.barProps.onPointerDown({ button: 0, clientX: 0, target: el, currentTarget: bar, pointerId: 1 } as never);
+  out.dots!.barProps.onPointerMove({ clientX: 60, target: el, currentTarget: bar } as never);
+  assert.equal(rowScrollerFor(el).claimHeld(), true, 'control: the drag holds the row');
+  assert.ok(el.hasAttribute('data-row-held'), 'and the row says so');
+  m.rerender(React.createElement(Row, { bar: false }));
+  await advanceFrames(20);
+  assert.equal(rowScrollerFor(el).claimHeld(), false, 'the unmount released it');
+  assert.ok(!el.hasAttribute('data-row-held'));
+});
+
+test('on a row that cannot scroll, a dragged oval moves with the pointer, the row steps once it is half a dot ahead, and release settles it', () => {
+  const out: { dots?: PanelDots } = {};
+  const steps: string[] = [];
+  const fits = { ...numbers, stripWidth: 600, windowWidth: 1300, stripWindow: 1300 } as unknown as RowNumbers;
+  const all = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'p1', live: false }, { id: 'p2', live: false }];
+  const Probe = () => {
+    const scroller = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => registerRowKeys(scroller.current!, { step: (d) => steps.push(d) }), []);
+    out.dots = usePanelDots({ rowNumbers: fits, entries: all, scroller, tuning: resolveWorkspaceTuning({}) });
+    return React.createElement('div', { ref: scroller, 'data-row-scroller': '' });
+  };
+  const m = mount(React.createElement(Probe));
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const bar = { setPointerCapture() {}, getBoundingClientRect: () => ({ left: 0 }) };
+  const rest = out.dots!.oval.left;
+  React.act(() => out.dots!.barProps.onPointerDown({ button: 0, clientX: 10, target: el, currentTarget: bar, pointerId: 1 } as never));
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 20, target: el, currentTarget: bar } as never));
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 22, target: el, currentTarget: bar } as never));
+  assert.equal(out.dots!.oval.left, rest + 12, 'the oval is under the pointer');
+  assert.deepEqual(steps, [], 'not yet half a dot ahead');
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 30, target: el, currentTarget: bar } as never));
+  assert.equal(out.dots!.oval.left, rest + 20);
+  assert.deepEqual(steps, ['right']);
+  React.act(() => out.dots!.barProps.onPointerMove({ clientX: 34, target: el, currentTarget: bar } as never));
+  assert.deepEqual(steps, ['right'], 'one step waits for the row to answer before the next');
+  assert.equal(rowScrollerFor(el).claimHeld(), false, 'a row that cannot scroll is never claimed');
+  React.act(() => out.dots!.barProps.onPointerUp({} as never));
+  assert.equal(out.dots!.oval.left, rest, 'release settles the oval on the window the row is at');
 });

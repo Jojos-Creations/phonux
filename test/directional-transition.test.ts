@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { SLOT_TRANSITION, directionalTransition } from '../directionalTransition.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { anchorTargetOf, resolveEnterDirection } from '../panelRowOrder.js';
-import { createHistoryPanel } from '../panelWindow.js';
+import { createRootPanel } from '../panelWindow.js';
 const HISTORY_PANEL_ID = 'history';
 import { DRAG_CLOSE, GAP, PANEL_TRANSITION } from '../index.js';
 
@@ -122,7 +122,7 @@ test('panelRowSlotMotion: enterDirection flips ONLY initial\'s sign relative to 
 // ---------------------------------------------------------------------------
 
 test('anchorTargetOf: a panel with no anchor (History itself, or a record built without one) targets HISTORY_PANEL_ID; an explicit anchor targets its own panel -- red if the default is not History or a per-panel target is ignored', () => {
-  assert.equal(anchorTargetOf(createHistoryPanel(HISTORY_PANEL_ID), HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
+  assert.equal(anchorTargetOf(createRootPanel(HISTORY_PANEL_ID), HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'History carries no anchor and resolves against itself');
   assert.equal(anchorTargetOf({}, HISTORY_PANEL_ID), HISTORY_PANEL_ID, 'no anchor: the default target');
   assert.equal(anchorTargetOf({ anchor: { panel: HISTORY_PANEL_ID, position: 'left', priority: 0 } }, HISTORY_PANEL_ID), HISTORY_PANEL_ID);
   assert.equal(anchorTargetOf({ anchor: { panel: 'b', position: 'left', priority: 0 } }, HISTORY_PANEL_ID), 'b', 'an anchor naming another panel targets that panel, not History');
