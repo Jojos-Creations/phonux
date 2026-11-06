@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A panel's header and footer stay up when the pointer crosses the gap to them, at any speed.
 - `tuning.shrinkUnfocused` no longer rests panels when the row moves, by a step, a dot or the dot bar. A wide panel keeps its width, fades out across a left-held panel's gap as it slides past, and runs on to the window's right edge as it comes in. A row with a held panel draws its glides frame by frame, so the held panel stays still, and a step off the end of a row wider than its window brings in the next parked panel.
 - A parking row can center more panels. A step right past the last panel opens empty slots until that panel is centered, and a dot click on a panel half a slot off center rests on a half step, showing one panel fewer; the next step snaps back to whole slots.
 - Holding Option (Alt) shows every panel's header and footer, whatever `tuning.chrome.mode` says.

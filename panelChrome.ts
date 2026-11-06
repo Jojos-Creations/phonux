@@ -516,6 +516,9 @@ export function useOptionHeld(): boolean {
   return held;
 }
 
+/** How long a pointer may be off a panel before its chrome hides: long enough to cross the gap to the header at any speed. */
+const CHROME_LEAVE_MS = 150;
+
 /**
  * Whether the panel above shows its chrome in full, and the root handlers that track hover and focus. Shown while the mode is
  * 'always', while the panel is hovered, holds focus, is active or is dragged, and on a device that cannot hover.
@@ -527,11 +530,20 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
   const dragging = usePanelDragging();
   const cannotHover = React.useSyncExternalStore(subscribeHoverNone, hoverNone, () => false);
   const [hovered, setHovered] = React.useState(false);
+  const leaving = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(leaving.current), []);
   const [focused, setFocused] = React.useState(false);
   const handlers = React.useMemo<ChromeRootHandlers>(
     () => ({
-      onPointerEnter: () => setHovered(true),
-      onPointerLeave: () => setHovered(false),
+      onPointerEnter: () => {
+        clearTimeout(leaving.current);
+        setHovered(true);
+      },
+      // The gap between the frame and its header or footer belongs to neither: a pointer crossing it has not left.
+      onPointerLeave: () => {
+        clearTimeout(leaving.current);
+        leaving.current = setTimeout(() => setHovered(false), CHROME_LEAVE_MS);
+      },
       onFocus: () => setFocused(true),
       onBlur: (e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);

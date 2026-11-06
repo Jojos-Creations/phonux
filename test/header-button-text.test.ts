@@ -163,6 +163,7 @@ test('chrome fade: a text button sits in the header part and fades with an icon 
   await advanceFrames(800);
   assert.equal(header.style.opacity, '1');
   act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerout', { bubbles: true })));
+  await act(async () => void (await new Promise((r) => setTimeout(r, 200))));
   await advanceFrames(800);
   assert.equal(header.style.opacity, '0');
 });

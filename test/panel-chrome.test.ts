@@ -286,6 +286,21 @@ test("mode 'hover-or-active' hides the chrome of a panel nobody is using, and ke
   }
 });
 
+test('a pointer that crosses the gap to the header keeps the chrome; one that stays away hides it', async () => {
+  const m = mountRow(entries(3), 3000, hoverMode, reduced);
+  await advanceFrames(2000);
+  hovered('c1', m);
+  hover(rootOf(m, 'c1'), false);
+  assert.equal(opacityOf(part(m, 'c1', 'header')), '1', 'still shown while the pointer crosses');
+  hovered('c1', m);
+  await act(async () => void (await new Promise((r) => setTimeout(r, 200))));
+  assert.equal(opacityOf(part(m, 'c1', 'header')), '1', 'back on the panel in time: it stays');
+  hover(rootOf(m, 'c1'), false);
+  await act(async () => void (await new Promise((r) => setTimeout(r, 200))));
+  await advanceFrames(2000);
+  assert.equal(opacityOf(part(m, 'c1', 'header')), '0', 'control: away for good, it hides');
+});
+
 test('hover shows the chrome, leaving hides it, and a pressed panel keeps it', async () => {
   const m = mountRow(entries(3), 3000, hoverMode, reduced);
   await advanceFrames(2000);
@@ -294,6 +309,7 @@ test('hover shows the chrome, leaving hides it, and a pressed panel keeps it', a
   assert.equal(opacityOf(part(m, 'c2', 'header')), '0', 'another panel stays hidden');
   press(m.container.querySelector('[data-body="c1"]')!);
   hover(rootOf(m, 'c1'), false);
+  await act(async () => void (await new Promise((r) => setTimeout(r, 200))));
   assert.equal(opacityOf(part(m, 'c1', 'header')), '1', 'an active panel keeps its chrome with the pointer away');
   press(m.container.querySelector('[data-body="c2"]')!);
   assert.equal(opacityOf(part(m, 'c1', 'header')), '0', 'using a second panel hides the first');
