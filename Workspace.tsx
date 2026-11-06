@@ -27,7 +27,7 @@ import { focusEdgePanel, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
-import { gridEdgesOf, nearestStop, scrollHoldingEdge, slotCutAt, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { gridEdgesOf, nearestStop, scrollHoldingEdge, slotCutAt, slotEdgesAt, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -199,6 +199,27 @@ function bandClip(lo: number, hi: number, width: number): string {
   const left = Math.max(0, lo);
   const right = Math.max(0, width - hi);
   return left > 0 || right > 0 ? `inset(-${CLIP_OPEN_PX}px ${right}px -${CLIP_OPEN_PX}px ${left}px)` : '';
+}
+
+/** How far past a slot's sides its fade stays open, so a panel's glow is not cut on the side the fade is not on. */
+const FADE_OPEN_PX = 400;
+
+/** Fades `slot` in over `gap` px from `start` in its own box, or clears the fade for null. A style, never animated. */
+function drawFade(slot: HTMLElement, start: number | null, gap: number): void {
+  const image = start === null ? '' : `linear-gradient(to right, transparent ${start + FADE_OPEN_PX}px, #000 ${start + gap + FADE_OPEN_PX}px)`;
+  if (slot.style.maskImage === image) return;
+  slot.style.maskImage = image;
+  // No clip to the box, repeated down it: a header, a footer and a glow stand outside the slot and fade with it.
+  slot.style.setProperty('mask-size', start === null ? '' : `calc(100% + ${2 * FADE_OPEN_PX}px) 100%`);
+  slot.style.setProperty('mask-position', start === null ? '' : `-${FADE_OPEN_PX}px 0`);
+  slot.style.setProperty('mask-repeat', start === null ? '' : 'repeat-y');
+  slot.style.setProperty('mask-clip', start === null ? '' : 'no-clip');
+}
+
+/** The clip for `slotEdgesAt`'s cuts: '' when nothing is cut, and open on an uncut side, so a panel's glow still shows there. */
+function edgeClip(left: number, right: number): string {
+  if (left <= 0 && right <= 0) return '';
+  return `inset(-${CLIP_OPEN_PX}px ${right > 0 ? `${right}px` : `-${FADE_OPEN_PX}px`} -${CLIP_OPEN_PX}px ${left > 0 ? `${left}px` : `-${FADE_OPEN_PX}px`})`;
 }
 
 /** A subscription that never fires, for a shell given no workspace. */
@@ -411,6 +432,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const slots = [...strip.querySelectorAll<HTMLElement>('[data-row-slot]')];
     // A row whose strip fits, or that scrolls freely with no hold, has no grid edge inside the window: it renders exactly as it did.
     const clips = n.stops.length > 0 || n.held.length > 0 || n.stuck.length > 0;
+    const bleeds = clips && n.leftInset > 0 && n.rightInset === 0 && n.stuck.length === 0;
     const grid = gridEdgesOf(n);
     const apply = (): void => {
       const held = scroller.claimHeld();
@@ -418,7 +440,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       // The strip is cut at the grid's edges in its own coordinates, which move with it: a slide, a drag's preview or the end
       // bump moves panels inside the strip, and whatever crosses the edge is cut there. The strip starts after the left group.
       const stripLeft = n.leftInset + scroller.stripX();
-      const stripClip = clips ? `polygon(${grid.lo - stripLeft}px -${CLIP_OPEN_PX}px, ${grid.hi - stripLeft}px -${CLIP_OPEN_PX}px, ${grid.hi - stripLeft}px ${CLIP_OPEN_PX}px, ${grid.lo - stripLeft}px ${CLIP_OPEN_PX}px)` : '';
+      // A row held only at the left runs on to the window's edge: its slots cut themselves there (`slotEdgesAt`).
+      const stripRight = (bleeds ? n.windowWidth + gap : grid.hi) - stripLeft;
+      const stripClip = clips ? `polygon(${grid.lo - stripLeft}px -${CLIP_OPEN_PX}px, ${stripRight}px -${CLIP_OPEN_PX}px, ${stripRight}px ${CLIP_OPEN_PX}px, ${grid.lo - stripLeft}px ${CLIP_OPEN_PX}px)` : '';
       if (strip.style.clipPath !== stripClip) strip.style.clipPath = stripClip;
       const seen = new Set<string>();
       for (const slot of slots) {
@@ -435,8 +459,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         }
         // A strip panel beside a held or stuck panel is cut at that panel's gap, never hidden: what its window shows of it is drawn.
         // The grid's own edges are the strip's cut above, so a slot sliding off its numbers is still cut where it is drawn.
-        const slotClip = clips && cut !== null && (n.leftInset > 0 || n.rightInset > 0 || n.stuck.length > 0) ? bandClip(cut.left, n.widths[k]! - cut.right, n.widths[k]!) : '';
+        const edges = bleeds && cut !== null ? slotEdgesAt(n, k, at, gap) : null;
+        const slotClip = edges !== null ? edgeClip(edges.left, edges.right) : clips && cut !== null && (n.leftInset > 0 || n.rightInset > 0 || n.stuck.length > 0) ? bandClip(cut.left, n.widths[k]! - cut.right, n.widths[k]!) : '';
         if (slot.style.clipPath !== slotClip) slot.style.clipPath = slotClip;
+        drawFade(slot, edges === null ? null : edges.fade, gap);
         // A drag's claim holds reach still until the release.
         if (held) continue;
         if (slot.style.pointerEvents !== (away ? 'none' : '')) slot.style.pointerEvents = away ? 'none' : '';

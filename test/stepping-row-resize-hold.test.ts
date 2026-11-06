@@ -8,6 +8,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { usePanelDragging, usePanelResizing } from '../index.js';
+import { computeRowNumbers, gridEdgesOf, slotEdgesAt, slotSpanAt } from '../rowNumbers.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
@@ -147,4 +148,18 @@ test('a step off the end of a parking row wider than its window brings in the ne
     for (const id of m.live()) seen.add(id);
   }
   assert.ok(seen.size > live.length, `a parked panel came in (${[...seen].join(',')} from ${before})`);
+});
+
+test('slotEdgesAt: a panel fades across the held gap, and one past the grid runs to the window edge only by what it has inside', () => {
+  const n = computeRowNumbers({ entries: [made('root', { overflow: 'scroll', edgeHold: 'left' }, { collapsible: false }), ...[1, 1, 2, 1].map((slots, k) => made(`s${k + 1}`, { slots, maxSlots: 64, overflow: 'park' }))], phoneWidth: 320, containerWidth: 1700, gap: 24, wholePanels: true });
+  assert.ok(n.leftInset > 0, 'control: the root is held');
+  const k = n.ids.indexOf('s3');
+  const { lo, hi } = { lo: gridEdgesOf(n).lo + n.leftInset, hi: gridEdgesOf(n).hi };
+  const atSpan = (left: number): number => slotSpanAt(n, k, 0).left - left;
+  const whole = slotEdgesAt(n, k, atSpan(lo + 100), 24);
+  assert.deepEqual([whole.fade, whole.left], [null, 0], 'clear of the gap: no fade');
+  const under = slotEdgesAt(n, k, atSpan(lo - 200), 24);
+  assert.deepEqual([under.fade, under.left], [176, 176], 'the fade starts at the held panel and the cut is there too');
+  assert.equal(slotEdgesAt(n, k, atSpan(hi + 5), 24).right, n.widths[k], 'wholly past the grid stays hidden');
+  assert.equal(slotEdgesAt(n, k, atSpan(hi - 10), 24).right, n.widths[k]! - 20, 'ten inside the grid shows ten past it');
 });

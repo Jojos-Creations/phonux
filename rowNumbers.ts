@@ -216,6 +216,24 @@ export function slotCutAt(n: RowNumbers, k: number, at: number, gap: number): { 
   return { left, right, away: left + right >= width };
 }
 
+/**
+ * How entry `k` of `n` is drawn in a row whose only hold is a left one, at scroll `at`, in px of its own box: `fade` is where the
+ * fade across the held panel's gap starts (it ends one gap further, and null is no fade), and `left` and `right` are the cuts. The
+ * left cut is the held panel's edge. The right cut lets a panel past the grid run on toward the window's edge by as much as it has
+ * inside the grid, so one wholly past stays hidden and one coming in grows out of the grid's edge with no jump. @internal
+ */
+export function slotEdgesAt(n: RowNumbers, k: number, at: number, gap: number): { fade: number | null; left: number; right: number } {
+  const span = slotSpanAt(n, k, at);
+  const width = span.right - span.left;
+  const { lo } = stripWindowAt(n, at, gap);
+  const under = lo - span.left;
+  const cut = slotCutAt(n, k, at, gap);
+  const inside = width - cut.left - cut.right;
+  const right = cut.right - Math.min(cut.right, inside, n.endPad + gap);
+  if (under <= 0) return { fade: null, left: 0, right };
+  return { fade: under - gap, left: Math.min(width, Math.max(0, under - gap)), right };
+}
+
 /** Whether the drawn entry `index` of `n` lies wholly inside its strip window at scroll `at`, within a pixel. @internal */
 export function drawsWhole(n: RowNumbers, index: number, at: number): boolean {
   const { left, right } = slotCutAt(n, index, at, 0);

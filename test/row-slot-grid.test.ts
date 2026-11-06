@@ -181,6 +181,6 @@ test('a mounted row with a left hold places the held panel at the margin, in slo
   setRowOffset(t.m.container, 100);
   t.layout();
   const under = t.slots().find((el) => el.dataset.rowId === n.ids[0])!;
-  assert.equal(under.style.clipPath, 'inset(-100000px 0px -100000px 100px)', 'cut 100 px at its left, the gap edge, and drawn past it');
+  assert.equal(under.style.clipPath, 'inset(-100000px -400px -100000px 84px)', 'cut at the held panel, 100 px less the 16 px gap it fades across, and open on its other side');
   assert.equal(under.hasAttribute('inert'), false, 'still in reach');
 });
