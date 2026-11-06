@@ -639,12 +639,11 @@ as any size change does.
 ## Unfocused panels rest at one phone
 
 With `tuning.shrinkUnfocused` on, a panel wider than one phone is drawn one phone wide whenever it is not the panel in use.
-Three things rest it: another panel becoming active (a press or a focus inside it, the same moment `useActivePanel` changes),
-a press outside every panel, which leaves none active and takes keyboard focus out of the row's panels (the panel rests in
-view),
-and the person moving the row (a step of the row gesture, a dot press or a drag of the dot bar). A move rests every wide
-panel, the active one included; a scroll the library makes itself, such as following a resize or opening a panel, rests
-none. A resting panel keeps the count it goes back to in `savedSlots`, which a view also reads on its `PanelSummary` (a size control shows `savedSlots ?? slots`), and the next press or focus inside it resizes it
+Two things rest it: another panel becoming active (a press or a focus inside it, the same moment `useActivePanel` changes),
+and a press outside every panel, which leaves none active and takes keyboard focus out of the row's panels (the panel rests in
+view). A press on the dot bar is not one of them. Moving the row rests nothing: a wide panel keeps its width and slides past a
+held panel, cut at that panel's gap. A row with a held panel draws every glide from the frame loop rather than the compositor,
+because the held panel and the cut follow `stripX()` there and a compositor glide runs ahead of them. A resting panel keeps the count it goes back to in `savedSlots`, which a view also reads on its `PanelSummary` (a size control shows `savedSlots ?? slots`), and the next press or focus inside it resizes it
 back (a press on a button or grab bar of its own header or footer does not: such a control acts on the panel as drawn), with the same capacity rule as `setSlots`, and centers it in the row as near as the ends allow. Any `setSlots` while it rests replaces that count. The workspace file
 saves the count it goes back to, never the resting one, so a reload never loses a chosen width, and a launch
 starts every restored wide panel resting, so it comes back at its saved width the first time it is used. The rest is a resize from

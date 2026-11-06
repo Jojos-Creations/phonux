@@ -329,7 +329,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       chromeStore.setActive(null);
       const focused = container.ownerDocument.activeElement;
       if (focused instanceof HTMLElement && container.contains(focused) && focused.closest('[data-row-slot]') !== null) focused.blur();
-      binding?.blur();
+      // The dot bar moves the row, and a move rests no panel: a wide one slides past at its width.
+      if (!(event.target instanceof Element && event.target.closest('[data-dot-bar]') !== null)) binding?.blur();
     };
     const view = container.ownerDocument.defaultView ?? window;
     view.addEventListener('pointerdown', onPress);
@@ -406,6 +407,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (container === null || strip === null || rowNumbers === undefined) return;
     const n = rowNumbers;
     const scroller = rowScrollerFor(container);
+    scroller.drawEachFrame(n.held.length > 0 || n.stuck.length > 0);
     const slots = [...strip.querySelectorAll<HTMLElement>('[data-row-slot]')];
     // A row whose strip fits, or that scrolls freely with no hold, has no grid edge inside the window: it renders exactly as it did.
     const clips = n.stops.length > 0 || n.held.length > 0 || n.stuck.length > 0;

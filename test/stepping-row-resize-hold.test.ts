@@ -123,3 +123,28 @@ test('stepping across every stop with a cap set never changes the live set', asy
     assert.deepEqual(m.live(), live, `after step ${k + 1} left`);
   }
 });
+
+test('a step off the end of a parking row wider than its window brings in the next parked panel', async () => {
+  const m = mountRow(
+    row(rootEntry(), ...[1, 2, 2, 1, 1].map((n, k) => made(`s${k + 1}`, { slots: n, maxSlots: 64, overflow: 'park' }, { view: 'resizing-view' }))),
+    1800,
+    { tuning: { rowGesture: 'step', maxLivePanels: 3 } },
+  );
+  await advanceFrames(100);
+  scrolled(m);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const live = m.live();
+  const before = live.join(',');
+  const stops = m.latest().rowNumbers.stops.length;
+  assert.ok(stops > 0, `the row overflows its window (${before})`);
+  const seen = new Set(live);
+  for (let k = 0; k < stops + 3; k++) {
+    await step(m, 'left');
+    for (const id of m.live()) seen.add(id);
+  }
+  for (let k = 0; k < 2 * (stops + 3); k++) {
+    await step(m, 'right');
+    for (const id of m.live()) seen.add(id);
+  }
+  assert.ok(seen.size > live.length, `a parked panel came in (${[...seen].join(',')} from ${before})`);
+});

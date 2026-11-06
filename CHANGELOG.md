@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `tuning.shrinkUnfocused` no longer rests panels when the row moves, by a step, a dot or the dot bar. A wide panel keeps its width and slides past a held panel, cut at that panel's edge. A row with a held panel draws its glides frame by frame, so the held panel stays still, and a step off the end of a row wider than its window brings in the next parked panel.
 - A parking row can center more panels. A step right past the last panel opens empty slots until that panel is centered, and a dot click on a panel half a slot off center rests on a half step, showing one panel fewer; the next step snaps back to whole slots.
 - Holding Option (Alt) shows every panel's header and footer, whatever `tuning.chrome.mode` says.
 - `tuning.chrome.where` (`'outside'`, default, or `'inside'`) moves a panel's header and footer inside its frame, as frosted pills inset from its edges, and gives the row the room back. `mode` applies as it does outside, and a panel that scrolls also slides them off on a scroll down and back on any scroll up. A panel's root carries `CHROME_INSIDE_ATTRIBUTE` and the `--panel-chrome-inset` variable, which a scrolling view pads its content by (`PANEL_CHROME_INSET_PX`). `rowBottomReservePx` and `rowFootReserve` take the placement as a last argument.

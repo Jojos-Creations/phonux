@@ -43,6 +43,7 @@ export interface PanelDots {
     readonly onPointerCancel: () => void;
     readonly onWheel: (e: React.WheelEvent<HTMLElement>) => void;
     readonly style: { readonly touchAction: 'none'; readonly cursor: string };
+    readonly 'data-dot-bar': '';
   };
   /** Spread on the oval: a focusable slider whose value is how far along the row the window is, 0 to 100. Give it an `aria-label`. */
   readonly ovalProps: {
@@ -193,7 +194,6 @@ export function usePanelDots(i: {
     const index = n.ids.indexOf(id);
     if (!el || index < 0) return;
     rowScrollerFor(el).noteInput();
-    rowScrollerFor(el).noteMove();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) {
       if (!rowScrollerFor(el).claimHeld()) setSeek({ id, direction: 'right', steps: parked.length + n.ids.length });
@@ -210,7 +210,6 @@ export function usePanelDots(i: {
     if (!el) return null;
     const scroll = rowScrollerFor(el);
     scroll.noteInput();
-    scroll.noteMove();
     const claim: ScrollClaim | null = scroll.claim();
     if (claim === null) return null;
     claim.setMaxScroll(maxScroll);
@@ -331,6 +330,7 @@ export function usePanelDots(i: {
       stop();
     },
     style: { touchAction: 'none', cursor },
+    'data-dot-bar': '',
   };
   const ovalProps: PanelDots['ovalProps'] = {
     role: 'slider',

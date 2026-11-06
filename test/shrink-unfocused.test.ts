@@ -1,6 +1,6 @@
 /**
- * `tuning.shrinkUnfocused`: a panel wider than one phone rests at one phone while another panel is active or after the
- * person moves the row, and goes back to its own width the next time it is active. The width it goes back to is the one saved.
+ * `tuning.shrinkUnfocused`: a panel wider than one phone rests at one phone while another panel is active or after a
+ * press outside every panel, and goes back to its own width the next time it is active. The width it goes back to is the one saved.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,18 +26,18 @@ const rig = async (shrinkUnfocused = true): Promise<MatrixRig> => {
 const press = (r: MatrixRig, id: string): void => r.turn(() => void r.slot(id)!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
 const widths = (r: MatrixRig, id: string): unknown[] => [r.entry(id).slots, r.entry(id).savedSlots];
 
-test('moving the row rests every wide panel at one phone, the active one too, and a press brings it back', async () => {
+test('a press on the dot bar moves the row and rests nothing, while a press beside it rests the wide panel', async () => {
   const r = await rig();
   r.turn(() => r.h.b!.setSlots(2, 'person'));
-  r.turn(() => r.h.c!.setSlots(3, 'person'));
-  press(r, 'c');
-  assert.deepEqual([widths(r, 'b'), widths(r, 'c')], [[1, 2], [3, undefined]], 'control: c active, b rests');
-  r.turn(() => rowScrollerFor(r.m.container).noteMove());
-  assert.deepEqual([widths(r, 'b'), widths(r, 'c')], [[1, 2], [1, 3]], 'a move of the row rests c as well');
-  r.turn(() => rowScrollerFor(r.m.container).noteInput());
-  assert.deepEqual(widths(r, 'c'), [1, 3], 'a press on the row that moves nothing is not a move');
-  press(r, 'c');
-  assert.deepEqual([widths(r, 'b'), widths(r, 'c')], [[1, 2], [3, undefined]], 'c active again is three wide; b still rests');
+  press(r, 'b');
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'control: b in use stays wide');
+  const bar = document.body.appendChild(document.createElement('div'));
+  bar.setAttribute('data-dot-bar', '');
+  r.turn(() => void bar.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'the dot bar rests nothing');
+  r.turn(() => void document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
+  assert.deepEqual(widths(r, 'b'), [1, 2], 'control: a press outside the bar still rests it');
+  bar.remove();
 });
 
 test("a press on a resting panel's own header button keeps it at one phone; a press on its content brings it back", async () => {

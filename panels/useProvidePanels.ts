@@ -553,7 +553,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const scroller = rowScrollerFor(el);
     scroller.noteInput();
     if (scroller.claimHeld()) return;
-    scroller.noteMove();
     const maxScroll = maxScrollOf(rowNumbers);
     // A step with nowhere to go gives the iOS rubber band instead of nothing.
     const bump = (): void => {
@@ -594,7 +593,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (step.kind === 'show') {
       if (swapAllowed(direction)) activatePanel(step.id);
     }
-    else if (step.kind === 'none') bump();
+    else if (step.kind === 'none') {
+      // An end of a parking row wider than its window: the parked panels past it come in as they do in a row that fits.
+      const gate = lastSwapRef.current;
+      if (panels.filter((p) => isPresent(p) && !parksForRoom(p)).length <= fixedViewCount && swapAllowed(direction) && scrollRow(direction)) return;
+      lastSwapRef.current = gate;
+      bump();
+    }
     else if (step.kind === 'scroll') {
       stepGlide(scroller, step.to, { mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
     }
@@ -748,7 +753,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return () => core.bindNotes(undefined);
   });
   // tuning.shrinkUnfocused: every panel wider than one phone but `except` rests at one phone, and keeps the width it goes back to.
-  // A move of the row picks its own rest; a blur keeps the panel it shrinks in view.
+  // A blur keeps the panel it shrinks in view. A move of the row rests nothing: a wide panel slides past the Workspace panel at its width, cut at that edge.
   const restAtPhone = (except: string | null, keepInView = except !== null): void => {
     if (!tuning.shrinkUnfocused) return;
     const grown = new Map(panels.filter((p) => p.id !== except && p.marker !== true && slotsOf(p) > 1).map((p) => [p.id, slotsOf(p)]));
@@ -797,12 +802,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     core.bindCycle((direction, keepId) => scrollRow(direction, keepId));
     return () => core.bindCycle(undefined);
   });
-  const restAtPhoneRef = useRef(restAtPhone);
-  restAtPhoneRef.current = restAtPhone;
-  useEffect(() => {
-    const el = i.overflowContainerRef.current;
-    return el === null ? undefined : rowScrollerFor(el).subscribeMoves(() => restAtPhoneRef.current(null));
-  }, [i.overflowContainerRef]);
   const attachOwner = useRef({});
   useLayoutEffect(() => {
     core.attach(attachOwner.current);

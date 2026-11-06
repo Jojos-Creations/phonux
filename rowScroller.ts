@@ -50,14 +50,12 @@ export interface RowScroller {
   setMargin(left: number, o: GlideOptions): void;
   /** The strip's translate now: its margin less the offset. */
   stripX(): number;
+  /** Whether the frame loop draws every glide instead of the compositor: on while a held panel follows the strip, so the two never drift apart. */
+  drawEachFrame(on: boolean): void;
   /** How many times a person has asked to move the row: a step, a dot, a press on the row. Counted whether or not the row moved. */
   inputs(): number;
   /** Records one such ask. */
   noteInput(): void;
-  /** Records that a person is moving the row itself (a step, a dot, a drag of the dot bar), not pressing inside it. */
-  noteMove(): void;
-  /** Wakes `listener` at each `noteMove()`. Returns the unsubscribe. */
-  subscribeMoves(listener: () => void): () => void;
   /** Ends the glide in flight where it is. */
   stop(): void;
   /**
@@ -196,13 +194,14 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let bump: Bump | null = null;
 
   const listeners = new Set<() => void>();
-  const moveListeners = new Set<() => void>();
   const notify = (): void => {
     for (const l of [...listeners]) l();
   };
   const strip = (): HTMLElement | null => el.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
   const translate = (x: number): string => `translateX(${x}px)`;
 
+  // A held panel and the strip's cut follow `stripX()` from the frame loop. A compositor animation runs a frame or more ahead of it, so such a row draws every frame itself.
+  let framed = false;
   // Draws what the numbers say now: the resting translate, plus one compositor animation for whatever still glides.
   const draw = (nowMs: number): void => {
     const s = strip();
@@ -212,7 +211,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
     s.style.transform = translate(margin - offset - bumpAt(bump, nowMs));
     s.style.opacity = glide?.fade === true ? String(opacityAt(glide, nowMs)) : '';
     const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, marginGlide === null ? 0 : marginGlide.startMs + marginGlide.durationMs, bumpEnd(bump));
-    if (end <= nowMs || typeof s.animate !== 'function') return;
+    if (end <= nowMs || framed || typeof s.animate !== 'function') return;
     const frames: Keyframe[] = [];
     const steps = Math.max(1, Math.ceil((end - nowMs) / SAMPLE_MS));
     for (let k = 0; k <= steps; k += 1) {
@@ -302,6 +301,11 @@ function createRowScroller(el: HTMLElement): RowScroller {
     scrollLeft: () => offset,
     // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
     stripX: () => margin - offset - bumpAt(bump, performance.now()),
+    drawEachFrame(on) {
+      if (framed === on) return;
+      framed = on;
+      draw(performance.now());
+    },
     glideTo(target, o) {
       if (claimed) return false;
       if (o.instant || o.durationSec <= 0) {
@@ -346,13 +350,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
     inputs: () => inputs,
     noteInput() {
       inputs += 1;
-    },
-    noteMove() {
-      for (const l of [...moveListeners]) l();
-    },
-    subscribeMoves(listener) {
-      moveListeners.add(listener);
-      return () => void moveListeners.delete(listener);
     },
     claimHeld: () => claimed,
     deferUntilRelease(run) {

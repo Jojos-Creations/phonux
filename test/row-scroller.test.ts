@@ -251,3 +251,26 @@ test('a glide asked for just after a size glide starts rides its curve and lengt
   await advanceFrames(5 * 16);
   assert.ok(rowOffsetOf(late) > 400, `a late scroll is its own move: ${rowOffsetOf(late)}`);
 });
+
+test('a glide runs on the compositor until a held panel asks for every frame, and then the frame loop draws it', async () => {
+  const el = container();
+  setRowOffset(el, 0);
+  const strip = el.querySelector<HTMLElement>('[data-row-strip]') ?? el.appendChild(Object.assign(document.createElement('div'), {}));
+  strip.setAttribute('data-row-strip', '');
+  let animations = 0;
+  strip.animate = (() => {
+    animations += 1;
+    return { cancel() {} };
+  }) as unknown as HTMLElement['animate'];
+  rowScrollerFor(el).glideTo(400, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  assert.equal(animations, 1, 'control: a plain row hands the glide to the compositor');
+  await advanceFrames(30 * 16);
+  animations = 0;
+  rowScrollerFor(el).drawEachFrame(true);
+  rowScrollerFor(el).glideTo(0, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  await advanceFrames(5 * 16);
+  assert.equal(animations, 0, 'no compositor animation');
+  const at = rowOffsetOf(el);
+  assert.ok(at > 0 && at < 400, 'still on the way');
+  assert.equal(strip.style.transform, `translateX(${rowScrollerFor(el).stripX()}px)`, 'the strip is drawn where the numbers say');
+});
