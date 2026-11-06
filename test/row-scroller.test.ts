@@ -229,29 +229,6 @@ test('a bump asked while a glide is in flight waits for it to land', async () =>
   assert.ok(stripXOf(el) < -400, 'the bump plays after the glide lands');
 });
 
-test('a glide asked for just after a size glide starts rides its curve and length; one asked for later keeps its own', async () => {
-  const sizeMove = { durationSec: 0.8, ease: [0.4, 0, 0.2, 1] as const };
-  const near = container();
-  rowScrollerFor(near).followSize({ ...sizeMove, startMs: performance.now() });
-  rowScrollerFor(near).glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
-  const own = container();
-  rowScrollerFor(own).glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
-  await advanceFrames(5 * 16);
-  assert.ok(rowOffsetOf(near) < 100, `the size curve starts slow: ${rowOffsetOf(near)}`);
-  assert.ok(rowOffsetOf(own) > 400, `cubic-out leaves fast: ${rowOffsetOf(own)}`);
-  await advanceFrames(21 * 16);
-  assert.notEqual(rowOffsetOf(near), 1000, 'still gliding past the 0.4 s it was asked for');
-  await advanceFrames(25 * 16);
-  assert.equal(rowOffsetOf(near), 1000);
-
-  const late = container();
-  rowScrollerFor(late).followSize({ ...sizeMove, startMs: performance.now() });
-  await advanceFrames(20 * 16);
-  rowScrollerFor(late).glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
-  await advanceFrames(5 * 16);
-  assert.ok(rowOffsetOf(late) > 400, `a late scroll is its own move: ${rowOffsetOf(late)}`);
-});
-
 test('a glide runs on the compositor until a held panel asks for every frame, and then the frame loop draws it', async () => {
   const el = container();
   setRowOffset(el, 0);

@@ -521,7 +521,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (container === null) return;
     const glides = !reduced && marginTransition.duration > 0;
     const ease = 'ease' in marginTransition ? marginTransition.ease : resolved.slide.ease;
-    rowScrollerFor(container).setMargin(style.marginLeft, { durationSec: marginTransition.duration, instant: !glides, ease: [ease[0], ease[1], ease[2], ease[3]] });
+    rowScrollerFor(container).reorigin(style.marginLeft, { durationSec: marginTransition.duration, instant: !glides, ease: [ease[0], ease[1], ease[2], ease[3]] });
   });
   const leftEdgeStyle = { width: `${rowNumbers?.leftInset ?? 0}px`, flexShrink: 0 } as const;
   const rightEdgeStyle = { width: `${rowNumbers?.rightInset ?? 0}px`, flexShrink: 0 } as const;
