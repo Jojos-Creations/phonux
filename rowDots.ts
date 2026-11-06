@@ -185,7 +185,8 @@ export function withParked(layout: DotLayout, map: DotMap, parked: readonly Park
 
 /**
  * The bar with a dot for each panel held at an edge. A held panel is always on screen, so its dot stays inside the oval, at the
- * oval's end for its edge, and the oval grows to hold it. The dots past it move over to make room.
+ * oval's end for its edge. A left-held panel covers the row as it scrolls, so its dot lies over the dots of what slides under it;
+ * until the row has scrolled that far, the dots past it give up the room it needs. The bar's width stays put so it never jumps.
  */
 export function withHeld(bar: FullDotLayout, held: readonly { id: string; side: 'left' | 'right'; slots: number; hollow: boolean }[]): FullDotLayout {
   if (held.length === 0) return bar;
@@ -193,18 +194,25 @@ export function withHeld(bar: FullDotLayout, held: readonly { id: string; side: 
   const room = (side: 'left' | 'right'): number => held.filter((h) => h.side === side).reduce((sum, h) => sum + widthOf(h) + DOT_GAP_PX, 0);
   const leftRoom = room('left');
   const rightRoom = room('right');
-  const inside = (d: DotPlace, edge: number): boolean => d.left + d.width / 2 >= edge;
-  const end = bar.oval.left + bar.oval.width;
-  const dots = bar.dots.map((d) => ({ ...d, left: d.left + (inside(d, bar.oval.left) ? leftRoom : 0) + (inside(d, end) ? rightRoom : 0) }));
-  let at = bar.oval.left;
+  const drawn = bar.dots.filter((d) => !bar.parked.has(d.id));
+  const first = drawn.length === 0 ? bar.oval.left : Math.min(...drawn.map((d) => d.left));
+  const shift = Math.max(0, leftRoom - (bar.oval.left - first));
+  const ovalLeft = bar.oval.left + shift - leftRoom;
+  const ovalWidth = bar.oval.width + leftRoom + rightRoom;
+  const end = ovalLeft + bar.oval.width + leftRoom;
+  const dots = bar.dots.map((d) => {
+    const left = d.left + (d.left >= first ? shift : 0);
+    return { ...d, left: left + (left + d.width / 2 >= end ? rightRoom : 0) };
+  });
+  let at = ovalLeft;
   const heldDots = (side: 'left' | 'right'): DotPlace[] => held.filter((h) => h.side === side).map((h) => {
     const dot = { id: h.id, left: at, width: widthOf(h), hollow: h.hollow };
     at += dot.width + DOT_GAP_PX;
     return dot;
   });
   const lefts = heldDots('left');
-  at = end + leftRoom + DOT_GAP_PX;
+  at = end + DOT_GAP_PX;
   const rights = heldDots('right');
   const all = [...lefts, ...dots, ...rights].sort((a, b) => a.left - b.left);
-  return { ...bar, dots: all, oval: { left: bar.oval.left, width: bar.oval.width + leftRoom + rightRoom }, width: bar.width + leftRoom + rightRoom };
+  return { ...bar, dots: all, oval: { left: ovalLeft, width: ovalWidth }, width: bar.width + leftRoom + rightRoom };
 }
