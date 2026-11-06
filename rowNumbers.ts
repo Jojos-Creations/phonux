@@ -7,6 +7,7 @@ import { computeMaxLiveWidth, computeRowLayout } from './panelRowLayout.js';
 import { isPresent, type PanelRowEntry } from './panelRowEntry.js';
 import { panelWidthOf } from './panelTiers.js';
 import { parksForRoom } from './panelWindow.js';
+import type { RowRest } from './rowRest.js';
 
 /** What `computeRowNumbers` returns: one row's measurements, derived from its entries and never stored. @public */
 export interface RowNumbers {
@@ -71,6 +72,8 @@ export interface RowNumbers {
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
+  /** The blank a rest leaves before the parking panels, in px; `leftOffsets` already hold it. Absent reads as none. */
+  leadPx?: number;
   /** The space after the strip: on a stepping row that overflows, the same centering space as before it, so the last rest centers too; else 0. */
   endPad: number;
 }
@@ -95,6 +98,8 @@ export function computeRowNumbers(i: {
   fixedItemCount?: number;
   /** True for a row whose gesture is 'step': the row then rests on the one-phone grid, `stops`. Default false. */
   wholePanels?: boolean;
+  /** The blanks a parking row rests with: a strip that fits draws them, one that overflows ignores them. Default none. */
+  rest?: RowRest | null;
 }): RowNumbers {
   const present = i.entries.filter(isPresent);
   // Reads the settings the entry carries, never effective(): a hand-built fixed History reads 'scroll' under effective()
@@ -114,7 +119,7 @@ export function computeRowNumbers(i: {
   const strip = present.flatMap((p, k) => (heldAt.has(k) ? [] : [{ p, k }]));
   const ids = strip.map((x) => x.p.id);
   const widths = strip.map((x) => allWidths[x.k]!);
-  const stripWidth = contentLength(widths, i.gap);
+  const panelsWidth = contentLength(widths, i.gap);
   const stripWindow = windowWidth - leftInset - rightInset;
   const leftOffsets: number[] = [];
   let running = 0;
@@ -122,7 +127,13 @@ export function computeRowNumbers(i: {
     leftOffsets.push(running);
     running += width + i.gap;
   }
-  const overflows = rowScroll && measured && stripWidth > stripWindow;
+  const overflows = rowScroll && measured && panelsWidth > stripWindow;
+  // A rest's blanks count as strip, so the margin stays the full row's and the always-shown columns do not move.
+  const rest = !overflows && measured ? (i.rest ?? null) : null;
+  const slotPx = i.phoneWidth + i.gap;
+  const firstParking = rest === null ? -1 : strip.findIndex((x) => parksForRoom(x.p));
+  if (rest !== null && firstParking >= 0) for (let k = firstParking; k < leftOffsets.length; k += 1) leftOffsets[k] = leftOffsets[k]! + rest.lead * slotPx;
+  const stripWidth = panelsWidth + (rest === null ? 0 : (rest.lead + rest.tail) * slotPx);
   const stepping = i.wholePanels === true && overflows;
   // A stepping row centers the whole slots at every rest, the ends included: the window's leftover past its whole slots is split
   // into a space before the strip and one after it. Any other overflowing row is flush at both ends. A strip that fits centers
@@ -152,7 +163,7 @@ export function computeRowNumbers(i: {
   // A panel the row admits is never parked for room, whether it is held or sticks in the strip.
   const reservedWidths = [...present.flatMap((p, k) => (admittedKs.has(k) || parksForRoom(p) ? [] : [allWidths[k]!])), ...admitted.map((a) => allWidths[a.k]!)];
   const parkLiveWidths = present.flatMap((p, k) => (admittedKs.has(k) || !parksForRoom(p) ? [] : [allWidths[k]!]));
-  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad };
+  return { rowScroll, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths, stops, stepStops, stopSpans, endPad, ...(rest !== null && rest.lead > 0 ? { leadPx: rest.lead * slotPx } : {}) };
 }
 
 /**

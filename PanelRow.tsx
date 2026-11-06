@@ -321,7 +321,7 @@ export function PanelRow({
   const rowHeight = phoneHeight;
   const rowScroll = rowNumbers?.rowScroll ?? false;
   // While a width is held the row box is never shorter than it was: the browser would clamp the scroll to a shorter strip and move the row under the pointer.
-  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0);
+  const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0, rowNumbers?.stripWidth ?? 0);
   const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
   const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset);
   const widthById = new Map(present.map((p, index) => [p.id, widths[index]!]));

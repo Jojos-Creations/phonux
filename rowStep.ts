@@ -10,6 +10,7 @@ type Direction = 'left' | 'right';
 interface RowKeys {
   step?: (direction: Direction) => void;
   edge?: (direction: Direction, target: EventTarget | null) => boolean;
+  half?: (id: string) => boolean;
 }
 
 const rows = new Map<HTMLElement, RowKeys>();
@@ -21,7 +22,7 @@ export function registerRowKeys(container: HTMLElement, part: RowKeys): () => vo
   rows.set(container, entry);
   return () => {
     for (const key of Object.keys(part) as (keyof RowKeys)[]) if (entry[key] === part[key]) delete entry[key];
-    if (entry.step === undefined && entry.edge === undefined) rows.delete(container);
+    if (entry.step === undefined && entry.edge === undefined && entry.half === undefined) rows.delete(container);
   };
 }
 
@@ -109,4 +110,9 @@ export function stepRowIn(container: HTMLElement, direction: Direction): boolean
   if (step === undefined) return false;
   step(direction);
   return true;
+}
+
+/** Rests the row drawn in `container` on the half step that centers panel `id`; false when it has none to rest on. @internal */
+export function halfStepIn(container: HTMLElement, id: string): boolean {
+  return rows.get(container)?.half?.(id) ?? false;
 }

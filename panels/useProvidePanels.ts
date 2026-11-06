@@ -18,6 +18,8 @@ import { stepGlide } from '../rowFastScroll.js';
 import { createRestWatch } from './restWatch.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
+import { registerRowKeys } from '../rowStep.js';
+import { halfRest, isHalfOff, restStep, type RestStepInput, type RowRest } from '../rowRest.js';
 import { entryNamed } from '../panelIds.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { noopCaptureTrigger, type CaptureTrigger } from '../snapshots.js';
@@ -29,7 +31,7 @@ import type { AddPlacement, PanelSettings, PanelSettingsResolution, ResolvedPane
 import type { PanelTemplate } from '../panelTemplate.js';
 import { reportNotes } from '../panelPlacement.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
-import { appendPanel, clearOverrides, closePanel, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
+import { appendPanel, clearOverrides, closePanel, parkedToReveal, parksForRoom, recordOverride, reanchorPanel, slotsOf, type AnchorRequest, type PanelWindow } from '../panelWindow.js';
 import { bindingOf, type CreateRequest, type EngineOps, type WorkspaceHandle } from '../workspaceCore.js';
 import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
@@ -336,7 +338,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const keepLiveRef = useRef<ReadonlyMap<string, PanelWindow[]>>(new Map());
   const capParkedRef = useRef<string[]>([]);
   const maxLive = tuning.maxLivePanels ?? null;
-  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak };
+  // A rest lives only for the row and the window it was made for: anything else that changes either ends it, and capacity refills its blanks.
+  const [restHeld, setRestHeld] = useState<{ rest: RowRest; key: string } | null>(null);
+  const restKeyOf = (row: readonly PanelWindow[]): string => `${i.containerWidth}|${i.phoneWidth}|${row.filter(isPresent).map((p) => p.id).join(' ')}`;
+  const rest = restHeld !== null && restHeld.key === restKeyOf(rawPanels) ? restHeld.rest : null;
+  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak, rest };
   const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== rawPanels).map(([id]) => id);
   const panels = maxLive === null ? rawPanels : settleKeeping(settleEnv, rawPanels, acted);
   if (panels !== rawPanels) {
@@ -348,7 +354,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   });
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const stopsOnGrid = tuning.rowGesture === 'step';
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid };
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid, rest };
   const rowNumbers = computeRowNumbers(rowInput);
   const restedRef = useRef(false);
   const { maxLiveWidth } = rowNumbers;
@@ -440,6 +446,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     markEnterSide,
     clearEnterSide,
     scrollRow,
+    restRow,
     reorderPanel,
     resizePanel,
     enterSideById,
@@ -463,6 +470,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
+    rest,
+    setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 ? null : { rest: next, key: restKeyOf(row) }),
   });
 
   core.observe(panels, heldIds);
@@ -491,6 +500,52 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return true;
   };
 
+  /** What a rest step reads from the row as drawn now. */
+  const restInput = (direction: 'left' | 'right'): RestStepInput => {
+    const n = rowNumbers;
+    const slot = i.phoneWidth + tuning.rowGap;
+    const last = n.ids.length - 1;
+    const lastOff = last < 0 ? 0 : n.stripStart + n.leftOffsets[last]! + n.widths[last]! / 2 - n.stripWindow / 2;
+    const drawn = panels.filter((p) => isPresent(p) && parksForRoom(p));
+    const first = drawn[0];
+    const firstAt = first === undefined ? -1 : n.ids.indexOf(first.id);
+    const full = n.stripWidth + slot > n.stripWindow;
+    const returns = first !== undefined && effective(first).revealOnScroll !== 'never' && effective(first).capacityReturn !== 'manual';
+    const left = parkedToReveal(panels, 'left');
+    return {
+      direction,
+      rest,
+      lastOff,
+      slot,
+      canLeft: left !== null,
+      canRight: parkedToReveal(panels, 'right') !== null,
+      revealSlots: left === null ? 1 : Math.max(1, left.slots ?? 1),
+      parkable: drawn.length >= 2 && full && returns && firstAt >= 0 ? n.widths[firstAt]! + tuning.rowGap : null,
+    };
+  };
+
+  // The rest that centers panel `id` when it sits half a slot off, parking the end panel it pushes out. Never the panel itself.
+  const restOnHalf = (id: string): boolean => {
+    const n = rowNumbers;
+    const k = n.ids.indexOf(id);
+    if (k < 0 || maxScrollOf(n) > 0 || (rest?.lead ?? 0) > 0) return false;
+    const slot = i.phoneWidth + tuning.rowGap;
+    const off = n.stripStart + n.leftOffsets[k]! + n.widths[k]! / 2 - n.stripWindow / 2;
+    if (!isHalfOff(off, slot) || n.stripWidth + slot <= n.stripWindow) return false;
+    const drawn = panels.filter((p) => isPresent(p) && parksForRoom(p));
+    const end = off > 0 ? drawn[0] : drawn.at(-1);
+    if (drawn.length < 2 || end === undefined || end.id === id || !drawn.some((p) => p.id === id)) return false;
+    if (effective(end).revealOnScroll === 'never' || effective(end).capacityReturn === 'manual') return false;
+    restRow({ park: off > 0 ? 'left' : 'right', rest: halfRest(rest) });
+    return true;
+  };
+  const restOnHalfRef = useRef(restOnHalf);
+  restOnHalfRef.current = restOnHalf;
+  useEffect(() => {
+    const el = i.overflowContainerRef.current;
+    return el === null ? undefined : registerRowKeys(el, { half: (id) => restOnHalfRef.current(id) });
+  });
+
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
     const el = i.overflowContainerRef.current;
@@ -507,7 +562,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     };
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
       const gate = lastSwapRef.current;
-      if (!swapAllowed(direction) || scrollRow(direction)) return;
+      if (!swapAllowed(direction)) return;
+      const plan = restStep(restInput(direction));
+      if (plan !== null) {
+        restRow(plan);
+        return;
+      }
+      if (scrollRow(direction)) return;
       // Nothing came in, so no swap holds the gate against a step back.
       lastSwapRef.current = gate;
       bump();

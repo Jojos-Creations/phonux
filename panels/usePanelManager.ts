@@ -70,6 +70,8 @@ export interface UsePanelManagerResult {
    * `keep` (a dragged panel) is never parked. True when a panel came in.
    */
   scrollRow: (direction: 'left' | 'right', keep?: string) => boolean;
+  /** Moves the row to a new rest in one commit: the panel a side brings in, the drawn panel an end parks, and the blanks left. */
+  restRow: (plan: { reveal?: 'left' | 'right'; park?: 'left' | 'right'; rest: RowRest }) => void;
   /** Moves `id` `by` row-slots (negative: left; 'left' and 'right' are one slot); see `movePanel` for the no-op contract, and `movePanelBy` for a count that runs out at an edge. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
   reorderPanel: (id: string, by: number | 'left' | 'right', record?: boolean) => boolean;
   /** `setSlots` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
@@ -111,6 +113,7 @@ export interface UsePanelManagerResult {
 }
 
 import { createOperationGate, type OperationGate } from './operationGate.js';
+import type { RowRest } from '../rowRest.js';
 
 export type { GateKind, OperationGate } from './operationGate.js';
 
@@ -130,6 +133,10 @@ export interface PanelManagerOptions {
   resolveDefaults?: (entry: PanelWindow) => PanelSettingsResolution;
   /** The developer's panel order, read by every placement whose value is `'order'`. */
   order?: () => readonly string[];
+  /** The blanks the row rests with: capacity keeps them open. */
+  rest?: RowRest | null;
+  /** Takes a new rest and the row it was made for. */
+  setRest?: (rest: RowRest, row: readonly PanelWindow[]) => void;
 }
 
 /** How a park is classified: a hide that took a hold, or a park the engine made for room. */
@@ -149,7 +156,7 @@ export function usePanelManager(
   const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
-  const env: RowEnv = { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, dropTieBreak };
+  const env: RowEnv = { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, dropTieBreak, rest: options?.rest ?? null };
   const pricing = (row: readonly PanelWindow[]) => rowPricing(env, row);
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => settleKeeping(env, next, keep);
   const { widthOf, capacityFor, settles } = pricing(panels);
@@ -565,6 +572,26 @@ export function usePanelManager(
     return true;
   };
 
+  /** See `UsePanelManagerResult.restRow`'s own doc comment. */
+  const restRow = (plan: { reveal?: 'left' | 'right'; park?: 'left' | 'right'; rest: RowRest }): void => {
+    const reveal = plan.reveal === undefined ? null : parkedToReveal(panels, plan.reveal);
+    const live = panels.filter(isParkLive);
+    const parked = plan.park === undefined ? undefined : plan.park === 'left' ? live[0] : live.at(-1);
+    const flip = (row: PanelWindow[]): PanelWindow[] => row.map((p) => (p.id === parked?.id ? { ...p, live: false } : p.id === reveal?.id ? { ...p, live: true } : p));
+    if (reveal !== null) {
+      markKeepLive(reveal.id);
+      setEnterSide(reveal.id, plan.reveal!);
+      forgetCollapsed(reveal.id);
+      releaseHold(reveal.id);
+    }
+    if (parked !== undefined) {
+      if (plan.park === 'right') flushOwn(() => setExitRightIds((prev) => new Set([...prev, parked.id])));
+      recordPark([parked.id], { kind: 'capacity' });
+    }
+    options?.setRest?.(plan.rest, flip(panels));
+    setPanels((prev) => flip(prev));
+  };
+
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, by: number | 'left' | 'right', record = true): boolean => {
     const count = by === 'left' ? -1 : by === 'right' ? 1 : by;
@@ -814,6 +841,7 @@ export function usePanelManager(
     markEnterSide: setEnterSide,
     clearEnterSide,
     scrollRow,
+    restRow,
     reorderPanel,
     resizePanel,
     placeAt,
