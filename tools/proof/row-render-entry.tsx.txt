@@ -32,7 +32,7 @@ function View({ name }: { name: string }) {
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 24, background: 'repeating-linear-gradient(90deg,#fff 0 2px,transparent 2px 50px)' }} />
       <div style={{ position: 'absolute', top: 40, left: 12 }}>{name}</div>
       {Array.from({ length: FILLER }, (_, k) => (
-        <div key={k} style={{ position: 'absolute', top: 100 + (k % 20) * 24, left: 12 + (k % 7) * 40, width: 30, height: 18, background: 'rgba(255,255,255,0.35)' }} />
+        <div key={k} style={{ position: 'absolute', top: 100 + (k % 20) * 20, left: 12 + (k % 7) * 40, width: 30, height: 18, background: 'rgba(255,255,255,0.35)' }} />
       ))}
     </div>
   );
@@ -87,7 +87,7 @@ function App() {
     offset: () => rowScrollerFor(ref.current!).scrollLeft(),
     // The nth added panel's engine id (the root is not counted).
     engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
-    setHold: (k: number, value: string) => ws.panels.configure((window as any).__r.engineId(k), { edgeHold: value }),
+    setHold: (k: number, value: string) => ws.panels.configure(ids[k]!, { edgeHold: value } as any),
     setSlots: (k: number, n: number) => latest.setSlots((window as any).__r.engineId(k), n),
     scrollTo: (k: number, align?: string) => latest.scrollTo((window as any).__r.engineId(k), align),
     toggleMax: (name: string) => maxers[name]!.toggle(),

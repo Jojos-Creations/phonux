@@ -67,6 +67,16 @@ test('a stepping row rests on every stop by its strip transform alone, at 1800, 
               last = now;
               await page.waitForTimeout(150);
             }
+            // A step past the row's end pushes the strip and springs back once the input has been quiet: wait for it to be home.
+            for (let tries = 0; tries < 30; tries++) {
+              const home = await page.evaluate(() => {
+                const g = (window as unknown as { __g: Probe }).__g;
+                const strip = g.container().querySelector<HTMLElement>('[data-row-strip]')!;
+                return Math.abs(new DOMMatrix(getComputedStyle(strip).transform).m41 - (g.provided().rowNumbers.rowMarginLeft - g.offset())) < 0.5;
+              });
+              if (home) break;
+              await page.waitForTimeout(150);
+            }
             return page.evaluate(() => {
               const g = (window as unknown as { __g: Probe }).__g;
               const c = g.container();
@@ -92,7 +102,8 @@ test('a stepping row rests on every stop by its strip transform alone, at 1800, 
                   const w = window as unknown as { __writes: number; __anims: number };
                   w.__writes = 0;
                   w.__anims = 0;
-                  new MutationObserver((records) => void (w.__writes += records.length)).observe(strip, { attributes: true, attributeFilter: ['style'] });
+                  // The strip's clip follows it from the frame loop by design; what must not be written per frame is its transform.
+                  new MutationObserver((records) => void (w.__writes += records.filter((r) => (/transform:[^;]*/.exec(r.oldValue ?? '')?.[0] ?? '') !== (/transform:[^;]*/.exec(strip.getAttribute('style') ?? '')?.[0] ?? '')).length)).observe(strip, { attributes: true, attributeFilter: ['style'], attributeOldValue: true });
                 });
               await page.mouse.wheel(delta, 0);
               if (watch) {
@@ -103,7 +114,7 @@ test('a stepping row rests on every stop by its strip transform alone, at 1800, 
                   return { running, writes: (window as unknown as { __writes: number }).__writes };
                 });
                 assert.equal(during.running, 1, `${where}: the step glides as one running animation on the strip`);
-                assert.ok(during.writes <= 2, `${where}: ${during.writes} style writes 150 ms into the glide`);
+                assert.ok(during.writes <= 2, `${where}: ${during.writes} transform writes 150 ms into the glide`);
                 glides += 1;
               }
               seen.push(await rest());

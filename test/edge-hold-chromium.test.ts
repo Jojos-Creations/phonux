@@ -27,6 +27,10 @@ interface Geometry {
   scrollLeft: number;
   maxScroll: number;
   windowWidth: number;
+  /** The row's centering: a stepping row's held panel sits inside it, in the first slot of the centered grid. */
+  marginLeft: number;
+  /** The row's centering, which a stepping row's held panel sits inside. */
+  marginLeft: number;
   held: { id: string; side: string }[];
   /** The stops a stepping row rests on; empty when the row does not step. */
   stops: number[];
@@ -73,9 +77,9 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       const y = cr.top + cr.height / 2;
       const coverLeft = document.elementFromPoint(cr.left + 200, y)?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId ?? null;
       const coverRight = document.elementFromPoint(cr.right - 200, y)?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId ?? null;
-      const g = (window as unknown as { __e: { offset(): number; maxScroll(): number; provided(): { rowNumbers: { held: { id: string; side: string }[]; windowWidth: number; stops: number[] } } } }).__e;
+      const g = (window as unknown as { __e: { offset(): number; maxScroll(): number; provided(): { rowNumbers: { held: { id: string; side: string }[]; windowWidth: number; rowMarginLeft: number; stops: number[] } } } }).__e;
       const e = g.provided();
-      return { scrollLeft: g.offset(), maxScroll: g.maxScroll(), windowWidth: e.rowNumbers.windowWidth, held: e.rowNumbers.held, stops: e.rowNumbers.stops, rects, coverLeft, coverRight };
+      return { scrollLeft: g.offset(), maxScroll: g.maxScroll(), windowWidth: e.rowNumbers.windowWidth, marginLeft: e.rowNumbers.rowMarginLeft, held: e.rowNumbers.held, stops: e.rowNumbers.stops, rects, coverLeft, coverRight };
     });
   const scrollTo = async (page: Page, at: number): Promise<void> => {
     await page.evaluate((x) => {
@@ -248,7 +252,7 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
     for (const stop of steppedGeo.stops) {
       await scrollTo(stepped, stop);
       const g = await measure(stepped);
-      assert.equal(g.rects[steppedGeo.held[0]!.id]!.left, GAP, `step: held at stop ${stop}`);
+      assert.equal(g.rects[steppedGeo.held[0]!.id]!.left, g.marginLeft + GAP, `step: held in the first slot of the centered grid at stop ${stop}`);
       assert.equal(g.coverLeft, steppedGeo.held[0]!.id, `step: held on top at stop ${stop}`);
     }
 

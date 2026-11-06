@@ -32,7 +32,7 @@ mkdirSync(OUT, { recursive: true });
 type Page = any;
 interface Frame { t: number; strip: { x: number; opacity: number; clip: string }; offset: number; win: number; slots: Record<string, { l: number; r: number; t: number; b: number; o: number; v: number; sx: number }>; held: string[] }
 interface Trace { frames: Frame[]; marks: { name: string; t: number }[]; writes: number }
-interface Result { trace: Trace; paint: { label: string; checked: number; bad: string[] }[]; holes: { label: string; runs: [number, number][] }[]; shots: string[] }
+interface Result { trace: Trace; paint: { label: string; checked: number; bad: string[] }[]; holes: { label: string; runs: [number, number][]; state?: { opacity: number[]; x: number[]; offset: number[]; seen: number } }[]; shots: string[] }
 
 const launched = await launchChromium<Page>({ skip: () => {} }, 'row-render-baseline');
 if (launched === undefined) process.exit(1);
@@ -83,16 +83,19 @@ class Ctx {
     await this.page.mouse.move(Math.min(500, this.page.viewportSize().width - 50), 300);
     await this.page.mouse.wheel(-300, 0);
   }
-  /** Waits until the scroll stops moving. */
+  /** Waits until nothing moves: the strip, the scroll, the fade, and every slot's rect, opacity and scale. */
   async settle(): Promise<void> {
-    let last = Number.NaN;
-    for (let k = 0; k < 40; k += 1) {
-      const now = await this.page.evaluate(() => (window as any).__r.now());
-      const key = now.strip.x + now.offset;
+    let last = '';
+    for (let k = 0; k < 60; k += 1) {
+      const key: string = await this.page.evaluate(() => {
+        const n = (window as any).__r.now();
+        return JSON.stringify([n.strip.x, n.strip.opacity, n.offset, Object.values(n.slots).map((s: any) => [s.l, s.r, s.o, s.sx])]);
+      });
       if (key === last) return;
       last = key;
-      await sleep(160);
+      await sleep(200);
     }
+    throw new Error(`${this.name}: the row never came to rest`);
   }
   async shot(label: string): Promise<Buffer> {
     const png: Buffer = await this.page.screenshot();
@@ -103,6 +106,7 @@ class Ctx {
   }
   /** At rest: every visible panel's sampled pixels are the colour of the panel on top there, and no magenta lies inside the row. */
   async checkPaint(label: string): Promise<void> {
+    await this.settle();
     const png = await this.shot(label);
     const win: { w: number; h: number; pts: { x: number; y: number; id: string | null; bg: string }[]; slots: Record<string, any> } = await this.page.evaluate(() => {
       const r = (window as any).__r;
@@ -116,7 +120,7 @@ class Ctx {
         if (right - left < 60) continue;
         for (let k = 1; k <= 5; k += 1) {
           const x = cr.left + left + ((right - left) * k) / 6;
-          const y = cr.top + s.t + (s.b - s.t) * 0.6;
+          const y = cr.top + s.t + (s.b - s.t) * 0.9;
           const box = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-box]');
           pts.push({ x, y, id: box?.dataset.box ?? null, bg: box ? getComputedStyle(box).backgroundColor : '' });
         }
@@ -135,24 +139,28 @@ class Ctx {
   }
   /** From a screenshot alone: runs of unpainted (magenta) pixels strictly inside the painted part of the row's middle line. */
   async checkHoles(label: string, png?: Buffer): Promise<void> {
+    const read = (): Promise<{ o: number; x: number; off: number }> => this.page.evaluate(() => { const n = (window as any).__r.now(); return { o: n.strip.opacity, x: n.strip.x, off: n.offset }; });
+    const before = await read();
     const shot = png ?? (await this.shot(label));
+    const after = await read();
     const width: number = await this.page.evaluate(() => window.innerWidth);
     const y = 300;
-    const xs = Array.from({ length: width }, (_, k) => k);
-    const px = await pixels(this.page, shot, xs.map((x) => [x, y]));
+    const px = await pixels(this.page, shot, Array.from({ length: width }, (_, k): [number, number] => [k, y]));
     const magenta = px.map(([r, g, b]) => r > 240 && g < 15 && b > 240);
     const first = magenta.findIndex((m) => !m);
-    const last = magenta.length - 1 - [...magenta].reverse().findIndex((m) => !m);
-    const runs: [number, number][] = [];
+    const last = first < 0 ? width - 1 : magenta.length - 1 - [...magenta].reverse().findIndex((m) => !m);
+    const runs: [number, number][] = first < 0 ? [[0, width - 1]] : [];
     let from = -1;
-    for (let x = Math.max(first, 0); x <= last; x += 1) {
+    for (let x = Math.max(first, 0); first >= 0 && x <= last; x += 1) {
       if (magenta[x]) from = from < 0 ? x : from;
       else if (from >= 0) {
         if (x - from > 40) runs.push([from, x - 1]);
         from = -1;
       }
     }
-    this.holes.push({ label, runs });
+    // A fade passes through nothing on purpose; a hole is only a hole while the strip is meant to be seen.
+    const fading = Math.min(before.o, after.o) < 0.15;
+    this.holes.push({ label, runs: fading ? [] : runs, state: { opacity: [before.o, after.o], x: [before.x, after.x], offset: [before.off, after.off], seen: runs.length } });
   }
 }
 
