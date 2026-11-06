@@ -493,7 +493,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const k = n.ids.indexOf(id ?? '');
       requestAnimationFrame(() => {
         if (scroller.claimHeld()) return;
-        const at = scroller.scrollLeft();
+        const at = scroller.glideTarget() ?? scroller.scrollLeft();
         const near = nearestStop(n, at);
         const span = n.stopSpans[n.stops.indexOf(near)];
         // A panel the nearest stop already shows stays put, even cut: a click in a wide panel half under a held one must not jump it whole.

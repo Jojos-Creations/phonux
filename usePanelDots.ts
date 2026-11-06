@@ -253,7 +253,7 @@ export function usePanelDots(i: {
   const drag = React.useRef<ReturnType<typeof startOvalDrag>>(null);
   // Only a press begun on the oval can drag. `moved` latches once such a press passes the threshold: that press drags and never selects. `edgeX` is where the pointer was when
   // the drag last met the row's end (or last stepped), so travel beyond it steps the row.
-  const press = React.useRef<{ x: number; id: string | null; onOval: boolean; moved: boolean; edgeX: number | null } | null>(null);
+  const press = React.useRef<{ x: number; id: string | null; onOval: boolean; moved: boolean; carries: boolean; edgeX: number | null } | null>(null);
   const wheel = React.useRef<{ travel: number; at: number }>({ travel: 0, at: 0 });
 
   // On a row that steps instead of scrolling, the oval is carried by the pointer 1:1 and the row steps each time it passes half a
@@ -288,7 +288,7 @@ export function usePanelDots(i: {
       if (e.button !== 0) return;
       const at = e.clientX - e.currentTarget.getBoundingClientRect().left;
       const onOval = at >= shownOval.left && at <= shownOval.left + shownOval.width + 2 * ovalSide;
-      press.current = { x: e.clientX, id: dotOf(e.target)?.dataset.dot ?? null, onOval, moved: false, edgeX: null };
+      press.current = { x: e.clientX, id: dotOf(e.target)?.dataset.dot ?? null, onOval, moved: false, carries: maxScroll <= 0, edgeX: null };
       e.currentTarget.setPointerCapture?.(e.pointerId);
     },
     onPointerMove: (e) => {
@@ -299,14 +299,35 @@ export function usePanelDots(i: {
       if (!p.moved && p.onOval && Math.abs(dx) > DRAG_THRESHOLD_PX) {
         p.moved = true;
         setDragging(true);
-        if (maxScroll <= 0) setCarry({ from: bar.oval.left, dx: 0 });
+        p.carries = maxScroll <= 0;
+        if (p.carries) setCarry({ from: bar.oval.left, dx: 0 });
         else drag.current = startOvalDrag();
       }
       if (!p.moved) return;
-      if (maxScroll <= 0) {
+      // A wide panel parking mid-drag can leave the row with nothing to scroll: the drag goes on as a carry from where the pointer is.
+      if (!p.carries && maxScroll <= 0) {
+        drag.current?.end();
+        drag.current = null;
+        p.carries = true;
+        p.x = e.clientX;
+        setCarry({ from: bar.oval.left, dx: 0 });
+        return;
+      }
+      if (p.carries) {
         setCarry((c) => (c === null ? c : { ...c, dx }));
         return;
       }
+      const row = scroller.current === null ? null : rowScrollerFor(scroller.current);
+      // A step past the row's end gave the row to its glide: once that lands the drag takes it back, from where the pointer is now.
+      if (drag.current === null && row !== null && row.glideTarget() === null && !row.claimHeld()) {
+        drag.current = startOvalDrag();
+        if (drag.current !== null) {
+          p.x = e.clientX;
+          p.edgeX = null;
+          return;
+        }
+      }
+      if (drag.current === null && row?.glideTarget() != null) return;
       drag.current?.drag(dx);
       // Past the end the drag steps the row instead.
       const el = scroller.current;
@@ -329,12 +350,15 @@ export function usePanelDots(i: {
       const p = press.current;
       press.current = null;
       stop();
-      if (p && !p.moved && p.id !== null) selectDot(p.id);
+      // The held dot lies inside the oval, where a drag begins: a press that does not travel there must not send the row to its start.
+      if (p && !p.moved && p.id !== null && !n.held.some((h) => h.id === p.id)) selectDot(p.id);
     },
     onPointerLeave: () => setPointer(null),
     onWheel: (e) => {
       const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (raw === 0) return;
+      const glider = scroller.current === null ? null : rowScrollerFor(scroller.current);
+      if (glider?.glideTarget() != null) return;
       const w = wheel.current;
       if (e.timeStamp - w.at > WHEEL_QUIET_MS || Math.sign(raw) !== Math.sign(w.travel)) w.travel = 0;
       // The first event of a gesture steps at once, so one notch moves the row.

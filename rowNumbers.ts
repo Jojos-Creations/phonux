@@ -76,6 +76,8 @@ export interface RowNumbers {
   leadPx?: number;
   /** The space after the strip: on a stepping row that overflows, the same centering space as before it, so the last rest centers too; else 0. */
   endPad: number;
+  /** Set for the commit a hold starts or lets go, or a step swaps panels: how far the strip's kept panels moved in strip px. The row takes it into its offset so nothing on screen moves. */
+  anchor?: number;
 }
 
 /**
@@ -391,6 +393,21 @@ export function scrollHoldingEdge(n: RowNumbers, k: number, pin: 'start' | 'end'
   if (k < 0 || k >= n.ids.length) return at;
   const left = n.stripStart + n.leftOffsets[k]!;
   return (pin === 'end' ? left + n.widths[k]! : left) - edge;
+}
+
+/**
+ * The offset change that keeps every panel `prev` and `now` share where it stands, or undefined when there is none to keep: the
+ * row's panels and holds did not change, the change is not one that should hold still, or the offset would leave the row's range. @internal
+ */
+export function rowAnchor(prev: RowNumbers | undefined, now: RowNumbers, base: number, stepped: boolean): number | undefined {
+  if (prev === undefined || prev.windowWidth !== now.windowWidth) return undefined;
+  const flipped = (prev.held.length > 0) !== (now.held.length > 0);
+  if (!flipped && !stepped) return undefined;
+  const kept = now.ids.filter((id) => prev.ids.includes(id));
+  const shifts = kept.map((id) => now.stripStart + now.leftOffsets[now.ids.indexOf(id)]! - prev.stripStart - prev.leftOffsets[prev.ids.indexOf(id)]!);
+  const shift = shifts[0];
+  if (shift === undefined || Math.abs(shift) < 1 || shifts.some((x) => Math.abs(x - shift) >= 1)) return undefined;
+  return base + shift < -1 || base + shift > maxScrollOf(now) + 1 ? undefined : shift;
 }
 
 /** The farthest legal `scrollLeft` for `n`, from its numbers and never read back from the DOM; 0 while unmeasured. @internal */

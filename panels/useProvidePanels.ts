@@ -11,7 +11,7 @@ import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, rowAnchor, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { ROW_BUMP_PX, ROW_BUMP_SEC, rowScrollerFor } from '../rowScroller.js';
 import { stepGlide } from '../rowFastScroll.js';
@@ -355,7 +355,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const stopsOnGrid = tuning.rowGesture === 'step';
   const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid, rest };
-  const rowNumbers = computeRowNumbers(rowInput);
+  const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
+  // The direction of a step that swaps panels, until the commit that draws the swap.
+  const swapStepRef = useRef<'left' | 'right' | null>(null);
+  const rowNumbers = ((): RowNumbers => {
+    const n = computeRowNumbers(rowInput);
+    const el = i.overflowContainerRef.current;
+    const scroller = el === null ? null : rowScrollerFor(el);
+    if (scroller === null || tuning.rowGesture !== 'step' || scroller.claimHeld() || scroller.settling()) return n;
+    const anchor = rowAnchor(drawnNumbersRef.current, n, scroller.glideTarget() ?? scroller.scrollLeft(), swapStepRef.current !== null);
+    return anchor === undefined ? n : { ...n, anchor };
+  })();
   const restedRef = useRef(false);
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
@@ -578,11 +588,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const gate = lastSwapRef.current;
       if (!swapAllowed(direction)) return;
       const plan = restStep(restInput(direction));
+      swapStepRef.current = direction;
       if (plan !== null) {
         restRow(plan);
         return;
       }
       if (scrollRow(direction)) return;
+      swapStepRef.current = null;
       // Nothing came in, so no swap holds the gate against a step back.
       lastSwapRef.current = gate;
       bump();
@@ -591,8 +603,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     let liveBefore = 0;
     const hidden = [];
     for (const p of panels) {
-      if (isPresent(p)) liveBefore += 1;
-      else if (p.marker !== true) hidden.push({ id: p.id, liveBefore, held: heldIds.has(p.id), policy: effective(p).revealOnScroll });
+      if (rowNumbers.ids.includes(p.id)) liveBefore += 1;
+      else if (!isPresent(p) && p.marker !== true) hidden.push({ id: p.id, liveBefore, held: heldIds.has(p.id), policy: effective(p).revealOnScroll });
     }
     const step = gestureTarget({
       direction,
@@ -612,7 +624,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     else if (step.kind === 'none') {
       // An end of a parking row wider than its window: the parked panels past it come in as they do in a row that fits.
       const gate = lastSwapRef.current;
+      swapStepRef.current = direction;
       if (panels.filter((p) => isPresent(p) && !parksForRoom(p)).length <= fixedViewCount && swapAllowed(direction) && scrollRow(direction)) return;
+      swapStepRef.current = null;
       lastSwapRef.current = gate;
       bump();
     }
@@ -633,7 +647,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const scroller = rowScrollerFor(el);
     // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
     if (scroller.claimHeld() || scroller.settling()) return;
-    const base = scroller.glideTarget() ?? scroller.scrollLeft();
+    let base = scroller.glideTarget() ?? scroller.scrollLeft();
+    if (rowNumbers.anchor !== undefined) {
+      base = Math.max(0, base + rowNumbers.anchor);
+      if (rowNumbers.stepStops.length === 0 && base < 1) base = 0;
+      scroller.glideTo(base, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
+    }
     const before = settledNumbersRef.current;
     settledNumbersRef.current = rowNumbers;
     // A wider window can bring a parked panel back a commit after the new width, when the row fits for one commit in between.
@@ -645,17 +664,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
     // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
     if (rowNumbers.stepStops.length === 0) {
-      // A hold that lets go because the last wide panel left already has every panel where rest 0 draws it: a glide would slide them all in from the left.
-      const kept = before === undefined || before.held.length === 0 || rowNumbers.held.length > 0 ? [] : rowNumbers.ids.filter((id) => before.ids.includes(id));
-      const inPlace = before !== undefined && kept.length > 0 && kept.every((id) => Math.abs(before.stripStart + before.leftOffsets[before.ids.indexOf(id)]! - base - rowNumbers.stripStart - rowNumbers.leftOffsets[rowNumbers.ids.indexOf(id)]!) < 1);
-      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || inPlace || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
+      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
       return;
     }
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
     // A new window width rescales every stop, so a row resting at an end stays at that end rather than at the nearest pixel.
     const atEnd = endWidthRef.current === rowNumbers.windowWidth;
     endWidthRef.current = undefined;
-    const to = atEnd ? rowNumbers.stepStops.at(-1)! : nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
+    // A step that swapped panels goes on to move the row its one slot, from where the anchor left it.
+    const stepped = rowNumbers.anchor === undefined || swapStepRef.current === null ? 0 : (swapStepRef.current === 'left' ? -1 : 1) * (i.phoneWidth + tuning.rowGap);
+    const to = atEnd ? rowNumbers.stepStops.at(-1)! : nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base + stepped);
     // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
     const opening = !restedRef.current;
     restedRef.current = true;
@@ -663,9 +681,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const windowStep = before !== undefined && before.windowWidth !== rowNumbers.windowWidth;
     if (Math.abs(to - base) < 0.5) return;
     scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening || windowStep, ease });
-  }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad]);
+  }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad, rowNumbers.anchor]);
   useLayoutEffect(() => {
     drawnSlotsRef.current = slotsKey(rowNumbers);
+    // A swap can take a commit of its own to mark its exits first, so the step is kept until the panels themselves change.
+    if (drawnNumbersRef.current?.ids.join(' ') !== rowNumbers.ids.join(' ')) swapStepRef.current = null;
+    drawnNumbersRef.current = rowNumbers;
   });
 
   // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.

@@ -256,10 +256,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
     if (frame === null && moving()) frame = requestAnimationFrame(tick);
   };
 
-  const onPointerDown = (): void => stop();
   function endGlide(): void {
     if (glide === null) return;
-    el.removeEventListener('pointerdown', onPointerDown);
     glide = null;
   }
 
@@ -315,7 +313,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
       const now = performance.now();
       const from = glide === null ? offset : at(glide, now);
       const before = glide;
-      if (glide === null) el.addEventListener('pointerdown', onPointerDown);
       if (marginGlide !== null) margin = at(marginGlide, now);
       offset = from;
       if (o.fade === true && before?.fade === true) {

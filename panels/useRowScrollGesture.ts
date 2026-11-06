@@ -18,6 +18,7 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { arrowKeyBelongsElsewhere, contentScrolls } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
+import { rowScrollerFor } from '../rowScroller.js';
 import { registerRowKeys } from '../rowStep.js';
 
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
@@ -89,6 +90,8 @@ export function useRowScrollGesture(
     let sign = 0;
     // Wheel travel since the last step, in px.
     let travel = 0;
+    // Travel against the gesture so far: a trackpad's momentum tail flickers a px or two the other way, which is not a reversal.
+    let against = 0;
     let lastStepAt = Number.NEGATIVE_INFINITY;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
     const step = (direction: number): void => {
@@ -103,18 +106,30 @@ export function useRowScrollGesture(
       quietTimer = setTimeout(() => {
         sign = 0;
         travel = 0;
+        against = 0;
       }, gestureQuietMsRef.current);
       const direction = Math.sign(amount);
+      if (direction === 0) return;
       if (direction !== sign) {
+        if (sign !== 0) {
+          against += Math.abs(amount);
+          if (against < unit / 4) return;
+        }
         sign = direction;
         travel = 0;
+        against = 0;
         step(direction);
+        return;
+      }
+      against = 0;
+      // A swipe's momentum must not stack steps into one glide: every rest is shown, so a wide panel passes one slot at a time.
+      if (rowScrollerFor(container).glideTarget() !== null) {
+        travel = 0;
         return;
       }
       travel += Math.abs(amount);
       if (travel < unit || performance.now() - lastStepAt < gestureLockMsRef.current) return;
-      // Travel beyond one step carries over: a fast burst adds to the target the row glides to, so its steps are not lost.
-      travel -= unit;
+      travel = 0;
       step(direction);
     };
     // Who owns the wheel gesture in progress: 'row' once it has stepped, 'content' when Option began it, null between gestures.
