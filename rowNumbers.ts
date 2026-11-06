@@ -88,18 +88,7 @@ export interface RowNumbers {
  * @public
  * @deprecated The provider computes the row's numbers from its tuning; read them as `useProvidePanels(...).rowNumbers`.
  */
-export function computeRowNumbers(i: Parameters<typeof legacyRowNumbers>[0]): RowNumbers {
-  return rowNumbersViaModel(i) ?? legacyRowNumbers(i);
-}
-
-/**
- * The row's numbers by the arithmetic that predates the position model, kept as the reference the model's adapter is compared with.
- * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the numbers of a row that
- * never scrolls (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
- * and no wider than the window, and centers only a strip that fits.
- * @internal
- */
-export function legacyRowNumbers(i: {
+export function computeRowNumbers(i: {
   /** The row's whole list; the entries `isPresent` drops (parked ones, the marker) are not drawn and are ignored. */
   entries: readonly PanelRowEntry[];
   /** The phone frame's width in px: what a phone panel and a fixed column are drawn at. */
@@ -115,6 +104,17 @@ export function legacyRowNumbers(i: {
   /** The blanks a parking row rests with: a strip that fits draws them, one that overflows ignores them. Default none. */
   rest?: RowRest | null;
 }): RowNumbers {
+  return rowNumbersViaModel(i) ?? legacyRowNumbers(i);
+}
+
+/**
+ * The row's numbers by the arithmetic that predates the position model, kept as the reference the model's adapter is compared with.
+ * The numbers for one row. A row whose entries carry no `overflow: 'scroll'` settings gets the numbers of a row that
+ * never scrolls (`computeMaxLiveWidth`, `computeRowLayout`'s margin). A scrolling row draws every entry, sizes each panel from its slots
+ * and no wider than the window, and centers only a strip that fits.
+ * @internal
+ */
+export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): RowNumbers {
   const present = i.entries.filter(isPresent);
   // Reads the settings the entry carries, never effective(): a hand-built fixed History reads 'scroll' under effective()
   // and would turn every hand-built row into a scrolling one.
@@ -187,7 +187,7 @@ export function legacyRowNumbers(i: {
  * that does not scroll, a window narrower than a phone, a hold that is not the first panel's left hold, and rests that draw
  * blanks. `computeRowNumbers` then answers with the older arithmetic. @internal
  */
-export function rowNumbersViaModel(i: Parameters<typeof legacyRowNumbers>[0]): RowNumbers | null {
+export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): RowNumbers | null {
   const present = i.entries.filter(isPresent);
   const measured = i.containerWidth !== 0;
   if (!measured || !present.some((p) => p.settings?.overflow === 'scroll')) return null;
