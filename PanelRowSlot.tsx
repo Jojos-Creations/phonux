@@ -575,6 +575,8 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
       run.current = undefined;
       setGlide(null);
     });
+    const row = closestRowScroller(node);
+    if (row !== null) rowScrollerFor(row).followSize({ startMs, durationSec: transition.duration, ease: transition.ease });
   }, [width, height, snaps, nested]);
   React.useEffect(() => () => run.current?.stop(), []);
   // It fills the box above, so it eases with that box rather than snapping to its own size.

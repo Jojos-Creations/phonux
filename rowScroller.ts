@@ -1,9 +1,10 @@
 /**
- * The one owner of a row's horizontal position: one scalar, `view`, where the window's left edge sits along the strip. The
+ * The one owner of a row's horizontal position: where the window's left edge sits along the strip, the view. The view is two
+ * numbers that add: the scroll, which a person's step or a claim moves, and the origin, the negative of the row's centering,
+ * which the Workspace supplies. Each runs its own clock, so a re-centering never retimes a scroll glide, a fade or a bump. The
  * container never scrolls: the strip is one `translateX(-view)`, run as a Web Animations API animation so a glide keeps moving
- * while the main thread is busy. `scrollLeft()` is the view less its origin, which is where the row's centering lives.
- * Internal and out of the barrel: a later custom scrollbar reads the strip from `computeRowNumbers` and writes through
- * `claim()`, the way edge scrolling does.
+ * while the main thread is busy. Internal and out of the barrel: a later custom scrollbar reads the strip from
+ * `computeRowNumbers` and writes through `claim()`, the way edge scrolling does.
  */
 
 import { cubicBezier } from 'motion/react';
@@ -20,7 +21,7 @@ export interface ScrollClaim {
   release(): void;
 }
 
-/** How a move of the view runs. */
+/** How a move of the scroll or the origin runs. */
 export interface GlideOptions {
   /** Seconds the move takes. */
   durationSec: number;
@@ -34,18 +35,22 @@ export interface GlideOptions {
   fade?: boolean;
 }
 
+// The scroll a size change asks for comes a frame or two after the glide starts, once focus has returned to the panel.
+const SIZE_FOLLOW_MS = 150;
+
 /** What may move one row's offset. */
 export interface RowScroller {
-  /** The row's current offset: how far its content is moved left, in the units a `scrollLeft` would be. */
+  /** The row's current scroll: how far its content is moved left, in the units a `scrollLeft` would be. A re-centering does not move it. */
   scrollLeft(): number;
   /** Moves to `target` over `durationSec`, or at once when `instant`. False, doing nothing, while a claim is held. */
   glideTo(target: number, o: GlideOptions): boolean;
   /** Where the scroll glide in flight ends; null when none is, and while the centering alone is on its way. */
   glideTarget(): number | null;
+  /** A panel's size glide started at `startMs`: a scroll glide asked for just after rides its clock and curve, so the row and the panel's edge move as one. */
+  followSize(o: { startMs: number; durationSec: number; ease: readonly [number, number, number, number] }): void;
   /**
-   * The row's centering is now `centering` px. Every panel stays where it is on screen, then the view glides so the scroll the
-   * row was going to rest at is kept: one glide of one number. `scrollLeft()` holds still through it, as the origin is shown
-   * moving with the view. Not counted as a scroll.
+   * The row's centering is now `centering` px. Every panel stays where it is on screen at the call, then the origin glides to
+   * the new centering on its own clock, beside any scroll glide, fade or bump, which it never touches. Not counted as a scroll.
    * The first call places the row without a move.
    */
   reorigin(centering: number, o: GlideOptions): void;
@@ -73,7 +78,7 @@ export interface RowScroller {
   deferUntilRelease(run: () => void): boolean;
   /** Runs the scroll kept by `deferUntilRelease`, once. A no-op when none was kept. */
   replayDeferred(): void;
-  /** Wakes `listener` after each change of the view, on every frame of a glide. Returns the unsubscribe. */
+  /** Wakes `listener` after each change of the scroll or the origin, on every frame of a glide. Returns the unsubscribe. */
   subscribe(listener: () => void): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
@@ -100,10 +105,6 @@ interface Glide {
   durationMs: number;
   curve: (t: number) => number;
   fade: boolean;
-  /** Origin shift this glide still has to show, px: the scroll a caller reads keeps its place while the view travels it. */
-  owed: number;
-  /** False for a glide that only carries the centering to its landing: no caller asked the scroll to go anywhere. */
-  scrolls: boolean;
 }
 
 const progress = (g: Glide, nowMs: number): number => Math.min(1, Math.max(0, (nowMs - g.startMs) / g.durationMs));
@@ -117,13 +118,7 @@ const at = (g: Glide, nowMs: number): number => {
 const jumpCurve = (t: number): number => (t < 0.5 ? 0 : 1);
 const opacityAt = (g: Glide, nowMs: number): number => Math.abs(1 - 2 * progress(g, nowMs));
 
-const glideOf = (from: number, to: number, nowMs: number, o: GlideOptions): Glide => ({ from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: o.fade === true ? jumpCurve : curveOf(o.ease), fade: o.fade === true, owed: 0, scrolls: true });
-
-// What is still owed at `nowMs`: the shift fades out along the glide's own curve, so it is spent exactly when the view lands.
-const owedAt = (g: Glide, nowMs: number): number => {
-  const t = (nowMs - g.startMs) / g.durationMs;
-  return t >= 1 ? 0 : g.owed * (1 - g.curve(Math.max(0, t)));
-};
+const glideOf = (from: number, to: number, nowMs: number, o: GlideOptions): Glide => ({ from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: o.fade === true ? jumpCurve : curveOf(o.ease), fade: o.fade === true });
 
 // The slope a glide in flight has now, in px per ms, read off its own curve.
 const speedOf = (g: Glide, nowMs: number): number => (at(g, nowMs + 1) - at(g, nowMs - 1)) / 2;
@@ -136,7 +131,7 @@ function carried(from: number, to: number, nowMs: number, speed: number, o: Glid
   const distance = to - from;
   const slope = Math.abs(distance) < 0.5 ? 0 : (speed * o.durationSec * 1000) / distance;
   const y1 = Math.min(1.5, Math.max(0, slope / 3));
-  return { from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: cubicBezier(1 / 3, y1, 0.6, 1), fade: false, owed: 0, scrolls: true };
+  return { from, to, startMs: nowMs, durationMs: o.durationSec * 1000, curve: cubicBezier(1 / 3, y1, 0.6, 1), fade: false };
 }
 
 /** How far a step past the row's end pushes the strip before it springs back, px, and how long the push and return take. */
@@ -193,16 +188,19 @@ function createRowScroller(el: HTMLElement): RowScroller {
   // Set by a `replayScroll` claim; `deferred` is the scroll kept for it, run at `replayDeferred()` once its settle has moved the row.
   let replayable = false;
   let deferred: (() => void) | null = null;
-  // The view's origin is the negative of the row's centering, so the scroll a caller reads is the view less the origin.
-  let view = 0;
+  // The view is the scroll plus the origin, the negative of the row's centering. Each has its own glide and clock: a glide of one
+  // never reshapes the other, so what a caller asked of the scroll lands as asked however the row is re-centering beside it.
+  let offset = 0;
   let origin = 0;
   let originSet = false;
   let glide: Glide | null = null;
+  let originGlide: Glide | null = null;
   let frame: number | null = null;
   let anim: Animation | null = null;
   let inputs = 0;
   let settleWait = false;
   let bump: Bump | null = null;
+  let sizeMove: Parameters<RowScroller['followSize']>[0] | null = null;
 
   const listeners = new Set<() => void>();
   const notify = (): void => {
@@ -210,6 +208,11 @@ function createRowScroller(el: HTMLElement): RowScroller {
   };
   const strip = (): HTMLElement | null => el.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
   const translate = (x: number): string => `translateX(${x}px)`;
+
+  // Where each stands at `nowMs`, off its glide's own curve rather than the last frame's value.
+  const scrollAt = (nowMs: number): number => (glide === null ? offset : at(glide, nowMs));
+  const originAt = (nowMs: number): number => (originGlide === null ? origin : at(originGlide, nowMs));
+  const viewAt = (nowMs: number): number => scrollAt(nowMs) + originAt(nowMs);
 
   // A held panel and the strip's cut follow `stripX()` from the frame loop. A compositor animation runs a frame or more ahead of it, so such a row draws every frame itself.
   let framed = false;
@@ -219,20 +222,20 @@ function createRowScroller(el: HTMLElement): RowScroller {
     anim?.cancel();
     anim = null;
     if (s === null) return;
-    s.style.transform = translate(-view - bumpAt(bump, nowMs));
+    s.style.transform = translate(-(offset + origin) - bumpAt(bump, nowMs));
     s.style.opacity = glide?.fade === true ? String(opacityAt(glide, nowMs)) : '';
-    const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, bumpEnd(bump));
+    const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, originGlide === null ? 0 : originGlide.startMs + originGlide.durationMs, bumpEnd(bump));
     if (end <= nowMs || framed || typeof s.animate !== 'function') return;
     const frames: Keyframe[] = [];
     const steps = Math.max(1, Math.ceil((end - nowMs) / SAMPLE_MS));
     for (let k = 0; k <= steps; k += 1) {
       const t = nowMs + ((end - nowMs) * k) / steps;
-      const keyframe: Keyframe = { transform: translate(-(glide === null ? view : at(glide, t)) - bumpAt(bump, t)), offset: k / steps };
+      const keyframe: Keyframe = { transform: translate(-viewAt(t) - bumpAt(bump, t)), offset: k / steps };
       if (glide?.fade === true) keyframe.opacity = String(opacityAt(glide, t));
       frames.push(keyframe);
     }
     // Under the animation, the rest it lands on, so its end hands over without a frame of the old value.
-    s.style.transform = translate(-(glide?.to ?? view));
+    s.style.transform = translate(-((glide?.to ?? offset) + (originGlide?.to ?? origin)));
     s.style.opacity = '';
     anim = s.animate(frames, { duration: end - nowMs, easing: 'linear', fill: 'none' });
   };
@@ -241,24 +244,28 @@ function createRowScroller(el: HTMLElement): RowScroller {
     frame = null;
     const now = performance.now();
     if (glide !== null) {
-      view = at(glide, now);
+      offset = at(glide, now);
       if (now >= glide.startMs + glide.durationMs) endGlide();
+    }
+    if (originGlide !== null) {
+      origin = at(originGlide, now);
+      if (now >= originGlide.startMs + originGlide.durationMs) originGlide = null;
     }
     if (bump !== null && now >= bumpEnd(bump)) bump = null;
     const s = strip();
     // Without the Web Animations API the frame loop draws each frame itself.
     if (anim === null && s !== null) {
-      s.style.transform = translate(-view - bumpAt(bump, now));
+      s.style.transform = translate(-(offset + origin) - bumpAt(bump, now));
       s.style.opacity = glide?.fade === true ? String(opacityAt(glide, now)) : '';
     }
-    if (glide === null && bump === null) {
+    if (glide === null && originGlide === null && bump === null) {
       anim?.cancel();
       anim = null;
     }
     notify();
     if (moving()) frame = requestAnimationFrame(tick);
   };
-  const moving = (): boolean => glide !== null || bump !== null;
+  const moving = (): boolean => glide !== null || originGlide !== null || bump !== null;
   const run = (): void => {
     if (frame === null && moving()) frame = requestAnimationFrame(tick);
   };
@@ -268,20 +275,14 @@ function createRowScroller(el: HTMLElement): RowScroller {
     glide = null;
   }
 
-  // Sets the scroll at once, ending any scroll glide. A centering still travelling is not a scroll: the origin goes on moving to its
-  // landing as it was, so a press or a jump never freezes the row off-center.
+  // Sets the scroll at once, ending any scroll glide. A centering still travelling is not a scroll: the origin goes on to its
+  // landing on its own clock, so a press or a jump never freezes the row off-center.
   const place = (left: number): void => {
     const now = performance.now();
-    const g = glide;
     endGlide();
-    const owed = g === null || g.fade ? 0 : owedAt(g, now);
-    view = left + origin - owed;
-    if (g !== null && owed !== 0) {
-      const spent = g.owed * g.curve(Math.max(0, (now - g.startMs) / g.durationMs));
-      glide = { ...g, from: view - spent, to: view - spent + g.owed, scrolls: false };
-    }
+    origin = originAt(now);
+    offset = left;
     draw(now);
-    run();
     if (!moving()) {
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
@@ -289,16 +290,9 @@ function createRowScroller(el: HTMLElement): RowScroller {
     notify();
   };
 
-  // The scroll as a caller would read it this instant, off the glide's own curve rather than the last frame's view.
-  const scrollNow = (): number => {
-    if (glide === null) return view - origin;
-    const now = performance.now();
-    return at(glide, now) - origin + (glide.fade ? 0 : owedAt(glide, now));
-  };
-
   function stop(): void {
     if (glide === null) return;
-    place(scrollNow());
+    place(scrollAt(performance.now()));
   }
 
   // The browser scrolls a clipped container to reveal a focused element. The row takes that as a move of its own offset and
@@ -309,15 +303,15 @@ function createRowScroller(el: HTMLElement): RowScroller {
       const by = el.scrollLeft;
       if (by === 0) return;
       el.scrollLeft = 0;
-      place(scrollNow() + by);
+      place(scrollAt(performance.now()) + by);
     },
     { passive: true },
   );
 
   return {
-    scrollLeft: scrollNow,
+    scrollLeft: () => scrollAt(performance.now()),
     // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
-    stripX: () => -view - bumpAt(bump, performance.now()),
+    stripX: () => -viewAt(performance.now()) - bumpAt(bump, performance.now()),
     drawEachFrame(on) {
       if (framed === on) return;
       framed = on;
@@ -330,47 +324,35 @@ function createRowScroller(el: HTMLElement): RowScroller {
         return true;
       }
       const now = performance.now();
-      const from = glide === null ? view : at(glide, now);
+      const from = scrollAt(now);
       const before = glide;
-      const to = target + origin;
-      view = from;
+      origin = originAt(now);
+      offset = from;
       if (o.fade === true && before?.fade === true) {
         // A fade already under way goes on from the opacity it has reached, so a second jump does not flash the row.
         const t = progress(before, now);
-        glide = glideOf(from, to, now - (t < 0.5 ? t : 1 - t) * o.durationSec * 1000, o);
-      } else if (o.carry === true && before !== null && !before.fade) glide = carried(from, to, now, speedOf(before, now), o);
-      else glide = glideOf(from, to, now, o);
-      if (before !== null) glide.owed = owedAt(before, now);
+        glide = glideOf(from, target, now - (t < 0.5 ? t : 1 - t) * o.durationSec * 1000, o);
+      } else if (o.carry === true && before !== null && !before.fade) glide = carried(from, target, now, speedOf(before, now), o);
+      else if (o.fade !== true && sizeMove !== null && now - sizeMove.startMs < SIZE_FOLLOW_MS) glide = glideOf(from, target, sizeMove.startMs, { ...o, durationSec: sizeMove.durationSec, ease: [...sizeMove.ease] });
+      else glide = glideOf(from, target, now, o);
       draw(now);
       run();
       return true;
     },
-    glideTarget: () => (glide === null || !glide.scrolls ? null : glide.to - origin),
+    glideTarget: () => (glide === null ? null : glide.to),
+    followSize(o) {
+      sizeMove = o;
+    },
     reorigin(centering, o) {
       const now = performance.now();
       const next = -centering;
-      if (originSet && next === origin) return;
-      const shift = next - origin;
-      const here = glide === null ? view : at(glide, now);
-      // The first origin is where the row is drawn from, not a move: the scroll is kept and the view follows it.
-      if (!originSet || o.instant || o.durationSec <= 0) {
-        if (glide !== null) glide = { ...glide, from: glide.from + shift, to: glide.to + shift };
-        view = here + shift;
-        origin = next;
-        originSet = true;
-        draw(now);
-        run();
-        notify();
-        return;
-      }
-      const landing = glide === null ? here : glide.to;
-      origin = next;
-      view = here;
-      const owed = (glide === null ? 0 : owedAt(glide, now)) + shift;
-      const scrolls = glide?.scrolls ?? false;
-      glide = glide !== null && !glide.fade ? carried(here, landing + shift, now, speedOf(glide, now), o) : glideOf(here, landing + shift, now, o);
-      glide.owed = owed;
-      glide.scrolls = scrolls;
+      if (originSet && (originGlide === null ? origin : originGlide.to) === next) return;
+      if (glide !== null) offset = at(glide, now);
+      origin = originAt(now);
+      // The first origin is where the row is drawn from, not a move.
+      originGlide = !originSet || o.instant || o.durationSec <= 0 ? null : glideOf(origin, next, now, o);
+      originSet = true;
+      if (originGlide === null) origin = next;
       draw(now);
       run();
       notify();
@@ -404,7 +386,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
       if (claimed || o.distancePx <= 0 || o.durationSec <= 0) return;
       const now = performance.now();
       const by = direction === 'right' ? o.distancePx : -o.distancePx;
-      if (glide !== null) view = at(glide, now);
+      if (glide !== null) offset = at(glide, now);
+      origin = originAt(now);
       if (bump !== null && bump.by === by && now < releaseOf(bump)) bump.holdUntilMs = Math.max(bump.holdUntilMs, now + o.holdMs);
       else {
         const ms = o.durationSec * 1000;
@@ -416,7 +399,8 @@ function createRowScroller(el: HTMLElement): RowScroller {
     keepBump(direction, holdMs) {
       const now = performance.now();
       if (bump === null || Math.sign(bump.by) !== (direction === 'right' ? 1 : -1) || now >= releaseOf(bump) || now + holdMs <= bump.holdUntilMs) return;
-      if (glide !== null) view = at(glide, now);
+      if (glide !== null) offset = at(glide, now);
+      origin = originAt(now);
       bump.holdUntilMs = now + holdMs;
       draw(now);
       run();
@@ -434,9 +418,9 @@ function createRowScroller(el: HTMLElement): RowScroller {
       return {
         write(left) {
           if (released || max === null) return 0;
-          const before = view;
+          const before = offset;
           place(Math.min(max, Math.max(0, left)));
-          return view - before;
+          return offset - before;
         },
         setMaxScroll(next) {
           max = next;
