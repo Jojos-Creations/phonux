@@ -645,7 +645,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
     // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
     if (rowNumbers.stepStops.length === 0) {
-      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
+      // A hold that lets go because the last wide panel left already has every panel where rest 0 draws it: a glide would slide them all in from the left.
+      const kept = before === undefined || before.held.length === 0 || rowNumbers.held.length > 0 ? [] : rowNumbers.ids.filter((id) => before.ids.includes(id));
+      const inPlace = before !== undefined && kept.length > 0 && kept.every((id) => Math.abs(before.stripStart + before.leftOffsets[before.ids.indexOf(id)]! - base - rowNumbers.stripStart - rowNumbers.leftOffsets[rowNumbers.ids.indexOf(id)]!) < 1);
+      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || inPlace || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
       return;
     }
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
