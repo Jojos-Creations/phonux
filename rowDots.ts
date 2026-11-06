@@ -183,20 +183,28 @@ export function withParked(layout: DotLayout, map: DotMap, parked: readonly Park
   return { dots, oval, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
 }
 
-/** The bar with a dot for each panel held at an edge, at that end of the row. The oval stays over the strip, which is all it can move across. */
+/**
+ * The bar with a dot for each panel held at an edge. A held panel is always on screen, so its dot stays inside the oval, at the
+ * oval's end for its edge, and the oval grows to hold it. The dots past it move over to make room.
+ */
 export function withHeld(bar: FullDotLayout, held: readonly { id: string; side: 'left' | 'right'; slots: number; hollow: boolean }[]): FullDotLayout {
   if (held.length === 0) return bar;
-  let at = 0;
-  const place = (h: (typeof held)[number]): DotPlace => {
-    const width = dotWidthOf(Math.max(1, Math.round(h.slots)));
-    const dot = { id: h.id, left: at, width, hollow: h.hollow };
-    at += width + DOT_GAP_PX;
+  const widthOf = (h: (typeof held)[number]): number => dotWidthOf(Math.max(1, Math.round(h.slots)));
+  const room = (side: 'left' | 'right'): number => held.filter((h) => h.side === side).reduce((sum, h) => sum + widthOf(h) + DOT_GAP_PX, 0);
+  const leftRoom = room('left');
+  const rightRoom = room('right');
+  const inside = (d: DotPlace, edge: number): boolean => d.left + d.width / 2 >= edge;
+  const end = bar.oval.left + bar.oval.width;
+  const dots = bar.dots.map((d) => ({ ...d, left: d.left + (inside(d, bar.oval.left) ? leftRoom : 0) + (inside(d, end) ? rightRoom : 0) }));
+  let at = bar.oval.left;
+  const heldDots = (side: 'left' | 'right'): DotPlace[] => held.filter((h) => h.side === side).map((h) => {
+    const dot = { id: h.id, left: at, width: widthOf(h), hollow: h.hollow };
+    at += dot.width + DOT_GAP_PX;
     return dot;
-  };
-  const left = held.filter((h) => h.side === 'left').map(place);
-  const shift = at;
-  const strip = bar.dots.map((d) => ({ ...d, left: d.left + shift }));
-  at += bar.dots.length === 0 ? 0 : bar.width + DOT_GAP_PX;
-  const right = held.filter((h) => h.side === 'right').map(place);
-  return { ...bar, dots: [...left, ...strip, ...right], oval: { ...bar.oval, left: bar.oval.left + shift }, width: Math.max(0, at - DOT_GAP_PX) };
+  });
+  const lefts = heldDots('left');
+  at = end + leftRoom + DOT_GAP_PX;
+  const rights = heldDots('right');
+  const all = [...lefts, ...dots, ...rights].sort((a, b) => a.left - b.left);
+  return { ...bar, dots: all, oval: { left: bar.oval.left, width: bar.oval.width + leftRoom + rightRoom }, width: bar.width + leftRoom + rightRoom };
 }

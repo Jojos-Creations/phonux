@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- The dot bar keeps a held panel's dot, at its end of the bar, and a click on it takes the row back to the start. The oval sits over the panels the strip shows: a left hold had put it one slot too far left. `PanelDots.shown` lists the panels on screen.
+- The dot bar keeps a held panel's dot inside the oval, which grows to hold it, and a click on it takes the row back to the start. The oval sits over the panels the strip shows: a left hold had put it one slot too far left. `PanelDots.shown` lists the panels on screen.
 - A row can move right of its start so the root panel reaches the center: a step left with nothing parked there, or a click on the root's dot, opens blanks before the root (`RowRest.head`), and a step right closes them and brings the parked panels back.
 - `PanelsAPI.closedByPerson` lists the closes the person made, for a host that draws its own undo notice: a close from code stays in `recentlyClosed` and gives the person nothing to undo.
 - A panel's header and footer stay up when the pointer crosses the gap to them, at any speed.
