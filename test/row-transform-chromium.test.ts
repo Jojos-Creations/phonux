@@ -1,18 +1,18 @@
 /**
  * A stepping row moves by its strip's transform, never a scroll: at every rest the container's scrollLeft is 0, the strip is drawn at
  * its margin less the row's offset, and the offset is on a stop. A step glides as one Web Animations API animation with no style
- * write per frame, which the compositor runs while the main thread is busy. Needs real layout, so it drives Chromium through
+ * write per frame, which the compositor runs while the main thread is busy. Needs real layout, so it drives headless Chromium through
  * Playwright and skips when Playwright or Chromium is not installed (PLAYWRIGHT_DIR=<node_modules holding playwright> finds a copy
  * elsewhere).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { createRequire } from 'node:module';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { launchChromium } from './support/chromium.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -25,13 +25,6 @@ interface Page {
   mouse: { move(x: number, y: number): Promise<void>; wheel(dx: number, dy: number): Promise<void> };
   context(): { close(): Promise<void> };
 }
-interface Browser {
-  newContext(o: { viewport: { width: number; height: number } }): Promise<{ newPage(): Promise<Page> }>;
-  close(): Promise<void>;
-}
-interface PlaywrightModule {
-  chromium: { launch(): Promise<Browser> };
-}
 /** What tools/proof/step-entry.tsx.txt puts on the page. */
 interface Probe {
   container(): HTMLElement;
@@ -39,29 +32,13 @@ interface Probe {
   provided(): { rowNumbers: { stops: number[]; rowMarginLeft: number } };
 }
 
-async function loadPlaywright(): Promise<PlaywrightModule | undefined> {
-  try {
-    const from = process.env.PLAYWRIGHT_DIR === undefined ? undefined : createRequire(join(process.env.PLAYWRIGHT_DIR, 'x.js')).resolve('playwright');
-    const ns = (await import(from === undefined ? 'playwright' : pathToFileURL(from).href)) as PlaywrightModule & { default?: PlaywrightModule };
-    return ns.chromium === undefined ? ns.default : ns;
-  } catch {
-    return undefined;
-  }
-}
-
 const ROWS = ['1,4', '2,4,1,1', '1,4,1,2'];
 const WIDTHS = [1800, 1280, 844];
 const GAPS = [16, 24];
 
 test('a stepping row rests on every stop by its strip transform alone, at 1800, 1280 and 844 with gaps of 16 and 24, and glides on the compositor', async (t) => {
-  const pw = await loadPlaywright();
-  if (pw === undefined) return void t.skip('playwright is not installed');
-  let browser: Browser;
-  try {
-    browser = await pw.chromium.launch();
-  } catch {
-    return void t.skip('chromium is not installed');
-  }
+  const browser = await launchChromium<Page>(t, 'row-transform-chromium.test.ts');
+  if (browser === undefined) return;
   const { build } = await import('esbuild');
   const dir = mkdtempSync(join(tmpdir(), 'row-transform-'));
   writeFileSync(join(dir, 'entry.tsx'), readFileSync(join(ROOT, 'tools/proof/step-entry.tsx.txt'), 'utf8'));

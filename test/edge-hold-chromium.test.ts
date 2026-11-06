@@ -6,11 +6,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { createRequire } from 'node:module';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { launchChromium } from './support/chromium.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -20,23 +20,6 @@ interface Page {
   waitForSelector(selector: string): Promise<unknown>;
   waitForTimeout(ms: number): Promise<void>;
   evaluate<T, A = undefined>(fn: (arg: A) => T, arg?: A): Promise<T>;
-}
-interface Browser {
-  newContext(o: { viewport: { width: number; height: number } }): Promise<{ newPage(): Promise<Page> }>;
-  close(): Promise<void>;
-}
-interface PlaywrightModule {
-  chromium: { launch(): Promise<Browser> };
-}
-
-async function loadPlaywright(): Promise<PlaywrightModule | undefined> {
-  try {
-    const from = process.env.PLAYWRIGHT_DIR === undefined ? undefined : createRequire(join(process.env.PLAYWRIGHT_DIR, 'x.js')).resolve('playwright');
-    const ns = (await import(from === undefined ? 'playwright' : pathToFileURL(from).href)) as PlaywrightModule & { default?: PlaywrightModule };
-    return ns.chromium === undefined ? ns.default : ns;
-  } catch {
-    return undefined;
-  }
 }
 
 /** One row as the page reports it: the held panels, the rest of the strip, and where each slot sits in the window. */
@@ -57,14 +40,8 @@ const GAP = 16;
 const PHONE = 390;
 
 test('a held panel stays at its edge in Chromium while the strip scrolls under it, and a panel that cannot fit lets go', async (t) => {
-  const pw = await loadPlaywright();
-  if (pw === undefined) return void t.skip('playwright is not installed');
-  let browser: Browser;
-  try {
-    browser = await pw.chromium.launch();
-  } catch {
-    return void t.skip('chromium is not installed');
-  }
+  const browser = await launchChromium<Page>(t, 'edge-hold-chromium.test.ts');
+  if (browser === undefined) return;
   const { build } = await import('esbuild');
   const dir = mkdtempSync(join(tmpdir(), 'edge-hold-'));
   writeFileSync(join(dir, 'entry.tsx'), readFileSync(join(ROOT, 'tools/proof/edge-hold-entry.tsx.txt'), 'utf8'));
