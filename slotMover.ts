@@ -141,6 +141,11 @@ export function setHoldShift(holdBox: Element, px: number): void {
   holdShifts.set(holdBox, px);
 }
 
+/** The shift last recorded for a held panel's host; 0 for one never held. @internal */
+export function holdShiftOf(holdBox: Element): number {
+  return holdShifts.get(holdBox) ?? 0;
+}
+
 /** A box on screen, in px. @internal */
 export interface ScreenBox {
   readonly x: number;

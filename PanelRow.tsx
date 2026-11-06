@@ -30,9 +30,7 @@ import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
 import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
-import { ROW_STRIP_ATTRIBUTE } from './rowDom.js';
-import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
-import { setHoldShift } from './slotMover.js';
+import { useRowDraw, type HoldSpec } from './rowDraw.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
@@ -104,52 +102,16 @@ const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
 /**
  * The host of every edgeHold panel, held or not, so the panel's React place never changes as its hold starts or lets go. A
  * held panel's host is a zero-height flex line that starts at the strip's content origin (`lineLeft` is minus the strip's
- * start), holding a spacer and the panel's box. The row moves by a transform, never a scroll, so the box sticks the way a
- * sticky box would: kept `left` px inside the container's left edge and `right` px inside its right one, and never outside
- * its line. A panel that is not held passes through unchanged.
+ * start), holding a spacer and the panel's box. The row moves by a transform, never a scroll, so the row's drawing pass
+ * (rowDraw.ts) moves the box the way a sticky box would stick: kept `left` px inside the container's left edge and `right` px
+ * inside its right one, and never outside its line. A panel that is not held passes through unchanged.
  */
 function PanelHold({ sticky, spacer, lineLeft, lineWidth, width, children }: { sticky: { left?: number; right?: number } | null; spacer: number; lineLeft: number; lineWidth: number; width: number; children: React.ReactNode }): React.ReactElement {
   const held = sticky !== null;
-  const boxRef = React.useRef<HTMLDivElement>(null);
-  const shift = React.useRef(0);
-  React.useLayoutEffect(() => {
-    const box = boxRef.current;
-    const container = box === null ? null : closestRowScroller(box);
-    const strip = container?.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
-    if (!held || box === null || container == null || strip == null) {
-      if (box !== null) {
-        box.style.transform = '';
-        setHoldShift(box, 0);
-      }
-      shift.current = 0;
-      return undefined;
-    }
-    const scroller = rowScrollerFor(container);
-    // Measured once per commit: where the box sits in the strip, which no move of the row changes. Every frame after is arithmetic.
-    const inStrip = box.getBoundingClientRect().left - strip.getBoundingClientRect().left - shift.current;
-    // A sticky box keeps its insets inside the container's padding, so they count from the content box's edges.
-    const pad = getComputedStyle(container);
-    const padLeft = Number.parseFloat(pad.paddingLeft) || 0;
-    const contentRight = container.clientWidth - (Number.parseFloat(pad.paddingRight) || 0);
-    const place = (): void => {
-      const x = strip.offsetLeft + scroller.stripX() + inStrip;
-      let to = x;
-      if (sticky.right !== undefined) to = Math.min(to, contentRight - sticky.right - width);
-      if (sticky.left !== undefined) to = Math.max(to, padLeft + sticky.left);
-      const lineStart = x - spacer;
-      to = Math.min(Math.max(to, lineStart), lineStart + lineWidth - width);
-      shift.current = to - x;
-      setHoldShift(box, shift.current);
-      box.style.transform = shift.current === 0 ? '' : `translateX(${shift.current}px)`;
-    };
-    place();
-    return scroller.subscribe(place);
-  });
   return (
     <Box data-row-hold-line="" style={held ? { display: 'flex', height: 0, width: lineWidth, marginLeft: `${lineLeft}px`, flexShrink: 0 } : { display: 'contents' }}>
       <Box style={held ? { width: spacer, flexShrink: 0 } : { display: 'none' }} />
       <Box
-        ref={boxRef}
         data-row-hold=""
         data-hold-left={held && sticky.left !== undefined ? `${sticky.left}px` : undefined}
         data-hold-right={held && sticky.right !== undefined ? `${sticky.right}px` : undefined}
@@ -418,6 +380,8 @@ export function PanelRow({
   const dropPartsNow = drop === null || dropEntry === undefined ? undefined : dropParts(drop, dropRowOf(dropEntry));
   if (dropPartsNow !== undefined) for (const [id, by] of dropPartsNow.shifts) shiftById.set(id, by);
   const gapSpan = dropPartsNow?.gap == null ? 0 : dropPartsNow.gap.width + gap;
+  // The held and stuck entries slotFor draws this render, for the row's one drawing pass, which runs after the render is done.
+  const holds: HoldSpec[] = [];
   // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
   const slotFor = (p: PanelRowEntry, rest: { leftOffset: number; width: number }, held: boolean): React.ReactElement => {
     const Component = resolveViewIn(templateOf, p.view);
@@ -437,6 +401,8 @@ export function PanelRow({
     // A right hold's group starts where the strip's row box ends (the row box is the strip's first item).
     const spacer = h !== undefined ? (h.side === 'left' ? h.offset : stripStart + reservedWidth + gapSpan + h.offset) : stuckAt !== undefined ? stripStart + rest.leftOffset : 0;
     const summary = renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow);
+    const lineWidth = stripStart + reservedWidth + gapSpan + (rowNumbers?.rightInset ?? 0);
+    if (sticky !== null) holds.push({ id: p.id, sticky, spacer, lineWidth, width: rest.width });
     return (
       <PanelSlotContext.Provider
         key={p.id}
@@ -466,7 +432,7 @@ export function PanelRow({
             }),
         }}
       >
-        <PanelHold sticky={sticky} spacer={spacer} lineLeft={-stripStart} lineWidth={stripStart + reservedWidth + gapSpan + (rowNumbers?.rightInset ?? 0)} width={rest.width}>
+        <PanelHold sticky={sticky} spacer={spacer} lineLeft={-stripStart} lineWidth={lineWidth} width={rest.width}>
         <PanelRowSlot
           panelId={p.id}
           label={labels.panelPosition(p.title || labels.untitledPanel, index + 1, presentAll.length)}
@@ -488,6 +454,7 @@ export function PanelRow({
             binding.touch(p.id, control);
           }}
           dragged={dragging?.id === p.id}
+          frame={sticky === null ? (rowNumbers?.leftInset ?? 0) : undefined}
         >
           {/* A resolved component -- built-in or third-party -- is written against PanelSummary only,
               never the internal record. */}
@@ -504,6 +471,7 @@ export function PanelRow({
       </PanelSlotContext.Provider>
     );
   };
+  useRowDraw(boxRef, rowNumbers, gap, holds);
   return (
     <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>

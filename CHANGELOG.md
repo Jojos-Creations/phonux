@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A stepping row no longer draws blank panels while a long glide runs: the cut at the slot grid's edge stands still on a new `data-row-window` element around the strip, where it had been rewritten each frame from the strip's position and trailed it on the compositor.
+- Locking a panel at the left edge no longer slides the strip's panels a slot to the right and back.
 - A restored panel keeps its saved width under `tuning.shrinkUnfocused`, instead of starting at one phone until it is next active.
 - The dot bar keeps a held panel's dot inside the oval, which grows to hold it, and a click on it takes the row back to the start. The oval sits over the panels the strip shows: a left hold had put it one slot too far left. `PanelDots.shown` lists the panels on screen.
 - A row can move right of its start so the root panel reaches the center: a step left with nothing parked there, or a click on the root's dot, opens blanks before the root (`RowRest.head`), and a step right closes them and brings the parked panels back.

@@ -27,11 +27,10 @@ afterEach(() => {
 /** Which drawn entries of `n` lie wholly outside the slot grid at offset `at`: the row's reach rule, restated from its numbers. */
 const outOfReach = (n: RowNumbers, at: number): boolean[] => n.ids.map((_, k) => slotCutAt(n, k, at, GAP).away);
 
-/** The strip's clip at offset `at`: the grid's edges in the strip's own coordinates, which the margin and the offset move. */
-const stripClipAt = (n: RowNumbers, at: number): string => {
+/** The cut at the grid's edges: on the strip's fixed parent, so the same at every offset, counted from where the strip starts after the left group. */
+const windowClip = (n: RowNumbers): string => {
   const { lo, hi } = gridEdgesOf(n);
-  const stripX = n.rowMarginLeft - at;
-  return `polygon(${lo - stripX}px -100000px, ${hi - stripX}px -100000px, ${hi - stripX}px 100000px, ${lo - stripX}px 100000px)`;
+  return `polygon(${lo - n.leftInset}px -100000px, ${hi - n.leftInset}px -100000px, ${hi - n.leftInset}px 100000px, ${lo - n.leftInset}px 100000px)`;
 };
 
 const mounted = (count = 5, container = 1000) => {
@@ -46,6 +45,7 @@ const mounted = (count = 5, container = 1000) => {
     layout,
     numbers,
     strip: () => m.container.querySelector<HTMLElement>('[data-row-strip]')!,
+    window: () => m.container.querySelector<HTMLElement>('[data-row-window]')!,
     shown: () => slots().map((el) => el.style.visibility),
     cuts: () => slots().map((el) => el.style.clipPath),
     inert: () => slots().map((el) => el.hasAttribute('inert')),
@@ -57,7 +57,8 @@ test('golden at the first stop: two whole panels in the grid, none hidden, and t
   assert.equal(t.numbers().rowMarginLeft, 86, 'positive control: the margin is half the 172 leftover');
   assert.deepEqual(t.shown(), ['', '', '', '', '', '']);
   assert.deepEqual(t.inert(), [false, false, true, true, true, true]);
-  assert.equal(t.strip().style.clipPath, stripClipAt(t.numbers(), 0), 'the strip is cut at the grid, 86 to 882');
+  assert.equal(t.window().style.clipPath, windowClip(t.numbers()), 'the strip is cut at the grid, 86 to 882, by its fixed parent');
+  assert.equal(t.strip().style.clipPath, '', 'the strip itself carries no cut');
   assert.deepEqual(t.cuts(), ['', '', '', '', '', ''], 'no hold: a slot carries no cut of its own');
 });
 
@@ -69,7 +70,7 @@ test('at every stop no slot is hidden, the strip is cut at the grid edges and in
     setRowOffset(t.m.container, stop);
     t.layout();
     assert.deepEqual(t.shown(), t.slots().map(() => ''), `every slot draws at stop ${stop}`);
-    assert.equal(t.strip().style.clipPath, stripClipAt(t.numbers(), stop), `the grid's edges at stop ${stop}`);
+    assert.equal(t.window().style.clipPath, windowClip(t.numbers()), `the grid's edges at stop ${stop}`);
     const away = outOfReach(t.numbers(), stop);
     assert.equal(away.filter((a) => !a).length, 2, `control: stop ${stop} shows two whole panels`);
     assert.deepEqual(t.inert(), away, `inert follows reach at stop ${stop}`);
@@ -121,7 +122,7 @@ test('off a stop, mid-glide, the panels crossing the grid edge are cut there by 
   setRowOffset(t.m.container, 477);
   t.layout();
   assert.deepEqual(t.shown(), ['', '', '', '', '', ''], 'nothing is hidden');
-  assert.equal(t.strip().style.clipPath, stripClipAt(t.numbers(), 477), 'the cut moves with the offset');
+  assert.equal(t.window().style.clipPath, windowClip(t.numbers()), 'the cut stands still while the offset moves');
   assert.deepEqual(t.inert(), [true, false, false, false, true, true], 'the fourth panel, at 827, shows 55 px inside the grid: in reach');
   setRowOffset(t.m.container, 476);
   t.layout();
@@ -135,12 +136,12 @@ test('a slot that slides without a scroll, as after a close or in a drag preview
   const t = mounted();
   setRowOffset(t.m.container, 477);
   t.layout();
-  const clip = t.strip().style.clipPath;
+  const clip = t.window().style.clipPath;
   t.m.rerender(1000);
   moverOf(t.slots()[0]!)!.set({ x: 391, y: 0, scale: 1, opacity: 1 });
   await advanceFrames(GLIDE_DONE_MS);
   assert.equal(t.slots()[0]!.style.visibility, '', 'a slot fully in view is drawn');
-  assert.equal(t.strip().style.clipPath, clip, 'the grid cut is the strip\'s, so a slot moving inside it is cut where it is drawn');
+  assert.equal(t.window().style.clipPath, clip, 'the grid cut is the strip\'s fixed parent, so a slot moving inside it is cut where it is drawn');
 });
 
 const FOUR_FIT = 1700;
@@ -153,7 +154,7 @@ test('when four phone slots fit, the fifth is wholly past the grid: drawn in the
   assert.deepEqual(n.stops.slice(0, 3), [0, 406, 812], 'positive control: the row steps one phone width, with the 30 centering shift before the strip');
   assert.deepEqual(gridEdgesOf(n), { lo: 30, hi: 1638 }, 'the grid: four slots in the 1668 window');
   assert.deepEqual(t.shown().slice(0, 7), ['', '', '', '', '', '', ''], 'no slot is hidden');
-  assert.equal(t.strip().style.clipPath, stripClipAt(n, 0));
+  assert.equal(t.window().style.clipPath, windowClip(n));
   assert.deepEqual(t.inert(), [false, false, false, false, true, true, true], 'the fifth panel starts at 1654, past the grid: out of reach');
 });
 
@@ -194,4 +195,20 @@ test('a slot sliding in after a close is drawn throughout, and reach follows the
   assert.equal(slot('s4').style.visibility, '', 'a whole slot draws at rest');
   assert.equal(slot('s4').hasAttribute('inert'), false, 's4 is in the fourth slot now');
   assert.equal(slot('s5').hasAttribute('inert'), true, 's5 is past the grid');
+});
+
+test('a glide writes the grid cut no more than the commit that set it: nothing is rewritten from the strip each frame', async () => {
+  const t = mounted();
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const writes: string[] = [];
+  const observer = new MutationObserver((records) => writes.push(...records.map((r) => `${r.target === t.window() ? 'window' : 'strip'}:${r.attributeName}`)));
+  observer.observe(t.window(), { attributes: true, attributeFilter: ['style'] });
+  const before = t.window().style.clipPath;
+  t.m.wheel({ deltaX: 50 });
+  await advanceFrames(GLIDE_DONE_MS);
+  observer.disconnect();
+  assert.equal(rowOffsetOf(t.m.container), 406, 'control: the row glided a stop');
+  assert.deepEqual(writes, [], 'the window element was not written during the glide');
+  assert.equal(t.window().style.clipPath, before);
+  assert.notEqual(before, '', 'control: there is a cut to rewrite');
 });

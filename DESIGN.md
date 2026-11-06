@@ -446,8 +446,15 @@ spacers in the scroller, as wide as the left and right groups, so the strip star
   inset less its offset and its width. Its spacer puts it at its group's place at scroll 0, so the group needs no portal.
 - `PanelHold` renders for every panel, held or not, so the React tree never changes when a hold starts or lets go. A held panel's host
   is a zero-height flex line that starts at the scroller's content origin (minus the strip's start), holding a spacer and the panel's box,
-  which is `position: sticky` with its insets. An unheld panel's host is `display: contents`. The line must span the whole content: a
-  sticky box clamps within its containing block, and a margin on the box itself would stop it reaching the right edge.
+  which the row's drawing pass moves every frame to where a sticky box with those insets would sit (the strip moves by a transform, so
+  `position: sticky` has nothing to stick to). An unheld panel's host is `display: contents`. The line spans the whole content, and the
+  pass keeps the box inside it.
+- The row's drawing pass (`rowDraw.ts`, called from `PanelRow`) is the one place that draws from where the strip is. The grid's cut is a
+  `clip-path` on `data-row-window`, the strip's parent, written once per commit: the grid's edges stand still in the window while the
+  strip moves under them, and a cut written each frame from the strip's position trails a strip the compositor draws, which left blank
+  panels on a long glide. The held boxes' clamp, the cut and fade of a strip panel beside a held one, and which panels the window does
+  not reach are written per frame from the same scroll; a row with a held or stuck panel asks the scroller for a `sameFrame` listener,
+  which makes the frame loop draw the strip, so those writes and the strip are one curve.
 - A panel's view is mounted once and kept, whether it is held left, right or both, and whether the hold starts or lets go (checked in
   `test/edge-hold-chromium.test.ts`, which counts mounts and keeps the DOM node across window resizes that release and admit a hold).
 - Open: WebKit and Firefox are not verified.

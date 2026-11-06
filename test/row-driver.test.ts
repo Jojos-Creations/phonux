@@ -23,9 +23,12 @@ const GLIDE = { durationSec: 0.4, instant: false, ease: 'cubic-out' } as const;
 function row(): { el: HTMLDivElement; strip: HTMLElement; scroller: RowScroller } {
   const el = document.createElement('div');
   document.body.appendChild(el);
+  const window = document.createElement('div');
+  window.setAttribute('data-row-window', '');
   const strip = document.createElement('div');
   strip.setAttribute('data-row-strip', '');
-  el.appendChild(strip);
+  window.appendChild(strip);
+  el.appendChild(window);
   return { el, strip, scroller: rowScrollerFor(el) };
 }
 const drawn = (strip: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(strip.style.transform)?.[1] ?? 0);

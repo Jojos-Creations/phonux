@@ -27,7 +27,7 @@ import { focusEdgePanel, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
-import { gridEdgesOf, nearestStop, scrollHoldingEdge, slotCutAt, slotEdgesAt, snapToStop, type RowNumbers } from './rowNumbers.js';
+import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 
@@ -189,37 +189,6 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   beforeRow?: React.ReactNode;
   /** The row's content: the panels. */
   children: React.ReactNode;
-}
-
-/** How far above and below its box a clip stays open, so a panel's shadow or focus ring is never cut. */
-const CLIP_OPEN_PX = 100000;
-
-/** The clip that cuts a slot of `width` to the band `lo..hi` of its own box; '' when nothing is cut. A style, never animated. */
-function bandClip(lo: number, hi: number, width: number): string {
-  const left = Math.max(0, lo);
-  const right = Math.max(0, width - hi);
-  return left > 0 || right > 0 ? `inset(-${CLIP_OPEN_PX}px ${right}px -${CLIP_OPEN_PX}px ${left}px)` : '';
-}
-
-/** How far past a slot's sides its fade stays open, so a panel's glow is not cut on the side the fade is not on. */
-const FADE_OPEN_PX = 400;
-
-/** Fades `slot` in over `gap` px from `start` in its own box, or clears the fade for null. A style, never animated. */
-function drawFade(slot: HTMLElement, start: number | null, gap: number): void {
-  const image = start === null ? '' : `linear-gradient(to right, transparent ${start + FADE_OPEN_PX}px, #000 ${start + gap + FADE_OPEN_PX}px)`;
-  if (slot.style.maskImage === image) return;
-  slot.style.maskImage = image;
-  // No clip to the box, repeated down it: a header, a footer and a glow stand outside the slot and fade with it.
-  slot.style.setProperty('mask-size', start === null ? '' : `calc(100% + ${2 * FADE_OPEN_PX}px) 100%`);
-  slot.style.setProperty('mask-position', start === null ? '' : `-${FADE_OPEN_PX}px 0`);
-  slot.style.setProperty('mask-repeat', start === null ? '' : 'repeat-y');
-  slot.style.setProperty('mask-clip', start === null ? '' : 'no-clip');
-}
-
-/** The clip for `slotEdgesAt`'s cuts: '' when nothing is cut, and open on an uncut side, so a panel's glow still shows there. */
-function edgeClip(left: number, right: number): string {
-  if (left <= 0 && right <= 0) return '';
-  return `inset(-${CLIP_OPEN_PX}px ${right > 0 ? `${right}px` : `-${FADE_OPEN_PX}px`} -${CLIP_OPEN_PX}px ${left > 0 ? `${left}px` : `-${FADE_OPEN_PX}px`})`;
 }
 
 /** A subscription that never fires, for a shell given no workspace. */
@@ -418,72 +387,11 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     scroller.stop();
     scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
-  // Reach and the cut are written straight to the slots at every move of the row, since a state update per frame of a glide would
-  // re-render the whole row. Both are judged from the row's numbers and offset, never from a slot's box: a box read before a slot
-  // grew, or mid-slide, is stale, and a stale box once hid panels the window showed. No slot is ever hidden: a panel wholly inside
-  // the slot grid is drawn whole, one crossing the grid's edge is cut there, and nothing is drawn in the margins beside the grid.
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
-    const strip = rowRef.current;
-    if (container === null || strip === null || rowNumbers === undefined) return;
+    if (container === null || rowNumbers === undefined) return;
     const n = rowNumbers;
     const scroller = rowScrollerFor(container);
-    scroller.drawEachFrame(n.held.length > 0 || n.stuck.length > 0);
-    const slots = [...strip.querySelectorAll<HTMLElement>('[data-row-slot]')];
-    // A row whose strip fits, or that scrolls freely with no hold, has no grid edge inside the window: it renders exactly as it did.
-    const clips = n.stops.length > 0 || n.held.length > 0 || n.stuck.length > 0;
-    const bleeds = clips && n.leftInset > 0 && n.rightInset === 0 && n.stuck.length === 0;
-    const grid = gridEdgesOf(n);
-    const apply = (): void => {
-      const held = scroller.claimHeld();
-      const at = scroller.scrollLeft();
-      // The strip is cut at the grid's edges in its own coordinates, which move with it: a slide, a drag's preview or the end
-      // bump moves panels inside the strip, and whatever crosses the edge is cut there. The strip starts after the left group.
-      const stripLeft = n.leftInset + scroller.stripX();
-      // A row held only at the left runs on to the window's edge: its slots cut themselves there (`slotEdgesAt`).
-      const stripRight = (bleeds ? n.windowWidth + gap : grid.hi) - stripLeft;
-      const stripClip = clips ? `polygon(${grid.lo - stripLeft}px -${CLIP_OPEN_PX}px, ${stripRight}px -${CLIP_OPEN_PX}px, ${stripRight}px ${CLIP_OPEN_PX}px, ${grid.lo - stripLeft}px ${CLIP_OPEN_PX}px)` : '';
-      if (strip.style.clipPath !== stripClip) strip.style.clipPath = stripClip;
-      const seen = new Set<string>();
-      for (const slot of slots) {
-        const id = slot.dataset.rowId;
-        // A held or stuck panel is in reach at every offset, and so is an id `n` does not draw (one still exiting).
-        const k = id === undefined || n.stuck.some((s) => s.id === id) ? -1 : n.ids.indexOf(id);
-        const cut = k < 0 ? null : slotCutAt(n, k, at, gap);
-        // A stepping row rests with whole panels past the window; a free-scrolling row keeps every slot in reach.
-        const away = n.stops.length > 0 && cut !== null && cut.away;
-        // Published here, not in PanelRow: this loop is the only place that judges a slot against the window.
-        if (id !== undefined) {
-          seen.add(id);
-          awayStore.set(id, away);
-        }
-        // A strip panel beside a held or stuck panel is cut at that panel's gap, never hidden: what its window shows of it is drawn.
-        // The grid's own edges are the strip's cut above, so a slot sliding off its numbers is still cut where it is drawn.
-        const edges = bleeds && cut !== null ? slotEdgesAt(n, k, at, gap) : null;
-        const slotClip = edges !== null ? edgeClip(edges.left, edges.right) : clips && cut !== null && (n.leftInset > 0 || n.rightInset > 0 || n.stuck.length > 0) ? bandClip(cut.left, n.widths[k]! - cut.right, n.widths[k]!) : '';
-        if (slot.style.clipPath !== slotClip) slot.style.clipPath = slotClip;
-        drawFade(slot, edges === null ? null : edges.fade, gap);
-        // A drag's claim holds reach still until the release.
-        if (held) continue;
-        if (slot.style.pointerEvents !== (away ? 'none' : '')) slot.style.pointerEvents = away ? 'none' : '';
-        // Inert too: Tab or find-in-page would otherwise move the row off its stop to reveal a panel the window does not reach.
-        if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
-      }
-      awayStore.retain(seen);
-    };
-    apply();
-    const unsubscribe = scroller.subscribe(apply);
-    // A claim's release moves no offset, so reach catches up on the next pointer or key on the row: on the frame after it, so the
-    // key itself (a Tab across an inert panel) is answered by the reach the row had.
-    let frame = 0;
-    const later = (): void => {
-      if (frame === 0) frame = requestAnimationFrame(() => {
-        frame = 0;
-        apply();
-      });
-    };
-    container.addEventListener('pointermove', later, { passive: true });
-    container.addEventListener('keydown', later);
     // A click or focus in a panel the grid cuts reveals it off a stop; the row settles back onto one.
     const onFocus = (event: FocusEvent): void => {
       // A held panel is in view at every scroll, so focusing it moves nothing.
@@ -502,16 +410,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       });
     };
     container.addEventListener('focusin', onFocus);
-    return () => {
-      container.removeEventListener('focusin', onFocus);
-      cancelAnimationFrame(frame);
-      container.removeEventListener('pointermove', later);
-      container.removeEventListener('keydown', later);
-      unsubscribe();
-    };
+    return () => container.removeEventListener('focusin', onFocus);
   });
   // Each edge element is a plain spacer as wide as its group, so the strip starts after the left one and ends before the right one.
-  // The held panels themselves sit in the strip and are positioned from here (see PanelRow's PanelHold), so these hold no content.
+  // The held panels themselves sit in the strip and are positioned by the row's drawing pass (rowDraw.ts), so these hold no content.
   // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
   const holdsLeft = rowNumbers?.held.some((h) => h.side === 'left') === true;
   const holdsRight = rowNumbers?.held.some((h) => h.side === 'right') === true;
@@ -565,15 +467,17 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         {holdsLeft ? <div data-row-edge="left" style={leftEdgeStyle} /> : null}
         {/* The row's scroller owns the strip's transform: its centering margin and its offset are one translate. The transform
             makes the strip one stacking context, so it takes the slots' own base layer, or a later positioned sibling would cover them. */}
+        <div data-row-window="" style={{ display: 'flex', marginRight: 'auto', zIndex: ROW_LAYER_Z.BASE, flexShrink: scrolls ? 0 : 1 }}>
         <motion.div
           ref={rowRef}
           data-row-strip=""
-          style={{ display: 'flex', gap: `${gap}px`, position: 'relative', zIndex: ROW_LAYER_Z.BASE, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', marginRight: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
+          style={{ display: 'flex', gap: `${gap}px`, position: 'relative', zIndex: ROW_LAYER_Z.BASE, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={marginTop === undefined ? {} : { marginTop }}
           transition={reduced || !rowResizeSettled ? { duration: 0 } : slideToTransition(resolved.slide)}
         >
           {children}
         </motion.div>
+        </div>
         {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}
       </Box>
       </RowHeightContext.Provider>

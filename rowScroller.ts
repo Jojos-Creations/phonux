@@ -38,6 +38,11 @@ export interface GlideOptions {
 // The scroll a size change asks for comes a frame or two after the glide starts, once focus has returned to the panel.
 const SIZE_FOLLOW_MS = 150;
 
+/** The strip of the row whose scroll container is `container`: inside the window element that cuts it, never a nested row's. @internal */
+export function rowStripOf(container: Element): HTMLElement | null {
+  return container.querySelector<HTMLElement>(`:scope > [data-row-window] > [${ROW_STRIP_ATTRIBUTE}]`);
+}
+
 /** What may move one row's offset. */
 export interface RowScroller {
   /** The row's current scroll: how far its content is moved left, in the units a `scrollLeft` would be. A re-centering does not move it. */
@@ -56,8 +61,6 @@ export interface RowScroller {
   reorigin(centering: number, o: GlideOptions): void;
   /** The strip's translate now: the view's negative, less any bump. */
   stripX(): number;
-  /** Whether the frame loop draws every glide instead of the compositor: on while a held panel follows the strip, so the two never drift apart. */
-  drawEachFrame(on: boolean): void;
   /** How many times a person has asked to move the row: a step, a dot, a press on the row. Counted whether or not the row moved. */
   inputs(): number;
   /** Records one such ask. */
@@ -78,8 +81,13 @@ export interface RowScroller {
   deferUntilRelease(run: () => void): boolean;
   /** Runs the scroll kept by `deferUntilRelease`, once. A no-op when none was kept. */
   replayDeferred(): void;
-  /** Wakes `listener` after each change of the scroll or the origin, on every frame of a glide. Returns the unsubscribe. */
-  subscribe(listener: () => void): () => void;
+  /**
+   * Wakes `listener` after each change of the scroll or the origin, on every frame of a glide. Returns the unsubscribe. A
+   * `sameFrame` listener writes something that must stand where the strip is drawn, such as a held panel's clamp: while one is
+   * subscribed the frame loop draws every glide itself, since a strip the compositor draws can be a frame from the curve the
+   * listener reads.
+   */
+  subscribe(listener: () => void, options?: { sameFrame?: boolean }): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
   /** True while a resize's settle waits for the row to re-center: the settle, not a change of stops, decides where the row rests. */
@@ -206,7 +214,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
   const notify = (): void => {
     for (const l of [...listeners]) l();
   };
-  const strip = (): HTMLElement | null => el.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
+  const strip = (): HTMLElement | null => rowStripOf(el);
   const translate = (x: number): string => `translateX(${x}px)`;
 
   // Where each stands at `nowMs`, off its glide's own curve rather than the last frame's value.
@@ -214,10 +222,12 @@ function createRowScroller(el: HTMLElement): RowScroller {
   const originAt = (nowMs: number): number => (originGlide === null ? origin : at(originGlide, nowMs));
   const viewAt = (nowMs: number): number => scrollAt(nowMs) + originAt(nowMs);
 
-  // A held panel and the strip's cut follow `stripX()` from the frame loop. A compositor animation runs a frame or more ahead of it, so such a row draws every frame itself.
+  // Listeners that write from `stripX()` need the strip drawn by the frame loop: a compositor animation runs a frame or more ahead of it.
+  const framers = new Set<() => void>();
   let framed = false;
   // Draws what the numbers say now: the resting translate, plus one compositor animation for whatever still glides.
   const draw = (nowMs: number): void => {
+    framed = framers.size > 0;
     const s = strip();
     anim?.cancel();
     anim = null;
@@ -312,11 +322,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
     scrollLeft: () => scrollAt(performance.now()),
     // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
     stripX: () => -viewAt(performance.now()) - bumpAt(bump, performance.now()),
-    drawEachFrame(on) {
-      if (framed === on) return;
-      framed = on;
-      draw(performance.now());
-    },
     glideTo(target, o) {
       if (claimed) return false;
       if (o.instant || o.durationSec <= 0) {
@@ -375,9 +380,20 @@ function createRowScroller(el: HTMLElement): RowScroller {
       replayable = false;
       kept?.();
     },
-    subscribe(listener) {
+    subscribe(listener, options) {
       listeners.add(listener);
-      return () => void listeners.delete(listener);
+      if (options?.sameFrame === true) {
+        framers.add(listener);
+        // A glide already under the compositor goes on in the frame loop from where it is.
+        if (!framed) {
+          draw(performance.now());
+          run();
+        }
+      }
+      return () => {
+        listeners.delete(listener);
+        framers.delete(listener);
+      };
     },
     settling: () => settleWait,
     setSettling(on) {

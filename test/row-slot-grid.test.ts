@@ -141,7 +141,7 @@ const mounted = (entries = panelsOf(5)) => {
   return { m, slots, strip, numbers: () => m.latest().rowNumbers, layout: () => m.rerender(1000) };
 };
 
-test('a mounted row never hides a slot: every slot keeps visibility, the strip is cut at the grid edges and inert follows the numbers', () => {
+test('a mounted row never hides a slot: every slot keeps visibility, the window is cut at the grid edges and inert follows the numbers', () => {
   const t = mounted();
   const n = t.numbers();
   assert.deepEqual(n.stops, [0, 406, 812, 1218, 1624], 'positive control: five stops on the one-phone grid');
@@ -150,9 +150,10 @@ test('a mounted row never hides a slot: every slot keeps visibility, the strip i
     t.layout();
     assert.deepEqual(t.slots().map((el) => el.style.visibility), t.slots().map(() => ''), `no slot is hidden at ${at}`);
     assert.deepEqual(t.slots().map((el) => el.style.clipPath), t.slots().map(() => ''), `no hold: no slot carries its own cut at ${at}`);
-    // The strip's cut, in its own coordinates: the grid's edges less the strip's translate (margin 86 less the offset).
-    const stripX = 86 - at;
-    assert.equal(t.strip().style.clipPath, `polygon(${86 - stripX}px -100000px, ${968 - 86 - stripX}px -100000px, ${968 - 86 - stripX}px 100000px, ${86 - stripX}px 100000px)`, `the strip is cut at the grid at ${at}`);
+    // The cut is on the window element, which never moves, so it is the same at every offset; the strip carries none.
+    const window = t.m.container.querySelector<HTMLElement>('[data-row-window]')!;
+    assert.equal(window.style.clipPath, `polygon(86px -100000px, ${968 - 86}px -100000px, ${968 - 86}px 100000px, 86px 100000px)`, `the window is cut at the grid at ${at}`);
+    assert.equal(t.strip().style.clipPath, '', `the strip carries no cut of its own at ${at}`);
     const away = n.ids.map((_, k) => slotCutAt(n, k, at, 16).away);
     assert.ok(away.some((a) => a) && away.some((a) => !a), `control: ${at} has slots on both sides of reach`);
     assert.deepEqual(t.slots().map((el) => el.hasAttribute('inert')), away, `inert follows the numbers at ${at}`);

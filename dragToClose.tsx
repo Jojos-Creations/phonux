@@ -14,7 +14,7 @@ import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { PanelSlotContext, PanelVerticalDragContext, type DragScroll } from './panelSlotContext.js';
 import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
-import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { closestRowScroller, rowScrollerFor, rowStripOf } from './rowScroller.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import type { CssStyle } from './cssStyle.js';
 import type { DragToCloseTuning } from './panelSettings.js';
@@ -245,7 +245,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     lock(clientX: number): void {
       const slot = latest.current.dragScroll;
       const p = pressed.current;
-      const rowEnd = p?.scrollerEl.querySelector(':scope > [data-row-strip]')?.getBoundingClientRect();
+      const rowEnd = (p === null ? null : rowStripOf(p.scrollerEl))?.getBoundingClientRect();
       const own = box.current?.getBoundingClientRect();
       // Rects and the translations drawn now are in the same screen px; both ends scroll together, so the gap holds as the row scrolls.
       slack.current = rowEnd === undefined || own === undefined || rowEnd.width === 0 ? Number.POSITIVE_INFINITY : rowEnd.right - (own.right - x.get() - scrollX.get());
@@ -253,7 +253,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot, panelId);
       if (opened === null) return;
       const slotEl = box.current?.closest<HTMLElement>('[data-row-slot]') ?? null;
-      const strip = p.scrollerEl.querySelector<HTMLElement>(':scope > [data-row-strip]');
+      const strip = rowStripOf(p.scrollerEl);
       // A slot with no layout (no width) has no slide to ride.
       slotStart.current = slotEl === null || strip === null || slotEl.getBoundingClientRect().width === 0 ? null : { el: slotEl, strip, left: inStrip({ el: slotEl, strip }) };
       const barrier = slot.barrierRight?.();

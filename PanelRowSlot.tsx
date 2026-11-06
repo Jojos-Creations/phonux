@@ -206,6 +206,7 @@ export function PanelRowSlot({
   firstPressFocusOnly = false,
   onActivate,
   dragged = false,
+  frame,
   children,
 }: {
   /** The panel this slot draws; the row's edge fade finds the slot by it. */
@@ -249,6 +250,8 @@ export function PanelRowSlot({
   onActivate?: (control: boolean) => void;
   /** True for the slot whose box is being dragged: its rest moving during the preview is the drop, which lands at once whatever the motion setting. */
   dragged?: boolean;
+  /** Where the strip's coordinates start in the row, in px: the left group's width. When it changes the slot is carried by the opposite amount at once, so only its own rest moves it. Omitted for a held slot, which the strip does not carry. */
+  frame?: number;
   /** The panel rendered inside the slot. */
   children: React.ReactNode;
 }) {
@@ -321,10 +324,13 @@ export function PanelRowSlot({
   // Every move starts in the commit's layout effect on the shared start time, so the slots, the strip and the size boxes a
   // commit moves are sampled together.
   const lastRest = React.useRef<number | null>(null);
+  const lastFrame = React.useRef<number | undefined>(undefined);
   const exiting = React.useRef(false);
   React.useLayoutEffect(() => {
     const node = el.current;
     if (node === null) return;
+    const carried = frame === undefined || lastFrame.current === undefined ? 0 : frame - lastFrame.current;
+    lastFrame.current = frame;
     const rest = poseOf(animateTarget, leftOffset);
     if (mover.current === null) {
       const enters = !mountedWithRow && !instant;
@@ -351,7 +357,12 @@ export function PanelRowSlot({
       glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
       return;
     }
-    const moved = lastRest.current !== leftOffset;
+    // The strip's start moved under the slot in this commit: put the slot back where it was drawn before its own move runs from there.
+    if (carried !== 0) {
+      const at = m.pose();
+      slotDriver.set(node, m, { ...at, x: at.x - carried });
+    }
+    const moved = lastRest.current !== leftOffset || carried !== 0;
     const returning = exiting.current;
     exiting.current = false;
     lastRest.current = leftOffset;
