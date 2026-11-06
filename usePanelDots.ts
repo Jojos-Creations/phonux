@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
-import { centreScroll, dotLayout, dotMap, dragScroll, withParked, type ParkedDot } from './rowDots.js';
+import { centreScroll, dotLayout, dotMap, dragScroll, withHeld, withParked, type ParkedDot } from './rowDots.js';
 import { maxScrollOf, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 import { halfStepIn, stepRowIn } from './rowStep.js';
@@ -22,6 +22,8 @@ export interface PanelDots {
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
   readonly width: number;
+  /** The ids of the panels on screen now, in px of the row and not of the bar: those held at an edge, and those the strip's window shows. */
+  readonly shown: readonly string[];
   /** Centers the panel `id` in the window. A row that parks steps until the panel is as near the center as the panels beside it allow, bringing a parked one in on the way. Does nothing while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
@@ -149,6 +151,8 @@ export function usePanelDots(i: {
     return row.subscribe(sync);
   }, [scroller]);
 
+  // Where the strip's window starts, along the strip: a held group takes its room from the window, not from the scroll.
+  const seen = scrollLeft - (n.stripStart - n.leftInset);
   const hollow = n.ids.map((id) => entries.find((e) => e.id === id)?.settings?.hollowDot === true);
   const map = dotMap({ widths: n.widths, leftOffsets: n.leftOffsets });
   const layout = dotLayout({
@@ -157,10 +161,12 @@ export function usePanelDots(i: {
     map,
     windowWidth: n.stripWindow,
     // The track starts at the strip's first panel, not at scroll 0.
-    scrollLeft: scrollLeft - n.stripStart,
+    scrollLeft: seen,
   });
   const parked = parkedOf(entries, n.ids);
-  const bar = withParked(layout, map, parked);
+  const heldDots = n.held.map((h) => ({ id: h.id, side: h.side, slots: h.width / map.phone, hollow: entries.find((e) => e.id === h.id)?.settings?.hollowDot === true }));
+  const bar = withHeld(withParked(layout, map, parked), heldDots);
+  const shown = [...n.held.map((h) => h.id), ...n.ids.filter((_, k) => Math.min(n.leftOffsets[k]! + n.widths[k]!, seen + n.stripWindow) - Math.max(n.leftOffsets[k]!, seen) > 1)];
   const maxScroll = maxScrollOf(n);
   const step = (direction: 'left' | 'right'): void => {
     const el = scroller.current;
@@ -200,6 +206,12 @@ export function usePanelDots(i: {
       return;
     }
     const index = n.ids.indexOf(id);
+    // A held panel is always on screen, so its dot takes the row back to the panels beside it.
+    if (el && n.held.some((h) => h.id === id && h.side === 'left')) {
+      rowScrollerFor(el).noteInput();
+      stepGlide(rowScrollerFor(el), 0, { mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
+      return;
+    }
     if (!el || index < 0) return;
     rowScrollerFor(el).noteInput();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
@@ -209,7 +221,7 @@ export function usePanelDots(i: {
     }
     // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted center.
     // Numbers built by hand may omit the stops; such a row has none to snap to.
-    const at = Math.min(maxScroll, target + n.stripStart);
+    const at = Math.min(maxScroll, target + n.stripStart - n.leftInset);
     stepGlide(rowScrollerFor(el), n.stops?.length ? snapToStop(n, index, at) : at, { mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
   };
 
@@ -355,5 +367,5 @@ export function usePanelDots(i: {
     },
   });
 
-  return { dots: bar.dots, oval: shownOval, width: bar.width, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
+  return { dots: bar.dots, oval: shownOval, width: bar.width, shown, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
 }

@@ -182,3 +182,21 @@ export function withParked(layout: DotLayout, map: DotMap, parked: readonly Park
   const oval = { left: layout.oval.left + shifts[0]!, width: layout.oval.width };
   return { dots, oval, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
 }
+
+/** The bar with a dot for each panel held at an edge, at that end of the row. The oval stays over the strip, which is all it can move across. */
+export function withHeld(bar: FullDotLayout, held: readonly { id: string; side: 'left' | 'right'; slots: number; hollow: boolean }[]): FullDotLayout {
+  if (held.length === 0) return bar;
+  let at = 0;
+  const place = (h: (typeof held)[number]): DotPlace => {
+    const width = dotWidthOf(Math.max(1, Math.round(h.slots)));
+    const dot = { id: h.id, left: at, width, hollow: h.hollow };
+    at += width + DOT_GAP_PX;
+    return dot;
+  };
+  const left = held.filter((h) => h.side === 'left').map(place);
+  const shift = at;
+  const strip = bar.dots.map((d) => ({ ...d, left: d.left + shift }));
+  at += bar.dots.length === 0 ? 0 : bar.width + DOT_GAP_PX;
+  const right = held.filter((h) => h.side === 'right').map(place);
+  return { ...bar, dots: [...left, ...strip, ...right], oval: { ...bar.oval, left: bar.oval.left + shift }, width: Math.max(0, at - DOT_GAP_PX) };
+}
