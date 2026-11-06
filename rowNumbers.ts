@@ -104,8 +104,11 @@ export function computeRowNumbers(i: {
   /** The blanks a parking row rests with: a strip that fits draws them, one that overflows ignores them. Default none. */
   rest?: RowRest | null;
 }): RowNumbers {
-  return rowNumbersViaModel(i) ?? legacyRowNumbers(i);
+  return rowNumberSources.model(i) ?? legacyRowNumbers(i);
 }
+
+/** Where `computeRowNumbers` asks first. A test swaps `model` to see that the answer really comes through it. @internal */
+export const rowNumberSources: { model: (i: Parameters<typeof computeRowNumbers>[0]) => RowNumbers | null } = { model: (i) => rowNumbersViaModel(i) };
 
 /**
  * The row's numbers by the arithmetic that predates the position model, kept as the reference the model's adapter is compared with.
@@ -184,8 +187,8 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
 
 /**
  * The row's numbers read off the position model, or null for a row the model does not express: an unmeasured window, a row
- * that does not scroll, a window narrower than a phone, a hold that is not the first panel's left hold, and rests that draw
- * blanks. `computeRowNumbers` then answers with the older arithmetic. @internal
+ * that does not scroll, a window narrower than a phone, a hold that is not the first panel's left or both hold (a right hold takes
+ * the panel out of its place to the far edge, which a clamp on screen position does not say), and rests that draw blanks. `computeRowNumbers` then answers with the older arithmetic. @internal
  */
 export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): RowNumbers | null {
   const present = i.entries.filter(isPresent);
@@ -194,7 +197,9 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
   const windowWidth = Math.max(0, i.containerWidth - 2 * i.gap);
   if (windowWidth < i.phoneWidth) return null;
   const holds = present.flatMap((p, k) => (p.settings?.edgeHold === 'left' || p.settings?.edgeHold === 'right' || p.settings?.edgeHold === 'both' ? [{ k, hold: p.settings.edgeHold }] : []));
-  if (holds.some((h) => h.hold !== 'left' || h.k !== 0)) return null;
+  if (holds.some((h) => h.hold === 'right' || h.k !== 0)) return null;
+  // A 'both' panel stays in the strip and sticks at an edge; a left one is taken out of it into the left group.
+  const sticks = holds[0]?.hold === 'both';
   const maxLiveWidth = Math.max(i.phoneWidth, windowWidth);
   const model: RowModel = {
     panels: present.map((p) => ({ id: p.id, slots: drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap) ?? 1 })),
@@ -209,8 +214,8 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
   if (!overflows && i.rest != null) return null;
   // Only a row that overflows holds: a row that fits gives the hold back, as it always has.
   const held = overflows ? l.held : null;
-  const leftInset = held === null ? 0 : held.w + i.gap;
-  const strip = l.drawn.filter((d) => d !== held);
+  const leftInset = held === null || sticks ? 0 : held.w + i.gap;
+  const strip = sticks ? l.drawn : l.drawn.filter((d) => d !== held);
   const widths = strip.map((d) => d.w);
   const leftOffsets = strip.map((d) => d.x - leftInset);
   const stripWidth = strip.length === 0 ? 0 : l.stripPx - leftInset;
@@ -230,8 +235,8 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
     ids: strip.map((d) => d.id),
     widths,
     leftOffsets,
-    held: held === null ? [] : [{ id: held.id, side: 'left', width: held.w, offset: 0 }],
-    stuck: [],
+    held: held === null || sticks ? [] : [{ id: held.id, side: 'left', width: held.w, offset: 0 }],
+    stuck: held === null || !sticks ? [] : [{ id: held.id, left: 0, right: i.gap }],
     leftInset,
     rightInset: 0,
     stripStart: leftInset + rowMarginLeft,
