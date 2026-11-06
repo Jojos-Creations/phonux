@@ -152,7 +152,7 @@ class Ctx {
   async checkPaint(label: string): Promise<void> {
     await this.settle();
     const png = await this.shot(label);
-    const win: { w: number; h: number; pts: { x: number; y: number; id: string | null; bg: string }[]; slots: Record<string, any> } = await this.page.evaluate(() => {
+    const win: { w: number; h: number; pts: { x: number; y: number; id: string | null; bg: string }[]; slots: Record<string, any>; displaced: string[] } = await this.page.evaluate(() => {
       const r = (window as any).__r;
       const c = r.container() as HTMLElement;
       const cr = c.getBoundingClientRect();
@@ -169,7 +169,17 @@ class Ctx {
           pts.push({ x, y, id: box?.dataset.box ?? null, bg: box ? getComputedStyle(box).backgroundColor : '' });
         }
       }
-      return { w: window.innerWidth, h: window.innerHeight, pts, slots };
+      // Every slot outside a held box sits where its numbers put it: its rect, from the strip's, is its `data-row-slot`.
+      const strip = c.querySelector<HTMLElement>('[data-row-strip]')!;
+      const sl = strip.getBoundingClientRect().left;
+      const displaced: string[] = [];
+      for (const el of c.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+        if (el.closest('[data-row-hold]') !== null) continue;
+        const off = Number(el.getAttribute('data-row-slot'));
+        const at = el.getBoundingClientRect().left - sl;
+        if (Math.abs(at - off) > 1.5) displaced.push(`${el.dataset.rowId} drawn ${Math.round(at)} wanted ${Math.round(off)}`);
+      }
+      return { w: window.innerWidth, h: window.innerHeight, pts, slots, displaced };
     });
     const got = await pixels(this.page, png, win.pts.map((p) => [p.x, p.y]));
     const bad: string[] = [];
@@ -179,6 +189,7 @@ class Ctx {
       const have = got[k]!;
       if (want === undefined || want.some((v, i) => Math.abs(v - have[i]!) > 8)) bad.push(`${p.id ?? 'nothing'} at x=${Math.round(p.x)}: painted ${have.join(',')} wanted ${want?.join(',') ?? p.bg}`);
     });
+    for (const d of win.displaced) bad.push(`slot off its numbers: ${d}`);
     this.paint.push({ label, checked: win.pts.length, bad });
   }
   /** From a screenshot alone: runs of unpainted (magenta) pixels strictly inside the painted part of the row's middle line. */

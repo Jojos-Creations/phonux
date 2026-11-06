@@ -357,12 +357,12 @@ export function PanelRowSlot({
       glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
       return;
     }
-    // The strip's start moved under the slot in this commit: put the slot back where it was drawn before its own move runs from there. The row's numbers move the slot's offset by the same amount, so that move always runs.
+    // The strip's start moved under the slot in this commit: put the slot back where it was drawn, then run its own move from there. A slot ahead of the held panel keeps its offset while the start moves, so the carry alone makes it move.
     if (carried !== 0) {
       const at = m.pose();
       slotDriver.set(node, m, { ...at, x: at.x - carried });
     }
-    const moved = lastRest.current !== leftOffset;
+    const moved = lastRest.current !== leftOffset || carried !== 0;
     const returning = exiting.current;
     exiting.current = false;
     lastRest.current = leftOffset;
