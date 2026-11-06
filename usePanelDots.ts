@@ -110,6 +110,14 @@ function parkedOf(entries: readonly WorkspaceRowEntry[], drawn: readonly string[
   return parked;
 }
 
+/** A step left while the root sits a whole slot or more left of the window's center, so blanks open before it; null otherwise. */
+function rootStep(n: RowNumbers, id: string, maxScroll: number): 'left' | null {
+  const k = n.ids.indexOf(id);
+  if (k < 0 || maxScroll > 0) return null;
+  const off = n.stripStart + n.leftOffsets[k]! + n.widths[k]! / 2 - n.stripWindow / 2;
+  return off <= -(n.widths[k]! * 0.75) ? 'left' : null;
+}
+
 /**
  * The bar for one row. `rowNumbers` is `useProvidePanels(...).rowNumbers`; `entries` is every panel in row order, drawn or
  * parked (the hollow dot is the panel setting `hollowDot`); `scroller` is the row's scroll container (the element
@@ -166,12 +174,12 @@ export function usePanelDots(i: {
   const parkedKey = parked.map((p) => p.id).join(' ');
   React.useEffect(() => {
     if (seek === null) return undefined;
-    const direction = bar.parked.has(seek.id) ? seek.direction : entries.find((e) => e.id === seek.id)?.collapsible === false ? null : centerStep(n, seek.id, maxScroll, bar, entries);
+    const direction = bar.parked.has(seek.id) ? seek.direction : entries.find((e) => e.id === seek.id)?.collapsible === false ? rootStep(n, seek.id, maxScroll) : centerStep(n, seek.id, maxScroll, bar, entries);
     if (direction === null || seek.steps <= 0) {
       setSeek(null);
       // Whole steps got it as near as they can: an even row has one half step left to center it.
       const el = scroller.current;
-      if (direction === null && el && !bar.parked.has(seek.id) && entries.find((e) => e.id === seek.id)?.collapsible !== false) halfStepIn(el, seek.id);
+      if (direction === null && el && !bar.parked.has(seek.id)) halfStepIn(el, seek.id);
       return undefined;
     }
     step(direction);

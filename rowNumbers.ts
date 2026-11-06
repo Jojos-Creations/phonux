@@ -133,7 +133,9 @@ export function computeRowNumbers(i: {
   const slotPx = i.phoneWidth + i.gap;
   const firstParking = rest === null ? -1 : strip.findIndex((x) => parksForRoom(x.p));
   if (rest !== null && firstParking >= 0) for (let k = firstParking; k < leftOffsets.length; k += 1) leftOffsets[k] = leftOffsets[k]! + rest.lead * slotPx;
-  const stripWidth = panelsWidth + (rest === null ? 0 : (rest.lead + rest.tail) * slotPx);
+  const headPx = (rest?.head ?? 0) * slotPx;
+  if (headPx > 0) for (let k = 0; k < leftOffsets.length; k += 1) leftOffsets[k] = leftOffsets[k]! + headPx;
+  const stripWidth = panelsWidth + headPx + (rest === null ? 0 : (rest.lead + rest.tail) * slotPx);
   const stepping = i.wholePanels === true && overflows;
   // A stepping row centers the whole slots at every rest, the ends included: the window's leftover past its whole slots is split
   // into a space before the strip and one after it. Any other overflowing row is flush at both ends. A strip that fits centers

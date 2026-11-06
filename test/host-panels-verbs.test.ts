@@ -38,7 +38,7 @@ async function rig() {
 
 test('a view is given the PanelsAPI members and none of the row\'s own', async () => {
   const { seen } = await rig();
-  assert.deepEqual(Object.keys(seen.panels!).sort(), ['activate', 'clearAll', 'close', 'create', 'maxFitPanels', 'move', 'panelList', 'reanchor', 'recentlyClosed', 'setSlots', 'undoClose']);
+  assert.deepEqual(Object.keys(seen.panels!).sort(), ['activate', 'clearAll', 'close', 'closedByPerson', 'create', 'maxFitPanels', 'move', 'panelList', 'reanchor', 'recentlyClosed', 'setSlots', 'undoClose']);
   for (const name of ['entries', 'rowNumbers', 'tuning', 'liveWidths', 'fixedViewCount', 'scrollTo', 'followPanel']) assert.equal(name in seen.panels!, false, name);
   assert.equal(typeof seen.panels!.maxFitPanels, 'number', 'maxFitPanels is a number once the row is measured');
 });

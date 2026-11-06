@@ -417,6 +417,8 @@ rests within half the gap between the two stops around it. A row whose panels al
 
 A parking row can rest with blanks (`rowRest.ts`). `tail` is whole slots after the last drawn panel: a step right with no panel waiting parks the leftmost drawn panel and opens one, up to the last panel's center, and a step left closes it. `lead` is a half slot after the always-shown columns, set only by a dot click on a panel half a slot off center, which happens on an even slot count; that rest draws one panel fewer with a half blank at each end, and any step snaps it back to whole slots. Blanks count in `stripWidth`, so the margin and the root stay where the full row has them, and capacity takes them off, so no parked panel refills one. A rest is held against the row and window it was made for: any other change to either ends it. It is never saved.
 
+`head` is slots before the always-shown columns. They move the whole row right so the root can reach the center: a step left with nothing parked on that side opens one, parking the rightmost drawn panel when the row has no slot to spare, and stops when another slot would pass the center. A click on the root's dot takes those steps, then a half step when the window has an even count of slots (`head` and `tail` each gain a half). A step right closes them and the panels parked come back. A row whose panels do not return on a step never opens one.
+
 ### Edge holds
 
 `edgeHold` ('off' by default, 'left', 'right' or 'both') keeps a panel at a row edge while the strip scrolls under it. A slot cannot
@@ -1922,7 +1924,7 @@ too). Its Undo calls `undoClose`: the panel comes back at its old place, at its 
 code (a host tidying its row, a placement pushing a panel out) raises none, because the person did nothing to undo. Every
 app gets it without wiring, so there is one toast and no second way to build it. Its words are the `undoCloseMessage` and
 `undo` labels. It renders beside the row inside the `wrap`, at the snackbar band, bottom center. A host that shows its notices
-its own way passes `undoToast: false` and reads `recentlyClosed` instead.
+its own way passes `undoToast: false` and reads `closedByPerson` instead.
 
 ### Motion
 

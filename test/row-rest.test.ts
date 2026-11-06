@@ -59,3 +59,18 @@ describe('the numbers of a rest', () => {
     assert.ok(Math.abs(center - n.stripWindow / 2) < 0.01);
   });
 });
+
+const headInput = { direction: 'left' as const, rest: null, lastOff: 500, slot: 344, canLeft: false, canRight: false, revealSlots: 1, parkable: 344, lastParkable: 344, roomy: false };
+
+it('a step left with nothing parked there opens a blank before the root and parks the right end, until the root is as near the center as a whole step gets', () => {
+  assert.deepEqual(restStep({ ...headInput, rootOff: -516 }), { park: 'right', rest: { lead: 0, tail: 0, head: 1 } });
+  assert.equal(restStep({ ...headInput, rootOff: -172 }), null, 'one more slot would pass the center');
+  assert.equal(restStep({ ...headInput, rootOff: -516, canLeft: true }), null, 'control: a parked panel on that side comes in instead');
+  assert.equal(restStep({ ...headInput, rootOff: -516, lastParkable: null, roomy: true }), null, 'a row whose panels do not return on a step keeps them, room or no room');
+});
+
+it('a step right closes the blank before the root, and the panel it parked comes back', () => {
+  const rest = { lead: 0, tail: 0, head: 1 };
+  assert.deepEqual(restStep({ ...headInput, direction: 'right', rest, rootOff: -172, canRight: true }), { reveal: 'right', rest: { lead: 0, tail: 0, head: 0 } });
+  assert.deepEqual(restStep({ ...headInput, direction: 'right', rest: { lead: 0, tail: 0.5, head: 1.5 }, rootOff: 0, canRight: true }), { reveal: 'right', rest: { lead: 0, tail: 0, head: 1 } });
+});

@@ -471,7 +471,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
     rest,
-    setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 ? null : { rest: next, madeFor: restKeyOf(row) }),
+    setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 && (next.head ?? 0) === 0 ? null : { rest: next, madeFor: restKeyOf(row) }),
   });
 
   core.observe(panels, heldIds);
@@ -512,6 +512,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const full = n.stripWidth + slot > n.stripWindow;
     const returns = first !== undefined && effective(first).revealOnScroll !== 'never';
     const left = parkedToReveal(panels, 'left');
+    const rootAt = n.ids.findIndex((id) => { const p = panels.find((e) => e.id === id); return p !== undefined && !parksForRoom(p); });
+    const lastDrawn = drawn.at(-1);
+    const lastAt = lastDrawn === undefined ? -1 : n.ids.indexOf(lastDrawn.id);
     return {
       direction,
       rest,
@@ -521,6 +524,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       canRight: parkedToReveal(panels, 'right') !== null,
       revealSlots: left === null ? 1 : Math.max(1, left.slots ?? 1),
       parkable: drawn.length >= 2 && full && returns && firstAt >= 0 ? n.widths[firstAt]! + tuning.rowGap : null,
+      rootOff: rootAt < 0 ? null : n.stripStart + n.leftOffsets[rootAt]! + n.widths[rootAt]! / 2 - n.stripWindow / 2,
+      lastParkable: lastDrawn !== undefined && lastAt >= 0 && effective(lastDrawn).revealOnScroll !== 'never' ? n.widths[lastAt]! + tuning.rowGap : null,
+      roomy: !full,
     };
   };
 
@@ -531,8 +537,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (k < 0 || maxScrollOf(n) > 0 || (rest?.lead ?? 0) > 0) return false;
     const slot = i.phoneWidth + tuning.rowGap;
     const off = n.stripStart + n.leftOffsets[k]! + n.widths[k]! / 2 - n.stripWindow / 2;
-    if (!isHalfOff(off, slot) || n.stripWidth + slot <= n.stripWindow) return false;
     const drawn = panels.filter((p) => isPresent(p) && parksForRoom(p));
+    if (!drawn.some((p) => p.id === id)) {
+      // The root: the half step opens before it, and the slot it takes comes off the right end.
+      if (!isHalfOff(off, slot) || off > 0 || (rest?.head ?? 0) % 1 !== 0) return false;
+      const full = n.stripWidth + slot > n.stripWindow;
+      const last = drawn.at(-1);
+      if (full && (last === undefined || effective(last).revealOnScroll === 'never')) return false;
+      const halved = { lead: 0, tail: (rest?.tail ?? 0) + 0.5, head: (rest?.head ?? 0) + 0.5 };
+      restRow(full ? { park: 'right', rest: halved } : { rest: halved });
+      return true;
+    }
+    if (!isHalfOff(off, slot) || n.stripWidth + slot <= n.stripWindow || (rest?.head ?? 0) > 0) return false;
     const end = off > 0 ? drawn[0] : drawn.at(-1);
     if (drawn.length < 2 || end === undefined || end.id === id || !drawn.some((p) => p.id === id)) return false;
     if (effective(end).revealOnScroll === 'never') return false;

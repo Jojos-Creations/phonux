@@ -186,6 +186,8 @@ export interface PanelsAPI {
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open, which is until the latest of each recent close's time plus that panel's `undoWindowMs`. The workspace's own undo-close toast shows exactly while it is non-null. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
+  /** The views in `recentlyClosed` the person closed (source `'person'`), oldest first; null when there are none. What a host's own undo notice shows, since a close from code gives the person nothing to undo. */
+  readonly closedByPerson: readonly PanelSummary[] | null;
   /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one touched longest ago if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
   /** Forgets every panel that is clearable; the root, a fixed column and an unclearable panel stay. Not logged and not undoable. */

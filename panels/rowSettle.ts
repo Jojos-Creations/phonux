@@ -31,7 +31,7 @@ export const isParkLive = (p: PanelWindow): boolean => p.live && parksForRoom(p)
  */
 export function rowPricing(env: RowEnv, row: readonly PanelWindow[]) {
   const { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive } = env;
-  const blanks = env.rest == null ? 0 : env.rest.lead + env.rest.tail;
+  const blanks = env.rest == null ? 0 : env.rest.lead + env.rest.tail + (env.rest.head ?? 0);
   const numbers = computeRowNumbers({ entries: row, phoneWidth, containerWidth, gap, fixedItemCount: fixedColumnCount });
   // Only a row with a scroll panel, or a fixed column wider than a phone, prices its reserved widths one by one; any other keeps the fixed column count the host passed.
   const widerThanPhone = row.some((p) => isPresent(p) && !p.collapsible && panelWidthOf(p, phoneWidth, numbers.maxLiveWidth, gap) !== phoneWidth);

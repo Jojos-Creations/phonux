@@ -82,7 +82,7 @@ test('a run parked inside the live range, as rapid opens leave it, is reached on
       });
       seen.push(p.live());
     }
-    assert.deepEqual(seen, [['a', 'd', 'e'], ['a', 'c', 'd'], ['a', 'b', 'c'], ['a', 'b', 'c']], 'd, c, then b come in, each parking the far right panel, until none is left');
+    assert.deepEqual(seen, [['a', 'd', 'e'], ['a', 'c', 'd'], ['a', 'b', 'c'], ['a', 'b']], 'd, c, then b come in, each parking the far right panel, and with none left a blank opens before the root');
   } finally {
     mock.timers.reset();
   }

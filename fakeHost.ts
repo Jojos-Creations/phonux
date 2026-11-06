@@ -95,6 +95,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     reanchor: (id, anchor) => log('panels', 'reanchor', [id, anchor]),
     close: (id) => log('panels', 'close', [id]),
     recentlyClosed: null,
+    closedByPerson: null,
     undoClose: () => log('panels', 'undoClose', []),
     clearAll: () => log('panels', 'clearAll', []),
   };
