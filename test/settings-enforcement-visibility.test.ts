@@ -776,8 +776,25 @@ function threeParked(tieBreak: 'latest-first' | 'earliest-first' | 'row-order' |
 test('returnTieBreak latest-first: of three parked the most recently parked, p, returns', () => {
   assert.deepEqual(threeParked('latest-first').parked(), ['x', 'q']);
 });
-test('returnTieBreak earliest-first: the oldest parked, q, returns', () => {
-  assert.deepEqual(threeParked('earliest-first').parked(), ['x', 'p']);
+// A panel returns only beside the drawn run, so the drawn panels stay one run of the list: of q, x, p only x and p touch y and z, and
+// q waits behind p. The tie-break chooses among those two.
+test('returnTieBreak earliest-first: of the parked panels beside the run, the oldest parked, x, returns', () => {
+  assert.deepEqual(threeParked('earliest-first').parked(), ['p', 'q']);
+});
+test('returnTieBreak earliest-first and row-order part ways when the panel later in the row was parked first', () => {
+  const tuning = (dropTieBreak: 'leftmost' | 'rightmost', tieBreak: 'earliest-first' | 'row-order') => ({ tuning: { dropTieBreak, returnTieBreak: tieBreak } });
+  const run = (tieBreak: 'earliest-first' | 'row-order'): string[] => {
+    const p = provide(row(rootEntry(), park('x'), park('y'), park('z'), park('p'), park('q')), { width: W(5), over: tuning('rightmost', tieBreak) });
+    p.setWidth(W(4));
+    p.setWidth(W(3));
+    p.setOver(tuning('leftmost', tieBreak));
+    p.setWidth(W(2));
+    assert.deepEqual(p.parked(), ['x', 'p', 'q'], 'control: parked q, then p, then x');
+    p.setWidth(W(3));
+    return p.parked();
+  };
+  assert.deepEqual(run('earliest-first'), ['x', 'q'], 'p was parked before x, and touches the run');
+  assert.deepEqual(run('row-order'), ['p', 'q'], 'x is earlier in the row');
 });
 test('returnTieBreak row-order: the panel earliest in the row, x, returns', () => {
   assert.deepEqual(threeParked('row-order').parked(), ['p', 'q']);

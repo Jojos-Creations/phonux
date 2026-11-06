@@ -222,10 +222,10 @@ export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'ri
 const revealable = (p: PanelWindow): boolean => !isPresent(p) && p.marker !== true && effective(p).revealOnScroll !== 'never';
 
 /**
- * The parked panel a step toward `direction` brings in, or null: the one nearest the drawn panels beyond that end of them, so
- * a run of steps reaches each panel in the order the row lists them and never one past a nearer one. Only when nothing is
- * parked beyond that end does a panel parked between two drawn ones come in, the one nearest that end, so every panel is
- * still reachable. A panel whose `revealOnScroll` is 'never' is passed over.
+ * The parked panel a step toward `direction` brings in, or null: the one nearest the drawn parkable panels beyond that end of
+ * them, so a run of steps reaches each panel in the order the row lists them and never one past a nearer one. Only when nothing
+ * is parked beyond that end does a panel parked between two drawn ones come in, on the side nearer its place as the dot bar
+ * draws it, so every panel is still reachable. A panel whose `revealOnScroll` is 'never' is passed over.
  * @internal
  */
 export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {
@@ -236,25 +236,21 @@ export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left'
     if (first < 0) first = k;
     last = k;
   });
-  if (first < 0) {
-    // Nothing parkable is drawn: the row's own order decides, as the dot bar draws it.
-    const drawn = panels.filter(isPresent).length;
-    let before = 0;
-    const side: PanelWindow[] = [];
-    for (const p of panels) {
-      if (isPresent(p)) before += 1;
-      else if (revealable(p) && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+  if (first >= 0) {
+    if (direction === 'left') {
+      for (let k = first - 1; k >= 0; k -= 1) if (revealable(panels[k]!)) return panels[k]!;
+    } else {
+      for (let k = last + 1; k < panels.length; k += 1) if (revealable(panels[k]!)) return panels[k]!;
     }
-    return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
   }
-  if (direction === 'left') {
-    for (let k = first - 1; k >= 0; k -= 1) if (revealable(panels[k]!)) return panels[k]!;
-    for (let k = first + 1; k < last; k += 1) if (revealable(panels[k]!)) return panels[k]!;
-    return null;
-  }
-  for (let k = last + 1; k < panels.length; k += 1) if (revealable(panels[k]!)) return panels[k]!;
-  for (let k = last - 1; k > first; k -= 1) if (revealable(panels[k]!)) return panels[k]!;
-  return null;
+  const drawn = panels.filter(isPresent).length;
+  let before = 0;
+  const side: PanelWindow[] = [];
+  panels.forEach((p, k) => {
+    if (isPresent(p)) before += 1;
+    else if (revealable(p) && (first < 0 || (k > first && k < last)) && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+  });
+  return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
 }
 
 /**
