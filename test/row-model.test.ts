@@ -11,7 +11,7 @@ import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, rowAnchor } from '../rowNumbers.js';
 import {
-  atRest, close, dotsOf, dragBy, hold, layoutOf, onScreenIds, open, parkedIds, reorder, resize, screenOf, setWindow,
+  atRest, close, dotsOf, dragBy, hold, holdRight, layoutOf, onScreenIds, open, parkedIds, reorder, resize, screenOf, setWindow,
   settle, step, viewRange, type RowModel, type RowPanel,
 } from '../rowModel.js';
 
@@ -77,6 +77,21 @@ test('hold: flipping the hold moves no other panel and no rest', () => {
   const base = model([1, 1, 1, 1, 1, 1], { windowPx: 1300, view: 406 });
   const held = hold(base, 'p0');
   assert.deepEqual(layoutOf(held).stops, layoutOf(base).stops);
+  for (const id of ['p1', 'p2', 'p3']) assert.equal(screenOf(held, id), screenOf(base, id));
+  assert.equal(held.view, base.view);
+});
+
+test('hold right: the last panel stays against the right edge at every rest, and only the last panel can be held', () => {
+  const m = holdRight(model([1, 1, 1, 1, 1, 1], { windowPx: 1300 }), 'p5');
+  assert.equal(layoutOf(m).heldRight?.id, 'p5');
+  for (const view of [0, step(m, 1).view, step(step(m, 1), 1).view]) assert.equal(screenOf({ ...m, view }, 'p5'), 1300 - 390);
+  assert.equal(holdRight(model([1, 1, 1], { windowPx: 1300 }), 'p1').heldRight ?? null, null);
+});
+
+test('hold right: a window with less than a phone beside the held panel does not hold it, and flipping it moves no other panel', () => {
+  assert.equal(layoutOf(holdRight(model([1, 1, 1, 1], { windowPx: 790 }), 'p3')).heldRight, null);
+  const base = model([1, 1, 1, 1, 1, 1], { windowPx: 1300, view: 406 });
+  const held = holdRight(base, 'p5');
   for (const id of ['p1', 'p2', 'p3']) assert.equal(screenOf(held, id), screenOf(base, id));
   assert.equal(held.view, base.view);
 });
@@ -157,6 +172,9 @@ interface Init {
   track: number;
   panels: { slots: number; hidden: boolean }[];
   held: boolean;
+  right: boolean;
+  /** 1: the first panel is held at either edge, 2: the last one is. The same id in both fields. */
+  both: number;
   rest: number;
 }
 
@@ -170,6 +188,8 @@ type Op =
   | { k: 'resize'; i: number; slots: number }
   | { k: 'holdOn' }
   | { k: 'holdOff' }
+  | { k: 'holdRightOn' }
+  | { k: 'holdRightOff' }
   | { k: 'drag'; dx: number }
   | { k: 'release' };
 
@@ -180,6 +200,8 @@ const initArb: fc.Arbitrary<Init> = fc.record({
   track: fc.integer({ min: 120, max: 480 }),
   panels: fc.array(fc.record({ slots: fc.integer({ min: 1, max: 3 }), hidden: fc.integer({ min: 0, max: 9 }).map((n) => n === 0) }), { minLength: 1, maxLength: 9 }),
   held: fc.boolean(),
+  right: fc.boolean(),
+  both: fc.integer({ min: 0, max: 3 }),
   rest: fc.nat(20),
 });
 
@@ -193,6 +215,8 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   { weight: 2, arbitrary: fc.record({ k: fc.constant('resize' as const), i: fc.nat(12), slots: fc.integer({ min: 1, max: 4 }) }) },
   { weight: 2, arbitrary: fc.constant<Op>({ k: 'holdOn' }) },
   { weight: 1, arbitrary: fc.constant<Op>({ k: 'holdOff' }) },
+  { weight: 2, arbitrary: fc.constant<Op>({ k: 'holdRightOn' }) },
+  { weight: 1, arbitrary: fc.constant<Op>({ k: 'holdRightOff' }) },
   { weight: 3, arbitrary: fc.integer({ min: -900, max: 900 }).map((dx): Op => ({ k: 'drag', dx })) },
   { weight: 3, arbitrary: fc.constant<Op>({ k: 'release' }) },
 );
@@ -209,7 +233,11 @@ function initialModel(init: Init): RowModel {
   const panels: RowPanel[] = init.panels.map((p, k) => ({ id: `i${k}`, slots: p.slots, ...(p.hidden ? { hidden: true } : {}) }));
   const base: RowModel = { panels, heldLeft: null, phonePx: init.phone, gapPx: init.gap, windowPx: init.phone + init.window, view: 0 };
   const first = ruler(base)[0];
-  const held = init.held && first !== undefined ? { ...base, heldLeft: first.id } : base;
+  const last = ruler(base).at(-1);
+  const left = init.held && first !== undefined ? { ...base, heldLeft: first.id } : base;
+  const sided = init.right && last !== undefined ? { ...left, heldRight: last.id } : left;
+  const both = init.both === 1 ? first : init.both === 2 ? last : undefined;
+  const held = both === undefined ? sided : { ...sided, heldLeft: both.id, heldRight: both.id };
   const stops = rests(held);
   return { ...held, view: stops[init.rest % stops.length]! };
 }
@@ -226,6 +254,8 @@ function applyOp(m: RowModel, op: Op): { next: RowModel; subject?: string } {
     case 'resize': { const p = at(op.i); return { next: p === undefined ? m : resize(m, p.id, op.slots) }; }
     case 'holdOn': { const first = ruler(m)[0]; return { next: first === undefined ? m : hold(m, first.id) }; }
     case 'holdOff': return { next: hold(m, null) };
+    case 'holdRightOn': { const last = ruler(m).at(-1); return { next: last === undefined ? m : holdRight(m, last.id) }; }
+    case 'holdRightOff': return { next: holdRight(m, null) };
     case 'drag': return { next: dragBy(m, op.dx) };
     case 'release': return { next: settle(m) };
   }
@@ -283,26 +313,38 @@ function heldId(m: RowModel): string | null {
   return first !== undefined && first.id === m.heldLeft && first.w + pitchOf(m) <= m.windowPx ? first.id : null;
 }
 
-/** The part of the window that counts as the grid: inside the centering margins and right of the held panel. */
+/** The mirror: the last drawn panel, with a phone's room beside it and beside the left-held panel. */
+function heldRId(m: RowModel): string | null {
+  const last = ruler(m).at(-1);
+  const first = ruler(m)[0];
+  const leftEdge = heldId(m) !== null && first !== undefined ? first.w + m.gapPx : 0;
+  return last !== undefined && last.id === m.heldRight && last.id !== heldId(m) && last.w + pitchOf(m) + leftEdge <= m.windowPx ? last.id : null;
+}
+
+/** The part of the window that counts as the grid: inside the centering margins and between the held panels. */
 function frame(m: RowModel): { lo: number; hi: number } {
   const centering = 0 - rests(m)[0]!;
   const h = heldId(m);
+  const r = heldRId(m);
   const first = ruler(m)[0];
-  return { lo: centering + (h !== null && first !== undefined ? first.w + m.gapPx : 0), hi: m.windowPx - centering };
+  const last = ruler(m).at(-1);
+  return { lo: centering + (h !== null && first !== undefined ? first.w + m.gapPx : 0), hi: m.windowPx - centering - (r !== null && last !== undefined ? last.w + m.gapPx : 0) };
 }
 
 function screens(m: RowModel): Map<string, number> {
   const h = heldId(m);
-  return new Map(ruler(m).map((p) => [p.id, p.id === h ? Math.max(p.x - m.view, 0) : p.x - m.view]));
+  const r = heldRId(m);
+  return new Map(ruler(m).map((p) => [p.id, p.id === h ? Math.max(p.x - m.view, 0) : p.id === r ? Math.min(p.x - m.view, m.windowPx - p.w) : p.x - m.view]));
 }
 
 /** On screen, by the owner's rule: all of the panel is in the grid, or the panel is wider than the grid and covers all of it. */
 function shown(m: RowModel): string[] {
   const { lo, hi } = frame(m);
   const h = heldId(m);
+  const r = heldRId(m);
   return ruler(m)
     .filter((p) => {
-      if (p.id === h) return true;
+      if (p.id === h || p.id === r) return true;
       const left = p.x - m.view;
       const right = left + p.w;
       const inside = left >= lo - TOL && right <= hi + TOL;
@@ -336,10 +378,10 @@ const tick = (key: string): void => { ran[key] = (ran[key] ?? 0) + 1; };
 function stillness(before: RowModel, after: RowModel, op: Op, subject: string | undefined): void {
   const sb = screens(before);
   const sa = screens(after);
-  const flips = op.k === 'holdOn' || op.k === 'holdOff' || op.k === 'setWindow';
-  const skip = new Set(flips ? [before.heldLeft, after.heldLeft, subject] : [heldId(before), heldId(after), subject]);
+  const flips = op.k === 'holdOn' || op.k === 'holdOff' || op.k === 'holdRightOn' || op.k === 'holdRightOff' || op.k === 'setWindow';
+  const skip = new Set(flips ? [before.heldLeft, after.heldLeft, before.heldRight, after.heldRight, subject] : [heldId(before), heldId(after), heldRId(before), heldRId(after), subject]);
   const kept = ruler(before).filter((p) => sa.has(p.id) && !skip.has(p.id));
-  if (op.k === 'holdOn' || op.k === 'holdOff' || op.k === 'setWindow') {
+  if (flips) {
     const wanted = before.view;
     if (forced(after, wanted)) {
       const r = range(after);
@@ -373,9 +415,14 @@ function wholeSlots(m: RowModel): void {
   const { lo, hi } = frame(m);
   const pitch = m.phonePx + m.gapPx;
   const h = heldId(m);
+  const r = heldRId(m);
   for (const p of ruler(m)) {
     if (p.id === h) {
       assert.equal(screenOf(m, p.id), Math.max(p.x - m.view, 0), 'the held panel is at the left edge once the window has passed it');
+      continue;
+    }
+    if (p.id === r) {
+      assert.equal(screenOf(m, p.id), Math.min(p.x - m.view, m.windowPx - p.w), 'the right-held panel is at the right edge once the window has passed it');
       continue;
     }
     const at = p.x - m.view;
@@ -399,14 +446,15 @@ function dotsAgree(m: RowModel, track: number): void {
   assert.deepEqual(lit, onScreenIds(m), 'the lit dots are the panels on screen');
   assert.deepEqual(lit, shown(m), 'and match the panels the window shows');
   const h = heldId(m);
-  const chain = d.dots.filter((x) => x.id !== h);
+  const r = heldRId(m);
+  const chain = d.dots.filter((x) => x.id !== h && x.id !== r);
   const k = stripOf(m) > 0 ? track / stripOf(m) : 0;
   for (let i = 1; i < chain.length; i += 1) {
     const gapBetween = chain[i]!.left - (chain[i - 1]!.left + chain[i - 1]!.width);
     assert.ok(Math.abs(gapBetween - k * m.gapPx) < 1e-6, `dots ${i - 1} and ${i} are ${gapBetween} apart, not ${k * m.gapPx}`);
   }
   for (const x of d.dots) {
-    if (!x.lit || x.id === h || x.width > d.oval.width + 1e-6) continue;
+    if (!x.lit || x.id === h || x.id === r || x.width > d.oval.width + 1e-6) continue;
     assert.ok(x.left >= d.oval.left - TOL * k - 1e-6 && x.left + x.width <= d.oval.left + d.oval.width + TOL * k + 1e-6, `${x.id} is lit outside the oval`);
   }
 }
@@ -434,6 +482,10 @@ function checkState(m: RowModel, track: number): void {
   const h = heldId(m);
   if (h !== null) tick('hold:effective');
   if (h !== null) assert.ok(screens(m).get(h)! >= 0, 'the held panel is never left of the window');
+  const r = heldRId(m);
+  if (r !== null) tick('holdR:effective');
+  if (r !== null) assert.ok(screens(m).get(r)! + ruler(m).find((p) => p.id === r)!.w <= m.windowPx + 1e-9, 'the right-held panel is never right of the window');
+  assert.ok(r === null || !parked.includes(r), 'the right-held panel is never parked');
 }
 
 function checkStep(m: RowModel): void {
@@ -471,7 +523,7 @@ function runSequence(init: Init, ops: Op[]): void {
         assert.ok(Math.abs(m.view - before.view) <= pitchOf(m) + TOL + 1e-9, `a step moves at most one slot: view ${before.view} -> ${m.view}, rests ${rests(m).join(',')}`);
       }
       checkStep(m);
-      const listOp = op.k === 'open' || op.k === 'close' || op.k === 'reorder' || op.k === 'resize' || op.k === 'holdOn' || op.k === 'holdOff';
+      const listOp = op.k === 'open' || op.k === 'close' || op.k === 'reorder' || op.k === 'resize' || op.k === 'holdOn' || op.k === 'holdOff' || op.k === 'holdRightOn' || op.k === 'holdRightOff';
       if (listOp && restAt(before) && stripOf(before) > before.windowPx && stripOf(m) > m.windowPx) assert.ok(restAt(m), 'a list change keeps an overflowing row on its rests');
     } catch (e) {
       (e as Error).message = `after ${label} (${before.panels.length} -> ${m.panels.length} panels, view ${before.view} -> ${m.view}): ${(e as Error).message}`;
@@ -493,7 +545,7 @@ test('property: random sequences keep the row still, on whole slots, with dots t
     { seed: SEED, numRuns: runs },
   );
   assert.ok(sequences >= runs, `ran ${sequences} sequences, wanted ${runs}`);
-  const wanted = ['still:holdOn', 'still:holdOff', 'still:setWindow', 'still:open', 'still:close', 'still:reorder', 'still:resize', 'still:open:shifted', 'still:close:shifted', 'still:resize:shifted', 'slots:whole', 'slots:cut', 'slots:outside', 'step:reversed', 'hold:effective'];
+  const wanted = ['still:holdOn', 'still:holdOff', 'still:holdRightOn', 'still:holdRightOff', 'still:setWindow', 'still:open', 'still:close', 'still:reorder', 'still:resize', 'still:open:shifted', 'still:close:shifted', 'still:resize:shifted', 'slots:whole', 'slots:cut', 'slots:outside', 'step:reversed', 'hold:effective', 'holdR:effective'];
   const thin = wanted.filter((key) => (ran[key] ?? 0) < 50);
   assert.deepEqual(thin, [], `checks that ran fewer than 50 times: ${JSON.stringify(ran)}`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(ran));

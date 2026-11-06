@@ -187,8 +187,8 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
 
 /**
  * The row's numbers read off the position model, or null for a row the model does not express: an unmeasured window, a row
- * that does not scroll, a window narrower than a phone, a hold that is not the first panel's left or both hold (a right hold takes
- * the panel out of its place to the far edge, which a clamp on screen position does not say), and rests that draw blanks. `computeRowNumbers` then answers with the older arithmetic. @internal
+ * that does not scroll, a window narrower than a phone, a hold that is not on the first panel, and rests that draw blanks. A right hold on the first panel is read as
+ * the panel docked in the last slot, so the model is given it last. `computeRowNumbers` then answers with the older arithmetic. @internal
  */
 export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): RowNumbers | null {
   const present = i.entries.filter(isPresent);
@@ -197,36 +197,45 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
   const windowWidth = Math.max(0, i.containerWidth - 2 * i.gap);
   if (windowWidth < i.phoneWidth) return null;
   const holds = present.flatMap((p, k) => (p.settings?.edgeHold === 'left' || p.settings?.edgeHold === 'right' || p.settings?.edgeHold === 'both' ? [{ k, hold: p.settings.edgeHold }] : []));
-  if (holds.some((h) => h.hold === 'right' || h.k !== 0)) return null;
+  if (holds.some((h) => h.k !== 0)) return null;
+  const kind = holds[0]?.hold;
   // A 'both' panel stays in the strip and sticks at an edge; a left one is taken out of it into the left group.
-  const sticks = holds[0]?.hold === 'both';
+  const sticks = kind === 'both';
+  const right = kind === 'right';
   const maxLiveWidth = Math.max(i.phoneWidth, windowWidth);
+  const panels = present.map((p) => ({ id: p.id, slots: drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap) ?? 1 }));
   const model: RowModel = {
-    panels: present.map((p) => ({ id: p.id, slots: drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap) ?? 1 })),
-    heldLeft: holds.length > 0 ? present[0]!.id : null,
+    // A panel locked right docks in the last slot, so it is the last panel on the ruler; the entries keep their own order.
+    panels: right ? [...panels.slice(1), panels[0]!] : panels,
+    heldLeft: kind === 'left' || sticks ? present[0]!.id : null,
+    heldRight: right || sticks ? present[0]!.id : null,
     phonePx: i.phoneWidth,
     gapPx: i.gap,
     windowPx: windowWidth,
     view: 0,
   };
-  const l = layoutOf(model);
-  const overflows = l.stripPx > windowWidth;
+  const reordered = layoutOf(model);
+  const overflows = reordered.stripPx > windowWidth;
   if (!overflows && i.rest != null) return null;
   // Only a row that overflows holds: a row that fits gives the hold back, as it always has.
-  const held = overflows ? l.held : null;
-  const leftInset = held === null || sticks ? 0 : held.w + i.gap;
-  const strip = sticks ? l.drawn : l.drawn.filter((d) => d !== held);
+  // A hold that is not in effect leaves the panel where the entries have it, so the row is laid out in entry order again.
+  const l = right && !(overflows && reordered.heldRight !== null) ? layoutOf({ ...model, panels, heldRight: null }) : reordered;
+  const held = overflows ? (right ? l.heldRight : l.held) : null;
+  const inFlow = held !== null && !sticks;
+  const leftInset = inFlow && !right ? held.w + i.gap : 0;
+  const rightInset = inFlow && right ? held.w + i.gap : 0;
+  const strip = inFlow ? l.drawn.filter((d) => d !== held) : l.drawn;
   const widths = strip.map((d) => d.w);
   const leftOffsets = strip.map((d) => d.x - leftInset);
-  const stripWidth = strip.length === 0 ? 0 : l.stripPx - leftInset;
-  const stripWindow = windowWidth - leftInset;
+  const stripWidth = strip.length === 0 ? 0 : l.stripPx - leftInset - rightInset;
+  const stripWindow = windowWidth - leftInset - rightInset;
   const stepping = i.wholePanels === true && overflows;
   const rowMarginLeft = stepping || !overflows ? l.centerPx : 0;
   const endPad = stepping ? l.centerPx : 0;
   // The model's rests are views; the row's are scroll offsets, which start where the strip's first slot does.
   const stops = stepping ? l.stops.map((s) => s + l.centerPx) : [];
-  const allWidths = l.drawn.map((d) => d.w);
-  const heldAt = held === null ? -1 : 0;
+  const widthOfId = new Map(l.drawn.map((d) => [d.id, d.w]));
+  const heldId = held === null ? null : held.id;
   return {
     rowScroll: true,
     windowWidth,
@@ -235,15 +244,15 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
     ids: strip.map((d) => d.id),
     widths,
     leftOffsets,
-    held: held === null || sticks ? [] : [{ id: held.id, side: 'left', width: held.w, offset: 0 }],
+    held: !inFlow ? [] : [{ id: held.id, side: right ? 'right' : 'left', width: held.w, offset: right ? i.gap : 0 }],
     stuck: held === null || !sticks ? [] : [{ id: held.id, left: 0, right: i.gap }],
     leftInset,
-    rightInset: 0,
+    rightInset,
     stripStart: leftInset + rowMarginLeft,
     stripWindow,
     maxLiveWidth,
-    reservedWidths: [...present.flatMap((p, k) => (k === heldAt || parksForRoom(p) ? [] : [allWidths[k]!])), ...(held === null ? [] : [held.w])],
-    parkLiveWidths: present.flatMap((p, k) => (k === heldAt || !parksForRoom(p) ? [] : [allWidths[k]!])),
+    reservedWidths: [...present.flatMap((p) => (p.id === heldId || parksForRoom(p) ? [] : [widthOfId.get(p.id)!])), ...(held === null ? [] : [held.w])],
+    parkLiveWidths: present.flatMap((p) => (p.id === heldId || !parksForRoom(p) ? [] : [widthOfId.get(p.id)!])),
     stops,
     stepStops: stops,
     stopSpans: stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow)),

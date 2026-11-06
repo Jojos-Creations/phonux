@@ -19,6 +19,8 @@ export interface RowModel {
   readonly heldLeft: string | null;
   readonly phonePx: number;
   readonly gapPx: number;
+  /** The id of the panel held at the right edge, or null: the mirror of `heldLeft`, held only while it is the last drawn panel. The same id in both is a panel held at either edge. */
+  readonly heldRight?: string | null;
   /** The measured container less its padding. A finite number: an unmeasured row has no model. */
   readonly windowPx: number;
   /** The window's left edge along the ruler, in px. The one scalar a driver animates. */
@@ -47,8 +49,11 @@ export interface RowLayout {
   readonly drawn: readonly DrawnPanel[];
   readonly pitchPx: number;
   readonly stripPx: number;
-  /** The held panel when the hold is in effect, else null. */
+  /** The panel held at the left edge when the hold is in effect, else null. */
   readonly held: DrawnPanel | null;
+  /** The panel held at the right edge when the hold is in effect, else null. */
+  readonly heldRight: DrawnPanel | null;
+  readonly windowPx: number;
   /** Space left of the first whole slot and right of the last, so the slots a rest shows are centered. */
   readonly centerPx: number;
   /** The span of the window, in window px, that unheld panels count as shown inside: the grid less the held panel. */
@@ -76,15 +81,19 @@ export function layoutOf(m: RowModel): RowLayout {
   const first = drawn[0];
   // A hold that leaves less than a phone of room is a plain first panel, so a narrowing window never needs a second code path.
   const held = first !== undefined && first.id === m.heldLeft && first.w + pitchPx <= m.windowPx ? first : null;
+  // The right hold is the mirror: the last drawn panel, with a phone's room left beside it and beside any left-held panel.
+  const last = drawn[drawn.length - 1];
+  const leftEdge = held === null ? 0 : held.w + m.gapPx;
+  const heldRight = last !== undefined && last.id === m.heldRight && last !== held && last.w + pitchPx + leftEdge <= m.windowPx ? last : null;
   const fits = stripPx <= m.windowPx;
   const wholeSlots = Math.max(1, Math.floor((m.windowPx + m.gapPx) / pitchPx));
   // The centering depends on the window and the strip alone, never on the hold, so a hold flip cannot change where a rest is.
   const centerPx = fits ? (m.windowPx - stripPx) / 2 : Math.max(0, (m.windowPx + m.gapPx - wholeSlots * pitchPx) / 2);
-  const last = fits ? 0 : Math.max(0, totalSlots - wholeSlots);
+  const lastStop = fits ? 0 : Math.max(0, totalSlots - wholeSlots);
   const stops: number[] = [];
-  for (let n = 0; n <= last; n += 1) stops.push(n * pitchPx - centerPx);
-  const heldEdge = held === null ? 0 : held.w + m.gapPx;
-  return { drawn, pitchPx, stripPx, held, centerPx, lo: centerPx + heldEdge, hi: m.windowPx - centerPx, stops };
+  for (let n = 0; n <= lastStop; n += 1) stops.push(n * pitchPx - centerPx);
+  const rightEdge = heldRight === null ? 0 : heldRight.w + m.gapPx;
+  return { drawn, pitchPx, stripPx, held, heldRight, windowPx: m.windowPx, centerPx, lo: centerPx + leftEdge, hi: m.windowPx - centerPx - rightEdge, stops };
 }
 
 const clampTo = (v: number, low: number, high: number): number => Math.min(high, Math.max(low, v));
@@ -95,11 +104,14 @@ function clampView(l: RowLayout, v: number): number {
   return low === undefined || high === undefined ? v : clampTo(v, low, high);
 }
 
-/** Where `p` is in the window; the held panel never leaves the left edge. */
+/** Where `p` is in the window; a held panel never leaves its edge. */
 function screenAt(l: RowLayout, view: number, p: DrawnPanel): number {
   const s = p.x - view;
-  return l.held !== null && p.id === l.held.id ? Math.max(s, 0) : s;
+  if (l.held !== null && p.id === l.held.id) return Math.max(s, 0);
+  return l.heldRight !== null && p.id === l.heldRight.id ? Math.min(s, l.windowPx - p.w) : s;
 }
+
+const isHeld = (l: RowLayout, p: DrawnPanel): boolean => p.id === l.held?.id || p.id === l.heldRight?.id;
 
 export function screenOf(m: RowModel, id: string): number | undefined {
   const l = layoutOf(m);
@@ -112,7 +124,7 @@ export function screenOf(m: RowModel, id: string): number | undefined {
  * while it fills it, since no rest can show it whole.
  */
 function shownAt(l: RowLayout, view: number, p: DrawnPanel): boolean {
-  if (l.held !== null && p.id === l.held.id) return true;
+  if (isHeld(l, p)) return true;
   const s = p.x - view;
   const seen = Math.min(s + p.w, l.hi) - Math.max(s, l.lo);
   return seen >= Math.min(p.w, l.hi - l.lo) - SHOWN_TOLERANCE_PX;
@@ -129,7 +141,7 @@ export function parkedIds(m: RowModel): string[] {
   const overscan = m.overscanPx ?? 0;
   return l.drawn
     .filter((p) => {
-      if (l.held !== null && p.id === l.held.id) return false;
+      if (isHeld(l, p)) return false;
       const s = p.x - m.view;
       return s + p.w <= -overscan || s >= m.windowPx + overscan;
     })
@@ -149,12 +161,13 @@ export function dotsOf(m: RowModel, trackPx: number): RowDots {
   const oval = { left: k * (m.view + l.lo), width: k * (l.hi - l.lo) };
   const eps = SHOWN_TOLERANCE_PX * k;
   const dots = l.drawn.map((p) => {
-    const isHeld = l.held !== null && p.id === l.held.id;
-    // The held panel's dot rides the left edge of the window as the panel does.
-    const left = k * (isHeld ? Math.max(p.x, m.view) : p.x);
+    const held = isHeld(l, p);
+    // A held panel's dot rides its edge of the window as the panel does.
+    const edge = p.id === l.held?.id ? Math.max(p.x, m.view) : p.id === l.heldRight?.id ? Math.min(p.x, m.view + l.windowPx - p.w) : p.x;
+    const left = k * edge;
     const width = k * p.w;
     const seen = Math.min(left + width, oval.left + oval.width) - Math.max(left, oval.left);
-    return { id: p.id, left, width, lit: isHeld || seen >= Math.min(width, oval.width) - eps };
+    return { id: p.id, left, width, lit: held || seen >= Math.min(width, oval.width) - eps };
   });
   return { dots, oval };
 }
@@ -171,10 +184,11 @@ export function viewRange(m: RowModel): { min: number; max: number } {
 function withPanels(m: RowModel, panels: readonly RowPanel[], subject?: string): RowModel {
   const before = layoutOf(m);
   const heldLeft = m.heldLeft !== null && panels.some((p) => p.id === m.heldLeft) ? m.heldLeft : null;
-  const next: RowModel = { ...m, panels, heldLeft };
+  const heldRight = m.heldRight != null && panels.some((p) => p.id === m.heldRight) ? m.heldRight : null;
+  const next: RowModel = { ...m, panels, heldLeft, heldRight };
   const after = layoutOf(next);
   const afterX = new Map(after.drawn.map((p) => [p.id, p.x]));
-  const kept = before.drawn.filter((p) => afterX.has(p.id) && p.id !== subject && p.id !== before.held?.id && p.id !== after.held?.id);
+  const kept = before.drawn.filter((p) => afterX.has(p.id) && p.id !== subject && !isHeld(before, p) && !isHeld(after, p));
   const anchor = kept.find((p) => shownOverlap(before, m.view, p)) ?? kept[0];
   const shift = anchor === undefined ? 0 : afterX.get(anchor.id)! - anchor.x;
   return { ...next, view: clampView(after, m.view + shift) };
@@ -190,9 +204,15 @@ function floorIndex(m: RowModel): number {
   return at < 0 ? 0 : at + 1;
 }
 
+/** The highest index a list change may use: nothing goes after the right-held panel. */
+function ceilingIndex(m: RowModel, panels: readonly RowPanel[]): number {
+  const at = m.heldRight == null ? -1 : panels.findIndex((p) => p.id === m.heldRight);
+  return at < 0 ? panels.length : at;
+}
+
 export function open(m: RowModel, panel: RowPanel, index: number = m.panels.length): RowModel {
   if (m.panels.some((p) => p.id === panel.id)) return m;
-  const at = clampTo(index, floorIndex(m), m.panels.length);
+  const at = clampTo(index, floorIndex(m), ceilingIndex(m, m.panels));
   return withPanels(m, [...m.panels.slice(0, at), panel, ...m.panels.slice(at)], panel.id);
 }
 
@@ -200,12 +220,12 @@ export function close(m: RowModel, id: string): RowModel {
   return m.panels.some((p) => p.id === id) ? withPanels(m, m.panels.filter((p) => p.id !== id)) : m;
 }
 
-/** Moves `id` so it ends at `to` in the new list. The held panel does not move, and nothing moves in front of it. */
+/** Moves `id` so it ends at `to` in the new list. A held panel does not move, and nothing moves in front of the left-held one or after the right-held one. */
 export function reorder(m: RowModel, id: string, to: number): RowModel {
   const from = m.panels.findIndex((p) => p.id === id);
-  if (from < 0 || id === m.heldLeft) return m;
+  if (from < 0 || id === m.heldLeft || id === m.heldRight) return m;
   const rest = m.panels.filter((p) => p.id !== id);
-  const at = clampTo(to, floorIndex(m), rest.length);
+  const at = clampTo(to, floorIndex(m), ceilingIndex(m, rest));
   return withPanels(m, [...rest.slice(0, at), m.panels[from]!, ...rest.slice(at)], id);
 }
 
@@ -220,6 +240,14 @@ export function hold(m: RowModel, id: string | null): RowModel {
   if (id === null) return m.heldLeft === null ? m : { ...m, heldLeft: null };
   const first = layoutOf(m).drawn[0];
   return first !== undefined && first.id === id && m.heldLeft !== id ? { ...m, heldLeft: id } : m;
+}
+
+/** Holds `id` at the right edge, or lets go with null. Only the last drawn panel can be held there. */
+export function holdRight(m: RowModel, id: string | null): RowModel {
+  if (id === null) return m.heldRight == null ? m : { ...m, heldRight: null };
+  const drawn = layoutOf(m).drawn;
+  const last = drawn[drawn.length - 1];
+  return last !== undefined && last.id === id && m.heldRight !== id ? { ...m, heldRight: id } : m;
 }
 
 /** A window change keeps every panel where it is; the grid moves under it, so call `settle` to land on a rest. */

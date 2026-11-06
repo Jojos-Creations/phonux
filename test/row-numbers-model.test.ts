@@ -73,7 +73,7 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
       const viaModel = rowNumbersViaModel(input) !== null;
       seen(viaModel ? 'model' : 'fallback');
       if (viaModel) {
-        seen(old.stuck.length > 0 ? 'model:both' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
+        seen(old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
       } else {
         seen(r.container === 0 ? 'fallback:unmeasured' : old.stuck.length > 0 ? 'fallback:both' : old.held.some((h) => h.side === 'right') ? 'fallback:right' : r.rest !== null ? 'fallback:rest' : 'fallback:other');
       }
@@ -81,7 +81,7 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
     }),
     { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
   );
-  const thin = ['model:held', 'model:both', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
+  const thin = ['model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
   assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 1500), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));
