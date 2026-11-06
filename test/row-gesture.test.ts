@@ -9,7 +9,9 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { setRowOffset, rowOffsetOf } from './support/strip.js';
+import * as React from 'react';
 import { act } from 'react';
+import { MotionConfig } from 'motion/react';
 import type { PanelWindow } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { frameClock } from './support/jsdom-globals.js';
@@ -200,6 +202,25 @@ test('a Firefox line-mode swipe (deltaMode 1, whole lines) of 336 px is one step
   mock.timers.enable({ apis: ['setTimeout'] });
   feed(m, [1, 1, 2, 3, 3, 3, 2, 2, 1, 1, 1, 1], 16, { deltaMode: 1 });
   assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+test('a notch drops the travel gathered before it: with no glide to hold a stream back, what follows starts from nothing', () => {
+  // Reduced motion lands every step at once, so no glide in flight discards the stream's travel.
+  const wrap = (row: React.ReactElement): React.ReactElement => React.createElement(MotionConfig, { reducedMotion: 'always' }, row);
+  const m = mountRow(eleven(), 1000, { tuning: { rowGesture: 'step' } }, wrap);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  m.wheel({ deltaX: 100 });
+  assert.equal(m.scroller.scrollLeft(), stops[1], 'control: the first event steps, and lands at once');
+  tick(16);
+  m.wheel({ deltaX: 300 });
+  assert.equal(m.scroller.scrollLeft(), stops[1], 'control: 300 px of travel is short of a phone width');
+  tick(60);
+  m.wheel({ deltaX: 100 });
+  assert.equal(m.scroller.scrollLeft(), stops[2], 'a notch a pause later steps');
+  tick(35);
+  m.wheel({ deltaX: 200 });
+  assert.equal(m.scroller.scrollLeft(), stops[2], '200 px after the notch is short of a phone width: the 300 before it are not counted');
 });
 
 test('after 150 ms without a wheel event the next one is a fresh gesture and steps; a small event after a pause inside it is a tail', () => {

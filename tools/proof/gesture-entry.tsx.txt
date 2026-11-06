@@ -3,7 +3,7 @@
 // Query: slots=1,2,1 gap=<px> maxlive=<n> hold=<root edgeHold> reveal=<never|...> park=1 (panels park instead of scrolling) rootpark=1 (the root too, so the row swaps)
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
-import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, usePanelDots, useProvidePanels } from 'LIB/index.js';
+import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, usePanelDots, usePanelResizing, useProvidePanels } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
 
@@ -21,7 +21,10 @@ const ids = SLOTS.map((_, k) => `p${k + 1}`);
 let latest: any;
 let latestDots: any;
 
+const resizers = new Map<string, (on: boolean) => void>();
 function View({ name }: { name: string }) {
+  const [, setResizing] = usePanelResizing();
+  resizers.set(name, setResizing);
   return (
     <div data-box={name} tabIndex={0} style={{ position: 'relative', width: '100%', height: '100%', background: name === ROOT ? '#243' : '#335', color: '#fff', font: '28px sans-serif' }}>
       <input data-field={name} style={{ position: 'absolute', top: 60, left: 12, width: 120 }} />
@@ -78,6 +81,8 @@ function App() {
     engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
     setSlots: (k: number, n: number) => latest.setSlots((window as any).__g.engineId(k), n),
     scrollTo: (k: number, align?: string) => latest.scrollTo((window as any).__g.engineId(k), align),
+    // A hand resize in the way a person's drag marks it: the panel is marked, resized, and unmarked.
+    resizing: (k: number, on: boolean) => resizers.get('p' + (k + 1))?.(on),
     // Where the panel's box is in the container, as the person sees it.
     rect: (id: string) => {
       const el = document.querySelector<HTMLElement>(`[data-row-id="${id}"]`);

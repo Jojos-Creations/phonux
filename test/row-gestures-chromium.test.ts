@@ -103,3 +103,69 @@ test('arrow keys pressed 60 ms apart each move the row exactly one stop', async 
   await page.waitForTimeout(900);
   assert.equal(await offsetOf(page), stops[4]);
 });
+
+for (const key of [null, 'ArrowRight']) {
+  test(`a panel grown by hand past a window it fitted in settles the row on a stop${key === null ? '' : ', and a step asked just after the release lands one stop on'}`, async (t) => {
+    const r = await rig(t);
+    if (r === undefined) return;
+    const page = await r.open('slots=1,1', 1800);
+    await aim(page);
+    const margin = (): Promise<number> => page.evaluate('window.__g.provided().rowNumbers.rowMarginLeft') as Promise<number>;
+    const before = await margin();
+    assert.ok(before > 200, `control: a row that fits is centered (${before})`);
+    await page.evaluate('window.__g.resizing(1, true)');
+    await page.evaluate('window.__g.setSlots(1, 5)');
+    await page.waitForTimeout(400);
+    await page.evaluate('window.__g.resizing(1, false)');
+    if (key !== null) {
+      await page.waitForTimeout(150);
+      await page.keyboard.press(key);
+    }
+    await page.waitForTimeout(1800);
+    const stops = await stopsOf(page);
+    assert.ok(stops.length >= 3, `the grow added stops (${stops.join(',')})`);
+    assert.ok((await margin()) < 100, 'the centering margin went to the overflowing row\'s');
+    assert.equal(await offsetOf(page), key === null ? stops[0] : stops[1]);
+  });
+}
+
+test('a scroll asked of the row while a panel is being resized by hand is made once the resize is released', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open('slots=1,1,1,1,1,1,1,1', 1000);
+  await aim(page);
+  assert.equal(await offsetOf(page), 0, 'control: the row starts at its first stop');
+  await page.evaluate('window.__g.resizing(0, true)');
+  await page.evaluate('window.__g.scrollTo(5)');
+  await page.waitForTimeout(400);
+  assert.equal(await offsetOf(page), 0, 'control: the held row has not moved');
+  await page.evaluate('window.__g.resizing(0, false)');
+  await page.waitForTimeout(1800);
+  const at = await offsetOf(page);
+  const left = (await page.evaluate("(() => { const id = window.__g.engineId(5); const r = window.__g.rect(id); return r === null ? null : r.left; })()")) as number | null;
+  assert.ok(at > 1000, `the row went to the panel that was asked for (${at})`);
+  assert.ok(left !== null && left >= 0 && left < 1000, `the asked-for panel is in the window (${left})`);
+});
+
+const SWAP_WIDE = 'slots=1,3,1,3,1,2,1,1&park=1&rootpark=1';
+
+// Open: in a row that swaps, with wide panels among the narrow ones, the left arrow brings a wide panel in whole and parks every
+// other panel, and the next presses go back and forth between two sets of panels instead of reaching the first panel. It ends with the
+// model that moves the view over fixed positions (design step 6); a todo test still runs, and reports.
+test('pressing left in a swapping row with wide panels never shows a panel further right than the press before it', { todo: 'the swap parks and returns panels by fit, not by position' }, async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open(SWAP_WIDE, 1800);
+  await aim(page);
+  const leftmost = async (): Promise<number> => (await page.evaluate("window.__g.ids().filter((id) => id !== 'root').map(Number).sort((a, b) => a - b)[0]")) as number;
+  let before = await leftmost();
+  const seen = [before];
+  for (let k = 0; k < 8; k += 1) {
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(700);
+    const now = await leftmost();
+    seen.push(now);
+    assert.ok(now <= before, `a press left brought panel ${now} after panel ${before}: ${seen.join(', ')}`);
+    before = now;
+  }
+});

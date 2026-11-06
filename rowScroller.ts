@@ -61,10 +61,6 @@ export interface RowScroller {
   reorigin(centering: number, o: GlideOptions): void;
   /** The strip's translate now: the view's negative, less any bump. */
   stripX(): number;
-  /** How many times a person has asked to move the row: a step, a dot, a press on the row. Counted whether or not the row moved. */
-  inputs(): number;
-  /** Records one such ask. */
-  noteInput(): void;
   /** Ends the glide in flight where it is. */
   stop(): void;
   /**
@@ -90,10 +86,6 @@ export interface RowScroller {
   subscribe(listener: () => void, options?: { sameFrame?: boolean }): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
-  /** True while a resize's settle waits for the row to re-center: the settle, not a change of stops, decides where the row rests. */
-  settling(): boolean;
-  /** Marks or unmarks that wait. */
-  setSettling(on: boolean): void;
 }
 
 // A bezier tuple is built once per glide, not per frame.
@@ -205,8 +197,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
   let originGlide: Glide | null = null;
   let frame: number | null = null;
   let anim: Animation | null = null;
-  let inputs = 0;
-  let settleWait = false;
   let bump: Bump | null = null;
   let sizeMove: Parameters<RowScroller['followSize']>[0] | null = null;
 
@@ -364,10 +354,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
       run();
       notify();
     },
-    inputs: () => inputs,
-    noteInput() {
-      inputs += 1;
-    },
     claimHeld: () => claimed,
     deferUntilRelease(run) {
       if (!claimed || !replayable) return false;
@@ -394,10 +380,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
         listeners.delete(listener);
         framers.delete(listener);
       };
-    },
-    settling: () => settleWait,
-    setSettling(on) {
-      settleWait = on;
     },
     stop,
     bump(direction, o) {

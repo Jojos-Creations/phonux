@@ -362,7 +362,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const n = computeRowNumbers(rowInput);
     const el = i.overflowContainerRef.current;
     const scroller = el === null ? null : rowScrollerFor(el);
-    if (scroller === null || tuning.rowGesture !== 'step' || scroller.claimHeld() || scroller.settling()) return n;
+    if (scroller === null || tuning.rowGesture !== 'step' || scroller.claimHeld()) return n;
     const anchor = rowAnchor(drawnNumbersRef.current, n, scroller.glideTarget() ?? scroller.scrollLeft(), swapStepRef.current !== null);
     return anchor === undefined ? n : { ...n, anchor };
   })();
@@ -577,7 +577,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (el === null) return;
     watchRest();
     const scroller = rowScrollerFor(el);
-    scroller.noteInput();
     if (scroller.claimHeld()) return;
     const maxScroll = maxScrollOf(rowNumbers);
     // A step with nowhere to go gives the iOS rubber band instead of nothing.
@@ -645,8 +644,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     if (el === null || tuning.rowGesture !== 'step' || !Number.isFinite(rowNumbers.windowWidth)) return;
     const scroller = rowScrollerFor(el);
-    // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
-    if (scroller.claimHeld() || scroller.settling()) return;
+    if (scroller.claimHeld()) return;
     let base = scroller.glideTarget() ?? scroller.scrollLeft();
     if (rowNumbers.anchor !== undefined) {
       base = Math.max(0, base + rowNumbers.anchor);

@@ -208,12 +208,10 @@ export function usePanelDots(i: {
     const index = n.ids.indexOf(id);
     // A held panel is always on screen, so its dot takes the row back to the panels beside it.
     if (el && n.held.some((h) => h.id === id && h.side === 'left')) {
-      rowScrollerFor(el).noteInput();
       stepGlide(rowScrollerFor(el), 0, { mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
       return;
     }
     if (!el || index < 0) return;
-    rowScrollerFor(el).noteInput();
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) {
       if (!rowScrollerFor(el).claimHeld()) setSeek({ id, direction: 'right', steps: parked.length + n.ids.length });
@@ -229,7 +227,6 @@ export function usePanelDots(i: {
     const el = scroller.current;
     if (!el) return null;
     const scroll = rowScrollerFor(el);
-    scroll.noteInput();
     const claim: ScrollClaim | null = scroll.claim();
     if (claim === null) return null;
     claim.setMaxScroll(maxScroll);
