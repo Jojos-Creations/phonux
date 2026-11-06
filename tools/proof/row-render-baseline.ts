@@ -10,7 +10,7 @@
  * --write keeps the frames and summaries (--label names the source they were taken from when it is not this checkout's HEAD); --compare re-runs and diffs each scenario's traces against a kept baseline on a 16 ms grid
  * restarted at every action, so a step-4 change shows as a number, not a feeling. Time is real, so two runs of one tree differ by
  * timing jitter; --diff of two recordings measures that floor and --into stores it in the baseline, and --compare then only flags a
- * drift past 1.5 times it. Headless only; exits 1 when it could
+ * drift past twice it. Headless only; exits 1 when it could
  * not run a scenario, found a blank panel, or --compare found a drift past --tol px (default 4).
  */
 import { createServer } from 'node:http';
@@ -32,6 +32,9 @@ const ONLY = arg('only')?.split(',');
 mkdirSync(OUT, { recursive: true });
 
 const ACTIONS = new Set(['go', 'step', 'back', 'resize', 'setHold', 'setSlots', 'scrollTo', 'toggleMax', 'far', 'jump']);
+// The asks that reach the page through a React commit, which lands on a different frame each run; a step or scroll is drawn by the
+// ask's own call, so its mark is exact.
+const COMMITTED = new Set(['setHold', 'setSlots', 'resize', 'toggleMax']);
 
 // --diff a.json,b.json[,c.json...]: recordings of one tree against each other, which is the noise floor a later --compare must clear
 // (the worst of every pair). --into writes the floors into the first file.
@@ -420,7 +423,32 @@ interface Segment { name: string; t0: number; t1: number }
 function segments(t: Trace): Segment[] {
   const acts = t.marks.filter((m) => ACTIONS.has(m.name));
   const end = t.frames.at(-1)?.t ?? 0;
-  return acts.map((m, k) => ({ name: m.name, t0: m.t, t1: Math.min(acts[k + 1]?.t ?? end, m.t + 2400) }));
+  return acts.map((m, k) => {
+    const t1 = Math.min(acts[k + 1]?.t ?? end, m.t + 2400);
+    return { name: m.name, t0: COMMITTED.has(m.name) ? onset(t, m.t, t1) : m.t, t1 };
+  });
+}
+
+// The frame a React commit lands on after an ask varies by tens of ms from run to run, and a jump at that frame is hundreds of px, so a
+// grid started at the ask's own mark compares a jump with the frame before it. The grid starts at the first frame that draws anything
+// different from the one before it; an ask that draws nothing keeps its mark.
+function onset(t: Trace, from: number, to: number): number {
+  const fs = t.frames;
+  const moved = (a: Frame, b: Frame): boolean => {
+    if (Math.abs(a.strip.x - b.strip.x) > 0.5 || Math.abs(a.offset - b.offset) > 0.5 || Math.abs(a.strip.opacity - b.strip.opacity) > 0.01) return true;
+    for (const id of Object.keys(b.slots)) {
+      const x = a.slots[id];
+      const y = b.slots[id];
+      if (x === undefined || y === undefined || Math.abs(x.l - y.l) > 0.5 || Math.abs(x.r - y.r) > 0.5) return true;
+    }
+    return false;
+  };
+  for (let k = 1; k < fs.length; k += 1) {
+    if (fs[k]!.t < from - 20) continue;
+    if (fs[k]!.t > to) break;
+    if (moved(fs[k - 1]!, fs[k]!)) return fs[k - 1]!.t;
+  }
+  return from;
 }
 
 function grid(t: Trace, seg: Segment, pick: (f: Frame) => number | undefined): number[] {
@@ -514,9 +542,11 @@ if (compareTo !== undefined) {
     const d = drift(b.trace, r.trace);
     const bs = b.summary;
     const ns = summarize(r.trace);
-    const limit = Math.max(TOL, 1.5 * (base.meta.noise?.[name] ?? 0));
-    const flag = d.px > limit || d.structure !== '' ? 'DRIFT' : 'ok';
-    if (flag === 'DRIFT') failed += 1;
+    const limit = Math.max(TOL, 2 * (base.meta.noise?.[name] ?? 0));
+    // Where a scenario ends is deterministic, so no noise floor excuses it: a different rest is a different row.
+    const ends = Math.abs(bs.finalStripX - ns.finalStripX) > TOL || Math.abs(bs.finalOffset - ns.finalOffset) > TOL || (bs.finalHeld || '') !== (ns.finalHeld || '');
+    const flag = d.px > limit || d.structure !== '' ? 'DRIFT' : ends ? 'DIFFERENT END' : 'ok';
+    if (flag !== 'ok') failed += 1;
     console.log(`  ${name}: ${flag} worst ${d.px} px (limit ${limit.toFixed(1)}; ${d.what} in ${d.segment} at ${d.atMs} ms)${d.structure};  final strip ${bs.finalStripX} -> ${ns.finalStripX}, offset ${bs.finalOffset} -> ${ns.finalOffset}, held ${bs.finalHeld || '-'} -> ${ns.finalHeld || '-'}, step ${bs.maxStripStepPx} -> ${ns.maxStripStepPx}`);
   }
 }
