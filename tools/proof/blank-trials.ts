@@ -10,6 +10,11 @@
  * `clipnone` strips every clip-path (the floor of the ink a moving row shows); `hidden` hides the strip, a row known to be blank,
  * which must fail: run it first, since a gate that passes it proves nothing. Exits 1 on a blank trial, a presented frame under
  * 40 percent of the settled ink, or a run that measured nothing. --prod builds the entry with the production bundle.
+ *
+ * What a pass does not show: frames above the floor are not full ink. Quiet runs have measured a worst frame near 0.98 of the settled
+ * ink, but under load and in the production bundle frames well under that appear (5 of 10 trials under load, 1 of 14 quiet, in
+ * production), and with wide panels one frame fell near 0.76. They are tiles the compositor had not rasterised yet, and the
+ * `clipnone` control dips the same way, so they are not the clip. A pass shows no blank panel and no frame under 0.4, nothing more.
  */
 import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
