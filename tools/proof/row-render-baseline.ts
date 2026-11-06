@@ -4,10 +4,10 @@
  * screenshots and checks that what is painted is the panel the page says is there, because a panel can be in the right place and
  * blank, and no number sees that.
  *
- *   node --import tsx tools/proof/row-render-baseline.ts --out <dir> [--write <baseline.json>] [--compare <baseline.json>] [--only a,b]
- *   node --import tsx tools/proof/row-render-baseline.ts --diff a.json,b.json [--into a.json]   (noise floor of one tree against itself)
+ *   node --import tsx tools/proof/row-render-baseline.ts --out <dir> [--write <baseline.json>] [--label <text>] [--compare <baseline.json>] [--only a,b]
+ *   node --import tsx tools/proof/row-render-baseline.ts --diff a.json,b.json[,c.json...] [--into a.json]   (noise floor of one tree against itself)
  *
- * --write keeps the frames and summaries; --compare re-runs and diffs each scenario's traces against a kept baseline on a 16 ms grid
+ * --write keeps the frames and summaries (--label names the source they were taken from when it is not this checkout's HEAD); --compare re-runs and diffs each scenario's traces against a kept baseline on a 16 ms grid
  * restarted at every action, so a step-4 change shows as a number, not a feeling. Time is real, so two runs of one tree differ by
  * timing jitter; --diff of two recordings measures that floor and --into stores it in the baseline, and --compare then only flags a
  * drift past 1.5 times it. Headless only; exits 1 when it could
@@ -33,26 +33,35 @@ mkdirSync(OUT, { recursive: true });
 
 const ACTIONS = new Set(['go', 'step', 'back', 'resize', 'setHold', 'setSlots', 'scrollTo', 'toggleMax', 'far', 'jump']);
 
-// --diff a.json,b.json: two recordings of one tree against each other, which is the noise floor a later --compare must clear.
+// --diff a.json,b.json[,c.json...]: recordings of one tree against each other, which is the noise floor a later --compare must clear
+// (the worst of every pair). --into writes the floors into the first file.
 const DIFF = arg('diff');
 if (DIFF !== undefined) {
-  const [fa, fb] = DIFF.split(',') as [string, string];
-  const A = JSON.parse(readFileSync(fa, 'utf8'));
-  const B = JSON.parse(readFileSync(fb, 'utf8'));
-  const names = Object.keys(A.scenarios).filter((n) => B.scenarios[n] !== undefined);
+  const docs = DIFF.split(',').map((f) => JSON.parse(readFileSync(f, 'utf8')));
+  if (docs.length < 2) {
+    console.log('proved nothing: --diff needs two recordings or more');
+    process.exit(1);
+  }
+  const names = Object.keys(docs[0].scenarios).filter((n) => docs.every((d) => d.scenarios[n] !== undefined));
   if (names.length === 0) {
-    console.log('proved nothing: the two files share no scenario');
+    console.log('proved nothing: the recordings share no scenario');
     process.exit(1);
   }
   const noise: Record<string, number> = {};
   for (const n of names) {
-    const d = drift(A.scenarios[n].trace, B.scenarios[n].trace);
-    noise[n] = d.px;
-    console.log(`  ${n}: worst ${d.px} px (${d.what} in ${d.segment} at ${d.atMs} ms)${d.structure === '' ? '' : ` ${d.structure}`}`);
+    let worst = { what: '', px: 0, atMs: 0, segment: '', structure: '' };
+    for (let i = 0; i < docs.length; i += 1) {
+      for (let j = i + 1; j < docs.length; j += 1) {
+        const d = drift(docs[i].scenarios[n].trace, docs[j].scenarios[n].trace);
+        if (d.px >= worst.px) worst = d;
+      }
+    }
+    noise[n] = worst.px;
+    console.log(`  ${n}: worst of ${(docs.length * (docs.length - 1)) / 2} pairs ${worst.px} px (${worst.what} in ${worst.segment} at ${worst.atMs} ms)${worst.structure === '' ? '' : ` ${worst.structure}`}`);
   }
   if (arg('into') !== undefined) {
-    A.meta.noise = noise;
-    writeFileSync(arg('into')!, JSON.stringify(A));
+    docs[0].meta.noise = noise;
+    writeFileSync(arg('into')!, JSON.stringify(docs[0]));
     console.log(`wrote noise floors into ${arg('into')}`);
   }
   process.exit(0);
@@ -487,14 +496,14 @@ if (ran === 0) {
 
 const writeTo = arg('write');
 if (writeTo !== undefined) {
-  const doc = { meta: { commit, dirty, chromium: (browser as any).version(), when: new Date().toISOString(), tol: TOL }, scenarios: Object.fromEntries(Object.entries(results).map(([n, r]) => [n, { trace: r.trace, summary: summarize(r.trace), paint: r.paint.map((p) => ({ label: p.label, checked: p.checked, blank: p.bad.length })), holes: r.holes.filter((h) => h.runs.length > 0) }])) };
+  const doc = { meta: { commit, dirty, label: arg('label') ?? null, chromium: (browser as any).version(), when: new Date().toISOString(), tol: TOL }, scenarios: Object.fromEntries(Object.entries(results).map(([n, r]) => [n, { trace: r.trace, summary: summarize(r.trace), paint: r.paint.map((p) => ({ label: p.label, checked: p.checked, blank: p.bad.length })), holes: r.holes.filter((h) => h.runs.length > 0) }])) };
   writeFileSync(writeTo, JSON.stringify(doc));
   console.log(`wrote ${writeTo} (${ran} scenarios, commit ${commit}${dirty ? '+dirty' : ''})`);
 }
 const compareTo = arg('compare');
 if (compareTo !== undefined) {
   const base = JSON.parse(readFileSync(compareTo, 'utf8'));
-  console.log(`compare against ${compareTo} (baseline ${base.meta.commit}, tolerance ${TOL} px):`);
+  console.log(`compare against ${compareTo} (baseline ${base.meta.label ?? base.meta.commit}, tolerance ${TOL} px):`);
   for (const [name, r] of Object.entries(results)) {
     const b = base.scenarios[name];
     if (b === undefined) {
