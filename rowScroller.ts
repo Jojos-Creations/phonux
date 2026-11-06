@@ -327,7 +327,6 @@ function createRowScroller(el: HTMLElement): RowScroller {
       const from = scrollAt(now);
       const before = glide;
       origin = originAt(now);
-      offset = from;
       if (o.fade === true && before?.fade === true) {
         // A fade already under way goes on from the opacity it has reached, so a second jump does not flash the row.
         const t = progress(before, now);
@@ -335,6 +334,9 @@ function createRowScroller(el: HTMLElement): RowScroller {
       } else if (o.carry === true && before !== null && !before.fade) glide = carried(from, target, now, speedOf(before, now), o);
       else if (o.fade !== true && sizeMove !== null && now - sizeMove.startMs < SIZE_FOLLOW_MS) glide = glideOf(from, target, sizeMove.startMs, { ...o, durationSec: sizeMove.durationSec, ease: [...sizeMove.ease] });
       else glide = glideOf(from, target, now, o);
+      // A glide that joins a size change starts in the past, so its curve is already ahead of `from`: what is stored and drawn is
+      // the curve's value now, the same one scrollLeft() reads, not the value the strip had a frame ago.
+      offset = at(glide, now);
       draw(now);
       run();
       return true;

@@ -14,6 +14,7 @@ import { appendPanel } from '../panelWindow.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { cubicBezier } from 'motion/react';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { frameClock } from './support/jsdom-globals.js';
 
 afterEach(() => cleanup());
 
@@ -241,5 +242,114 @@ test('a size change keeps the scroll with the panel edge: asked a frame or three
       await advanceFrames(16);
     }
     assert.ok(worst < 2, `lag ${lag} frames: the scroll is ${worst.toFixed(1)} px off the panel's edge`);
+  }
+});
+
+// Placement happens between frames in a browser: an ask lands on a microtask or an event, not on a frame boundary. At a frame
+// boundary the stored numbers and the curves agree, so only a half-frame ask can tell a placement that reads the curve from one that
+// reads what the last frame stored.
+const INSTANT = { durationSec: 0, instant: true, ease: 'cubic-out' } as const;
+const CENTER = { durationSec: 0.4, instant: false, ease: 'cubic-out' } as const;
+
+async function bothGlidingMidFrame(): Promise<ReturnType<typeof row>> {
+  const r = row();
+  r.scroller.reorigin(100, INSTANT);
+  r.scroller.glideTo(800, GLIDE);
+  r.scroller.reorigin(40, CENTER);
+  await advanceFrames(160);
+  frameClock.skip(8);
+  return r;
+}
+
+const placements: [string, (s: RowScroller, el: HTMLElement) => void][] = [
+  ['a re-centering to a new target', (s) => s.reorigin(20, CENTER)],
+  ['a re-centering back to the one it left', (s) => s.reorigin(100, CENTER)],
+  ['an end-of-row bump', (s) => s.bump('right', { distancePx: 36, durationSec: 0.45, holdMs: 100 })],
+  ['keeping a bump', (s) => {
+    s.bump('right', { distancePx: 36, durationSec: 0.45, holdMs: 100 });
+    s.keepBump('right', 300);
+  }],
+  ['stop()', (s) => s.stop()],
+  ['a reversal that carries the speed', (s) => s.glideTo(0, { ...GLIDE, carry: true })],
+  ['a reversal with its own curve', (s) => s.glideTo(300, GLIDE)],
+  ['a fade jump', (s) => s.glideTo(2000, { ...GLIDE, fade: true })],
+  ['an instant placement', (s) => s.glideTo(500, { ...GLIDE, instant: true })],
+  ['the browser scrolling the clipped container', (s, el) => {
+    el.scrollLeft = 10;
+    el.dispatchEvent(new window.Event('scroll'));
+  }],
+];
+
+for (const [name, ask] of placements) {
+  test(`${name} asked half a frame into a frame leaves the strip drawn where it reads: what the code reads is what is on screen`, async () => {
+    const { el, strip, scroller } = await bothGlidingMidFrame();
+    const read = scroller.stripX();
+    const scrollBefore = scroller.scrollLeft();
+    ask(scroller, el);
+    const same = name.startsWith('a fade') || name.startsWith('an instant') || name.startsWith('the browser');
+    if (!same) assert.ok(Math.abs(scroller.stripX() - read) < 1e-6, `${name}: the read moved at the call, ${read} to ${scroller.stripX()}`);
+    if (name.startsWith('the browser')) assert.ok(Math.abs(scroller.scrollLeft() - (scrollBefore + 10)) < 1e-6, `${name}: the scroll is where the glide was, plus the 10 px: ${scroller.scrollLeft()} against ${scrollBefore + 10}`);
+    // Whatever the ask did to the numbers, the strip is drawn at the numbers the caller can read, never at last frame's.
+    assert.ok(Math.abs(drawn(strip) - scroller.stripX()) < 1e-6, `${name}: drawn ${drawn(strip)}, read ${scroller.stripX()}, scroll was ${scrollBefore}`);
+  });
+}
+
+test('a re-centering asked to go where it is already going changes nothing: the glide keeps its clock and no frame loop starts at rest', async () => {
+  // Rows left running by earlier tests have frames queued; let them land so the count below is this row's alone.
+  await advanceFrames(2000);
+  const { strip, scroller } = row();
+  scroller.reorigin(100, INSTANT);
+  let notified = 0;
+  scroller.subscribe(() => void (notified += 1));
+  scroller.reorigin(100, CENTER);
+  assert.equal(frameClock.pendingCount(), 0, 'the same centering at rest starts no frame loop');
+  assert.equal(notified, 0, 'and tells nobody');
+  scroller.reorigin(60, CENTER);
+  await advanceFrames(160);
+  const mid = drawn(strip);
+  scroller.reorigin(60, CENTER);
+  scroller.reorigin(60, { ...CENTER, durationSec: 1 });
+  await advanceFrames(240);
+  assert.equal(drawn(strip), 60, 'asking again mid-glide did not restart it: it landed on its own clock');
+  assert.ok(mid < 100 && mid > 60, `it was moving: ${mid}`);
+});
+
+test('a centering that is still moving can be asked to turn back to where it started', async () => {
+  const { strip, scroller } = row();
+  scroller.reorigin(100, INSTANT);
+  scroller.reorigin(60, CENTER);
+  await advanceFrames(160);
+  frameClock.skip(8);
+  scroller.reorigin(100, CENTER);
+  await advanceFrames(600);
+  assert.equal(drawn(strip), 100, 'the early return compares with where the glide is going, not with the last stored value');
+});
+
+test('every glide ends: no frame is left queued once the scroll, the centering, a fade and a bump have all landed', async () => {
+  const { scroller } = row();
+  scroller.reorigin(100, INSTANT);
+  scroller.reorigin(40, CENTER);
+  await advanceFrames(600);
+  assert.equal(frameClock.pendingCount(), 0, 'a centering glide ends');
+  scroller.glideTo(900, GLIDE);
+  await advanceFrames(600);
+  assert.equal(frameClock.pendingCount(), 0, 'a scroll glide ends');
+  scroller.glideTo(0, { ...GLIDE, fade: true });
+  await advanceFrames(600);
+  assert.equal(frameClock.pendingCount(), 0, 'a fade ends');
+  scroller.bump('right', { distancePx: 36, durationSec: 0.4, holdMs: 100 });
+  await advanceFrames(900);
+  assert.equal(frameClock.pendingCount(), 0, 'a bump ends');
+});
+
+test('a size-follow ask draws the strip where the glide it joined has got to, which is what scrollLeft() reads', async () => {
+  for (const lag of [1, 3, 8]) {
+    const { strip, scroller } = row();
+    scroller.followSize({ startMs: performance.now(), durationSec: 0.6, ease: [0.4, 0, 0.2, 1] });
+    await advanceFrames(lag * 16);
+    frameClock.skip(8);
+    scroller.glideTo(800, { durationSec: 0.6, instant: false, ease: 'cubic-out' });
+    assert.ok(scroller.scrollLeft() > 0, 'the glide it joined had already moved');
+    assert.ok(Math.abs(drawn(strip) + scroller.scrollLeft()) < 1e-6, `lag ${lag}: drawn ${drawn(strip)} but the scroll reads ${scroller.scrollLeft()}`);
   }
 });
