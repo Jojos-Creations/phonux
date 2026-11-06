@@ -1,0 +1,113 @@
+// The real Workspace, PanelRow and a dot bar built from usePanelDots, as an app builds them, for the real-gesture checks in
+// test/row-gestures-chromium.test.ts: wheel notches, key presses, clicks on dots and on panels.
+// Query: slots=1,2,1 gap=<px> maxlive=<n> hold=<root edgeHold> reveal=<never|...> park=1 (panels park instead of scrolling) rootpark=1 (the root too, so the row swaps)
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, usePanelDots, useProvidePanels } from 'LIB/index.js';
+import { createFakeHost } from 'LIB/fakeHost.js';
+import { rowScrollerFor } from 'LIB/rowScroller.js';
+
+const q = new URLSearchParams(location.search);
+const SLOTS = (q.get('slots') ?? '1,1,1,1,1,1').split(',').map(Number);
+const GAP = Number(q.get('gap') ?? 16);
+const MAXLIVE = q.get('maxlive') === null ? null : Number(q.get('maxlive'));
+const HOLD = q.get('hold');
+const PARK = q.get('park') === '1';
+const ROOTPARK = q.get('rootpark') === '1';
+const PHONE = 390;
+const ROOT = 'root';
+const NONE = new Set<string>();
+const ids = SLOTS.map((_, k) => `p${k + 1}`);
+let latest: any;
+let latestDots: any;
+
+function View({ name }: { name: string }) {
+  return (
+    <div data-box={name} tabIndex={0} style={{ position: 'relative', width: '100%', height: '100%', background: name === ROOT ? '#243' : '#335', color: '#fff', font: '28px sans-serif' }}>
+      <input data-field={name} style={{ position: 'absolute', top: 60, left: 12, width: 120 }} />
+      {name}
+    </div>
+  );
+}
+
+const ws = createWorkspace({
+  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: 'none', ...(ROOTPARK ? { overflow: 'park' } : {}), ...(HOLD ? { edgeHold: HOLD } : {}) } as any }),
+  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} />) as any, settings: { slots: SLOTS[k], maxSlots: 64, frame: 'none', ...(PARK ? { overflow: 'park' } : {}) } as any })),
+  tuning: { rowGesture: 'step', rowGap: GAP, ...(MAXLIVE === null ? {} : { maxLivePanels: MAXLIVE }) } as any,
+});
+for (const id of ids) ws.addPanel(id);
+
+function DotBar({ p, container }: { p: any; container: React.RefObject<HTMLDivElement | null> }) {
+  const d = usePanelDots({ rowNumbers: p.rowNumbers, entries: p.entries as any, scroller: container, tuning: p.tuning });
+  latestDots = d;
+  return (
+    <div data-bar-host style={{ position: 'fixed', left: 40, bottom: 20, height: 30, width: 600, zIndex: 100000 }}>
+      <div {...d.barProps} style={{ ...d.barProps.style, position: 'relative', height: 30, width: d.width, background: '#111' }}>
+        <div {...d.ovalProps} aria-label="window" data-oval style={{ position: 'absolute', top: 0, height: 30, left: d.oval.left, width: d.oval.width, background: 'rgba(255,255,255,0.3)' }} />
+        {d.dots.map((dot) => (
+          <button key={dot.id} {...d.dotProps(dot.id)} style={{ position: 'absolute', top: 6, height: 18, left: dot.left, width: dot.width, background: '#8af', border: 0, padding: 0 }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const [w, setW] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const el = ref.current!;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref } as any);
+  latest = p;
+  const host = createFakeHost({ panels: p });
+  (window as any).__g = {
+    ready: () => document.querySelector('[data-row-strip]') !== null && latest !== undefined && latestDots !== undefined,
+    container: () => ref.current,
+    offset: () => rowScrollerFor(ref.current!).scrollLeft(),
+    target: () => rowScrollerFor(ref.current!).glideTarget(),
+    provided: () => latest,
+    stops: () => latest.rowNumbers.stops as number[],
+    ids: () => latest.rowNumbers.ids as string[],
+    dots: () => latestDots,
+    engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
+    setSlots: (k: number, n: number) => latest.setSlots((window as any).__g.engineId(k), n),
+    scrollTo: (k: number, align?: string) => latest.scrollTo((window as any).__g.engineId(k), align),
+    // Where the panel's box is in the container, as the person sees it.
+    rect: (id: string) => {
+      const el = document.querySelector<HTMLElement>(`[data-row-id="${id}"]`);
+      if (el === null) return null;
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    },
+    // Offsets sampled on every animation frame from now until `stop()`.
+    watch: () => {
+      const rec = { t: [] as number[], x: [] as number[], stop: false, done: (_: any) => {} };
+      (window as any).__watch = rec;
+      const tick = (now: number): void => {
+        rec.t.push(now);
+        rec.x.push(rowScrollerFor(ref.current!).scrollLeft());
+        if (!rec.stop) requestAnimationFrame(tick);
+        else rec.done({ t: rec.t, x: rec.x });
+      };
+      requestAnimationFrame(tick);
+    },
+    stopWatch: () => new Promise((done) => { const rec = (window as any).__watch; rec.done = done; rec.stop = true; }),
+  };
+  return (
+    <HostProvider host={host}>
+      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
+          <PanelRow entries={p.entries} rootId={ws.rootId} closingIds={NONE} enteringViaAnchorIds={NONE} rowNumbers={p.rowNumbers} maxLiveWidth={p.maxLiveWidth} workspace={ws} />
+        </Workspace>
+        <DotBar p={p} container={ref} />
+      </div>
+    </HostProvider>
+  );
+}
+createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

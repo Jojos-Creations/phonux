@@ -9,7 +9,6 @@ import { projectWorkspaceState } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup } from './support/mount-harness.js';
 import { matrixRig, type MatrixRig } from './support/configure-matrix.js';
-import { rowScrollerFor } from './support/workspace-row.js';
 import { act } from 'react';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 
@@ -109,7 +108,7 @@ test('turning the tuning off leaves no panel stuck: the next activation still br
   assert.deepEqual(widths(r, 'b'), [2, undefined], 'off: another panel active leaves b wide');
 });
 
-test('a launch starts every saved wide panel at one phone, and a press brings back its saved width', async () => {
+test('a launch keeps every saved wide panel at its saved width, and a press changes nothing about it', async () => {
   const settleSave = (): Promise<void> => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 150))));
   const store = memoryWorkspaceStorage();
   const launch = async (shrinkUnfocused: boolean): Promise<MatrixRig> => {
@@ -124,11 +123,11 @@ test('a launch starts every saved wide panel at one phone, and a press brings ba
   r.m.unmount();
   assert.equal((await store.load())!.panels.find((p) => p.key === 'b')?.slots, 2, 'control: b was saved two wide');
   r = await launch(true);
-  assert.deepEqual(widths(r, 'b'), [1, 2], 'the next launch starts b at one phone, keeping two');
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'the next launch starts b at its saved two, not resting');
   await settleSave();
   assert.equal((await store.load())!.panels.find((p) => p.key === 'b')?.slots, 2, 'the file still holds two');
   press(r, 'b');
-  assert.deepEqual(widths(r, 'b'), [2, undefined], 'pressed: back to two');
+  assert.deepEqual(widths(r, 'b'), [2, undefined], 'pressed: still two');
   r.m.unmount();
   r = await launch(false);
   assert.deepEqual(widths(r, 'b'), [2, undefined], 'off: a launch restores b two wide');

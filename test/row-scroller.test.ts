@@ -51,15 +51,16 @@ test('an instant glide moves at once', () => {
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 
-test('a glide stops at pointer-down in the container and stays where it was', async () => {
+test('a glide goes on to its target when the container is pressed: a press must not leave the row between two stops', async () => {
   const el = container();
   rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   await advanceFrames(160);
   const at = rowOffsetOf(el);
   assert.ok(at > 0 && at < 812);
   el.dispatchEvent(new Event('pointerdown'));
-  await advanceFrames(400);
-  assert.equal(rowOffsetOf(el), at);
+  assert.equal(rowScrollerFor(el).glideTarget(), 812);
+  await advanceFrames(600);
+  assert.equal(rowOffsetOf(el), 812);
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 

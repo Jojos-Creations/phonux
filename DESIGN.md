@@ -655,7 +655,7 @@ held panel, fading out across that panel's gap, and on the other side it runs on
 because the held panel and the cut follow `stripX()` there and a compositor glide runs ahead of them. A resting panel keeps the count it goes back to in `savedSlots`, which a view also reads on its `PanelSummary` (a size control shows `savedSlots ?? slots`), and the next press or focus inside it resizes it
 back (a press on a button or grab bar of its own header or footer does not: such a control acts on the panel as drawn), with the same capacity rule as `setSlots`, and centers it in the row as near as the ends allow. Any `setSlots` while it rests replaces that count. The workspace file
 saves the count it goes back to, never the resting one, so a reload never loses a chosen width, and a launch
-starts every restored wide panel resting, so it comes back at its saved width the first time it is used. The rest is a resize from
+restores every wide panel at its saved width, resting none. The rest is a resize from
 code, so the person's recorded `overrides.slots` stays as it was. The next activation brings a resting panel back even
 after the tuning is turned off, so no panel is left at one phone.
 

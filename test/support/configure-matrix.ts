@@ -529,6 +529,8 @@ export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<n
   await hold(50);
   const gained = rowOffsetOf(r.m.container) - from;
   await lift(x);
+  // A release settles the row onto a stop; a press does not stop that glide, so the next measure waits for it to land.
+  await hold(120);
   return gained;
 }
 

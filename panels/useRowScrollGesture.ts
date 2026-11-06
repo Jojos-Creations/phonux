@@ -24,6 +24,13 @@ import { registerRowKeys } from '../rowStep.js';
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
 const LINE_PX = 16;
 
+/**
+ * A wheel event this long after the previous one, and at least this big, is a notch of a mouse wheel and not a trackpad's
+ * stream (whose events come every frame or two and shrink to a few px): each notch is one step of its own.
+ */
+const NOTCH_GAP_MS = 40;
+const NOTCH_MIN_PX = 40;
+
 /** Finger travel before a touch is read as horizontal or vertical: a tap or a small wobble never steps the row. */
 const TOUCH_AXIS_PX = 8;
 
@@ -54,8 +61,9 @@ export function feedRowWheel(from: Element, wheel: { deltaX: number; deltaY?: nu
 /**
  * One gesture travels as far as it is pushed, one step per `stepPx` of wheel travel, never by free pixels: the first
  * event of a gesture steps at once, so a short swipe or one wheel notch still moves, and every further `stepPx` of
- * travel in the same direction steps again, momentum included. A reversal starts a fresh gesture. Each step is the
- * caller's glide to the next stop, so the row always comes to rest on one; steps faster than a glide add to its target.
+ * travel in the same direction steps again once the glide in flight has landed. A reversal starts a fresh gesture. Each
+ * step is the caller's glide to the next stop, so the row always comes to rest on one. A mouse wheel's notches (events a
+ * pause apart) are the exception: each one steps, and steps faster than a glide add to its target.
  *
  * A finger drag feeds the same accumulator: a finger moving left is the travel a wheel reports as `deltaX` > 0, so it asks
  * for the step right. A drag that starts vertical is left to the page for the whole touch.
@@ -93,6 +101,7 @@ export function useRowScrollGesture(
     // Travel against the gesture so far: a trackpad's momentum tail flickers a px or two the other way, which is not a reversal.
     let against = 0;
     let lastStepAt = Number.NEGATIVE_INFINITY;
+    let lastEventAt = Number.NEGATIVE_INFINITY;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
     const step = (direction: number): void => {
       lastStepAt = performance.now();
@@ -109,7 +118,18 @@ export function useRowScrollGesture(
         against = 0;
       }, gestureQuietMsRef.current);
       const direction = Math.sign(amount);
+      const now = performance.now();
+      const gap = now - lastEventAt;
+      lastEventAt = now;
       if (direction === 0) return;
+      // A notch after a pause steps once, whatever it follows, so a row of notches is a row of steps; they stack on the glide in flight.
+      if (gap >= NOTCH_GAP_MS && Math.abs(amount) >= NOTCH_MIN_PX && (now - lastStepAt >= gestureLockMsRef.current || direction !== sign)) {
+        sign = direction;
+        travel = 0;
+        against = 0;
+        step(direction);
+        return;
+      }
       if (direction !== sign) {
         if (sign !== 0) {
           against += Math.abs(amount);

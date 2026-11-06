@@ -122,13 +122,13 @@ test('differential tuning.rowGesture: step starts a glide on a swipe and off lea
   });
 });
 
-/** Whether the row faded during four quick swipes, each one stop on, under `fastScroll`. */
+/** Whether the row faded during four quick mouse-wheel notches, 48 ms apart and each one stop on, under `fastScroll`. */
 async function fadedUnder(fastScroll: 'coalesce' | 'jump'): Promise<boolean> {
   const m = mountRow(panelsOf(10), 1000, { tuning: { fastScroll } });
   const strip = m.container.querySelector<HTMLElement>('[data-row-strip]')!;
   m.wheel({ deltaX: 50 });
   for (let k = 0; k < 3; k += 1) {
-    await advanceFrames(32);
+    await advanceFrames(48);
     m.wheel({ deltaX: 500 });
   }
   let darkest = 1;

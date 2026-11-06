@@ -105,7 +105,8 @@ async function wholeDrag(r: Rig, n: number, at = POINTER, id = 's1'): Promise<nu
   await frames(n);
   const after = rowOffsetOf(r.m.container);
   await liftAt(at);
-  await frames(30);
+  // The release settles the row onto a stop and a press does not stop that glide: the next drag starts once it has landed.
+  await frames(120);
   return after - before;
 }
 const near = (actual: number, expected: number, message: string): void => assert.ok(Math.abs(actual - expected) < 1e-6, `${message}: ${actual}, expected ${expected}`);
@@ -118,7 +119,7 @@ test('tuning.edgeScroll zonePx 48 to 12 mid-drag: this drag keeps its pace, and 
   await configure(r, { edgeScroll: { zonePx: 12 } });
   near(await gainOver(r, 10), 72, 'ten frames after the configure');
   await liftAt(POINTER);
-  await frames(30);
+  await frames(120);
   assert.equal(await wholeDrag(r, 50), 0, '24 px from the edge is outside a 12 px band');
 });
 
@@ -132,6 +133,6 @@ test('tuning.edgeScroll maxPxPerSec 900 to 450 mid-drag: this drag keeps its pac
   await configure(r, { edgeScroll: { maxPxPerSec: 450 } });
   near(await gainOver(r, 10), 72, 'ten frames after the configure');
   await liftAt(POINTER);
-  await frames(30);
+  await frames(120);
   near(await wholeDrag(r, 50), whole / 2, 'the next whole drag');
 });

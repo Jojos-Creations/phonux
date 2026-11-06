@@ -1388,7 +1388,7 @@ test('matrix:tuning.gestureLockMs', async () => {
   probe('tuning.gestureLockMs');
   await wrongScopeInEveryStatus({ tuning: { gestureLockMs: 700 } }, 'tuning.gestureLockMs');
   // The lock reads performance.now, which the fake timers leave alone: a clock the test moves puts the second event an exact interval after the first.
-  // Both events are one phone width plus the row gap (406) in one direction, so the second carries a whole step of travel.
+  // Both events are one phone width plus the row gap (406) in one direction, and the second comes 50 ms after the first: a notch of its own, which only the lock can hold back.
   const swipes = async (gestureLockMs: number | undefined): Promise<(number | null)[]> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
     await r.settle();
@@ -1400,7 +1400,7 @@ test('matrix:tuning.gestureLockMs', async () => {
     const wheel = (deltaX: number): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
     wheel(406);
     const first = scroller.glideTarget();
-    clock += 10;
+    clock += 50;
     wheel(406);
     const second = scroller.glideTarget();
     now.mock.restore();
@@ -1410,9 +1410,9 @@ test('matrix:tuning.gestureLockMs', async () => {
   };
   const [firstDefault, secondDefault] = await swipes(undefined);
   assert.equal(firstDefault !== null, true, 'control: the first swipe starts a glide');
-  assert.equal(secondDefault, firstDefault, 'under the default 30 ms lock a second step of travel 10 ms later is held back');
-  const [firstShort, secondShort] = await swipes(5);
-  assert.notEqual(secondShort, firstShort, 'under 5 ms the same second step acts');
+  assert.notEqual(secondDefault, firstDefault, 'under the default 30 ms lock a second notch 50 ms later steps');
+  const [firstLong, secondLong] = await swipes(700);
+  assert.equal(secondLong, firstLong, 'under a 700 ms lock the same second notch is held back');
 });
 
 test('matrix:tuning.gestureQuietMs', async () => {

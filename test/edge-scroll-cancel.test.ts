@@ -107,16 +107,16 @@ function claimFree(m: MountedRow): boolean {
   return claim !== null;
 }
 
-test('a glide in flight stops at the pointer-down on the grab bar and writes nothing after', async () => {
+test('a glide in flight goes on to its target at the pointer-down on the grab bar: a press must not leave the row between two stops', async () => {
   const m = mountCancelRow();
   assert.equal(m.scroller.glideTo(2000, { durationSec: 1, instant: false, ease: 'cubic-out' }), true);
   await frames(10);
-  const stopped = rowOffsetOf(m.container);
-  assert.ok(stopped > 0 && stopped < 2000, `mid-glide at ${stopped}`);
+  const mid = rowOffsetOf(m.container);
+  assert.ok(mid > 0 && mid < 2000, `mid-glide at ${mid}`);
   await press(handleOf(m), 500);
-  assert.equal(m.scroller.glideTarget(), null);
-  await frames(60);
-  assert.equal(rowOffsetOf(m.container), stopped);
+  assert.equal(m.scroller.glideTarget(), 2000);
+  await frames(90);
+  assert.equal(rowOffsetOf(m.container), 2000);
 });
 
 test('while the hold has the row, scrollTo, a created panel and a followed move are dropped with a note; the same scrollTo after the release runs', async () => {
