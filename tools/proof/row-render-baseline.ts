@@ -31,6 +31,8 @@ const TOL = Number(arg('tol') ?? 4);
 const ONLY = arg('only')?.split(',');
 mkdirSync(OUT, { recursive: true });
 
+const ACTIONS = new Set(['go', 'step', 'back', 'resize', 'setHold', 'setSlots', 'scrollTo', 'toggleMax', 'far', 'jump']);
+
 // --diff a.json,b.json: two recordings of one tree against each other, which is the noise floor a later --compare must clear.
 const DIFF = arg('diff');
 if (DIFF !== undefined) {
@@ -250,27 +252,30 @@ scenario('recenter-glide', SIX, 1280, async (c) => {
   await c.checkPaint('after-900-step');
 });
 
-for (const hold of ['left', 'right', 'both'] as const) {
-  scenario(`hold-flip-${hold}`, SIX, 1280, async (c) => {
-    await c.checkPaint('off');
-    await c.page.evaluate((h: string) => (window as any).__r.setHold(0, h), hold);
-    await sleep(100);
-    await c.shot('flip-on-mid');
-    await c.settle();
-    await c.checkPaint('on');
-    await c.step();
-    await sleep(110);
-    await c.shot('step-mid');
-    await c.settle();
-    await c.checkPaint('on-stepped');
-    await c.step();
-    await sleep(70);
-    await c.page.evaluate(() => (window as any).__r.setHold(0, 'off'));
-    await sleep(110);
-    await c.shot('flip-off-mid-glide');
-    await c.settle();
-    await c.checkPaint('off-again');
-  });
+// The first panel's hold is read by the position model; a hold on a panel further along is still the older arithmetic. Step 4 redraws both.
+for (const [where, target] of [['first', -1], ['middle', 1]] as const) {
+  for (const hold of ['left', 'right', 'both'] as const) {
+    scenario(`hold-flip-${where}-${hold}`, SIX, 1280, async (c) => {
+      await c.checkPaint('off');
+      await c.page.evaluate(([k, h]: [number, string]) => (window as any).__r.setHold(k, h), [target, hold] as [number, string]);
+      await sleep(100);
+      await c.shot('flip-on-mid');
+      await c.settle();
+      await c.checkPaint('on');
+      await c.step();
+      await sleep(110);
+      await c.shot('step-mid');
+      await c.settle();
+      await c.checkPaint('on-stepped');
+      await c.step();
+      await sleep(70);
+      await c.page.evaluate((k: number) => (window as any).__r.setHold(k, 'off'), target);
+      await sleep(110);
+      await c.shot('flip-off-mid-glide');
+      await c.settle();
+      await c.checkPaint('off-again');
+    });
+  }
 }
 
 scenario('fade-jump', 'slots=1,1,1,1,1,1,1,1,1,1,1,1&fast=jump', 1280, async (c) => {
@@ -402,7 +407,6 @@ function summarize(t: Trace): Record<string, number | string> {
 
 // Real time jitters, so each action (go, step, back, resize, hold and size asks) starts its own 16 ms grid: what is compared is the
 // response to an action, not where the wall clock happened to be when a slow settle finished.
-const ACTIONS = new Set(['go', 'step', 'back', 'resize', 'setHold', 'setSlots', 'scrollTo', 'toggleMax', 'far', 'jump']);
 interface Segment { name: string; t0: number; t1: number }
 function segments(t: Trace): Segment[] {
   const acts = t.marks.filter((m) => ACTIONS.has(m.name));

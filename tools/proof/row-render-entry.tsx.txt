@@ -39,7 +39,7 @@ function View({ name }: { name: string }) {
 }
 
 const ws = createWorkspace({
-  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: 'none' } }),
+  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: 'none', ...(HOLDS.has(ROOT) ? { edgeHold: HOLDS.get(ROOT) } : {}) } as any }),
   templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} />) as any, settings: { slots: SLOTS[k], maxSlots: 64, frame: 'none', ...(HOLDS.has(id) ? { edgeHold: HOLDS.get(id) } : {}) } as any })),
   tuning: { rowGesture: (q.get('gesture') ?? 'step') as 'step' | 'off', rowGap: GAP, fastScroll: (q.get('fast') ?? 'coalesce') as 'coalesce' | 'jump' } as any,
 });
@@ -89,7 +89,8 @@ function App() {
     offset: () => rowScrollerFor(ref.current!).scrollLeft(),
     // The nth added panel's engine id (the root is not counted).
     engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
-    setHold: (k: number, value: string) => (mk('setHold'), ws.panels.configure(ids[k]!, { edgeHold: value } as any)),
+    // k < 0 is the root, the first panel of the row; 0 is the first template panel, the second in the row.
+    setHold: (k: number, value: string) => (mk('setHold'), ws.panels.configure(k < 0 ? ROOT : ids[k]!, { edgeHold: value } as any)),
     setSlots: (k: number, n: number) => (mk('setSlots'), latest.setSlots((window as any).__r.engineId(k), n)),
     scrollTo: (k: number, align?: string) => (mk('scrollTo'), latest.scrollTo((window as any).__r.engineId(k), align)),
     toggleMax: (name: string) => (mk('toggleMax'), maxers[name]!.toggle()),
