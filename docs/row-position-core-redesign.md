@@ -82,19 +82,21 @@ interface RowModel {
   heldLeft: string | null;        // the Workspace panel
   slotPx: number; gapPx: number;  // phone + gap
   windowPx: number;               // container less padding
-  view: number;                   // window's left edge along the strip, px; the one animated scalar
+  scroll: number;                 // what steps, dots and claims move, px; animated on its own clock
+  origin: number;                 // minus the centering, px; animated on its own clock; view = scroll + origin
 }
 // Derived, never stored:
 //   x[i]      = running sum of (slots*slotPx + gaps) over drawn panels before i   (parked ones INCLUDED)
+//   view      = scroll + origin   (two scalars, never merged into one)
 //   screen(i) = x[i] - view;  held: max(screen(i), 0)   (clamp; the hold is a render rule, not a layout group)
 //   stops     = every slot boundary from x[heldWidth] to maxView;  step = view += slotPx+gap, clamped to a stop
 //   drawnWhole(i) = screen(i) >= 0 && screen(i)+w[i] <= windowPx          (the ONE on-screen predicate)
 //   parked(i) = screen(i)+w[i] <= -overscan || screen(i) >= windowPx+overscan   (unload rule, derived)
 //   dots      = scale k = trackPx/stripPx;  dot(i) at k*x[i], width k*w[i];  oval at [k*view, k*(view+windowPx)]
-//   centering = (windowPx - wholeSlots*pitch)/2 folded into view's origin, not a separate margin
+//   centering = (windowPx - wholeSlots*pitch)/2, which the origin follows (origin = -centering)
 ```
 
-Animation: `view` is one `Static | Glide | Gesture` value (niri's shape, rowScroller's existing WAAPI sampler reused). `x[i]` and `w[i]` animate only on list changes (open, close, reorder, resize), each a glide from the previous derived value to the new one on the shared `rowClock`. A list change that would move a kept panel on screen is compensated in the model: `view += x_new[k] - x_old[k]` for the leftmost kept drawn panel, before the glide starts (niri's `offset_delta`). That replaces `rowAnchor`, `settling`, `replayScroll`, `followSize` and the hold-flip margin glide.
+Animation: the view is two scalars that add, `scroll` and `origin`, each with its own glide on its own clock (rowScroller's WAAPI sampler, reused). Step 3 tried one `Static | Glide | Gesture` scalar first and it failed the audit: a fade became a slide, the end-of-row bump waited behind a centering, and a scroll glide was retimed to the centering's length. So the model has no single animated `view`; `scroll` is what the user and the dots move, and `reorigin(centering)` moves only `origin`. `x[i]` and `w[i]` animate only on list changes (open, close, reorder, resize), each a glide from the previous derived value to the new one. A list change that would move a kept panel on screen is compensated in the model: `scroll += x_new[k] - x_old[k]` for the leftmost kept drawn panel, before the glide starts (niri's `offset_delta`). That replaces `rowAnchor`, `settling` and `replayScroll`. `followSize` is not replaced yet: a scroll glide asked just after a size glide must ride that glide's clock, and dropping it let the row drift 76 to 243 px from the panel's edge during a maximize.
 
 Render: one `subscribe` pass per frame writes, for each slot, `translateX(screen(i))` (clamped for held), the clip at the held edge, `inert`/`pointer-events` from `drawnWhole`, and the dot bar's `left` values. `PanelHold`, the Workspace clip loop, `slotMover`'s row-relative pose and `drawEachFrame` go away; the per-slot WAAPI stays only for enter/exit poses.
 
@@ -102,7 +104,8 @@ Intents replace writers: `step(dir)`, `show(id, align)`, `drag(dx)` / `release()
 
 ### What it removes
 
-- `rowAnchor`, `settling()/setSettling`, `replayScroll`/`deferUntilRelease`/`replayDeferred`, `followSize`, `drawEachFrame`, `setMargin` and the margin glide, `held[]/stuck[]/leftInset/rightInset/stripStart` as stored fields, `admitHolds`' overflow release, `settleKeeping`'s second commit, `capParkedRef`, `swapStepRef`, `REQUEST_WAIT_COMMITS`, both "a frame later" rAFs, the slide-duration settle timer, `useResizeSettled`'s role in the row.
+- `rowAnchor`, `settling()/setSettling`, `replayScroll`/`deferUntilRelease`/`replayDeferred`, `drawEachFrame`, `held[]/stuck[]/leftInset/rightInset/stripStart` as stored fields, `admitHolds`' overflow release, `settleKeeping`'s second commit, `capParkedRef`, `swapStepRef`, `REQUEST_WAIT_COMMITS`, both "a frame later" rAFs, the slide-duration settle timer, `useResizeSettled`'s role in the row.
+- Not removed by step 3, and so listed with the steps that remove them: `followSize` (needed until a size change is a model glide, step 5) and the Workspace line that hands the driver the centering (`setMargin` was renamed `reorigin`, and the hold flip no longer moves it because the numbers give the same centering with the hold on and off).
 - rowDots.ts entirely (`toTrack`, `toScroll`, `withParked`, `withHeld`), the `seen` conversion, `carry` mode, `stepAsked`.
 - `PanelRow`'s second `leftOffsets`, `reservedWidth`, the `PanelHold` measuring effect.
 - Four of the five "on screen" predicates.
