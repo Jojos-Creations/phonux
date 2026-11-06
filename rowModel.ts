@@ -159,11 +159,9 @@ export function dotsOf(m: RowModel, trackPx: number): RowDots {
   return { dots, oval };
 }
 
-export function viewRange(m: RowModel): { min: number; max: number } | null {
+export function viewRange(m: RowModel): { min: number; max: number } {
   const { stops } = layoutOf(m);
-  const min = stops[0];
-  const max = stops[stops.length - 1];
-  return min === undefined || max === undefined ? null : { min, max };
+  return { min: stops[0]!, max: stops[stops.length - 1]! };
 }
 
 /**

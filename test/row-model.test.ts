@@ -11,8 +11,8 @@ import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, rowAnchor } from '../rowNumbers.js';
 import {
-  atRest, close, dotsOf, dragBy, EPS_PX, hold, SHOWN_TOLERANCE_PX, layoutOf, onScreenIds, open, parkedIds, reorder, resize, screenOf, setWindow,
-  settle, step, type RowModel, type RowPanel,
+  atRest, close, dotsOf, dragBy, hold, layoutOf, onScreenIds, open, parkedIds, reorder, resize, screenOf, setWindow,
+  settle, step, viewRange, type RowModel, type RowPanel,
 } from '../rowModel.js';
 
 const SEED = Number(process.env.ROW_MODEL_SEED ?? 20261105);
@@ -118,6 +118,20 @@ test('drag then release: the content follows the pointer and a release rests on 
   assert.equal(dragBy(m, 500).view, -102, 'a drag cannot leave the range');
 });
 
+test('range: the view runs from the first rest to the last, and a strip that fits has one', () => {
+  assert.deepEqual(viewRange(model([1, 1, 1, 1, 1])), { min: -102, max: 1116 });
+  assert.deepEqual(viewRange(model([1, 1])), { min: -102, max: -102 });
+  assert.deepEqual(viewRange(model([])), { min: -500, max: -500 });
+});
+
+test('settle: halfway between two rests goes to the earlier one, and a view on a rest stays', () => {
+  const m = model([1, 1, 1, 1, 1]);
+  assert.equal(settle({ ...m, view: 101 }).view, -102);
+  assert.equal(settle({ ...m, view: 507 }).view, 304);
+  assert.equal(settle({ ...m, view: 710 }).view, 710);
+  assert.equal(settle({ ...m, view: 5000 }).view, 1116, 'beyond the range goes to the end');
+});
+
 test('parked: a panel is parked by its distance from the window, never by leaving the list', () => {
   const m = model([1, 1, 1, 1, 1], { view: -102 });
   assert.deepEqual(parkedIds(m), ['p3', 'p4']);
@@ -194,9 +208,9 @@ function deepFreeze<T>(v: T): T {
 function initialModel(init: Init): RowModel {
   const panels: RowPanel[] = init.panels.map((p, k) => ({ id: `i${k}`, slots: p.slots, ...(p.hidden ? { hidden: true } : {}) }));
   const base: RowModel = { panels, heldLeft: null, phonePx: init.phone, gapPx: init.gap, windowPx: init.phone + init.window, view: 0 };
-  const first = layoutOf(base).drawn[0];
+  const first = ruler(base)[0];
   const held = init.held && first !== undefined ? { ...base, heldLeft: first.id } : base;
-  const stops = layoutOf(held).stops;
+  const stops = rests(held);
   return { ...held, view: stops[init.rest % stops.length]! };
 }
 
@@ -210,37 +224,71 @@ function applyOp(m: RowModel, op: Op): { next: RowModel; subject?: string } {
     case 'close': { const p = at(op.i); return { next: p === undefined ? m : close(m, p.id) }; }
     case 'reorder': { const p = at(op.i); return p === undefined ? { next: m } : { next: reorder(m, p.id, op.to), subject: p.id }; }
     case 'resize': { const p = at(op.i); return { next: p === undefined ? m : resize(m, p.id, op.slots) }; }
-    case 'holdOn': { const first = layoutOf(m).drawn[0]; return { next: first === undefined ? m : hold(m, first.id) }; }
+    case 'holdOn': { const first = ruler(m)[0]; return { next: first === undefined ? m : hold(m, first.id) }; }
     case 'holdOff': return { next: hold(m, null) };
     case 'drag': return { next: dragBy(m, op.dx) };
     case 'release': return { next: settle(m) };
   }
 }
 
-// What the checks below read is computed here from the panel list again, not taken from layoutOf, so an error in the model's
-// ruler or hold rule is a disagreement and not a shared assumption.
-function ruler(m: RowModel): { id: string; x: number; w: number }[] {
+// The oracle: everything the checks below read is worked out here from the panel list and the owner's rules, never from
+// layoutOf, so an error in the model's ruler, rests, hold or on-screen rule is a disagreement and not a shared assumption.
+
+/** Half a pixel: an odd window centers its slots on a half pixel, so positions this close are the same position. */
+const TOL = 0.5;
+
+function ruler(m: RowModel): { id: string; x: number; w: number; slots: number }[] {
   let x = 0;
-  const out: { id: string; x: number; w: number }[] = [];
+  const out: { id: string; x: number; w: number; slots: number }[] = [];
   for (const p of m.panels) {
     if (p.hidden === true) continue;
     const w = p.slots * m.phonePx + (p.slots - 1) * m.gapPx;
-    out.push({ id: p.id, x, w });
+    out.push({ id: p.id, x, w, slots: p.slots });
     x += w + m.gapPx;
   }
   return out;
 }
 
-function heldId(m: RowModel): string | null {
-  const first = ruler(m)[0];
-  return first !== undefined && first.id === m.heldLeft && first.w + m.phonePx + m.gapPx <= m.windowPx ? first.id : null;
+const pitchOf = (m: RowModel): number => m.phonePx + m.gapPx;
+
+function stripOf(m: RowModel): number {
+  const last = ruler(m).at(-1);
+  return last === undefined ? 0 : last.x + last.w;
 }
 
+/** The rests, by the rule: whole slots centered in the window, one rest per slot boundary; a strip that fits has one, centered. */
+function rests(m: RowModel): number[] {
+  const strip = stripOf(m);
+  if (strip <= m.windowPx) return [0 - (m.windowPx - strip) / 2];
+  let fit = 1;
+  while ((fit + 1) * m.phonePx + fit * m.gapPx <= m.windowPx) fit += 1;
+  const centering = Math.max(0, (m.windowPx - (fit * m.phonePx + (fit - 1) * m.gapPx)) / 2);
+  const slots = ruler(m).reduce((sum, p) => sum + p.slots, 0);
+  const out: number[] = [];
+  for (let k = 0; k <= Math.max(0, slots - fit); k += 1) out.push(k * pitchOf(m) - centering);
+  return out;
+}
+
+const restAt = (m: RowModel): boolean => rests(m).some((r) => Math.abs(r - m.view) <= TOL);
+
+/** The nearest rest; the earlier one on a tie. */
+function nearestRest(m: RowModel): number {
+  let best = rests(m)[0]!;
+  for (const r of rests(m)) if (Math.abs(r - m.view) < Math.abs(best - m.view)) best = r;
+  return best;
+}
+
+function heldId(m: RowModel): string | null {
+  const first = ruler(m)[0];
+  return first !== undefined && first.id === m.heldLeft && first.w + pitchOf(m) <= m.windowPx ? first.id : null;
+}
+
+/** The part of the window that counts as the grid: inside the centering margins and right of the held panel. */
 function frame(m: RowModel): { lo: number; hi: number } {
-  const c = 0 - layoutOf(m).stops[0]!;
+  const centering = 0 - rests(m)[0]!;
   const h = heldId(m);
   const first = ruler(m)[0];
-  return { lo: c + (h !== null && first !== undefined ? first.w + m.gapPx : 0), hi: m.windowPx - c };
+  return { lo: centering + (h !== null && first !== undefined ? first.w + m.gapPx : 0), hi: m.windowPx - centering };
 }
 
 function screens(m: RowModel): Map<string, number> {
@@ -248,23 +296,27 @@ function screens(m: RowModel): Map<string, number> {
   return new Map(ruler(m).map((p) => [p.id, p.id === h ? Math.max(p.x - m.view, 0) : p.x - m.view]));
 }
 
+/** On screen, by the owner's rule: all of the panel is in the grid, or the panel is wider than the grid and covers all of it. */
 function shown(m: RowModel): string[] {
   const { lo, hi } = frame(m);
   const h = heldId(m);
   return ruler(m)
     .filter((p) => {
       if (p.id === h) return true;
-      const s = p.x - m.view;
-      return Math.min(s + p.w, hi) - Math.max(s, lo) >= Math.min(p.w, hi - lo) - SHOWN_TOLERANCE_PX;
+      const left = p.x - m.view;
+      const right = left + p.w;
+      const inside = left >= lo - TOL && right <= hi + TOL;
+      const covers = p.w > hi - lo && left <= lo + TOL && right >= hi - TOL;
+      return inside || covers;
     })
     .map((p) => p.id);
 }
 
 const range = (m: RowModel): { min: number; max: number } => {
-  const { stops } = layoutOf(m);
-  return { min: stops[0]!, max: stops[stops.length - 1]! };
+  const all = rests(m);
+  return { min: all[0]!, max: all.at(-1)! };
 };
-const forced = (after: RowModel, wanted: number): boolean => wanted < range(after).min - EPS_PX || wanted > range(after).max + EPS_PX;
+const forced = (after: RowModel, wanted: number): boolean => wanted < range(after).min - TOL || wanted > range(after).max + TOL;
 
 /** The largest move, in px, of any panel in `ids` that is drawn both before and after. */
 function largestMove(before: Map<string, number>, after: Map<string, number>, ids: Iterable<string>): number {
@@ -291,7 +343,7 @@ function stillness(before: RowModel, after: RowModel, op: Op, subject: string | 
     const wanted = before.view;
     if (forced(after, wanted)) {
       const r = range(after);
-      assert.ok(Math.abs(after.view - Math.min(r.max, Math.max(r.min, wanted))) < EPS_PX, 'a forced move goes no further than the range');
+      assert.ok(Math.abs(after.view - Math.min(r.max, Math.max(r.min, wanted))) < TOL, 'a forced move goes no further than the range');
       return;
     }
     tick(`still:${op.k}`);
@@ -300,14 +352,14 @@ function stillness(before: RowModel, after: RowModel, op: Op, subject: string | 
   }
   const xa = new Map(ruler(after).map((p) => [p.id, p.x]));
   const { lo, hi } = frame(before);
-  const visible = kept.filter((p) => Math.min(p.x - before.view + p.w, hi) - Math.max(p.x - before.view, lo) > EPS_PX);
+  const visible = kept.filter((p) => Math.min(p.x - before.view + p.w, hi) - Math.max(p.x - before.view, lo) > TOL);
   const anchor = visible[0] ?? kept[0];
   if (anchor === undefined) return;
   const shift = xa.get(anchor.id)! - anchor.x;
   const wanted = before.view + shift;
   if (forced(after, wanted)) {
     const r = range(after);
-    assert.ok(Math.abs(after.view - Math.min(r.max, Math.max(r.min, wanted))) < EPS_PX, 'a forced move goes no further than the range');
+    assert.ok(Math.abs(after.view - Math.min(r.max, Math.max(r.min, wanted))) < TOL, 'a forced move goes no further than the range');
     return;
   }
   const still = kept.filter((p) => Math.abs(xa.get(p.id)! - p.x - shift) < 1e-9).map((p) => p.id);
@@ -321,23 +373,22 @@ function wholeSlots(m: RowModel): void {
   const { lo, hi } = frame(m);
   const pitch = m.phonePx + m.gapPx;
   const h = heldId(m);
-  const s = screens(m);
   for (const p of ruler(m)) {
     if (p.id === h) {
-      assert.equal(s.get(p.id), Math.max(p.x - m.view, 0));
+      assert.equal(screenOf(m, p.id), Math.max(p.x - m.view, 0), 'the held panel is at the left edge once the window has passed it');
       continue;
     }
     const at = p.x - m.view;
     const cutL = Math.min(p.w, Math.max(0, lo - at));
     const cutR = Math.min(p.w, Math.max(0, at + p.w - hi));
-    const outside = cutL + cutR >= p.w - EPS_PX;
-    tick(outside ? 'slots:outside' : cutL + cutR > EPS_PX ? 'slots:cut' : 'slots:whole');
+    const outside = cutL + cutR >= p.w - TOL;
+    tick(outside ? 'slots:outside' : cutL + cutR > TOL ? 'slots:cut' : 'slots:whole');
     if (outside) continue;
     for (const cut of [cutL, cutR]) {
-      if (cut <= EPS_PX) continue;
+      if (cut <= TOL) continue;
       assert.ok(p.w > m.phonePx, `${p.id}: a one-slot panel is cut by ${cut}px`);
       const slots = cut / pitch;
-      assert.ok(Math.abs(slots - Math.round(slots)) * pitch <= EPS_PX + 1e-9, `${p.id}: cut by ${cut}px, not a whole number of slots`);
+      assert.ok(Math.abs(slots - Math.round(slots)) * pitch <= TOL + 1e-9, `${p.id}: cut by ${cut}px, not a whole number of slots`);
     }
   }
 }
@@ -349,15 +400,14 @@ function dotsAgree(m: RowModel, track: number): void {
   assert.deepEqual(lit, shown(m), 'and match the panels the window shows');
   const h = heldId(m);
   const chain = d.dots.filter((x) => x.id !== h);
-  const l = layoutOf(m);
-  const k = l.stripPx > 0 ? track / l.stripPx : 0;
+  const k = stripOf(m) > 0 ? track / stripOf(m) : 0;
   for (let i = 1; i < chain.length; i += 1) {
     const gapBetween = chain[i]!.left - (chain[i - 1]!.left + chain[i - 1]!.width);
     assert.ok(Math.abs(gapBetween - k * m.gapPx) < 1e-6, `dots ${i - 1} and ${i} are ${gapBetween} apart, not ${k * m.gapPx}`);
   }
   for (const x of d.dots) {
     if (!x.lit || x.id === h || x.width > d.oval.width + 1e-6) continue;
-    assert.ok(x.left >= d.oval.left - EPS_PX * k - 1e-6 && x.left + x.width <= d.oval.left + d.oval.width + EPS_PX * k + 1e-6, `${x.id} is lit outside the oval`);
+    assert.ok(x.left >= d.oval.left - TOL * k - 1e-6 && x.left + x.width <= d.oval.left + d.oval.width + TOL * k + 1e-6, `${x.id} is lit outside the oval`);
   }
 }
 
@@ -369,7 +419,12 @@ function checkState(m: RowModel, track: number): void {
   assert.ok(Number.isFinite(m.view), 'view is finite');
   const l = layoutOf(m);
   assert.deepEqual(l.drawn.map((p) => [p.id, p.x, p.w]), ruler(m).map((p) => [p.id, p.x, p.w]), 'one ruler: the running sum over every drawn panel');
-  l.stops.forEach((s, k) => k > 0 && assert.ok(Math.abs(s - l.stops[k - 1]! - l.pitchPx) < 1e-9, 'rests are one pitch apart'));
+  assert.deepEqual(l.stops, rests(m), 'the model rests where the rule says: every slot boundary, first to last');
+  assert.deepEqual(viewRange(m), range(m), 'the range of the view is the first rest to the last');
+  assert.equal(atRest(m), restAt(m), 'atRest agrees with the rests');
+  const where = screens(m);
+  for (const [id, y] of where) assert.ok(Math.abs((screenOf(m, id) ?? Number.NaN) - y) < 1e-9, `${id}: the model puts it at ${screenOf(m, id)}, the rule at ${y}`);
+  for (const p of m.panels.filter((q) => q.hidden === true)) assert.equal(screenOf(m, p.id), undefined, 'a hidden panel has no place');
   assert.equal(derived(m, track), derived(structuredClone(m), track), 'deriving twice from equal models gives equal output');
   dotsAgree(m, track);
   const parked = parkedIds(m);
@@ -383,12 +438,12 @@ function checkState(m: RowModel, track: number): void {
 
 function checkStep(m: RowModel): void {
   // Exactly on a rest: a view within the tolerance of one steps to the next rest, which need not come back to the view.
-  if (!layoutOf(m).stops.some((s) => Math.abs(s - m.view) < 1e-9)) return;
+  if (!rests(m).some((s) => Math.abs(s - m.view) < 1e-9)) return;
   for (const dir of [1, -1] as const) {
     const there = step(m, dir);
     if (there.view === m.view) continue;
     tick('step:reversed');
-    assert.ok(Math.abs(there.view - m.view) <= layoutOf(m).pitchPx + 1e-9, 'a step moves one slot');
+    assert.ok(Math.abs(there.view - m.view) <= pitchOf(m) + 1e-9, 'a step moves one slot');
     assert.equal(step(there, (0 - dir) as 1 | -1).view, m.view, 'a step back returns to the same view');
   }
 }
@@ -406,17 +461,18 @@ function runSequence(init: Init, ops: Op[]): void {
     try {
       checkState(m, init.track);
       if (op.k !== 'stepL' && op.k !== 'stepR' && op.k !== 'drag' && op.k !== 'release') stillness(before, m, op, subject);
-      if (atRest(m)) wholeSlots(m);
-      if (op.k === 'release') assert.ok(atRest(m), 'a release rests');
+      if (restAt(m)) wholeSlots(m);
+      if (op.k === 'release') {
+        assert.ok(restAt(m), 'a release rests');
+        assert.equal(m.view, nearestRest(before), 'a release goes to the nearest rest, the earlier on a tie');
+      }
       if (op.k === 'stepL' || op.k === 'stepR') {
-        if (m.view !== before.view) assert.ok(atRest(m), 'a step lands on a rest');
-        assert.ok(Math.abs(m.view - before.view) <= layoutOf(m).pitchPx + EPS_PX + 1e-9, `a step moves at most one slot: view ${before.view} -> ${m.view}, stops ${layoutOf(m).stops.join(',')}`);
+        if (m.view !== before.view) assert.ok(restAt(m), 'a step lands on a rest');
+        assert.ok(Math.abs(m.view - before.view) <= pitchOf(m) + TOL + 1e-9, `a step moves at most one slot: view ${before.view} -> ${m.view}, rests ${rests(m).join(',')}`);
       }
       checkStep(m);
-      const a = layoutOf(before);
-      const b = layoutOf(m);
       const listOp = op.k === 'open' || op.k === 'close' || op.k === 'reorder' || op.k === 'resize' || op.k === 'holdOn' || op.k === 'holdOff';
-      if (listOp && atRest(before) && a.stripPx > before.windowPx && b.stripPx > m.windowPx) assert.ok(atRest(m), 'a list change keeps an overflowing row on its rests');
+      if (listOp && restAt(before) && stripOf(before) > before.windowPx && stripOf(m) > m.windowPx) assert.ok(restAt(m), 'a list change keeps an overflowing row on its rests');
     } catch (e) {
       (e as Error).message = `after ${label} (${before.panels.length} -> ${m.panels.length} panels, view ${before.view} -> ${m.view}): ${(e as Error).message}`;
       throw e;
@@ -486,7 +542,7 @@ function todayAcrossHoldFlip(c: FlipCase): Moves | null {
 function newAcrossHoldFlip(c: FlipCase): Moves | null {
   const panels = c.slots.map((slots, k) => ({ id: `p${k}`, slots }));
   const base: RowModel = { panels, heldLeft: c.on ? 'p0' : null, phonePx: 390, gapPx: 16, windowPx: c.container - 32, view: 0 };
-  const stops = layoutOf(base).stops;
+  const stops = rests(base);
   const from = { ...base, view: stops[c.stopAt % stops.length]! };
   const to = hold(from, c.on ? null : 'p0');
   if (heldId(from) === heldId(to)) return null;
