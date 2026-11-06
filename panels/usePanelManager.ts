@@ -20,6 +20,7 @@ import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
 import {
   leastRecentlyTouchedId,
   movePanelBy,
+  extendsRun,
   parkedToReveal,
   parkLevers,
   parksForRoom,
@@ -561,7 +562,23 @@ export function usePanelManager(
       if (toPark.size > 0 && settles(rowAfter())) break;
       toPark.add(p.id);
     }
-    const flip = (row: PanelWindow[]): PanelWindow[] => row.map((p) => (toPark.has(p.id) ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p));
+    // The room the swap leaves goes to the panels beside the run, the far end first, so the drawn panels stay one unbroken run of the list.
+    const grown = new Set(rowAfter().map((p) => p.id));
+    const beside = (side: 'left' | 'right'): PanelWindow | undefined => {
+      const at = sized.flatMap((p, k) => (grown.has(p.id) && parksForRoom(p) ? [k] : []));
+      if (at.length === 0) return undefined;
+      const from = side === 'left' ? Math.min(...at) - 1 : Math.max(...at) + 1;
+      for (let k = from; k >= 0 && k < sized.length; k += side === 'left' ? -1 : 1) {
+        const p = sized[k]!;
+        if (toPark.has(p.id)) return undefined;
+        if (!isPresent(p) && p.marker !== true && effective(p).revealOnScroll !== 'never' && parksForRoom(p)) return p;
+      }
+      return undefined;
+    };
+    for (const side of direction === 'left' ? (['right', 'left'] as const) : (['left', 'right'] as const)) {
+      for (let next = beside(side); next !== undefined && settles(sized.filter((p) => grown.has(p.id) || p.id === next!.id)); next = beside(side)) grown.add(next.id);
+    }
+    const flip = (row: PanelWindow[]): PanelWindow[] => row.map((p) => (toPark.has(p.id) ? { ...p, live: false } : grown.has(p.id) && !p.live ? { ...p, live: true } : p));
     setEnterSide(reveal.id, direction);
     // A leftward gesture parks off the RIGHT edge: mark those BEFORE the setPanels below, in their own commit.
     if (direction === 'left' && toPark.size > 0) flushOwn(() => setExitRightIds((prev) => new Set([...prev, ...toPark])));
@@ -715,14 +732,24 @@ export function usePanelManager(
       const stack = raised ? [...collapseOrderRef.current, ...capParkedOrderRef.current] : collapseOrderRef.current;
       const revealed = new Set<string>();
       const stale = new Set<string>();
-      for (const id of returnOrder(stack, panels)) {
-        const candidate = panels.find((p) => p.id === id);
-        if (!candidate || candidate.live) {
-          stale.add(id); // closed, or already live some other way
-          continue;
+      // A panel comes back only beside the run, so the drawn panels stay one unbroken run of the list; a pass may unlock the next.
+      for (let grew = true; grew; ) {
+        grew = false;
+        for (const id of returnOrder(stack, panels)) {
+          const candidate = panels.find((p) => p.id === id);
+          if (!candidate || candidate.live) {
+            stale.add(id); // closed, or already live some other way
+            continue;
+          }
+          if (revealed.has(id)) continue;
+          const drawn = new Set(panels.filter((p) => p.live || revealed.has(p.id)).map((p) => p.id));
+          if (!extendsRun(panels, drawn, id)) continue;
+          if (heldBack(id, panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id))))) continue;
+          if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) {
+            revealed.add(id);
+            grew = true;
+          }
         }
-        if (heldBack(id, panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id))))) continue;
-        if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
       }
       if (revealed.size === 0) return;
       collapseOrderRef.current = collapseOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));

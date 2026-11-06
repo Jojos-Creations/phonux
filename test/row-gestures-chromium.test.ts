@@ -149,23 +149,49 @@ test('a scroll asked of the row while a panel is being resized by hand is made o
 
 const SWAP_WIDE = 'slots=1,3,1,3,1,2,1,1&park=1&rootpark=1';
 
-// Open: in a row that swaps, with wide panels among the narrow ones, the left arrow brings a wide panel in whole and parks every
-// other panel, and the next presses go back and forth between two sets of panels instead of reaching the first panel. It ends with the
-// model that moves the view over fixed positions (design step 6); a todo test still runs, and reports.
-test('pressing left in a swapping row with wide panels never shows a panel further right than the press before it', { todo: 'the swap parks and returns panels by fit, not by position' }, async (t) => {
+/** The ids of the panels drawn beside the root, as numbers, left to right. */
+const drawnBesideRoot = async (page: Page): Promise<number[]> => (await page.evaluate("window.__g.ids().filter((id) => id !== 'root').map(Number).sort((a, b) => a - b)")) as number[];
+
+// A row that swaps, wide panels among narrow ones: each press goes to the panel next to the one before it in the list, whatever
+// the panels' widths, so a run of presses reaches the first panel instead of going back and forth between two sets.
+test('pressing left in a swapping row with wide panels reaches each panel in list order and stays at the first', async (t) => {
   const r = await rig(t);
   if (r === undefined) return;
   const page = await r.open(SWAP_WIDE, 1800);
   await aim(page);
-  const leftmost = async (): Promise<number> => (await page.evaluate("window.__g.ids().filter((id) => id !== 'root').map(Number).sort((a, b) => a - b)[0]")) as number;
-  let before = await leftmost();
-  const seen = [before];
+  const seen = [(await drawnBesideRoot(page))[0]!];
   for (let k = 0; k < 8; k += 1) {
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(700);
-    const now = await leftmost();
-    seen.push(now);
-    assert.ok(now <= before, `a press left brought panel ${now} after panel ${before}: ${seen.join(', ')}`);
-    before = now;
+    seen.push((await drawnBesideRoot(page))[0]!);
   }
+  assert.ok(seen[0]! > 2, `control: the row starts away from the first panel: ${seen.join(', ')}`);
+  seen.forEach((now, k) => {
+    if (k === 0) return;
+    const expected = Math.max(seen[k - 1]! - 1, 2);
+    assert.equal(now, expected, `press ${k} left: the leftmost panel beside the root is ${now}, the one next to the press before it is ${expected}: ${seen.join(', ')}`);
+  });
+});
+
+test('pressing right in a swapping row with wide panels reaches each panel in list order and stays at the last', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open(SWAP_WIDE, 1800);
+  await aim(page);
+  for (let k = 0; k < 8; k += 1) {
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(500);
+  }
+  const seen = [(await drawnBesideRoot(page))[0]!];
+  assert.equal(seen[0], 2, `control: the row has reached the first panel: ${seen.join(', ')}`);
+  for (let k = 0; k < 8; k += 1) {
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(700);
+    seen.push((await drawnBesideRoot(page)).at(-1)!);
+  }
+  // After the first press the rightmost drawn panel moves up by at most one, never back.
+  for (let k = 2; k < seen.length; k += 1) {
+    assert.ok(seen[k]! >= seen[k - 1]! && seen[k]! - seen[k - 1]! <= 2, `press ${k} right went from panel ${seen[k - 1]} to ${seen[k]}: ${seen.join(', ')}`);
+  }
+  assert.equal(seen.at(-1), 9, `the last panel is reached: ${seen.join(', ')}`);
 });

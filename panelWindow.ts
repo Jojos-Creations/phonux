@@ -218,21 +218,64 @@ export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'ri
   return ownIndex < firstOtherLiveIndex ? 'left' : 'right';
 }
 
+/** Whether a step may bring `p` in: parked, not the marker, and not one the page keeps out of scrolling. */
+const revealable = (p: PanelWindow): boolean => !isPresent(p) && p.marker !== true && effective(p).revealOnScroll !== 'never';
+
 /**
- * The parked panel a step toward `direction` brings in, or null: of the parked panels the dot bar shows on that side, the one
- * nearest the drawn ones. A panel parked between two drawn ones counts on the side nearer its place in the row, as its dot does, so
- * every dot is reachable. One whose `revealOnScroll` is 'never' has no dot and is passed over.
+ * The parked panel a step toward `direction` brings in, or null: the one nearest the drawn panels beyond that end of them, so
+ * a run of steps reaches each panel in the order the row lists them and never one past a nearer one. Only when nothing is
+ * parked beyond that end does a panel parked between two drawn ones come in, the one nearest that end, so every panel is
+ * still reachable. A panel whose `revealOnScroll` is 'never' is passed over.
  * @internal
  */
 export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {
-  const drawn = panels.filter(isPresent).length;
-  let before = 0;
-  const side: PanelWindow[] = [];
-  for (const p of panels) {
-    if (isPresent(p)) before += 1;
-    else if (p.marker !== true && effective(p).revealOnScroll !== 'never' && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+  let first = -1;
+  let last = -1;
+  panels.forEach((p, k) => {
+    if (!isPresent(p) || !parksForRoom(p)) return;
+    if (first < 0) first = k;
+    last = k;
+  });
+  if (first < 0) {
+    // Nothing parkable is drawn: the row's own order decides, as the dot bar draws it.
+    const drawn = panels.filter(isPresent).length;
+    let before = 0;
+    const side: PanelWindow[] = [];
+    for (const p of panels) {
+      if (isPresent(p)) before += 1;
+      else if (revealable(p) && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+    }
+    return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
   }
-  return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
+  if (direction === 'left') {
+    for (let k = first - 1; k >= 0; k -= 1) if (revealable(panels[k]!)) return panels[k]!;
+    for (let k = first + 1; k < last; k += 1) if (revealable(panels[k]!)) return panels[k]!;
+    return null;
+  }
+  for (let k = last + 1; k < panels.length; k += 1) if (revealable(panels[k]!)) return panels[k]!;
+  for (let k = last - 1; k > first; k -= 1) if (revealable(panels[k]!)) return panels[k]!;
+  return null;
+}
+
+/**
+ * Whether bringing `candidate` in keeps the drawn parkable panels one unbroken run of the row's list: it lies inside the run,
+ * or no other panel a step could bring in lies between it and the run. `live` is the ids drawn, those being brought in included.
+ * @internal
+ */
+export function extendsRun(panels: readonly PanelWindow[], live: ReadonlySet<string>, candidate: string): boolean {
+  const at = panels.findIndex((p) => p.id === candidate);
+  if (at < 0) return false;
+  let first = -1;
+  let last = -1;
+  panels.forEach((p, k) => {
+    if (!live.has(p.id) || !parksForRoom(p)) return;
+    if (first < 0) first = k;
+    last = k;
+  });
+  if (first < 0 || (at > first && at < last)) return true;
+  const [from, to] = at < first ? [at + 1, first] : [last + 1, at];
+  for (let k = from; k < to; k += 1) if (revealable(panels[k]!) && !live.has(panels[k]!.id)) return false;
+  return true;
 }
 
 /**
