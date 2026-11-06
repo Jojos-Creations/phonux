@@ -131,6 +131,32 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
     assert.ok(under.rects['3']!.left < slid.rects['3']!.left, 'left: the strip panel moves left under the held one');
     assert.equal(under.coverLeft, heldId, 'left: where the strip panels pass under the held panel, the held one is on top');
 
+    // A glide with a hold is drawn frame by frame on the page's own clock, so the held panel stays on its edge on every frame; a
+    // strip on the compositor would drift from the panel placed from the page's clock.
+    await scrollTo(left, 0);
+    // A string, so the page runs it as written (a compiled function body would reference the test runner's helpers).
+    const frames = await left.evaluate<{ lefts: number[]; animations: number }>(
+      `new Promise((done) => {
+        const w = window;
+        const c = w.__e.container();
+        const held = c.querySelector('[data-row-id="${heldId}"]');
+        const strip = c.querySelector('[data-row-strip]');
+        const lefts = [];
+        let animations = 0;
+        w.__e.glideTo(700, 0.5);
+        const tick = () => {
+          lefts.push(held.getBoundingClientRect().left - c.getBoundingClientRect().left);
+          animations = Math.max(animations, strip.getAnimations().length);
+          if (lefts.length < 40) requestAnimationFrame(tick);
+          else done({ lefts, animations });
+        };
+        requestAnimationFrame(tick);
+      })` as never,
+    );
+    assert.equal(frames.animations, 0, 'left: a held row is not a compositor glide');
+    assert.ok(frames.lefts.length >= 40, 'control: the glide was sampled');
+    assert.deepEqual(frames.lefts.filter((x) => Math.abs(x - GAP) > 0.5), [], 'left: the held panel is on its edge on every frame of a glide');
+
     // 3. Right: p6 is held at the right edge. It stays flush at W - gap at every scroll.
     const right = await open('slots=1,1,1,1,1,1&holds=p6:right');
     const rightGeo = await measure(right);

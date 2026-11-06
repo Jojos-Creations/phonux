@@ -94,7 +94,7 @@ test('a stepping row rests on every stop by its strip transform alone, at 1800, 
           for (const delta of [300, -300]) {
             for (let step = 0; step < count + 1; step++) {
               await page.mouse.move(Math.min(600, width - 50), 300);
-              // The first step right is watched as it glides: one running transform animation, and no style write per frame.
+              // The first step right is watched as it glides: one running transform animation, and no style write per frame on the strip or its clip window.
               const watch = delta > 0 && step === 0 && count > 1;
               if (watch)
                 await page.evaluate(() => {
@@ -102,8 +102,10 @@ test('a stepping row rests on every stop by its strip transform alone, at 1800, 
                   const w = window as unknown as { __writes: number; __anims: number };
                   w.__writes = 0;
                   w.__anims = 0;
-                  // The strip's clip follows it from the frame loop by design; what must not be written per frame is its transform.
-                  new MutationObserver((records) => void (w.__writes += records.filter((r) => (/transform:[^;]*/.exec(r.oldValue ?? '')?.[0] ?? '') !== (/transform:[^;]*/.exec(strip.getAttribute('style') ?? '')?.[0] ?? '')).length)).observe(strip, { attributes: true, attributeFilter: ['style'], attributeOldValue: true });
+                  // No hold here, so nothing draws per frame: the strip and the window that clips it take no style write while it glides.
+                  const watched = [strip, strip.parentElement!];
+                  const observer = new MutationObserver((records) => void (w.__writes += records.length));
+                  for (const el of watched) observer.observe(el, { attributes: true, attributeFilter: ['style'] });
                 });
               await page.mouse.wheel(delta, 0);
               if (watch) {
@@ -114,7 +116,7 @@ test('a stepping row rests on every stop by its strip transform alone, at 1800, 
                   return { running, writes: (window as unknown as { __writes: number }).__writes };
                 });
                 assert.equal(during.running, 1, `${where}: the step glides as one running animation on the strip`);
-                assert.ok(during.writes <= 2, `${where}: ${during.writes} transform writes 150 ms into the glide`);
+                assert.ok(during.writes <= 2, `${where}: ${during.writes} style writes 150 ms into the glide`);
                 glides += 1;
               }
               seen.push(await rest());

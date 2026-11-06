@@ -6,7 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { cleanup } from './support/mount-harness.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { setRowOffset } from './support/strip.js';
 import { made, mountRow, panelsOf, rootEntry, row } from './support/scroll-row.js';
 import type { PanelWindow } from '../index.js';
@@ -184,4 +184,26 @@ test('a mounted row with a left hold places the held panel at the margin, in slo
   const under = t.slots().find((el) => el.dataset.rowId === n.ids[0])!;
   assert.equal(under.style.clipPath, 'inset(-100000px -400px -100000px 84px)', 'cut at the held panel, 100 px less the 16 px gap it fades across, and open on its other side');
   assert.equal(under.hasAttribute('inert'), false, 'still in reach');
+  assert.match(under.style.maskImage, /^linear-gradient\(to right/, 'it fades out across the gap beside the held panel');
+  setRowOffset(t.m.container, 0);
+  t.layout();
+  assert.equal(under.style.maskImage, '', 'on a stop nothing fades');
+});
+
+test('a claim holds reach still; the next pointer move on the row, one frame on, draws the reach of where the claim left the row', async () => {
+  const t = mounted();
+  const n = t.numbers();
+  const inertNow = (): boolean[] => t.slots().map((el) => el.hasAttribute('inert'));
+  const awayAt = (at: number): boolean[] => n.ids.map((_, k) => slotCutAt(n, k, at, 16).away);
+  assert.deepEqual(inertNow(), awayAt(0), 'control: reach is drawn at the first stop');
+  const claim = t.m.scroller.claim()!;
+  claim.setMaxScroll(maxScrollOf(n));
+  claim.write(812);
+  await advanceFrames(64);
+  assert.notDeepEqual(awayAt(812), awayAt(0), 'control: the reach differs between the two offsets');
+  assert.deepEqual(inertNow(), awayAt(0), 'while the claim is held reach stays where it was');
+  claim.release();
+  t.m.container.dispatchEvent(new Event('pointermove'));
+  await advanceFrames(64);
+  assert.deepEqual(inertNow(), awayAt(812), 'after the pointer moves, reach is the numbers at the claimed offset');
 });

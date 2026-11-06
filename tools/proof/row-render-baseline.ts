@@ -8,9 +8,10 @@
  *   node --import tsx tools/proof/row-render-baseline.ts --diff a.json,b.json[,c.json...] [--into a.json]   (noise floor of one tree against itself)
  *
  * --write keeps the frames and summaries (--label names the source they were taken from when it is not this checkout's HEAD); --compare re-runs and diffs each scenario's traces against a kept baseline on a 16 ms grid
- * restarted at every action, so a step-4 change shows as a number, not a feeling. Time is real, so two runs of one tree differ by
+ * restarted at every action. Time is real, so two runs of one tree differ by
  * timing jitter; --diff of two recordings measures that floor and --into stores it in the baseline, and --compare then only flags a
- * drift past twice it. Headless only; exits 1 when it could
+ * drift past twice it. That per-frame compare is coarse (it misses a constant 60 px shift in most scenarios): trust it for the final
+ * strip, offset and hold only, and prove blank panels with blank-trials.ts. Headless only; exits 1 when it could
  * not run a scenario, found a blank panel, or --compare found a drift past --tol px (default 4).
  */
 import { createServer } from 'node:http';
@@ -264,7 +265,7 @@ scenario('recenter-glide', SIX, 1280, async (c) => {
   await c.checkPaint('after-900-step');
 });
 
-// The first panel's hold is read by the position model; a hold on a panel further along is still the older arithmetic. Step 4 redraws both.
+// The first panel's hold joins the left group, which moves the strip's frame; a hold on a later panel sticks inside the strip. Each is flipped on and off mid-glide.
 for (const [where, target] of [['first', -1], ['middle', 1]] as const) {
   for (const hold of ['left', 'right', 'both'] as const) {
     scenario(`hold-flip-${where}-${hold}`, SIX, 1280, async (c) => {

@@ -10,7 +10,8 @@
       "**",
       "!etc",
       "!dist",
-      "!test/fixtures"
+      "!test/fixtures",
+      "!tools/proof/baseline"
     ]
   },
   "formatter": {

@@ -9,6 +9,7 @@ import './support/jsdom-globals.js';
 import { act } from 'react';
 import { cleanup, advanceFrames } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row, ROOT } from './support/scroll-row.js';
+import { setRowOffset } from './support/strip.js';
 
 afterEach(() => cleanup());
 
@@ -40,4 +41,18 @@ test('locking the first panel at the left leaves the strip panels where they are
     m.workspace.panels.configure(ROOT, { edgeHold: 'off' });
   });
   assert.deepEqual(ids.map((id) => screenX(m, id)), before, 'letting go moves none either');
+});
+
+test('a panel that is let go draws where its line puts it, not where the lock held it', async () => {
+  const m = mountRow(row(rootEntry(), made('a', { edgeHold: 'left' }), made('b'), made('c'), made('d'), made('e')), 1000, { tuning: { rowGesture: 'step' } });
+  await advanceFrames(2000);
+  const hostOf = (): HTMLElement => m.container.querySelector<HTMLElement>('[data-row-id="a"]')!.closest<HTMLElement>('[data-row-hold]')!;
+  setRowOffset(m.container, 812);
+  await advanceFrames(100);
+  assert.notEqual(hostOf().style.transform, '', 'control: the held panel is shifted to its edge once the row has moved on');
+  await act(async () => {
+    m.workspace.panels.configure('a', { edgeHold: 'off' });
+  });
+  await advanceFrames(100);
+  assert.equal(hostOf().style.transform, '', 'let go, it is drawn where its line puts it');
 });
