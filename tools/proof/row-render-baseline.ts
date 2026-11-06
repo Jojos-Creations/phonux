@@ -5,10 +5,12 @@
  * blank, and no number sees that.
  *
  *   node --import tsx tools/proof/row-render-baseline.ts --out <dir> [--write <baseline.json>] [--compare <baseline.json>] [--only a,b]
+ *   node --import tsx tools/proof/row-render-baseline.ts --diff a.json,b.json [--into a.json]   (noise floor of one tree against itself)
  *
  * --write keeps the frames and summaries; --compare re-runs and diffs each scenario's traces against a kept baseline on a 16 ms grid
- * from the scenario's own "go" mark, so a step-4 change shows as a number, not a feeling. Time is real, so two runs of one tree differ
- * by timing jitter; run --write twice to see how much (the noise floor) before reading a diff. Headless only; exits 1 when it could
+ * restarted at every action, so a step-4 change shows as a number, not a feeling. Time is real, so two runs of one tree differ by
+ * timing jitter; --diff of two recordings measures that floor and --into stores it in the baseline, and --compare then only flags a
+ * drift past 1.5 times it. Headless only; exits 1 when it could
  * not run a scenario, found a blank panel, or --compare found a drift past --tol px (default 4).
  */
 import { createServer } from 'node:http';
@@ -28,6 +30,31 @@ const OUT = arg('out') ?? join(tmpdir(), 'row-render');
 const TOL = Number(arg('tol') ?? 4);
 const ONLY = arg('only')?.split(',');
 mkdirSync(OUT, { recursive: true });
+
+// --diff a.json,b.json: two recordings of one tree against each other, which is the noise floor a later --compare must clear.
+const DIFF = arg('diff');
+if (DIFF !== undefined) {
+  const [fa, fb] = DIFF.split(',') as [string, string];
+  const A = JSON.parse(readFileSync(fa, 'utf8'));
+  const B = JSON.parse(readFileSync(fb, 'utf8'));
+  const names = Object.keys(A.scenarios).filter((n) => B.scenarios[n] !== undefined);
+  if (names.length === 0) {
+    console.log('proved nothing: the two files share no scenario');
+    process.exit(1);
+  }
+  const noise: Record<string, number> = {};
+  for (const n of names) {
+    const d = drift(A.scenarios[n].trace, B.scenarios[n].trace);
+    noise[n] = d.px;
+    console.log(`  ${n}: worst ${d.px} px (${d.what} in ${d.segment} at ${d.atMs} ms)${d.structure === '' ? '' : ` ${d.structure}`}`);
+  }
+  if (arg('into') !== undefined) {
+    A.meta.noise = noise;
+    writeFileSync(arg('into')!, JSON.stringify(A));
+    console.log(`wrote noise floors into ${arg('into')}`);
+  }
+  process.exit(0);
+}
 
 type Page = any;
 interface Frame { t: number; strip: { x: number; opacity: number; clip: string }; offset: number; win: number; slots: Record<string, { l: number; r: number; t: number; b: number; o: number; v: number; sx: number }>; held: string[] }
@@ -76,10 +103,12 @@ class Ctx {
     return this.page.evaluate((n: string) => (window as any).__r.mark(n), name);
   }
   async step(): Promise<void> {
+    await this.mark('step');
     await this.page.mouse.move(Math.min(500, this.page.viewportSize().width - 50), 300);
     await this.page.mouse.wheel(300, 0);
   }
   async back(): Promise<void> {
+    await this.mark('back');
     await this.page.mouse.move(Math.min(500, this.page.viewportSize().width - 50), 300);
     await this.page.mouse.wheel(-300, 0);
   }
@@ -199,6 +228,7 @@ const scenario = (name: string, query: string, width: number, body: (c: Ctx) => 
 };
 const resize = async (c: Ctx, widths: number[], every: number): Promise<void> => {
   for (const w of widths) {
+    await c.mark('resize');
     await c.page.setViewportSize({ width: w, height: 800 });
     await sleep(every);
   }
@@ -370,13 +400,21 @@ function summarize(t: Trace): Record<string, number | string> {
   return { frames: fs.length, longestFrameMs: +dtMax.toFixed(1), maxStripStepPx: +stripStep.toFixed(1), maxSlotStepPx: +slotStep.toFixed(1), minStripOpacity: minOpacity, styleWrites: t.writes, finalStripX: last.strip.x, finalOffset: last.offset, finalHeld: last.held.join(',') };
 }
 
-// A trace on a 16 ms grid from the "go" mark: linear in t between the frames either side.
-function grid(t: Trace, pick: (f: Frame) => number | undefined): number[] {
-  const go = t.marks.find((m) => m.name === 'go')?.t ?? 0;
+// Real time jitters, so each action (go, step, back, resize, hold and size asks) starts its own 16 ms grid: what is compared is the
+// response to an action, not where the wall clock happened to be when a slow settle finished.
+const ACTIONS = new Set(['go', 'step', 'back', 'resize', 'setHold', 'setSlots', 'scrollTo', 'toggleMax', 'far', 'jump']);
+interface Segment { name: string; t0: number; t1: number }
+function segments(t: Trace): Segment[] {
+  const acts = t.marks.filter((m) => ACTIONS.has(m.name));
+  const end = t.frames.at(-1)?.t ?? 0;
+  return acts.map((m, k) => ({ name: m.name, t0: m.t, t1: Math.min(acts[k + 1]?.t ?? end, m.t + 2400) }));
+}
+
+function grid(t: Trace, seg: Segment, pick: (f: Frame) => number | undefined): number[] {
   const out: number[] = [];
-  const fs = t.frames.filter((f) => f.t >= go);
-  for (let at = 0; at <= 2400; at += 16) {
-    const time = go + at;
+  const fs = t.frames.filter((f) => f.t >= seg.t0 - 40);
+  for (let at = 0; seg.t0 + at <= seg.t1; at += 16) {
+    const time = seg.t0 + at;
     const k = fs.findIndex((f) => f.t >= time);
     if (k < 0) break;
     const a = fs[Math.max(k - 1, 0)]!;
@@ -392,19 +430,22 @@ function grid(t: Trace, pick: (f: Frame) => number | undefined): number[] {
   return out;
 }
 
-function drift(a: Trace, b: Trace): { what: string; px: number; atMs: number } {
-  let worst = { what: '', px: 0, atMs: 0 };
+function drift(a: Trace, b: Trace): { what: string; px: number; atMs: number; segment: string; structure: string } {
+  const sa = segments(a);
+  const sb = segments(b);
+  const names = (x: Segment[]): string => x.map((m) => m.name).join(',');
+  const worst = { what: '', px: 0, atMs: 0, segment: '', structure: names(sa) === names(sb) ? '' : `actions differ: ${names(sa)} vs ${names(sb)}` };
   const ids = new Set([...a.frames.flatMap((f) => Object.keys(f.slots)), ...b.frames.flatMap((f) => Object.keys(f.slots))]);
   const probes: [string, (f: Frame) => number | undefined][] = [['strip.x', (f) => f.strip.x], ['offset', (f) => f.offset], ['strip.opacity x100', (f) => f.strip.opacity * 100]];
-  for (const id of ids) {
-    probes.push([`slot ${id}.l`, (f) => f.slots[id]?.l], [`slot ${id}.r`, (f) => f.slots[id]?.r]);
-  }
-  for (const [what, pick] of probes) {
-    const ga = grid(a, pick);
-    const gb = grid(b, pick);
-    for (let k = 0; k < Math.min(ga.length, gb.length); k += 1) {
-      const d = Math.abs(ga[k]! - gb[k]!);
-      if (!Number.isNaN(d) && d > worst.px) worst = { what, px: +d.toFixed(1), atMs: k * 16 };
+  for (const id of ids) probes.push([`slot ${id}.l`, (f) => f.slots[id]?.l], [`slot ${id}.r`, (f) => f.slots[id]?.r]);
+  for (let i = 0; i < Math.min(sa.length, sb.length); i += 1) {
+    for (const [what, pick] of probes) {
+      const ga = grid(a, sa[i]!, pick);
+      const gb = grid(b, sb[i]!, pick);
+      for (let k = 0; k < Math.min(ga.length, gb.length); k += 1) {
+        const d = Math.abs(ga[k]! - gb[k]!);
+        if (!Number.isNaN(d) && d > worst.px) Object.assign(worst, { what, px: +d.toFixed(1), atMs: k * 16, segment: `${i}:${sa[i]!.name}` });
+      }
     }
   }
   return worst;
@@ -459,9 +500,10 @@ if (compareTo !== undefined) {
     const d = drift(b.trace, r.trace);
     const bs = b.summary;
     const ns = summarize(r.trace);
-    const flag = d.px > TOL ? 'DRIFT' : 'ok';
-    if (d.px > TOL) failed += 1;
-    console.log(`  ${name}: ${flag} worst ${d.px} px (${d.what} at ${d.atMs} ms); final strip ${bs.finalStripX} -> ${ns.finalStripX}, offset ${bs.finalOffset} -> ${ns.finalOffset}, held ${bs.finalHeld || '-'} -> ${ns.finalHeld || '-'}, step ${bs.maxStripStepPx} -> ${ns.maxStripStepPx}`);
+    const limit = Math.max(TOL, 1.5 * (base.meta.noise?.[name] ?? 0));
+    const flag = d.px > limit || d.structure !== '' ? 'DRIFT' : 'ok';
+    if (flag === 'DRIFT') failed += 1;
+    console.log(`  ${name}: ${flag} worst ${d.px} px (limit ${limit.toFixed(1)}; ${d.what} in ${d.segment} at ${d.atMs} ms)${d.structure};  final strip ${bs.finalStripX} -> ${ns.finalStripX}, offset ${bs.finalOffset} -> ${ns.finalOffset}, held ${bs.finalHeld || '-'} -> ${ns.finalHeld || '-'}, step ${bs.maxStripStepPx} -> ${ns.maxStripStepPx}`);
   }
 }
 await browser.close();

@@ -64,6 +64,8 @@ const frameOf = (t0: number, now: number): Frame => {
   return { t: +(now - t0).toFixed(1), strip: { x: +new DOMMatrix(cs.transform).m41.toFixed(2), opacity: +(+cs.opacity).toFixed(3), clip: strip.style.clipPath }, offset: +rowScrollerFor(c).scrollLeft().toFixed(2), win: c.clientWidth, slots, held: n.held.map((h: any) => `${h.id}:${h.side}`) };
 };
 
+const mk = (name: string): void => void recording?.marks.push({ name, t: +(performance.now() - recording.t0).toFixed(1) });
+
 function App() {
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
@@ -87,13 +89,13 @@ function App() {
     offset: () => rowScrollerFor(ref.current!).scrollLeft(),
     // The nth added panel's engine id (the root is not counted).
     engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
-    setHold: (k: number, value: string) => ws.panels.configure(ids[k]!, { edgeHold: value } as any),
-    setSlots: (k: number, n: number) => latest.setSlots((window as any).__r.engineId(k), n),
-    scrollTo: (k: number, align?: string) => latest.scrollTo((window as any).__r.engineId(k), align),
-    toggleMax: (name: string) => maxers[name]!.toggle(),
+    setHold: (k: number, value: string) => (mk('setHold'), ws.panels.configure(ids[k]!, { edgeHold: value } as any)),
+    setSlots: (k: number, n: number) => (mk('setSlots'), latest.setSlots((window as any).__r.engineId(k), n)),
+    scrollTo: (k: number, align?: string) => (mk('scrollTo'), latest.scrollTo((window as any).__r.engineId(k), align)),
+    toggleMax: (name: string) => (mk('toggleMax'), maxers[name]!.toggle()),
     // The real step glide, so a far move fades past the panels between under fast=jump.
-    far: (to: number) => stepGlide(rowScrollerFor(ref.current!), to, { mode: (q.get('fast') ?? 'coalesce') as 'coalesce' | 'jump', durationSec: 0.4, ease: 'cubic-out', instant: false, windowWidth: ref.current!.clientWidth }),
-    jump: (x: number) => rowScrollerFor(ref.current!).glideTo(x, { durationSec: 0, instant: true, ease: 'linear' }),
+    far: (to: number) => (mk('far'), stepGlide(rowScrollerFor(ref.current!), to, { mode: (q.get('fast') ?? 'coalesce') as 'coalesce' | 'jump', durationSec: 0.4, ease: 'cubic-out', instant: false, windowWidth: ref.current!.clientWidth })),
+    jump: (x: number) => (mk('jump'), rowScrollerFor(ref.current!).glideTo(x, { durationSec: 0, instant: true, ease: 'linear' })),
     start: () => {
       const strip = ref.current!.querySelector<HTMLElement>('[data-row-strip]')!;
       const rec = { frames: [] as Frame[], marks: [] as { name: string; t: number }[], writes: 0, stop: false, t0: performance.now(), done: (_: any) => {} };
