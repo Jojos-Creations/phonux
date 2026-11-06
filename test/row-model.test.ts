@@ -11,7 +11,7 @@ import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, rowAnchor } from '../rowNumbers.js';
 import {
-  atRest, close, dotsOf, dragBy, hold, holdRight, layoutOf, onScreenIds, open, parkedIds, reorder, resize, screenOf, setWindow,
+  atRest, close, dotsOf, dragBy, hold, holdBoth, holdRight, layoutOf, onScreenIds, open, parkedIds, reorder, resize, screenOf, setWindow,
   settle, step, viewRange, type RowModel, type RowPanel,
 } from '../rowModel.js';
 
@@ -115,6 +115,55 @@ test('list changes: nothing opens or moves in front of the held panel', () => {
   assert.equal(open(m, { id: 'n', slots: 1 }, 0).panels[0]!.id, 'p0');
   assert.equal(reorder(m, 'p3', 0).panels[0]!.id, 'p0');
   assert.equal(reorder(m, 'p0', 3), m);
+});
+
+const ids = (m: RowModel): string[] => m.panels.map((p) => p.id);
+
+test('right hold, list changes: a list change keeps the right hold, and nothing opens or moves after the right-held panel', () => {
+  const m = holdRight(model([1, 1, 1, 1, 1, 1], { windowPx: 1300 }), 'p5');
+  const opened = open(m, { id: 'n', slots: 1 });
+  assert.equal(opened.heldRight, 'p5', 'opening a panel keeps the hold');
+  assert.equal(layoutOf(opened).heldRight?.id, 'p5', 'and the hold is still in effect');
+  assert.deepEqual(ids(opened).slice(-2), ['n', 'p5'], 'opening at the end lands before the right-held panel');
+  assert.deepEqual(ids(open(m, { id: 'n', slots: 1 }, 99)).slice(-2), ['n', 'p5'], 'so does an index past the end');
+  assert.deepEqual(ids(reorder(m, 'p1', 99)).slice(-2), ['p1', 'p5'], 'a reorder to the end lands before it');
+  assert.deepEqual(ids(reorder(m, 'p1', 5)).slice(-2), ['p1', 'p5']);
+  assert.equal(reorder(m, 'p5', 0), m, 'the right-held panel does not move');
+  assert.equal(close(m, 'p2').heldRight, 'p5', 'closing another panel keeps the hold');
+  assert.equal(close(m, 'p5').heldRight ?? null, null, 'closing the held panel drops it');
+});
+
+test('right hold, list changes: a panel opened or closed left of the window keeps the panels on screen, with the right panel docked', () => {
+  const m = holdRight(model([1, 1, 1, 1, 1, 1], { windowPx: 1300, view: 406 }), 'p5');
+  const opened = open(m, { id: 'n', slots: 1 }, 0);
+  for (const id of ['p2', 'p3']) assert.equal(screenOf(opened, id), screenOf(m, id), `${id} stayed`);
+  assert.equal(screenOf(opened, 'p5'), 1300 - 390, 'the right-held panel is docked and was never the anchor');
+});
+
+test('both: one panel held at whichever edge of the list it is at, and a list change never lets it drop', () => {
+  const first = holdBoth(model([1, 1, 1, 1, 1, 1], { windowPx: 1300 }), 'p0');
+  assert.equal(layoutOf(first).held?.id, 'p0', 'first in the list, it holds at the left');
+  assert.equal(layoutOf(first).heldRight, null, 'and not at the right');
+  assert.equal(open(first, { id: 'n', slots: 1 }, 0).panels[0]!.id, 'p0', 'nothing opens in front of it');
+  assert.equal(layoutOf(open(first, { id: 'n', slots: 1 }, 0)).held?.id, 'p0', 'so its hold is still in effect');
+  assert.equal(layoutOf(open(first, { id: 'n', slots: 1 })).held?.id, 'p0', 'opening at the end leaves it held');
+  assert.equal(layoutOf(reorder(first, 'p3', 0)).held?.id, 'p0', 'a reorder to the front leaves it held');
+  assert.equal(reorder(first, 'p0', 3), first, 'and it does not move');
+  const last = holdBoth(model([1, 1, 1, 1, 1, 1], { windowPx: 1300 }), 'p5');
+  assert.equal(layoutOf(last).heldRight?.id, 'p5', 'last in the list, it holds at the right');
+  assert.deepEqual(ids(open(last, { id: 'n', slots: 1 })).slice(-2), ['n', 'p5'], 'nothing opens after it');
+  assert.equal(layoutOf(open(last, { id: 'n', slots: 1 }, 0)).heldRight?.id, 'p5', 'and opening at the front leaves it held');
+  assert.deepEqual(ids(reorder(last, 'p1', 99)).slice(-2), ['p1', 'p5']);
+  const alone = holdBoth(model([1], { windowPx: 1300 }), 'p0');
+  assert.deepEqual(ids(open(alone, { id: 'n', slots: 1 })), ['p0', 'n'], 'a lone both panel stays first: the left hold wins');
+  assert.equal(layoutOf(open(alone, { id: 'n', slots: 1 })).held?.id, 'p0');
+});
+
+test('both: a panel that is neither first nor last is not held, and holdBoth refuses it', () => {
+  const m = model([1, 1, 1, 1, 1, 1], { windowPx: 1300 });
+  assert.equal(holdBoth(m, 'p2'), m);
+  assert.equal(holdBoth(holdBoth(m, 'p0'), null).heldLeft, null, 'null lets go of both edges');
+  assert.equal(holdBoth(holdBoth(m, 'p0'), null).heldRight ?? null, null);
 });
 
 test('step: stepping right then left returns to the same view, and the end of the range is a clamp', () => {

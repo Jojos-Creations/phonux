@@ -19,7 +19,7 @@ export interface RowModel {
   readonly heldLeft: string | null;
   readonly phonePx: number;
   readonly gapPx: number;
-  /** The id of the panel held at the right edge, or null: the mirror of `heldLeft`, held only while it is the last drawn panel. The same id in both is a panel held at either edge. */
+  /** The id of the panel held at the right edge, or null: the mirror of `heldLeft`, held only while it is the last drawn panel. The same id in both is one panel held at whichever edge of the list it is at (see `holdBoth`). */
   readonly heldRight?: string | null;
   /** The measured container less its padding. A finite number: an unmeasured row has no model. */
   readonly windowPx: number;
@@ -197,22 +197,28 @@ function withPanels(m: RowModel, panels: readonly RowPanel[], subject?: string):
 const shownOverlap = (l: RowLayout, view: number, p: DrawnPanel): boolean =>
   Math.min(p.x - view + p.w, l.hi) - Math.max(p.x - view, l.lo) > EPS_PX;
 
+// The same id in both fields is one state, a panel held at whichever edge of the list it is at. A panel that is first binds the
+// floor and not the ceiling, so the right hold is read as none while it is first; one that is last binds the ceiling, which wins
+// the clamp over the floor it also sets, so the left hold needs no such rule.
+const rightHeldIn = (m: RowModel, panels: readonly RowPanel[]): string | null =>
+  m.heldRight != null && !(m.heldRight === m.heldLeft && panels[0]?.id === m.heldRight) ? m.heldRight : null;
+
 /** The lowest index a list change may use: nothing goes in front of the held panel. */
-function floorIndex(m: RowModel): number {
-  if (m.heldLeft === null) return 0;
-  const at = m.panels.findIndex((p) => p.id === m.heldLeft);
+function floorIndex(m: RowModel, panels: readonly RowPanel[]): number {
+  const at = m.heldLeft === null ? -1 : panels.findIndex((p) => p.id === m.heldLeft);
   return at < 0 ? 0 : at + 1;
 }
 
 /** The highest index a list change may use: nothing goes after the right-held panel. */
 function ceilingIndex(m: RowModel, panels: readonly RowPanel[]): number {
-  const at = m.heldRight == null ? -1 : panels.findIndex((p) => p.id === m.heldRight);
+  const held = rightHeldIn(m, panels);
+  const at = held === null ? -1 : panels.findIndex((p) => p.id === held);
   return at < 0 ? panels.length : at;
 }
 
 export function open(m: RowModel, panel: RowPanel, index: number = m.panels.length): RowModel {
   if (m.panels.some((p) => p.id === panel.id)) return m;
-  const at = clampTo(index, floorIndex(m), ceilingIndex(m, m.panels));
+  const at = clampTo(index, floorIndex(m, m.panels), ceilingIndex(m, m.panels));
   return withPanels(m, [...m.panels.slice(0, at), panel, ...m.panels.slice(at)], panel.id);
 }
 
@@ -225,7 +231,7 @@ export function reorder(m: RowModel, id: string, to: number): RowModel {
   const from = m.panels.findIndex((p) => p.id === id);
   if (from < 0 || id === m.heldLeft || id === m.heldRight) return m;
   const rest = m.panels.filter((p) => p.id !== id);
-  const at = clampTo(to, floorIndex(m), ceilingIndex(m, rest));
+  const at = clampTo(to, floorIndex(m, rest), ceilingIndex(m, rest));
   return withPanels(m, [...rest.slice(0, at), m.panels[from]!, ...rest.slice(at)], id);
 }
 
@@ -248,6 +254,17 @@ export function holdRight(m: RowModel, id: string | null): RowModel {
   const drawn = layoutOf(m).drawn;
   const last = drawn[drawn.length - 1];
   return last !== undefined && last.id === id && m.heldRight !== id ? { ...m, heldRight: id } : m;
+}
+
+/**
+ * Holds `id` at whichever edge of the list it is at, or lets go with null: one state, so a list change cannot drop one edge of it.
+ * Only the first or the last drawn panel can be held this way; any other is left as it was.
+ */
+export function holdBoth(m: RowModel, id: string | null): RowModel {
+  if (id === null) return m.heldLeft === null && m.heldRight == null ? m : { ...m, heldLeft: null, heldRight: null };
+  const drawn = layoutOf(m).drawn;
+  const edge = drawn[0]?.id === id || drawn[drawn.length - 1]?.id === id;
+  return edge ? { ...m, heldLeft: id, heldRight: id } : m;
 }
 
 /** A window change keeps every panel where it is; the grid moves under it, so call `settle` to land on a rest. */
