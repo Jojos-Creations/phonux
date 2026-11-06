@@ -415,6 +415,8 @@ already do; when it comes in a later commit the settle waits for the commit in w
 frame at the latest if none does. The edge comes to rest on a stop, so it is held exactly only where a stop is at that scroll; otherwise it
 rests within half the gap between the two stops around it. A row whose panels all fit has no stops and nothing scrolls.
 
+A parking row can rest with blanks (`rowRest.ts`). `tail` is whole slots after the last drawn panel: a step right with no panel waiting parks the leftmost drawn panel and opens one, up to the last panel's center, and a step left closes it. `lead` is a half slot after the always-shown columns, set only by a dot click on a panel half a slot off center, which happens on an even slot count; that rest draws one panel fewer with a half blank at each end, and any step snaps it back to whole slots. Blanks count in `stripWidth`, so the margin and the root stay where the full row has them, and capacity takes them off, so no parked panel refills one. A rest is held against the row and window it was made for: any other change to either ends it. It is never saved.
+
 ### Edge holds
 
 `edgeHold` ('off' by default, 'left', 'right' or 'both') keeps a panel at a row edge while the strip scrolls under it. A slot cannot

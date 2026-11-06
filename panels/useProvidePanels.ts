@@ -339,9 +339,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const capParkedRef = useRef<string[]>([]);
   const maxLive = tuning.maxLivePanels ?? null;
   // A rest lives only for the row and the window it was made for: anything else that changes either ends it, and capacity refills its blanks.
-  const [restHeld, setRestHeld] = useState<{ rest: RowRest; key: string } | null>(null);
+  const [restHeld, setRestHeld] = useState<{ rest: RowRest; madeFor: string } | null>(null);
   const restKeyOf = (row: readonly PanelWindow[]): string => `${i.containerWidth}|${i.phoneWidth}|${row.filter(isPresent).map((p) => p.id).join(' ')}`;
-  const rest = restHeld !== null && restHeld.key === restKeyOf(rawPanels) ? restHeld.rest : null;
+  const rest = restHeld !== null && restHeld.madeFor === restKeyOf(rawPanels) ? restHeld.rest : null;
   const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak, rest };
   const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== rawPanels).map(([id]) => id);
   const panels = maxLive === null ? rawPanels : settleKeeping(settleEnv, rawPanels, acted);
@@ -471,7 +471,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
     rest,
-    setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 ? null : { rest: next, key: restKeyOf(row) }),
+    setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 ? null : { rest: next, madeFor: restKeyOf(row) }),
   });
 
   core.observe(panels, heldIds);
@@ -510,7 +510,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const first = drawn[0];
     const firstAt = first === undefined ? -1 : n.ids.indexOf(first.id);
     const full = n.stripWidth + slot > n.stripWindow;
-    const returns = first !== undefined && effective(first).revealOnScroll !== 'never' && effective(first).capacityReturn !== 'manual';
+    const returns = first !== undefined && effective(first).revealOnScroll !== 'never';
     const left = parkedToReveal(panels, 'left');
     return {
       direction,
@@ -535,16 +535,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const drawn = panels.filter((p) => isPresent(p) && parksForRoom(p));
     const end = off > 0 ? drawn[0] : drawn.at(-1);
     if (drawn.length < 2 || end === undefined || end.id === id || !drawn.some((p) => p.id === id)) return false;
-    if (effective(end).revealOnScroll === 'never' || effective(end).capacityReturn === 'manual') return false;
+    if (effective(end).revealOnScroll === 'never') return false;
     restRow({ park: off > 0 ? 'left' : 'right', rest: halfRest(rest) });
     return true;
   };
   const restOnHalfRef = useRef(restOnHalf);
   restOnHalfRef.current = restOnHalf;
-  useEffect(() => {
-    const el = i.overflowContainerRef.current;
-    return el === null ? undefined : registerRowKeys(el, { half: (id) => restOnHalfRef.current(id) });
-  });
+  // Registered once per element: a cleanup on every commit would leave the row without it while the dot bar's effects run.
+  const rowEl = i.overflowContainerRef.current;
+  useEffect(() => (rowEl === null ? undefined : registerRowKeys(rowEl, { half: (id) => restOnHalfRef.current(id) })), [rowEl]);
 
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
