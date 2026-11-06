@@ -1,7 +1,9 @@
 /**
  * The model's adapter against the arithmetic it replaces, over random rows: the same panels, holds, window, gap and rest through
  * legacyRowNumbers and computeRowNumbers must give equal numbers, field by field. Inputs are whole pixels: the two compute the same
- * sums in a different order, which is bit-equal for integers and not for fractions. Delete with legacyRowNumbers.
+ * sums in a different order, which is bit-equal for integers and not for fractions. With fractional inputs the two can differ in the
+ * last bits, and a row within those bits of fitting the window may count as overflowing in one and not the other; the app's phone width,
+ * gap and container are whole pixels, and a test below pins that fractions stay within a micropixel. Delete with legacyRowNumbers.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,9 +52,9 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
 });
 
 // The first panel is the held one most often: a hold on any other panel is a case the model does not express.
-function inputsOf(r: Row) {
+function inputsOf(r: Row, distinct = r.panels.length) {
   const entries = r.panels.map((p, k) => {
-    const entry = made(`p${k}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, overflow: r.scroll && (k > 0 || p.parks || r.first !== 'off') ? 'scroll' : 'park', parkable: !p.pinned });
+    const entry = made(`p${k % distinct}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, overflow: r.scroll && (k > 0 || p.parks || r.first !== 'off') ? 'scroll' : 'park', parkable: !p.pinned });
     return p.live || p.pinned ? entry : { ...entry, live: false };
   });
   return { entries, phoneWidth: r.phone, containerWidth: r.container, gap: r.gap, wholePanels: r.whole, rest: r.rest };
@@ -85,6 +87,46 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
   assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 1500), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));
+});
+
+test('rows with repeated ids give the same numbers as the arithmetic they replace: a width is read by position, never by id', () => {
+  const took: Record<string, number> = {};
+  fc.assert(
+    fc.property(rowArb, fc.integer({ min: 1, max: 3 }), (r, distinct) => {
+      const input = inputsOf(r, distinct);
+      const viaModel = rowNumbersViaModel(input) !== null;
+      const dupes = new Set(input.entries.map((e) => e.id)).size < input.entries.length;
+      if (viaModel && dupes) took.dupes = (took.dupes ?? 0) + 1;
+      assert.deepEqual(computeRowNumbers(input), legacyRowNumbers(input));
+    }),
+    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
+  );
+  assert.ok((took.dupes ?? 0) >= 100, `rows with repeated ids that the model took: ${took.dupes ?? 0}`);
+});
+
+test('fractional pixels: the model and the older arithmetic agree to a micropixel on every number, away from the exact fit of the window', () => {
+  let compared = 0;
+  fc.assert(
+    fc.property(rowArb, fc.double({ min: 0, max: 0.9, noNaN: true }), (r, frac) => {
+      const input = { ...inputsOf(r), phoneWidth: r.phone + frac };
+      const model = rowNumbersViaModel(input);
+      if (model === null) return;
+      const old = legacyRowNumbers(input);
+      if (Math.abs(model.stripWidth - model.stripWindow) < 1e-6 || Math.abs(old.stripWidth - old.stripWindow) < 1e-6) return;
+      const near = (a: unknown, b: unknown, path: string): void => {
+        if (typeof a === 'number' && typeof b === 'number') assert.ok(Math.abs(a - b) < 1e-6, `${path}: ${a} against ${b}`);
+        else if (Array.isArray(a) && Array.isArray(b)) {
+          assert.equal(a.length, b.length, `${path} length`);
+          a.forEach((x, k) => near(x, b[k], `${path}[${k}]`));
+        } else if (a !== null && typeof a === 'object') for (const key of Object.keys(a)) near((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key], `${path}.${key}`);
+        else assert.deepEqual(a, b, path);
+      };
+      near(model, old, 'numbers');
+      compared += 1;
+    }),
+    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
+  );
+  assert.ok(compared >= 200, `rows compared: ${compared}`);
 });
 
 test('computeRowNumbers answers through the model: a stand-in for it is what comes back, and a row it declines goes to the older arithmetic', () => {

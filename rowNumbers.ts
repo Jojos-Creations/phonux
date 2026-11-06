@@ -234,8 +234,11 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
   const endPad = stepping ? l.centerPx : 0;
   // The model's rests are views; the row's are scroll offsets, which start where the strip's first slot does.
   const stops = stepping ? l.stops.map((s) => s + l.centerPx) : [];
-  const widthOfId = new Map(l.drawn.map((d) => [d.id, d.w]));
-  const heldId = held === null ? null : held.id;
+  // Widths are read by position in the entries, never by id: two entries may share an id, and the held panel is first in the entries
+  // but last on the model's ruler when it is docked right.
+  const docked = right && l === reordered;
+  const widthAt = (k: number): number => l.drawn[docked ? (k === 0 ? l.drawn.length - 1 : k - 1) : k]!.w;
+  const heldAt = held === null ? -1 : 0;
   return {
     rowScroll: true,
     windowWidth,
@@ -251,8 +254,8 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
     stripStart: leftInset + rowMarginLeft,
     stripWindow,
     maxLiveWidth,
-    reservedWidths: [...present.flatMap((p) => (p.id === heldId || parksForRoom(p) ? [] : [widthOfId.get(p.id)!])), ...(held === null ? [] : [held.w])],
-    parkLiveWidths: present.flatMap((p) => (p.id === heldId || !parksForRoom(p) ? [] : [widthOfId.get(p.id)!])),
+    reservedWidths: [...present.flatMap((p, k) => (k === heldAt || parksForRoom(p) ? [] : [widthAt(k)])), ...(held === null ? [] : [held.w])],
+    parkLiveWidths: present.flatMap((p, k) => (k === heldAt || !parksForRoom(p) ? [] : [widthAt(k)])),
     stops,
     stepStops: stops,
     stopSpans: stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow)),
