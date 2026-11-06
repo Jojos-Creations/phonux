@@ -494,7 +494,10 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       requestAnimationFrame(() => {
         if (scroller.claimHeld()) return;
         const at = scroller.scrollLeft();
-        const to = k < 0 ? nearestStop(n, at) : snapToStop(n, k, at);
+        const near = nearestStop(n, at);
+        const span = n.stopSpans[n.stops.indexOf(near)];
+        // A panel the nearest stop already shows stays put, even cut: a click in a wide panel half under a held one must not jump it whole.
+        const to = k < 0 || (span !== undefined && k >= span.first && k < span.end) ? near : snapToStop(n, k, at);
         if (Math.abs(to - at) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
       });
     };
