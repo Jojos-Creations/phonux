@@ -29,8 +29,6 @@ interface Geometry {
   windowWidth: number;
   /** The row's centering: a stepping row's held panel sits inside it, in the first slot of the centered grid. */
   marginLeft: number;
-  /** The row's centering, which a stepping row's held panel sits inside. */
-  marginLeft: number;
   held: { id: string; side: string }[];
   /** The stops a stepping row rests on; empty when the row does not step. */
   stops: number[];
