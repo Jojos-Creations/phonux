@@ -112,7 +112,7 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
     }
     return bullets;
   };
-  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.6)\s*$/.test(line));
+  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.7)\s*$/.test(line));
   const release = lines.findIndex((line) => /^## 0\.2\.0-rc\.1\s*$/.test(line));
   const unreleasedBullets = removedBullets(unreleased);
   const releaseBullets = removedBullets(release);
@@ -127,7 +127,7 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
 /** The backtick-quoted names of every Breaking list from the Unreleased section down through 0.2.0-rc.3. */
 function changelogBreakingNames(): Set<string> {
   const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
-  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.6)\s*$/.test(line));
+  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.7)\s*$/.test(line));
   const rc3 = lines.findIndex((line) => /^## 0\.2\.0-rc\.3\s*$/.test(line));
   assert.ok(unreleased >= 0 && rc3 >= unreleased, 'CHANGELOG.md has an Unreleased section and a 0.2.0-rc.3 section');
   const end = lines.findIndex((line, i) => i > rc3 && /^## /.test(line));

@@ -1,5 +1,5 @@
 /**
- * A grab-handle drag cancelled mid-gesture (Escape, or a pointercancel from a native pan) must return the box to rest on
+ * A grab-handle drag canceled mid-gesture (Escape, or a pointercancel from a native pan) must return the box to rest on
  * both axes. The cancel springs x and the row's scroll back; the vertical offset has to spring home too.
  */
 import { test, afterEach } from 'node:test';

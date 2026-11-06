@@ -446,7 +446,7 @@ export function DragToClose(input: {
   onDragMove?: (move: GrabDragMove) => void;
   /**
    * Called once when the pointer is released after a drag, before `reorder.onDragEnd` and before any close, with where the pointer
-   * let go. Not called when the gesture is cancelled (a native pan, the Escape key), and not for a press that never became a drag.
+   * let go. Not called when the gesture is canceled (a native pan, the Escape key), and not for a press that never became a drag.
    */
   onDragEnd?: (end: GrabDragEnd) => void;
   /**
@@ -648,7 +648,7 @@ function DragToCloseBox({
   }, [isPresent]);
 
   const dropping = React.useRef(false);
-  // Release springs the box home; a cancelled gesture takes the same road without reporting a hop or a close.
+  // Release springs the box home; a canceled gesture takes the same road without reporting a hop or a close.
   const springHome = () => {
     const vertical = animate(y, 0, snapBack);
     const sideways = settleHome(x, scrollX, snapBack);

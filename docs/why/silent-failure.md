@@ -47,7 +47,7 @@ one erodes trust in the checker, so the next real failure gets waved through.
   runs: 60/60 non-zero with a live holder, 60/60 non-zero without. Only stdout
   discriminates. The exit-code form of the check would have deleted a directory a live
   process was building in.
-- A language's bare `assert` compiles to a no-op under optimisation, so a test binary
+- A language's bare `assert` compiles to a no-op under optimization, so a test binary
   printed PASS and exited 0 regardless of what its assertions said. This is why the
   template's own hook tests use real assertion methods rather than the `assert` statement.
 

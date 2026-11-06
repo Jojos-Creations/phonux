@@ -4,7 +4,7 @@ Behind [AGENTS.md §5](../../AGENTS.md) and §9.
 
 ## The supervisor costs more than the work
 
-The finding that generalises: **the supervising turn, not the generated tokens, dominates
+The finding that generalizes: **the supervising turn, not the generated tokens, dominates
 spend.** Nearly all of it is the context re-read on every turn, so the unit of cost in
 agentic work is the *turn*, not the token, and per-turn cost scales with context size and
 with the supervising model's tier. A coordinator can therefore cost several times what

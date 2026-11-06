@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: read
+  # npm trusted publishing exchanges this OIDC token for a one-time publish token; provenance signs with it too.
+  id-token: write
 
 concurrency:
   group: publish-release
@@ -25,39 +27,54 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-      # A prerelease built from a branch would publish code no one reviewed on main.
+      # A release built from a branch would publish code no one reviewed on main.
       - name: Refuse a commit that is not on main
         env:
           REF: ${{ inputs.ref }}
         run: git merge-base --is-ancestor "$REF" origin/main
-      # registry-url makes setup-node write the .npmrc that sends NODE_AUTH_TOKEN to the registry.
+      # No registry-url: setup-node would write an _authToken line that, left empty, stops npm from trying OIDC.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
-          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@11.6.2
       - run: npm ci
       # release:check refuses a version the registry already has, then builds and runs the publish gate.
       - run: npm run release:check
-      - name: Publish the prerelease from dist/
+      - name: Publish from dist/
         working-directory: dist
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
+          set -euo pipefail
           version=$(node -p "require('./package.json').version")
+          # A prerelease must never take latest; a final takes it by name so the tag is never left to a default.
           case "$version" in
             *-*) tag=next ;;
-            *) echo "refusing to publish $version without a prerelease tag"; exit 1 ;;
+            *) tag=latest ;;
           esac
-          npm publish --tag "$tag" --access public
+          # npm refuses provenance from a private repository (E422), so it is added only once the repo is public.
+          provenance=""
+          if [ "$REPO_PRIVATE" = "false" ]; then provenance="--provenance"; else echo "repository is private: publishing without provenance"; fi
+          # With no NPM_TOKEN secret npm authenticates through trusted publishing; a token, when set, is used instead.
+          if [ -n "$NPM_TOKEN" ]; then
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$RUNNER_TEMP/.npmrc"
+            export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc"
+          fi
+          npm publish --tag "$tag" --access public $provenance
           echo "published phonux@$version under $tag"
-      - name: Confirm the registry serves the version
+      - name: Confirm the registry serves the version under its tag
         run: |
+          set -euo pipefail
           version=$(node -p "require('./dist/package.json').version")
+          case "$version" in *-*) tag=next ;; *) tag=latest ;; esac
           for attempt in 1 2 3 4 5; do
             served=$(npm view "phonux@$version" version 2>/dev/null || true)
-            [ "$served" = "$version" ] && { echo "registry serves phonux@$version"; exit 0; }
+            tagged=$(npm view phonux "dist-tags.$tag" 2>/dev/null || true)
+            if [ "$served" = "$version" ] && [ "$tagged" = "$version" ]; then echo "registry serves phonux@$version as $tag"; exit 0; fi
             sleep 10
           done
-          echo "registry does not yet serve phonux@$version"
+          echo "registry does not yet serve phonux@$version as $tag (version: ${served:-none}, $tag: ${tagged:-none})"
           exit 1

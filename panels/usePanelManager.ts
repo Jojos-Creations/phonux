@@ -619,7 +619,7 @@ export function usePanelManager(
     setPanels((prev) => {
       const resized = setSlots(prev, id, next);
       // An earlier call in this same handler may have queued a park of it (its exit mark and stack entry are
-      // dropped above): a resize never parks its own panel, so that park is cancelled before anything commits.
+      // dropped above): a resize never parks its own panel, so that park is canceled before anything commits.
       const own = wasLive && resized.some((p) => p.id === id && !p.live) ? resized.map((p) => (p.id === id ? { ...p, live: true } : p)) : resized;
       // A width set now replaces the one a panel resting at one phone would go back to.
       const settled = settledKeeping(own, keep).map((p) => (p.id === id && p.savedSlots !== undefined ? { ...p, savedSlots: undefined } : p));

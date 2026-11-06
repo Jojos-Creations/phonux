@@ -38,21 +38,21 @@ execFileSync(TSC_BIN, ['-p', TSCONFIG], { cwd: REPO_ROOT, stdio: 'inherit' });
 if (!existsSync(DIST_DIR)) fail(`tsc reported success but ${relative(REPO_ROOT, DIST_DIR)} was never created`);
 
 // Defense in depth: the tsconfig's own exclude should already keep these out;
-// a leaked fixture in dist/ would ship test-only code to every consumer.
+// a leaked fixture or tool config in dist/ would ship dev-only code to every consumer.
 function findLeaked(dir) {
   const leaked = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       leaked.push(...findLeaked(full));
-    } else if (/\.typecheck\.|fixture/i.test(entry.name)) {
+    } else if (/\.typecheck\.|fixture|\.config\./i.test(entry.name)) {
       leaked.push(relative(DIST_DIR, full));
     }
   }
   return leaked;
 }
 const leaked = findLeaked(DIST_DIR);
-if (leaked.length > 0) fail(`typecheck/fixture files leaked into dist: ${leaked.join(', ')}`);
+if (leaked.length > 0) fail(`dev-only files (typecheck, fixture or tool config) leaked into dist: ${leaked.join(', ')}`);
 
 const srcPkg = JSON.parse(readFileSync(join(PHONE_DIR, 'package.json'), 'utf8'));
 
