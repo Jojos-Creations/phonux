@@ -24,3 +24,13 @@ Chromium on this checkout: `browserMax` follows the drawn widths (1218, 1624, 81
       node tools/proof/frame-corner-ring-probe.mjs <libDir> [outDir]
 
 Run it with `<libDir>` as a checkout of main for the negative control: 96 of 544 samples are ring-coloured there and the exit status is 1.
+
+# Row render baseline
+
+`row-render-baseline.ts` (with `row-render-entry.tsx.txt`) drives the real `Workspace` and `PanelRow` in headless Chromium through a gliding re-centering, a hold flip with each of left, right and both (on the first panel, which the position model reads, and on a middle one), a fade jump, a wide panel changing size alone and while gliding, maximize and minimize, a resize drag, and a 40-panel row parked and returned. It records the strip's drawn transform, opacity and clip, the scroll, and every slot's rect, opacity and scale on each animation frame, takes screenshots, and checks the paint against a magenta page background: at rest every sampled pixel must be the colour of the panel on top there, and a mid-glide frame with a run of magenta across the row is a hole. The virtual-clock tests cannot see any of this.
+
+    node --import tsx tools/proof/row-render-baseline.ts --out <dir> --write <baseline.json>     # record
+    node --import tsx tools/proof/row-render-baseline.ts --diff a.json,b.json --into a.json        # noise floor of one tree against itself
+    node --import tsx tools/proof/row-render-baseline.ts --out <dir> --compare <baseline.json>   # after a change
+
+Time is real, so every action (step, resize, a hold or size ask) restarts its own 16 ms grid and a compare is per action; `--into` stores each scenario's floor in the baseline and `--compare` flags a drift only past 1.5 times it. It exits 1 when a scenario did not run, a blank panel or hole was found, or a compare drifted. The browser comes from `test/support/chromium.ts`, which says which one ran. `tools/proof/baseline/` holds the recording of the source at 240fd27. Read the screenshots: a number does not see a blank panel.

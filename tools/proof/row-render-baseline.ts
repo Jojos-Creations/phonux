@@ -447,8 +447,9 @@ function drift(a: Trace, b: Trace): { what: string; px: number; atMs: number; se
       const ga = grid(a, sa[i]!, pick);
       const gb = grid(b, sb[i]!, pick);
       for (let k = 0; k < Math.min(ga.length, gb.length); k += 1) {
-        const d = Math.abs(ga[k]! - gb[k]!);
-        if (!Number.isNaN(d) && d > worst.px) Object.assign(worst, { what, px: +d.toFixed(1), atMs: k * 16, segment: `${i}:${sa[i]!.name}` });
+        // A frame of timing slack either way: which frame first shows an ask is a coin toss, and a jump is hundreds of px.
+        const d = Math.min(...[-1, 0, 1].map((j) => Math.abs(ga[k]! - (gb[k + j] ?? Number.NaN))).filter((v) => !Number.isNaN(v)), Number.POSITIVE_INFINITY);
+        if (Number.isFinite(d) && d > worst.px) Object.assign(worst, { what, px: +d.toFixed(1), atMs: k * 16, segment: `${i}:${sa[i]!.name}` });
       }
     }
   }
