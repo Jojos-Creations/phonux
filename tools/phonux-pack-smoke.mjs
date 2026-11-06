@@ -305,7 +305,7 @@ try {
 
   record('(2) the tarball holds built files only', () => {
     const packed = JSON.parse(run('tar', ['-xOzf', tarball, 'package/package.json'], root));
-    const stray = packedFiles.filter((f) => (/\.tsx?$/.test(f) && !/\.d\.ts$/.test(f)) || /\.map$/.test(f) || /typecheck|fixture|^etc\/|api-extractor/i.test(f));
+    const stray = packedFiles.filter((f) => (/\.tsx?$/.test(f) && !/\.d\.ts$/.test(f)) || /\.map$/.test(f) || /typecheck|fixture|\.config\.|^etc\/|api-extractor/i.test(f));
     if (stray.length) throw new Error(`unexpected files: ${stray.join(', ')}`);
     const missing = Object.values(packed.exports).flatMap((c) => Object.values(c)).filter((p) => !packedFiles.includes(p.replace(/^\.\//, '')));
     if (missing.length) throw new Error(`exports point at files not in the tarball: ${missing.join(', ')}`);

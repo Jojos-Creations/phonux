@@ -49,7 +49,7 @@ An agent deliberately trying to be careful hit both.
   nothing at the git level fixes that.
 
 A pathspec isolates agents who share a directory. It cannot isolate agents who share a
-file — that needs separate worktrees or serialised turns. When splitting work, check that
+file — that needs separate worktrees or serialized turns. When splitting work, check that
 the file *sets* are disjoint, not just the concerns: three agents given clean separate
 scopes ended up in each other's commits over one shared config file.
 

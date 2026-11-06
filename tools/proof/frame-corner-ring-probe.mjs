@@ -3,7 +3,7 @@
 // in the dark and the light scheme, at the theme's radius and at 40 px written onto the mounted frame, and scores the ring along all four corner arcs: at each sampled point on the middle of the 1 px
 // ring, the pixel must match the same frame rendered with nothing in it. Writes the four corner crops and a contact sheet per
 // engine and scheme into <outDir>, prints one JSON line per engine, scheme and corner, and exits 1 unless every sample on every arc
-// is ring-coloured (and 2 when the run could not prove anything).
+// is ring-colored (and 2 when the run could not prove anything).
 // Needs: esbuild and react, react-dom and @mui/material resolvable from <libDir>/node_modules, PLAYWRIGHT_ENTRY=<path to playwright-core/index.mjs>
 // (else `playwright` from cwd), WEBKIT_BIN=<pw_run.sh> and CHROMIUM_BIN=<headless shell> for engines that are not playwright's own.
 import { createServer } from 'node:http';
@@ -24,7 +24,7 @@ const CROP = 40; // CSS px around a corner
 const ANGLES = Array.from({ length: 17 }, (_, i) => 5 + i * 5); // degrees along each arc, 5..85
 const TOLERANCE = 40; // largest channel difference from the empty frame's pixel that still counts as ring
 const MIN_CONTRAST = 100; // the child must differ from the ring by at least this, or the score proves nothing
-// The frame's radius as the theme sets it, and 40 px written onto the mounted frame's inline style the way a maximise animation does.
+// The frame's radius as the theme sets it, and 40 px written onto the mounted frame's inline style the way a maximize animation does.
 const CASES = [{ name: 'theme', live: null }, { name: 'live40', live: 40 }];
 const CORNERS = { TL: [-1, -1], TR: [1, -1], BL: [-1, 1], BR: [1, 1] };
 
@@ -57,7 +57,7 @@ const readPixels = (page, png, devicePoints) => page.evaluate(async ({ b64, poin
   return points.map(([x, y]) => [...g.getImageData(x, y, 1, 1).data.slice(0, 3)]);
 }, { b64: png.toString('base64'), points: devicePoints });
 
-// Four corner crops, nearest-neighbour at 5x, as a 2 x 2 sheet: TL TR over BL BR.
+// Four corner crops, nearest-neighbor at 5x, as a 2 x 2 sheet: TL TR over BL BR.
 const sheet = (page, png, crops) => page.evaluate(async ({ b64, crops: boxes, scale }) => {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
@@ -161,13 +161,13 @@ const bad = rows.filter((r) => r.ring !== r.total);
 const arcs = rows.length;
 const ringPx = rows.reduce((a, r) => a + r.ring, 0);
 const totalPx = rows.reduce((a, r) => a + r.total, 0);
-console.log(`\n${ringPx} of ${totalPx} samples ring-coloured over ${arcs} of ${expected} arcs (tolerance ${TOLERANCE}, dpr ${DPR}); crops in ${out}`);
+console.log(`\n${ringPx} of ${totalPx} samples ring-colored over ${arcs} of ${expected} arcs (tolerance ${TOLERANCE}, dpr ${DPR}); crops in ${out}`);
 if (unproven > 0 || arcs !== expected) {
   console.log('UNPROVEN: not every engine, scheme and corner was scored');
   process.exitCode = 2;
 } else if (bad.length > 0) {
-  console.log(`FAIL: ${bad.length} of ${arcs} arcs are not fully ring-coloured:`, bad.map((r) => `${r.engine}/${r.scheme}/${r.radius}/${r.corner} ${r.ring}/${r.total}`).join(', '));
+  console.log(`FAIL: ${bad.length} of ${arcs} arcs are not fully ring-colored:`, bad.map((r) => `${r.engine}/${r.scheme}/${r.radius}/${r.corner} ${r.ring}/${r.total}`).join(', '));
   process.exitCode = 1;
 } else {
-  console.log('PASS: every sampled point on all four arcs is ring-coloured in every engine, scheme and radius');
+  console.log('PASS: every sampled point on all four arcs is ring-colored in every engine, scheme and radius');
 }
