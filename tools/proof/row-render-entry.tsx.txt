@@ -1,0 +1,126 @@
+// The real Workspace and PanelRow, built as the app builds them, with the controls and the per-frame recorder row-render-baseline.ts
+// drives. Every panel is a labelled box with a ruler along its top, so a screenshot shows a stretched, clipped or blank panel.
+// Query: slots=1,1,1 holds=p1:left,p3:both gap=16 fast=coalesce|jump gesture=off|step filler=<extra nodes per panel>
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels } from 'LIB/index.js';
+import { createFakeHost } from 'LIB/fakeHost.js';
+import { usePanelMaximize } from 'LIB/panelMaximize.js';
+import { stepGlide } from 'LIB/rowFastScroll.js';
+import { rowScrollerFor } from 'LIB/rowScroller.js';
+
+const q = new URLSearchParams(location.search);
+const SLOTS = (q.get('slots') ?? '1,1,1').split(',').map(Number);
+const HOLDS = new Map((q.get('holds') ?? '').split(',').filter(Boolean).map((pair) => pair.split(':') as [string, string]));
+const GAP = Number(q.get('gap') ?? 16);
+const FILLER = Number(q.get('filler') ?? 0);
+const PHONE = 390;
+const ROOT = 'root';
+const NONE = new Set<string>();
+const ids = SLOTS.map((_, k) => `p${k + 1}`);
+const COLORS: Record<string, string> = { root: '#224433' };
+ids.forEach((id, k) => (COLORS[id] = `hsl(${(k * 47 + 200) % 360} 45% 30%)`));
+let latest: any;
+const maxers: Record<string, { toggle(): boolean }> = {};
+
+function View({ name }: { name: string }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const max = usePanelMaximize(ref);
+  maxers[name] = max;
+  return (
+    <div ref={ref} data-box={name} tabIndex={-1} style={{ position: 'relative', width: '100%', height: '100%', background: COLORS[name], color: '#fff', overflow: 'hidden', font: '28px sans-serif' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 24, background: 'repeating-linear-gradient(90deg,#fff 0 2px,transparent 2px 50px)' }} />
+      <div style={{ position: 'absolute', top: 40, left: 12 }}>{name}</div>
+      {Array.from({ length: FILLER }, (_, k) => (
+        <div key={k} style={{ position: 'absolute', top: 100 + (k % 20) * 24, left: 12 + (k % 7) * 40, width: 30, height: 18, background: 'rgba(255,255,255,0.35)' }} />
+      ))}
+    </div>
+  );
+}
+
+const ws = createWorkspace({
+  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: 'none' } }),
+  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} />) as any, settings: { slots: SLOTS[k], maxSlots: 64, frame: 'none', ...(HOLDS.has(id) ? { edgeHold: HOLDS.get(id) } : {}) } as any })),
+  tuning: { rowGesture: (q.get('gesture') ?? 'step') as 'step' | 'off', rowGap: GAP, fastScroll: (q.get('fast') ?? 'coalesce') as 'coalesce' | 'jump' } as any,
+});
+for (const id of ids) ws.addPanel(id);
+
+// One record per animation frame: the strip as drawn (computed, so a compositor animation is read at its current value), and every slot.
+interface Frame { t: number; strip: { x: number; opacity: number; clip: string }; offset: number; win: number; slots: Record<string, any>; held: string[] }
+let recording: { frames: Frame[]; marks: { name: string; t: number }[]; writes: number; stop: boolean; t0: number; done: (f: any) => void } | null = null;
+const frameOf = (t0: number, now: number): Frame => {
+  const c = document.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const cr = c.getBoundingClientRect();
+  const strip = c.querySelector<HTMLElement>('[data-row-strip]')!;
+  const cs = getComputedStyle(strip);
+  const slots: Record<string, any> = {};
+  for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+    const r = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    const m = new DOMMatrix(s.transform);
+    slots[el.dataset.rowId!] = { l: +(r.left - cr.left).toFixed(2), r: +(r.right - cr.left).toFixed(2), t: +(r.top - cr.top).toFixed(2), b: +(r.bottom - cr.top).toFixed(2), o: +(+s.opacity).toFixed(3), v: s.visibility === 'visible' ? 1 : 0, sx: +m.a.toFixed(4) };
+  }
+  const n = latest.rowNumbers;
+  return { t: +(now - t0).toFixed(1), strip: { x: +new DOMMatrix(cs.transform).m41.toFixed(2), opacity: +(+cs.opacity).toFixed(3), clip: strip.style.clipPath }, offset: +rowScrollerFor(c).scrollLeft().toFixed(2), win: c.clientWidth, slots, held: n.held.map((h: any) => `${h.id}:${h.side}`) };
+};
+
+function App() {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const [w, setW] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const el = ref.current!;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref } as any);
+  latest = p;
+  const host = createFakeHost({ panels: p });
+  (window as any).__r = {
+    ready: () => document.querySelector('[data-row-strip]') !== null && latest !== undefined,
+    ids: () => latest.entries.map((e: any) => e.id),
+    provided: () => latest,
+    container: () => ref.current,
+    scroller: () => rowScrollerFor(ref.current!),
+    offset: () => rowScrollerFor(ref.current!).scrollLeft(),
+    // The nth added panel's engine id (the root is not counted).
+    engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
+    setHold: (k: number, value: string) => ws.panels.configure((window as any).__r.engineId(k), { edgeHold: value }),
+    setSlots: (k: number, n: number) => latest.setSlots((window as any).__r.engineId(k), n),
+    scrollTo: (k: number, align?: string) => latest.scrollTo((window as any).__r.engineId(k), align),
+    toggleMax: (name: string) => maxers[name]!.toggle(),
+    // The real step glide, so a far move fades past the panels between under fast=jump.
+    far: (to: number) => stepGlide(rowScrollerFor(ref.current!), to, { mode: (q.get('fast') ?? 'coalesce') as 'coalesce' | 'jump', durationSec: 0.4, ease: 'cubic-out', instant: false, windowWidth: ref.current!.clientWidth }),
+    jump: (x: number) => rowScrollerFor(ref.current!).glideTo(x, { durationSec: 0, instant: true, ease: 'linear' }),
+    start: () => {
+      const strip = ref.current!.querySelector<HTMLElement>('[data-row-strip]')!;
+      const rec = { frames: [] as Frame[], marks: [] as { name: string; t: number }[], writes: 0, stop: false, t0: performance.now(), done: (_: any) => {} };
+      recording = rec;
+      new MutationObserver((rs) => void (rec.writes += rs.length)).observe(strip, { attributes: true, attributeFilter: ['style'] });
+      const tick = (now: number): void => {
+        rec.frames.push(frameOf(rec.t0, now));
+        if (!rec.stop) requestAnimationFrame(tick);
+        else rec.done({ frames: rec.frames, marks: rec.marks, writes: rec.writes });
+      };
+      requestAnimationFrame(tick);
+    },
+    mark: (name: string) => void recording?.marks.push({ name, t: +(performance.now() - recording.t0).toFixed(1) }),
+    stop: () => new Promise((done) => { recording!.done = done; recording!.stop = true; }),
+    // What is topmost at a point, for a screenshot check that a painted panel is the one the page says is there.
+    topAt: (x: number, y: number) => document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-box]')?.dataset.box ?? null,
+    colors: COLORS,
+    now: () => frameOf(performance.now(), performance.now()),
+  };
+  return (
+    <HostProvider host={host}>
+      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} tuning={p.tuning}>
+          <PanelRow entries={p.entries} rootId={ws.rootId} closingIds={NONE} enteringViaAnchorIds={NONE} rowNumbers={p.rowNumbers} maxLiveWidth={p.maxLiveWidth} workspace={ws} />
+        </Workspace>
+      </div>
+    </HostProvider>
+  );
+}
+createRoot(document.getElementById('root')!).render(<App />);
