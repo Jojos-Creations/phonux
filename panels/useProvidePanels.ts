@@ -691,7 +691,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     panelTitle: labels.panelTitle,
     onError: core.reportError,
     replay: true,
-    restAtPhone: () => shrinkUnfocusedRef.current,
   });
 
   // A row a person moves is saved where it comes to rest. A wheel or pointer-down on the row and a step (a key or a
