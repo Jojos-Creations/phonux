@@ -315,7 +315,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
   );
 
   return {
-    scrollLeft: () => (glide === null ? view - origin : view - origin + owedAt(glide, performance.now())),
+    scrollLeft: scrollNow,
     // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
     stripX: () => -view - bumpAt(bump, performance.now()),
     drawEachFrame(on) {
