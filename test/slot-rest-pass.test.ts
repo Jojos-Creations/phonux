@@ -10,6 +10,7 @@ import { act } from 'react';
 import { cleanup, advanceFrames } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 import { slotTransform } from './support/strip.js';
+import { screenBoxOf } from '../slotMover.js';
 
 afterEach(() => cleanup());
 
@@ -57,4 +58,14 @@ test('only the drawing pass writes a slot rest, and the mover replaces the trans
   assert.doesNotMatch(slot, /style\.translate\b/);
   // An animation added onto a style of the same property leaves the compositor, which is what a row with no hold must stay on.
   assert.doesNotMatch(mover, /composite:/);
+});
+
+test('a box measured once follows a rest that moves after it', () => {
+  const el = document.createElement('div');
+  el.dataset.rowSlot = '100';
+  el.getBoundingClientRect = () => ({ left: 100, top: 0, right: 490, bottom: 700, width: 390, height: 700, x: 100, y: 0, toJSON: () => ({}) }) as DOMRect;
+  const box = screenBoxOf(el, () => 0);
+  assert.equal(box().x, 100, 'control: it reads where it measured');
+  el.dataset.rowSlot = '300';
+  assert.equal(box().x, 300);
 });

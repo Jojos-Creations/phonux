@@ -329,7 +329,7 @@ parked and a panel the cap parks is never mounted. While a cap is set that settl
 one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
 action has just marked, as the effect does, and the effect records its parks once the row has committed, as it records
 any park for room: under `capacityReturn: 'manual'` each is held until shown or until `maxLivePanels` is raised (the capacity-parked ones are kept in park order beside the hold, so a raise tells them from a host hide), under 'auto' it goes on the stack and
-returns by `returnTieBreak`. A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
+returns by `returnTieBreak`, among the panels beside the drawn run: a swapping row keeps one unbroken run, and a step parks at its far end. A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
 
 Opening, showing or undoing a panel parks the panel touched longest ago, never the panel just
 opened or moved. A panel's touch time is set when it is created and set again when it is shown from parked or
@@ -1848,7 +1848,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 30 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
 | `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1/3 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
-| `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. |
+| `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. Only panels beside the drawn run return. |
 | `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, off (workspace only) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.fastScroll` | coalesce, jump (workspace only) | coalesce | NEXT (configureTuning only). Read at the next step or dot; a glide in flight finishes; no panel moves. Session-only. |

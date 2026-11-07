@@ -173,6 +173,50 @@ test('pressing left in a swapping row with wide panels reaches each panel in lis
   });
 });
 
+/** The panels drawn beside the root are neighbours in the list: a step parks at the far end, never inside the run. */
+const assertOneRun = (run: readonly number[], trace: string): void => {
+  assert.ok(run.length > 0, `control: a panel is drawn beside the root: ${trace}`);
+  for (let k = 1; k < run.length; k += 1) assert.equal(run[k], run[k - 1]! + 1, `the drawn run is broken at ${run.join(' ')}: ${trace}`);
+};
+
+for (const width of [1800, 1400]) {
+  test(`right then left in a swapping row with wide panels keeps one unbroken run at window ${width}`, async (t) => {
+    const r = await rig(t);
+    if (r === undefined) return;
+    const page = await r.open(SWAP_WIDE, width);
+    await aim(page);
+    let trace = (await drawnBesideRoot(page)).join('-');
+    for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowRight', 'ArrowLeft']) {
+      await page.keyboard.press(key);
+      await page.waitForTimeout(750);
+      const run = await drawnBesideRoot(page);
+      trace += ` ${key === 'ArrowRight' ? '>' : '<'}${run.join('-')}`;
+      assertOneRun(run, trace);
+    }
+  });
+
+  test(`a seeded walk of presses in a swapping row with wide panels never splits the run at window ${width}`, async (t) => {
+    const r = await rig(t);
+    if (r === undefined) return;
+    const page = await r.open(SWAP_WIDE, width);
+    await aim(page);
+    let seed = width;
+    let trace = (await drawnBesideRoot(page)).join('-');
+    const seen = new Set<string>();
+    for (let k = 0; k < 14; k += 1) {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      const right = Math.floor(seed / 65536) % 2 === 0;
+      await page.keyboard.press(right ? 'ArrowRight' : 'ArrowLeft');
+      await page.waitForTimeout(750);
+      const run = await drawnBesideRoot(page);
+      seen.add(run.join('-'));
+      trace += ` ${right ? '>' : '<'}${run.join('-')}`;
+      assertOneRun(run, trace);
+    }
+    assert.ok(seen.size >= 3, `control: the walk moved the row: ${trace}`);
+  });
+}
+
 test('pressing right in a swapping row with wide panels reaches each panel in list order and stays at the last', async (t) => {
   const r = await rig(t);
   if (r === undefined) return;
