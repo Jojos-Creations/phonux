@@ -85,3 +85,15 @@ test('gestureTarget: a swipe toward a hidden panel past four live panels steps o
   assert.deepEqual(gestureTarget({ ...base, base: 406 }), { kind: 'scroll', to: 812 });
   assert.deepEqual(gestureTarget({ ...base, base: 812 }), { kind: 'show', id: 'h' }, 'L4 is in view, so no live panel lies between the window and H');
 });
+
+test('gestureTarget: a wide panel the window edge cuts comes in before the parked panel past it', () => {
+  const row = { direction: 'right' as const, base: 0, clientWidth: 1000, maxScroll: 800, liveStarts: [0, 344], liveWidths: [320, 1352], stops: [0, 344, 688, 800], gap: 24, hidden: [{ id: 'next', liveBefore: 2, held: false, policy: 'edges' as const }] };
+  assert.deepEqual(gestureTarget({ ...row, phoneWidth: 320 }), { kind: 'scroll', to: 344 });
+  assert.deepEqual(gestureTarget({ ...row, base: 800, phoneWidth: 320 }).kind, 'show');
+});
+
+test('gestureTarget: a live panel that never parks is no panel a parked one waits behind', () => {
+  const row = { direction: 'left' as const, base: 344, clientWidth: 700, maxScroll: 344, liveStarts: [0, 344, 688], liveWidths: [320, 320, 320], stops: [0, 344], gap: 24, hidden: [{ id: 'prev', liveBefore: 1, held: false, policy: 'edges' as const }] };
+  assert.equal(gestureTarget(row).kind, 'scroll');
+  assert.deepEqual(gestureTarget({ ...row, liveParks: [false, true, true] }), { kind: 'show', id: 'prev' });
+});
