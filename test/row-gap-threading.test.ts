@@ -18,6 +18,7 @@ import { workspaceShellStyle } from '../Workspace.js';
 import { cleanup, mount, withHost, useSeededInput, StaticRow, plainTemplate } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
+import { slotTransform } from './support/strip.js';
 
 const GAPS = [0, 16, 40] as const;
 const ROOT = 'root';
@@ -48,7 +49,7 @@ const rowOf = (entries: PanelWindow[], tuning?: WorkspaceTuning): React.ReactEle
 const slotX = (container: HTMLElement, id: string): number => {
   const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
-  const match = /translateX\((-?[\d.]+)px\)/.exec(slot.style.transform);
+  const match = /translateX\((-?[\d.]+)px\)/.exec(slotTransform(slot));
   return match === null ? 0 : Number(match[1]);
 };
 

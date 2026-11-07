@@ -18,6 +18,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { headerRig } from './support/header-rig.js';
 import { drag, release } from './support/drag-gesture.js';
 import { rowScrollerFor } from './support/workspace-row.js';
+import { slotTransform } from './support/strip.js';
 import {
   CATALOG_NAMES,
   CLASSES,
@@ -840,7 +841,7 @@ test('matrix:showWhenClosed', async () => {
 
 const slotAt = (r: MatrixRig, engineId: string): HTMLElement | null => r.m.container.querySelector<HTMLElement>(`[data-slot="${engineId}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axisOf = (el: HTMLElement | null, name: 'X' | 'Y'): number => {
-  const match = el === null ? null : new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(el.style.transform);
+  const match = el === null ? null : new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slotTransform(el));
   return match === null ? 0 : Number(match[1]);
 };
 const frames = (n: number): Promise<void> => advanceFrames(n * 16);

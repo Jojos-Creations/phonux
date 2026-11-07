@@ -1,13 +1,14 @@
 /**
- * The row's one drawing pass. Everything the row draws from where its strip is, other than the strip itself and each slot's
- * own slide, is written here from the same numbers and the same scroll: the cut at the grid's edges, the held panels'
- * clamp, the cut and fade of a strip panel beside a held one, and which panels the window does not reach.
+ * The row's one drawing pass. Where each slot rests is written here, and nowhere else, once per commit. So is everything the row
+ * draws from where its strip is, other than the strip itself, from the same numbers and the same scroll: the cut at the grid's
+ * edges, the held panels' clamp, the cut and fade of a strip panel beside a held one, and which panels the window does not reach.
+ * A slot's own mover (slotMover.ts) only adds how far the slot is from that rest while it moves.
  */
 import * as React from 'react';
 import { AwayContext } from './panelAway.js';
 import { gridEdgesOf, slotCutAt, slotEdgesAt, type RowNumbers } from './rowNumbers.js';
 import { closestRowScroller, rowScrollerFor, rowStripOf } from './rowScroller.js';
-import { holdShiftOf, setHoldShift } from './slotMover.js';
+import { holdShiftOf, restTranslate, setHoldShift } from './slotMover.js';
 
 /** How far above and below its box a clip stays open, so a panel's shadow or focus ring is never cut. */
 const CLIP_OPEN_PX = 100000;
@@ -62,7 +63,13 @@ export function useRowDraw(boxRef: React.RefObject<HTMLElement | null>, rowNumbe
   const awayStore = React.useContext(AwayContext);
   React.useLayoutEffect(() => {
     const anchor = boxRef.current;
-    const container = anchor === null ? null : closestRowScroller(anchor);
+    if (anchor === null) return;
+    // A leaving slot keeps the rest it last rendered, so its exit is not carried along by the row it left.
+    for (const slot of anchor.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+      const rest = restTranslate(Number(slot.dataset.rowSlot));
+      if (slot.style.translate !== rest) slot.style.translate = rest;
+    }
+    const container = closestRowScroller(anchor);
     const strip = container === null ? null : rowStripOf(container);
     if (container === null || strip === null || rowNumbers === undefined) return;
     const n = rowNumbers;

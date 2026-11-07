@@ -16,6 +16,7 @@ import { flush, mountWorkspace, type MountedWorkspace } from './support/workspac
 import { settle } from './support/workspace-launch.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import { refusedWith } from './support/configure-matrix.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(() => cleanup());
 
@@ -61,7 +62,7 @@ const slotOf = (r: Rig, key: string): HTMLElement => {
   return slot;
 };
 const xOf = (r: Rig, key: string): number => {
-  const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(r, key).style.transform);
+  const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(r, key)));
   return match === null ? 0 : Math.round(Number(match[1]));
 };
 const grabOf = (r: Rig, key: string): HTMLElement => {

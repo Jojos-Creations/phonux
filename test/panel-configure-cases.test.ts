@@ -10,6 +10,7 @@ import { rowOffsetOf } from './support/strip.js';
 import type { ConfigureResult } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
+import { slotTransform } from './support/strip.js';
 import {
   EDGE_WINDOW,
   HALF_ZONE_POINTER,
@@ -450,7 +451,7 @@ test('protected 8: rowGap re-prices the row in the commit of the call and takes 
   const r = await matrixRig();
   await r.settle();
   const x = (name: string): number => {
-    const match = /translateX\((-?[\d.]+)px\)/.exec(slotAt(r, r.entry(name).id)?.style.transform ?? '');
+    const match = /translateX\((-?[\d.]+)px\)/.exec((() => { const s = slotAt(r, r.entry(name).id); return s === null || s === undefined ? '' : slotTransform(s); })());
     return match === null ? 0 : Number(match[1]);
   };
   assert.deepEqual(['a', 'b', 'c'].map(x), [406, 812, 1218]);

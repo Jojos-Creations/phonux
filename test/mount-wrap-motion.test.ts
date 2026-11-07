@@ -14,6 +14,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(cleanup);
 
@@ -36,7 +37,7 @@ registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { i
 const appWrap = ({ children }: WorkspaceWrapProps): React.ReactElement => React.createElement(MotionConfig, { reducedMotion: 'always' }, children);
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.closest<HTMLElement>('[data-row-slot]')!;
-const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));
+const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(container, id)))?.[1] ?? 0));
 const SPAN = 406;
 
 async function neighbourAfterHop(wrapped: boolean): Promise<{ rest: number; x: number }> {

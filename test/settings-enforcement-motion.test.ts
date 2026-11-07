@@ -18,6 +18,7 @@ import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const ROOT = 'root';
 const OWNED = ['layer', 'enterFrom', 'resize'];
@@ -66,7 +67,7 @@ const row = (entries: PanelWindow[], p: Props = {}, workspace?: WorkspaceHandle)
   );
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axis = (slot: HTMLElement, name: 'X' | 'Y'): number => {
-  const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slot.style.transform);
+  const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slotTransform(slot));
   return match === null ? 0 : Number(match[1]);
 };
 const xOf = (container: HTMLElement, id: string): number => axis(slotOf(container, id)!, 'X');

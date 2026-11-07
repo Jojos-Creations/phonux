@@ -17,6 +17,7 @@ import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import type { PanelDots } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { markerTemplate, mountWorkspace, rowScrollerFor, type ResizableWorkspace } from './support/workspace-row.js';
+import { slotTransform } from './support/strip.js';
 
 type Setters = { resizing: (on: boolean) => void; width: (px: number | null, pin?: 'start' | 'end') => void };
 const setters = new Map<string, Setters>();
@@ -52,7 +53,7 @@ afterEach(() => {
 
 const IDS = ['p1', 'p2', 'p3', 'p4', 'p5'];
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!;
-const xOf = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0);
+const xOf = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(container, id)))?.[1] ?? 0);
 const widthOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.width);
 const marginOf = (container: HTMLElement): number => stripMarginOf(container);
 /** A slot's right edge in the row's own space: before the scroll is taken off and before the container's padding is added. */

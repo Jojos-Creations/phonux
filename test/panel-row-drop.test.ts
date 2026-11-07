@@ -19,6 +19,7 @@ import { ROW_LAYER_Z } from '../rowConstants.js';
 import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(async () => {
   document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
@@ -51,7 +52,7 @@ const slotOf = (m: MountedRow, id: string): HTMLElement => {
   return slot;
 };
 const xOf = (m: MountedRow, id: string): number => {
-  const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(m, id).style.transform);
+  const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(m, id)));
   return match === null ? 0 : Math.round(Number(match[1]));
 };
 const restZ = (m: MountedRow, id: string, tier: number = ROW_LAYER_Z.BASE): string => {

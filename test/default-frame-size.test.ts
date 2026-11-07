@@ -14,6 +14,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { frameClock } from './support/jsdom-globals.js';
 import { stableIds } from './support/frame-fixtures.js';
 import { flush, mountWorkspace, type ResizableWorkspace } from './support/workspace-row.js';
+import { slotTransform } from './support/strip.js';
 
 const open: WorkspaceHandle[] = [];
 
@@ -199,7 +200,7 @@ test("a growing panel's box and its neighbour's slide run as one curve, the same
   const grower = boxes.find((b) => b.closest('[data-row-slot]')!.querySelector('[data-body="bare"]') !== null)!;
   const next = boxes.find((b) => b !== grower && b.closest('[data-row-slot]')!.querySelector('[data-body]') !== null)!.closest<HTMLElement>('[data-row-slot]')!;
   assert.ok(first);
-  const xOf = (el: HTMLElement): number => Number.parseFloat(/translateX\((-?[\d.]+)px\)/.exec(el.style.transform)?.[1] ?? '0');
+  const xOf = (el: HTMLElement): number => Number.parseFloat(/translateX\((-?[\d.]+)px\)/.exec(slotTransform(el))?.[1] ?? '0');
   const x0 = xOf(next);
   const wide = 2 * 390 + 16;
   await act(async () => void r.handles[0]!.setSlots(2));

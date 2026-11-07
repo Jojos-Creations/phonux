@@ -23,6 +23,13 @@ export function setRowOffset(container: HTMLElement, left: number): void {
 
 const translateXOf = (el: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(el.style.transform)?.[1] ?? 0);
 
+/** The transform a slot is drawn with, its rest included: the drawing pass writes the rest as `translate` and the mover's transform is measured from it. */
+export function slotTransform(el: HTMLElement): string {
+  const x = (Number.parseFloat(el.style.translate) || 0) + translateXOf(el);
+  const others = el.style.transform.replace(/translateX\([^)]*\)\s*/, '').replace('none', '').trim();
+  return [x === 0 ? '' : `translateX(${x}px)`, others].filter(Boolean).join(' ') || 'none';
+}
+
 /**
  * jsdom has no layout: each slot in `container` is given the box a browser would draw, `originLeft` plus the strip's translate and the
  * slot's own, as wide as its style says. Read live, so it follows every move of the row and of the slot.
@@ -32,7 +39,7 @@ export function stubSlotBoxes(container: HTMLElement, originLeft: number, height
   for (const el of container.querySelectorAll<HTMLElement>('[data-row-slot]')) {
     el.getBoundingClientRect = () => {
       const width = Number.parseFloat(el.style.width) || 0;
-      const left = originLeft + translateXOf(strip) + translateXOf(el);
+      const left = originLeft + translateXOf(strip) + (Number.parseFloat(el.style.translate) || 0) + translateXOf(el);
       return { left, right: left + width, top: 0, bottom: height, width, height, x: left, y: 0, toJSON: () => ({}) } as DOMRect;
     };
   }

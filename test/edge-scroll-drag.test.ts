@@ -21,6 +21,7 @@ import { drag } from './support/drag-gesture.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { made, mountRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 // jsdom has no matchMedia. Motion reads the query once and then follows its 'change' event, so the stub exists before
 // the first mount and a test flips it with `reduceMotion(true)` before mounting.
@@ -508,7 +509,7 @@ test('held at the right edge the row previews exactly the hops the release then 
   const m = mountEdgeRow();
   const slotX = (id: string): number => {
     const slot = handleOf(m, id).closest<HTMLElement>('[data-drag-to-close]')!.closest<HTMLElement>('[data-row-slot]')!;
-    return Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slot.style.transform)?.[1] ?? 0);
+    return Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slot))?.[1] ?? 0);
   };
   const ids = Array.from({ length: 9 }, (_, k) => `s${k + 2}`);
   const rest = ids.map(slotX);

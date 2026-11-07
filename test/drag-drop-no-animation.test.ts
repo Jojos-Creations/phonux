@@ -13,6 +13,7 @@ import { FRAME_MS } from './support/jsdom-globals.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(() => {
   cleanup();
@@ -57,7 +58,7 @@ registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { i
 
 const boxOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!;
 const slotOf = (container: HTMLElement, id: string): HTMLElement => boxOf(container, id).closest<HTMLElement>('[data-row-slot]')!;
-const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));
+const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(container, id)))?.[1] ?? 0));
 const boxX = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(boxOf(container, id).style.transform)?.[1] ?? 0);
 const SPAN = 406;
 const order = (m: ReturnType<typeof mountRow>): string => m.latest().entries.map((p) => p.id).join(',');

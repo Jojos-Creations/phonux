@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { animate, PresenceContext, usePresence, useReducedMotion, useReducedMotionConfig, type TargetAndTransition } from 'motion/react';
 import { sharedStartTime } from './rowClock.js';
-import { NAMED_EASE, createSlotMover, shortTransform, type SlotMover, type SlotPose, type SlotTiming } from './slotMover.js';
+import { NAMED_EASE, createSlotMover, restTranslate, shortTransform, type SlotMover, type SlotPose, type SlotTiming } from './slotMover.js';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { CHROME_ATTRIBUTE, ChromeStoreContext, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -27,8 +27,8 @@ export const PANEL_TRANSITION = SLOT_TRANSITION;
 
 /**
  * One live panel's animated slot, absolutely positioned at its own `leftOffset` so adding,
- * removing or resizing a panel never disturbs the ones to its left; `x`, not `left`, so the
- * browser composites it. Motion drives enter/exit (AnimatePresence keeps an outgoing node
+ * removing or resizing a panel never disturbs the ones to its left; `translate`, not `left`, so a
+ * move lays nothing out. Motion drives enter/exit (AnimatePresence keeps an outgoing node
  * mounted through its own unmount commit, unlike a plain CSS transition), and its Web Animations
  * API is immune to a theme's transition/animation:none reset, which must stay scoped there and never reach
  * transform/opacity, or it would kill this silently.
@@ -152,9 +152,9 @@ export function parkExitTarget(rest: number, ownSpan: number, side: 'left' | 'ri
   return { x: rowScroll ? rest - ownSpan : -ownSpan, opacity: 0 };
 }
 
-/** A Motion target as the pose it names: what it leaves out is the slot at rest. */
+/** A Motion target as the pose it names, from the slot's rest: what it leaves out is the slot at rest. */
 const poseOf = (t: TargetAndTransition, rest: number): SlotPose => ({
-  x: typeof t.x === 'number' ? t.x : rest,
+  x: typeof t.x === 'number' ? t.x - rest : 0,
   y: typeof t.y === 'number' ? t.y : 0,
   scale: typeof t.scale === 'number' ? t.scale : 1,
   opacity: typeof t.opacity === 'number' ? t.opacity : 1,
@@ -344,6 +344,12 @@ export function PanelRowSlot({
       return;
     }
     const m = mover.current;
+    // The slot's rest moved in this commit, by its own offset or by the strip's start under it: it stays where it is drawn, and its
+    // own move runs from there. A slot ahead of the held panel keeps its offset while the start moves, so the carry alone moves it.
+    const shift = leftOffset - lastRest.current! + carried;
+    const moved = lastRest.current !== leftOffset || carried !== 0;
+    lastRest.current = leftOffset;
+    if (shift !== 0) m.shift(-shift);
     if (!present) {
       if (exiting.current) return;
       exiting.current = true;
@@ -357,15 +363,8 @@ export function PanelRowSlot({
       glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
       return;
     }
-    // The strip's start moved under the slot in this commit: put the slot back where it was drawn, then run its own move from there. A slot ahead of the held panel keeps its offset while the start moves, so the carry alone makes it move.
-    if (carried !== 0) {
-      const at = m.pose();
-      slotDriver.set(node, m, { ...at, x: at.x - carried });
-    }
-    const moved = lastRest.current !== leftOffset || carried !== 0;
     const returning = exiting.current;
     exiting.current = false;
-    lastRest.current = leftOffset;
     if (!moved && !returning) return;
     if (instant) {
       slotDriver.set(node, m, rest);
@@ -412,10 +411,10 @@ export function PanelRowSlot({
   }, [chrome, panelId, kickRect]);
   const origin = shrinking ? shrinkOrigin : EXPAND_ORIGIN_X[entrance];
   // The first pose is in the markup, so a server render or the frame before the layout effect draws the slot in place. It never
-  // changes after, so React never writes over the mover's own transform.
+  // changes after, so React never writes over the drawing pass's `translate` or the mover's transform.
   const [firstPose] = React.useState(() => {
     const p = mountedWithRow || instant ? poseOf(animateTarget, leftOffset) : poseOf(initial, leftOffset);
-    return { opacity: p.opacity, transform: shortTransform(p) };
+    return { opacity: p.opacity, translate: restTranslate(leftOffset), transform: shortTransform(p) };
   });
   return (
     <div

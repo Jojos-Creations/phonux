@@ -11,6 +11,7 @@ import { act } from 'react';
 import type { PanelWindow, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, StaticRow, withHost } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const effects = new Map<string, { mounts: number; unmounts: number }>();
 
@@ -67,7 +68,7 @@ const rowOf = (workspace: WorkspaceHandle, entries: PanelWindow[]): React.ReactE
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector(`[data-slot="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const xOf = (container: HTMLElement, id: string): number => {
-  const match = /translateX\((-?[\d.]+)px\)/.exec(slotOf(container, id).style.transform);
+  const match = /translateX\((-?[\d.]+)px\)/.exec(slotTransform(slotOf(container, id)));
   return match === null ? 0 : Number(match[1]);
 };
 

@@ -38,6 +38,7 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost, StaticRow, seededWorkspace } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const OWNED = ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides'];
 const ROOT = 'root';
@@ -101,7 +102,7 @@ const slotOf = (container: HTMLElement, id: string): HTMLElement => {
   return slot as HTMLElement;
 };
 const xOf = (container: HTMLElement, id: string): number => {
-  const match = /translateX\((-?[\d.]+)px\)/.exec(slotOf(container, id).style.transform);
+  const match = /translateX\((-?[\d.]+)px\)/.exec(slotTransform(slotOf(container, id)));
   return match === null ? 0 : Number(match[1]);
 };
 const seenOf = (id: string): Seen => {

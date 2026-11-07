@@ -14,6 +14,7 @@ import { PanelSizeBox, usePanelResizing } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 type Setters = { resizing: (on: boolean) => void; width: (px: number | null, pin?: 'start' | 'end') => void; renders: number };
 const setters = new Map<string, Setters>();
@@ -39,7 +40,7 @@ afterEach(() => {
 
 const SLOT = (n: number): number => n * 390 + (n - 1) * 16;
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-row-id="${id}"]`)!;
-const xOf = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0);
+const xOf = (container: HTMLElement, id: string): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(container, id)))?.[1] ?? 0);
 const widthOf = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).style.width);
 const boxWidth = (container: HTMLElement, id: string): number => Number.parseFloat(slotOf(container, id).querySelector<HTMLElement>('[data-panel-size-box]')!.style.width);
 const IDS = ['s1', 's2', 's3'];

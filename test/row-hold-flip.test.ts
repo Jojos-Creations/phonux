@@ -10,10 +10,11 @@ import { act } from 'react';
 import { cleanup, advanceFrames } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row, ROOT } from './support/scroll-row.js';
 import { setRowOffset } from './support/strip.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(() => cleanup());
 
-const translateX = (el: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(el.style.transform)?.[1] ?? 0);
+const translateX = (el: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(el))?.[1] ?? 0);
 
 /** Where the slot of `id` is drawn in the row: the left group, the strip's translate and the slot's own, as jsdom has no layout. */
 function screenX(m: ReturnType<typeof mountRow>, id: string): number {

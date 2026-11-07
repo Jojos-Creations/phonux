@@ -18,6 +18,7 @@ import { fire, TRIGGERS } from './support/ops-rig.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 import { pinRig, type PinRig } from './support/pin-rig.js';
 import { markerTemplate } from './support/workspace-row.js';
+import { slotTransform } from './support/strip.js';
 
 /** A rig with a `multiple` template named m beside the panel a. */
 const multiRig = (settings: PanelSettings): Promise<PinRig> => pinRig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, ...settings } })] });
@@ -913,7 +914,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const r = await pinRig();
   await r.settle();
   const slotX = (name: string): number => {
-    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.closest('[data-row-slot]') as HTMLElement).style.transform;
+    const transform = slotTransform(r.m.container.querySelector(`[data-slot="${name}"]`)!.closest('[data-row-slot]') as HTMLElement);
     return transform === 'none' ? 0 : Number(/translateX\((-?[\d.]+)px\)/.exec(transform)![1]);
   };
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 406, 812, 1218], 'before: 390 + 16 apart');

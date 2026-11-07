@@ -31,6 +31,7 @@ import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
 import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
 import { useRowDraw, type HoldSpec } from './rowDraw.js';
+import { restTranslate } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
@@ -334,16 +335,17 @@ export function PanelRow({
             const root = barrierEl();
             if (root == null || px === nudged.current) return;
             nudged.current = px;
+            // The root's rest is its `translate`, so the nudge is drawn from it.
+            const to = (Number(root.dataset.rowSlot) || 0) - px;
             // No Web Animations (a test DOM): the nudge lands at once. A throw here would stop Motion's frame loop for good.
             if (typeof root.animate !== 'function') {
-              root.style.translate = px === 0 ? '' : `${-px}px 0px`;
+              root.style.translate = restTranslate(to);
               return;
             }
-            // Its own `translate`, which Motion's writes of `transform` never touch, by the Web Animations API, because the theme
-            // turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
+            // On `translate`, which the slot's mover never touches, by the Web Animations API, because the theme turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
             const from = getComputedStyle(root).translate;
             nudgeAnim.current?.cancel();
-            const anim = root.animate([{ translate: from === 'none' ? '0px' : from }, { translate: `${-px}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards' });
+            const anim = root.animate([{ translate: from === 'none' ? '0px' : from }, { translate: `${to}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards' });
             nudgeAnim.current = anim;
             if (px === 0) anim.onfinish = () => anim.cancel();
           },

@@ -13,6 +13,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(() => {
   cleanup();
@@ -48,7 +49,7 @@ function View({ id }: { id: string }): React.ReactElement {
 registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.closest<HTMLElement>('[data-row-slot]')!;
-const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));
+const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(container, id)))?.[1] ?? 0));
 const SPAN = 406;
 
 test('a neighbour snaps aside on the frame after the hop point, snaps back when the pointer returns, and the drop moves nobody', async () => {

@@ -16,6 +16,7 @@ import { useProvidePanels, type PanelWindow } from '../index.js';
 import { FRAME_MS, frameClock } from './support/jsdom-globals.js';
 import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +41,7 @@ const slotPresent = (container: HTMLElement): boolean => container.querySelector
 /** The slot's current translateX in px: an exit toward the left only ever lowers it from the rest position. */
 const slotX = (container: HTMLElement): number => {
   const slot = container.querySelector('[data-probe="a"]')?.closest<HTMLElement>('[data-row-slot]');
-  const match = /translateX\((-?[\d.]+)px\)/.exec(slot?.style.transform ?? '');
+  const match = /translateX\((-?[\d.]+)px\)/.exec(slot === null || slot === undefined ? '' : slotTransform(slot));
   assert.ok(match, 'the slot carries a translateX while it animates');
   return Number(match[1]);
 };

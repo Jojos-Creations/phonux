@@ -1,12 +1,14 @@
 /**
- * A row slot's own motion: its translate, scale and opacity, run as Web Animations API animations on the shared start time, so
- * every slot a commit moves is sampled together by the compositor.
+ * A row slot's own motion: how far it is drawn from its rest, its scale and its opacity, run as Web Animations API animations on
+ * the shared start time, so every slot a commit moves is sampled together by the compositor. The rest itself is the slot's
+ * `translate`, which the row's drawing pass writes (rowDraw.ts). The two are separate properties because an additive animation
+ * on a style of the same property does not run on the compositor.
  */
 
 import { cubicBezier } from 'motion/react';
 import { sharedStartTime } from './rowClock.js';
 
-/** Where a slot is drawn: its translate, its scale and its opacity. @internal */
+/** Where a slot is drawn relative to its rest: its offset, its scale and its opacity. @internal */
 export interface SlotPose {
   readonly x: number;
   readonly y: number;
@@ -22,12 +24,14 @@ export interface SlotTiming {
 
 /** Moves one slot's element. @internal */
 export interface SlotMover {
-  /** Where the slot is drawn now. */
+  /** Where the slot is drawn now, from its rest. */
   pose(): SlotPose;
   /** Draws `pose` at once, ending any move in flight. */
   set(pose: SlotPose): void;
   /** Moves from where the slot is drawn now to `pose` over `timing`; `done` runs when it lands, not when another move replaces it. */
   to(pose: SlotPose, timing: SlotTiming, done?: () => void): void;
+  /** Moves the pose by `dx` at once, ending any move in flight: the slot's rest moved by `-dx`, and it stays where it is drawn. */
+  shift(dx: number): void;
   /** True while a move is in flight. */
   moving(): boolean;
 }
@@ -42,6 +46,8 @@ export const NAMED_EASE: Readonly<Record<'easeIn' | 'easeOut' | 'easeInOut' | 'l
 
 // Every keyframe names the same functions in the same order, so the browser interpolates each number on its own.
 const fullTransform = (p: SlotPose): string => `translateX(${p.x}px) translateY(${p.y}px) scale(${p.scale})`;
+/** `rest` as a slot's `translate`. @internal */
+export const restTranslate = (rest: number): string => (rest === 0 ? 'none' : `${rest}px`);
 /** `pose` as the transform a slot is drawn with: only what differs from rest, `none` when nothing does. @internal */
 export const shortTransform = (p: SlotPose): string => [p.x === 0 ? '' : `translateX(${p.x}px)`, p.y === 0 ? '' : `translateY(${p.y}px)`, p.scale === 1 ? '' : `scale(${p.scale})`].filter(Boolean).join(' ') || 'none';
 
@@ -128,6 +134,11 @@ export function createSlotMover(el: HTMLElement, start: SlotPose): SlotMover {
       run = { from, to: pose, startMs, durationMs, curve: cubicBezier(timing.ease[0], timing.ease[1], timing.ease[2], timing.ease[3]), anim, done };
       frame = requestAnimationFrame(tick);
     },
+    shift(dx) {
+      const now = halt();
+      rest = { ...now, x: now.x + dx };
+      draw(rest);
+    },
     moving: () => run !== null,
   };
   movers.set(el, mover);
@@ -154,11 +165,12 @@ export interface ScreenBox {
   readonly height: number;
 }
 
-/** Everything that moves a slot without laying it out again: the strip's translate, a held panel's shift and the slot's own pose. */
+/** Everything that moves a slot without laying it out again: the strip's translate, a held panel's shift, the slot's rest and its pose. */
 function motionOf(el: HTMLElement, stripX: () => number): { dx: number; dy: number; scale: number } {
   const pose = moverOf(el)?.pose();
   const hold = el.closest('[data-row-hold]');
-  return { dx: stripX() + (hold === null ? 0 : (holdShifts.get(hold) ?? 0)) + (pose?.x ?? 0), dy: pose?.y ?? 0, scale: pose?.scale ?? 1 };
+  const rest = Number(el.dataset.rowSlot) || 0;
+  return { dx: stripX() + (hold === null ? 0 : (holdShifts.get(hold) ?? 0)) + rest + (pose?.x ?? 0), dy: pose?.y ?? 0, scale: pose?.scale ?? 1 };
 }
 
 const originXOf = (el: HTMLElement): number => {
@@ -168,7 +180,7 @@ const originXOf = (el: HTMLElement): number => {
 
 /**
  * Measures `el` once and returns where it is drawn at any later moment, from the numbers that move it: the strip's translate
- * (`stripX`), a held panel's shift and the slot's pose. Reading it lays nothing out, so a frame loop can call it freely.
+ * (`stripX`), a held panel's shift, the slot's rest and its pose. Reading it lays nothing out, so a frame loop can call it freely.
  * @internal
  */
 export function screenBoxOf(el: HTMLElement, stripX: () => number): () => ScreenBox {
