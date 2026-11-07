@@ -83,11 +83,11 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
       }
       assert.deepEqual(now, old);
     }),
-    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
+    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 3000) },
   );
   const thin = ['model:flat', 'model:flat-rest', 'model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
-  assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 1500), `ran ${rows} rows`);
+  assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 3000), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));
 });
 
@@ -101,7 +101,7 @@ test('rows with repeated ids give the same numbers as the arithmetic they replac
       if (viaModel && dupes) took.dupes = (took.dupes ?? 0) + 1;
       assert.deepEqual(computeRowNumbers(input), legacyRowNumbers(input));
     }),
-    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
+    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 3000) },
   );
   assert.ok((took.dupes ?? 0) >= 100, `rows with repeated ids that the model took: ${took.dupes ?? 0}`);
 });
@@ -126,7 +126,7 @@ test('fractional pixels: the model and the older arithmetic agree to a micropixe
       near(model, old, 'numbers');
       compared += 1;
     }),
-    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
+    { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 3000) },
   );
   assert.ok(compared >= 200, `rows compared: ${compared}`);
 });
@@ -145,4 +145,20 @@ test('computeRowNumbers answers through the model: a stand-in for it is what com
     rowNumberSources.model = real;
   }
   assert.notEqual(rowNumbersViaModel(input), null, 'control: this row is one the model takes');
+});
+
+test('a swap row in a window narrower than a phone gets the older arithmetic\'s numbers through the model, every field', () => {
+  let narrow = 0;
+  fc.assert(
+    fc.property(rowArb, fc.integer({ min: 0, max: 60 }), (r, shortBy) => {
+      // The window (container less a gap each side) is under one phone: 1 to phone-1 px wide, down to nothing.
+      const input = { ...inputsOf({ ...r, scroll: false, first: 'off' }), containerWidth: Math.max(1, r.phone + 2 * r.gap - 1 - shortBy) };
+      assert.ok(input.containerWidth - 2 * input.gap < input.phoneWidth, 'control: the window is under a phone');
+      assert.notEqual(rowNumbersViaModel(input), null, 'the model takes a swap row whatever the window');
+      assert.deepEqual(computeRowNumbers(input), legacyRowNumbers(input));
+      narrow += 1;
+    }),
+    { seed: SEED, numRuns: 500 },
+  );
+  assert.ok(narrow >= 500, `rows compared: ${narrow}`);
 });
