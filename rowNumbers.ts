@@ -193,7 +193,6 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
  * @internal
  */
 export function rootStepsAside(i: { entries: readonly PanelRowEntry[]; rootId: string; phoneWidth: number; containerWidth: number; gap: number }): boolean {
-  if (i.containerWidth === 0) return false;
   const present = i.entries.filter(isPresent);
   const root = present.find((p) => p.id === i.rootId);
   if (root?.settings?.overflow !== 'scroll') return false;

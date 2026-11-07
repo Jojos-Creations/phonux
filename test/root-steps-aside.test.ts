@@ -19,7 +19,7 @@ test('a panel that fits beside the root leaves it where it is', () => {
 });
 
 test('an unmeasured row never steps the root aside', () => {
-  assert.equal(at([root, entry('w', 3, 'park')], 0), false);
+  assert.equal(at([root, entry('w', 3, 'park')], 0), false, 'the window of 0 fits nothing, so the rule answers no without a guard');
 });
 
 test('a row with a panel that scrolls keeps its edge rule, a parking panel in it or not', () => {

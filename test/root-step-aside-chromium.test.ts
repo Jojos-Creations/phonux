@@ -140,8 +140,41 @@ for (const hold of [null, 'left', 'both', 'right']) {
     assertSettled(s, 'away');
     s = await press(page, 'ArrowLeft');
     assert.deepEqual(s.ids, ['5'], 'a step back steps it aside again');
+    // A parked panel between the wide one and the root comes in first: the root is not reached past it.
+    s = await press(page, 'ArrowLeft');
+    assert.ok(s.ids.includes('4'), `the panel next to it comes in: ${s.ids.join(' ')}`);
   });
 }
+
+test('a one-jump window change under a wide panel glides nothing past the edge', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open(`${WIDE}&hold=left`, 1400);
+  let s = await seen(page);
+  for (let k = 0; k < 3; k += 1) s = await press(page, 'ArrowLeft');
+  assert.deepEqual(s.ids, ['5'], 'control: the root is aside');
+  await page.waitForTimeout(600);
+  await page.evaluate(WATCH);
+  await page.waitForTimeout(100);
+  await page.setViewportSize({ width: 1290, height: 800 });
+  await page.waitForTimeout(600);
+  const f = await stopWatch(page);
+  assert.ok(f.frames >= 5, `control: frames were sampled: ${f.frames}`);
+  assert.deepEqual(f.cut.slice(0, 5), [], `no painted frame cuts a panel (${f.cut.length} of ${f.frames})`);
+});
+
+test('a size picked while the row rests with blanks steps the root aside and draws no blank', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open('slots=1', 1400);
+  let s = await press(page, 'ArrowLeft');
+  assert.ok(s.slots.find((x) => x.id === 'root')!.left > 400, `control: a blank opened before the root: ${JSON.stringify(s.slots)}`);
+  await page.evaluate('window.__g.setSlots(0, 3)');
+  await page.waitForTimeout(900);
+  s = await seen(page);
+  assert.deepEqual(s.ids, ['2']);
+  assertSettled(s, 'picked in a rest');
+});
 
 test('stepping left from a wide first panel reaches the root, and stepping right returns the panel', async (t) => {
   const r = await rig(t);
