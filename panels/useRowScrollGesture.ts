@@ -103,12 +103,13 @@ export function useRowScrollGesture(
     let lastStepAt = Number.NEGATIVE_INFINITY;
     let lastEventAt = Number.NEGATIVE_INFINITY;
     let quietTimer: ReturnType<typeof setTimeout> | null = null;
-    const step = (direction: number): void => {
-      lastStepAt = performance.now();
+    const step = (direction: number, at: number): void => {
+      lastStepAt = at;
       onStepRef.current(direction > 0 ? 'right' : 'left');
     };
     // Both inputs feed this: `amount` is travel in px, positive for a step to the right.
-    const feed = (amount: number): void => {
+    // `at` is when the browser stamped the input, not when this handler ran: a stall that queues a swipe's events must not read as a pause.
+    const feed = (amount: number, at: number): void => {
       if (amount !== 0) onTravelRef.current?.(amount > 0 ? 'right' : 'left');
       const unit = Math.max(1, stepPxRef.current);
       if (quietTimer) clearTimeout(quietTimer);
@@ -118,7 +119,7 @@ export function useRowScrollGesture(
         against = 0;
       }, gestureQuietMsRef.current);
       const direction = Math.sign(amount);
-      const now = performance.now();
+      const now = at;
       const gap = now - lastEventAt;
       lastEventAt = now;
       if (direction === 0) return;
@@ -127,7 +128,7 @@ export function useRowScrollGesture(
         sign = direction;
         travel = 0;
         against = 0;
-        step(direction);
+        step(direction, now);
         return;
       }
       if (direction !== sign) {
@@ -138,7 +139,7 @@ export function useRowScrollGesture(
         sign = direction;
         travel = 0;
         against = 0;
-        step(direction);
+        step(direction, now);
         return;
       }
       against = 0;
@@ -148,9 +149,9 @@ export function useRowScrollGesture(
         return;
       }
       travel += Math.abs(amount);
-      if (travel < unit || performance.now() - lastStepAt < gestureLockMsRef.current) return;
+      if (travel < unit || now - lastStepAt < gestureLockMsRef.current) return;
       travel = 0;
-      step(direction);
+      step(direction, now);
     };
     // Who owns the wheel gesture in progress: 'row' once it has stepped, 'content' when Option began it, null between gestures.
     let wheelOwner: 'row' | 'content' | null = null;
@@ -174,7 +175,7 @@ export function useRowScrollGesture(
       wheelOwner = 'row';
       cancel(e);
       const unit = Math.max(1, stepPxRef.current);
-      feed(e.deltaMode === 1 ? raw * LINE_PX : e.deltaMode === 2 ? raw * unit : raw);
+      feed(e.deltaMode === 1 ? raw * LINE_PX : e.deltaMode === 2 ? raw * unit : raw, e.timeStamp);
     };
     // One finger's drag: decided as horizontal or vertical once it has moved TOUCH_AXIS_PX, then fed by its steps.
     let touch: { startX: number; startY: number; lastX: number; target: EventTarget | null; axis: 'x' | 'y' | 'none' } | null = null;
@@ -197,7 +198,7 @@ export function useRowScrollGesture(
       if (touch.axis !== 'x') return;
       const moved = point.clientX - touch.lastX;
       touch.lastX = point.clientX;
-      if (moved !== 0) feed(-moved);
+      if (moved !== 0) feed(-moved, e.timeStamp);
     };
     const onTouchEnd = (): void => {
       touch = null;

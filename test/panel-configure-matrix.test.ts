@@ -1387,7 +1387,7 @@ test('matrix:tuning.saveQuietMs', async () => {
 test('matrix:tuning.gestureLockMs', async () => {
   probe('tuning.gestureLockMs');
   await wrongScopeInEveryStatus({ tuning: { gestureLockMs: 700 } }, 'tuning.gestureLockMs');
-  // The lock reads performance.now, which the fake timers leave alone: a clock the test moves puts the second event an exact interval after the first.
+  // The lock reads each event's timeStamp: events stamped from a clock the test moves put the second an exact interval after the first.
   // Both events are one phone width plus the row gap (406) in one direction, and the second comes 50 ms after the first: a notch of its own, which only the lock can hold back.
   const swipes = async (gestureLockMs: number | undefined): Promise<(number | null)[]> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
@@ -1397,7 +1397,11 @@ test('matrix:tuning.gestureLockMs', async () => {
     const now = mock.method(performance, 'now', () => clock);
     const scroller = rowScrollerFor(r.m.container);
     if (gestureLockMs !== undefined) done(r.turn(() => r.ws.panels.configureTuning({ gestureLockMs })));
-    const wheel = (deltaX: number): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
+    const wheel = (deltaX: number): void => {
+      const event = new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true });
+      Object.defineProperty(event, 'timeStamp', { value: clock });
+      act(() => void r.m.container.dispatchEvent(event));
+    };
     wheel(406);
     const first = scroller.glideTarget();
     clock += 50;

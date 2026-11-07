@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A mouse wheel's notches each move the row one stop: an event at least 40 ms after the last and 40 px or more is a notch of its own, so four notches 60 or 120 ms apart go four stops instead of one, and they add to the glide in flight under `tuning.fastScroll`. A trackpad's stream is still one step; its momentum steps nothing while a glide is in flight.
+- A mouse wheel's notches each move the row one stop: an event at least 40 ms after the last and 40 px or more is a notch of its own, so four notches 60 or 120 ms apart go four stops instead of one, and they add to the glide in flight under `tuning.fastScroll`. A trackpad's stream is still one step; its momentum steps nothing while a glide is in flight. The gap is read from the browser's stamp on each event, not from when the page handles it, so a page that stalls and then handles a swipe's queued events together still reads one step.
 - A stepping row no longer draws blank panels while a long glide runs: the cut at the slot grid's edge stands still on a new `data-row-window` element around the strip, where it had been rewritten each frame from the strip's position and trailed it on the compositor.
 - Locking a panel at the left edge no longer slides the strip's panels a slot to the right and back.
 - A restored panel keeps its saved width under `tuning.shrinkUnfocused`, instead of starting at one phone until it is next active.

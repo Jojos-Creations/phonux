@@ -87,6 +87,43 @@ test('the first event of a gesture steps; the travel that follows while that gli
   assert.equal(rowOffsetOf(m.container), stops[1]);
 });
 
+test('while the gesture goes on, travel in its direction steps again once the glide it started has landed', async () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  m.wheel({ deltaX: 50 });
+  assert.equal(m.scroller.glideTarget(), stops[1], 'control: the first event steps');
+  // Small events a tenth of a second apart keep one gesture going while the glide lands; none is a notch.
+  for (let n = 0; n < 8; n += 1) {
+    await advanceFrames(100);
+    act(() => void mock.timers.tick(100));
+    m.wheel({ deltaX: 20 });
+  }
+  assert.equal(m.scroller.glideTarget(), null, 'control: the glide has landed');
+  assert.equal(rowOffsetOf(m.container), stops[1]);
+  for (let n = 0; n < 14; n += 1) {
+    m.wheel({ deltaX: 30 });
+    tick(16);
+  }
+  assert.equal(m.scroller.glideTarget(), stops[2], 'a phone width of further travel steps the row on');
+});
+
+test('the default gesture lock holds a step 20 ms after the last and lets one through 35 ms after it', () => {
+  // Reduced motion lands every step at once, so no glide in flight holds the stream back and only the lock can.
+  const wrap = (row: React.ReactElement): React.ReactElement => React.createElement(MotionConfig, { reducedMotion: 'always' }, row);
+  const m = mountRow(eleven(), 1000, { tuning: { rowGesture: 'step' } }, wrap);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  m.wheel({ deltaX: 100 });
+  assert.equal(m.scroller.scrollLeft(), stops[1], 'control: the first event steps');
+  tick(20);
+  m.wheel({ deltaX: 500 });
+  assert.equal(m.scroller.scrollLeft(), stops[1], 'more than a phone width of travel 20 ms after the step waits for the lock');
+  tick(15);
+  m.wheel({ deltaX: 10 });
+  assert.equal(m.scroller.scrollLeft(), stops[2], '35 ms after the step the lock is over and the travel steps');
+});
+
 test('a page-mode wheel (deltaMode 2) is a phone width per event, and each one a pause after the last steps; line mode counts 16 px a line', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
@@ -156,6 +193,48 @@ test('a swipe whose deltas ramp up, peak and fade is one step, not one per risin
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   feed(m, RAMP);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+/** A wheel event the browser stamped `at` ms on the page clock, handled whenever the clock stands at the call. */
+const wheelStamped = (m: MountedRow, deltaX: number, at: number): void => {
+  const event = new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true });
+  Object.defineProperty(event, 'timeStamp', { value: at });
+  act(() => void m.container.dispatchEvent(event));
+};
+
+/**
+ * A page that stalls for 48 ms while a swipe streams in: the events queue and are handled together afterwards, so the time between
+ * handlers says nothing about the time between the fingers' events. Event `k` is stamped `every * k` after the first; one that
+ * falls inside the stall is handled when it ends.
+ */
+const STALL_FROM = 10;
+const STALL_MS = 48;
+function streamWithStall(m: MountedRow, trace: readonly number[], every: number): void {
+  const origin = frameClock.now();
+  trace.forEach((deltaX, k) => {
+    const at = origin + every * k;
+    const stallEnd = origin + every * STALL_FROM + STALL_MS;
+    const handled = k >= STALL_FROM && at < stallEnd ? stallEnd : at;
+    if (handled > frameClock.now()) tick(handled - frameClock.now());
+    wheelStamped(m, deltaX, at);
+  });
+  assert.ok(frameClock.now() >= origin + every * STALL_FROM + STALL_MS, 'control: the page stalled');
+}
+
+test('a trackpad swipe whose events are handled late together after a main-thread stall is still one step', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  streamWithStall(m, [2, 4, 9, 18, 32, 50, 70, 88, 100, 104, 100, 92, 82, 72, 62, 52, 44, 36, 30, 24, 19, 15, 12, 9, 7, 5, 4, 3, 2, 1], 16);
+  assert.equal(m.scroller.glideTarget(), stops[1]);
+});
+
+test('a high-resolution stream of 45 px events every 8 ms, stalled the same way, is still one step', () => {
+  const m = stepRow(eleven(), 1000);
+  const stops = stopsOf(m, 1000);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  streamWithStall(m, Array.from({ length: 40 }, () => 45), 8);
   assert.equal(m.scroller.glideTarget(), stops[1]);
 });
 
