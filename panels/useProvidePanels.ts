@@ -6,7 +6,7 @@
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
@@ -357,7 +357,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Capacity goes on pricing the list beside the root, so a panel that stepped it aside takes no neighbor; only the row draws it as parked.
   const rootAsideIn = (row: readonly PanelWindow[]): boolean => rootStepsAside({ entries: row, rootId, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap });
   const rootAside = rootAsideIn(panels);
-  const drawnPanels = useMemo(() => (rootAside ? panels.map((p) => (p.id === rootId ? { ...p, live: false } : p)) : panels), [panels, rootAside, rootId]);
+  const drawnPanels = rootAside ? panels.map((p) => (p.id === rootId ? { ...p, live: false, collapsible: true } : p)) : panels;
   const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest };
   const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The direction of a step that swaps panels, until the commit that draws the swap.

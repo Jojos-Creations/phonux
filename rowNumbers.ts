@@ -186,7 +186,7 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
 }
 
 /**
- * Whether the root leaves the row's drawn panels so the panels beside it arrive whole: a row that swaps, whose one parking panel does not fit
+ * Whether the root leaves the row's drawn panels so the panels beside it arrive whole: a row that swaps, whose one parking panel, chosen wider than a phone, does not fit
  * the window beside the root and does fit it without. Derived from the list and the window, so it follows both in the commit that changes
  * them and nothing is stored or saved: the root's entry stays live on the list, and only the entries the row draws read it as parked. A
  * row with a panel that scrolls keeps its edge rule, and a hand-built root's row needs no step: it caps its panels beside the fixed columns.
@@ -197,8 +197,9 @@ export function rootStepsAside(i: { entries: readonly PanelRowEntry[]; rootId: s
   const root = present.find((p) => p.id === i.rootId);
   if (root?.settings?.overflow !== 'scroll') return false;
   const others = present.filter((p) => p !== root);
-  // One parking panel is the floor capacity keeps: more than one drawn past the fit is a cap's row, which scrolls.
-  if (others.filter(parksForRoom).length !== 1 || others.some((p) => p.collapsible && !parksForRoom(p))) return false;
+  // One parking panel is the floor capacity keeps: more than one drawn past the fit is a cap's row, which scrolls. Its chosen size counts, not its capped one.
+  const parking = others.filter(parksForRoom);
+  if (parking.length !== 1 || (parking[0]!.slots ?? 1) <= 1 || others.some((p) => p.collapsible && !parksForRoom(p))) return false;
   const windowWidth = Math.max(0, i.containerWidth - 2 * i.gap);
   const maxLiveWidth = Math.max(i.phoneWidth, windowWidth);
   const spanOf = (row: readonly PanelRowEntry[]): number => row.reduce((sum, p) => sum + panelWidthOf(p, i.phoneWidth, maxLiveWidth, i.gap) + i.gap, -i.gap);

@@ -18,6 +18,10 @@ test('a panel that fits beside the root leaves it where it is', () => {
   assert.equal(at([root, entry('w', 3, 'park')], 1700), false);
 });
 
+test('a phone beside the root in a window too narrow for both scrolls as it always has', () => {
+  assert.equal(at([root, entry('p', 1, 'park')], 700), false);
+});
+
 test('an unmeasured row never steps the root aside', () => {
   assert.equal(at([root, entry('w', 3, 'park')], 0), false, 'the window of 0 fits nothing, so the rule answers no without a guard');
 });
