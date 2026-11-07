@@ -1,14 +1,15 @@
 {
   "tests": [
     "test/row-bar.test.ts",
-    "test/panel-dots-hook.test.ts"
+    "test/panel-dots-hook.test.ts",
+    "test/dot-bar-chromium.test.ts"
   ],
   "mutants": [
     {
-      "name": "the drag maps track px to scroll px without clamping to the row",
-      "file": "usePanelDots.ts",
-      "find": "claim.write(Math.min(Math.max(startScroll + dx / bar.scale, 0), maxScroll));",
-      "replace": "claim.write(startScroll + dx / bar.scale);",
+      "name": "a drag's claim writes past the row's range",
+      "file": "rowScroller.ts",
+      "find": "place(Math.min(max, Math.max(0, left)));",
+      "replace": "place(left);",
       "expectRed": [
         "a drag past either end stops at the row's range"
       ]
@@ -38,6 +39,15 @@
       "replace": "const reduced = systemReduced === true;",
       "expectRed": [
         "a dot click snaps at once under Reduce Motion"
+      ]
+    },
+    {
+      "name": "a carried oval does not follow the pointer in a row that swaps",
+      "file": "usePanelDots.ts",
+      "find": "setCarry((c) => (c === null ? c : { ...c, dx }));",
+      "replace": "setCarry((c) => c);",
+      "expectRed": [
+        "in a row that swaps, a dragged oval stays under the pointer both ways"
       ]
     }
   ]

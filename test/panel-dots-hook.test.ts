@@ -12,7 +12,7 @@ import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import type { WorkspaceTuning } from '../panelSettings.js';
 import { usePanelDots, type PanelDots } from '../usePanelDots.js';
-import type { RowNumbers } from '../rowNumbers.js';
+import { maxScrollOf, type RowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { registerRowKeys } from '../rowStep.js';
 
@@ -60,6 +60,20 @@ test('an oval drag writes the row through its claim, and end releases the claim'
   assert.ok(rowOffsetOf(el) > 0, 'the drag moved the row');
   drag!.end();
   assert.notEqual(dots.startOvalDrag(), null, 'end released the claim');
+});
+
+test("a drag past either end stops at the row's range", () => {
+  const out: { dots?: PanelDots; el?: HTMLElement } = {};
+  const m = mount(probe(out));
+  const el = m.container.querySelector<HTMLElement>('[data-row-scroller]')!;
+  const end = maxScrollOf(numbers);
+  assert.ok(end > 0, 'control: the row has somewhere to scroll');
+  const drag = out.dots!.startOvalDrag()!;
+  drag.drag(1e6);
+  assert.equal(rowOffsetOf(el), end, 'past the far end the row rests at its end');
+  drag.drag(-1e6);
+  assert.equal(rowOffsetOf(el), 0, 'past the near end the row rests at its start');
+  drag.end();
 });
 
 test('a dot click glides to the centring target when motion is on', () => {

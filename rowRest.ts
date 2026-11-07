@@ -4,9 +4,14 @@
  * it was made for. Pure: the list hook holds it, the numbers draw it, and capacity counts it, so no parked panel refills a blank.
  */
 
-/** The blanks a row rests with, in slots: `lead` after the always-shown columns, `tail` after the last drawn panel. `lead + tail` is always whole. @internal */
+/**
+ * The blanks a row rests with, in slots: `lead` after the always-shown columns, `tail` after the last drawn panel. `lead + tail` is always whole.
+ * @public
+ */
 export interface RowRest {
+  /** Slots after the always-shown columns. */
   readonly lead: number;
+  /** Slots after the last drawn panel. */
   readonly tail: number;
   /** Slots before the always-shown columns, which move the row right so the first of them can reach the center. Default none. */
   readonly head?: number;

@@ -89,6 +89,7 @@ export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
 export type { RowNumbers } from './rowNumbers.js';
+export type { RowRest } from './rowRest.js';
 export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { usePanelRowDrop } from './usePanelRowDrop.js';
 export type { PanelRowDrop } from './usePanelRowDrop.js';

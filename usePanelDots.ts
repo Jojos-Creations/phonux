@@ -209,7 +209,7 @@ export function usePanelDots(i: {
     let open = true;
     return {
       drag(dx: number) {
-        if (open) claim.write(Math.min(Math.max(startScroll + dx / bar.scale, 0), maxScroll));
+        if (open) claim.write(startScroll + dx / bar.scale);
       },
       end() {
         if (!open) return;

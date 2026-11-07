@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `RowRest` is exported as a type: `computeRowNumbers` takes it, so the API report could not be regenerated without it. The dot hook no longer clamps a drag itself; the claim it writes through already holds it to the row's range.
 - The dot bar is the row's ruler drawn small. `rowDots.ts` is gone; `rowBar.ts` places every dot at its panel's ruler position and the oval at the window's, so the oval's edge stays under a dragged pointer and dots no longer move as the row does. `PanelDots.dots` gains `riding` for a dot that keeps to the oval's end over the dots beneath it. Visible: the oval now hugs the slots a rest shows instead of overhanging them by the centering margin, and while the root rides, its home slot at the end of the bar is empty.
 
 - A window resized while a panel presses the root no longer leaps the root: the press is an offset from the root's rest, so a rest that moves carries it.

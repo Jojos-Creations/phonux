@@ -159,6 +159,55 @@ test('with the root held, the dots hold still as the row moves and the root ride
   assert.ok(rode >= 3, 'control: the oval travelled');
 });
 
+/** Presses the oval a little inside its left edge and walks the pointer `path` px along, one sample per place. */
+async function dragOval(page: Page, path: readonly number[]): Promise<{ start: Sample; moved: number[] }> {
+  const { x, y } = await page.evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector('[data-oval]').getBoundingClientRect(); return { x: b.left + 12, y: b.top + b.height / 2 }; })()`);
+  const start = await sample(page);
+  const moved: number[] = [];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (const dx of path) {
+    await page.mouse.move(x + dx, y);
+    await page.waitForTimeout(120);
+    moved.push((await sample(page)).oval - start.oval);
+  }
+  await page.mouse.up();
+  return { start, moved };
+}
+
+test('in a row that swaps, a dragged oval stays under the pointer both ways and the row comes to rest under it', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  for (const [sign, panels] of [[1, ['root', '7', '8']], [-1, ['root', '3', '4']]] as const) {
+    const page = await r.open('slots=1,1,1,1,1,1,1,1&park=1&rootpark=1', 1400);
+    await page.evaluate(SAMPLE);
+    for (let k = 0; k < 3; k += 1) {
+      await page.keyboard.press('ArrowLeft');
+      await settle(page);
+    }
+    assert.deepEqual(await page.evaluate<string[]>('window.__g.ids()'), ['root', '5', '6'], 'control: the row rests mid-way, with panels waiting on both sides');
+    const path = [8, 16, 30, 45, 60].map((dx) => sign * dx);
+    const { moved } = await dragOval(page, path);
+    moved.forEach((m, k) => assert.ok(Math.abs(m - path[k]!) < 0.75, `pointer ${path[k]} along: the oval's edge moved ${m}`));
+    await settle(page);
+    assert.deepEqual(await page.evaluate<string[]>('window.__g.ids()'), panels, 'the row stepped to where the oval was let go');
+  }
+});
+
+test('in a row that swaps, an oval already at the bar\'s end stays there and moves off it the other way', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open('slots=1,1,1,1,1,1,1,1&park=1&rootpark=1', 1400);
+  await page.evaluate(SAMPLE);
+  const { oval, width } = await page.evaluate<{ oval: { left: number; width: number }; width: number }>('(() => { const d = window.__g.dots(); return { oval: d.oval, width: d.width }; })()');
+  assert.ok(Math.abs(oval.left + oval.width - width) < 0.5, `control: the oval rests at the bar's right end, ${oval.left} + ${oval.width} of ${width}`);
+  const right = await dragOval(page, [8, 16, 30]);
+  assert.deepEqual(right.moved.map((m) => Math.round(m)), [0, 0, 0], 'nothing lies past the end');
+  await settle(page);
+  const left = await dragOval(page, [-8, -16]);
+  assert.ok(Math.abs(left.moved[0]! + 8) < 0.75 && Math.abs(left.moved[1]! + 16) < 0.75, `off the end the oval follows: ${left.moved.join(' ')}`);
+});
+
 test('in a row that swaps, a step moves the oval one slot and no dot', async (t) => {
   const r = await rig(t);
   if (r === undefined) return;

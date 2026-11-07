@@ -86,6 +86,9 @@ export const CHROME_PARTS: {
 };
 
 // @public
+export const CHROME_SHOWN_ATTRIBUTE = "data-panel-chrome-shown";
+
+// @public
 export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
 
 // @public
@@ -209,6 +212,7 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
+    rest?: RowRest | null;
 }): RowNumbers;
 
 // @public
@@ -654,6 +658,7 @@ export interface PanelDots {
             readonly touchAction: 'none';
             readonly cursor: string;
         };
+        readonly 'data-dot-bar': '';
     };
     readonly cursor: string;
     dotProps(id: string): {
@@ -679,6 +684,7 @@ export interface PanelDots {
         readonly 'aria-valuenow': number;
     };
     selectDot(id: string): void;
+    readonly shown: readonly string[];
     startOvalDrag(): {
         drag(dx: number): void;
         end(): void;
@@ -955,6 +961,7 @@ export interface PanelsAPI {
     clearAll(): void;
     // @deprecated
     close(id: string): void;
+    readonly closedByPerson: readonly PanelSummary[] | null;
     // @deprecated
     create(): void;
     // @deprecated
@@ -1400,6 +1407,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
+    anchor?: number;
     endPad: number;
     held: readonly {
         id: string;
@@ -1408,6 +1416,7 @@ export interface RowNumbers {
         offset: number;
     }[];
     ids: readonly string[];
+    leadPx?: number;
     leftInset: number;
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -1436,6 +1445,13 @@ export interface RowNumbers {
 
 // @public
 export function rowPanelIdOf(target: EventTarget | null): string | null;
+
+// @public
+export interface RowRest {
+    readonly head?: number;
+    readonly lead: number;
+    readonly tail: number;
+}
 
 // @public
 export type ScrollAlign = 'into-view' | 'start' | 'center';
@@ -2013,6 +2029,7 @@ export interface WorkspaceRow {
 
 // @public
 export interface WorkspaceRowEntry {
+    readonly collapsible?: boolean;
     readonly id: string;
     readonly live?: boolean;
     readonly marker?: true;
