@@ -942,19 +942,21 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
     if (align === null) return;
     const scroller = rowScrollerFor(el);
+    // Where a glide in flight is heading, not where it passes: the panel is brought into view of the row as it will rest.
+    const from = scroller.glideTarget() ?? scroller.scrollLeft();
     const to = snapped(
       k,
       scrollTargetFor({
         left: tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!,
         width: rowNumbers.widths[k]!,
-        scrollLeft: scroller.scrollLeft(),
+        scrollLeft: from,
         clientWidth: windowOf(el),
         maxScroll: maxScrollOf(rowNumbers),
         gap: tuning.rowGap,
         align,
       }),
     );
-    if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
+    if (Math.abs(to - from) < 0.5) return;
     if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }

@@ -501,6 +501,22 @@ test('a scroll that has already landed after the settle decides where the row re
   assert.equal(rowOffsetOf(r.m.container), 100);
 });
 
+test('a change to the stops while the settle glides still lets the row rest on a stop where the release put it', async () => {
+  ensureMockTimers();
+  const r = await mountRig(16, { window: 2932 });
+  await frames(1500);
+  const drag = await releaseMovingMargin(r);
+  const before = [...stopsOf(r)];
+  await elapse(100);
+  assert.ok(rowOffsetOf(r.m.container) > 0 && rowScrollerFor(r.m.container).glideTarget() !== null, 'control: the settle is in flight');
+  act(() => void r.m.latest().setSlots(r.ids.p2!, 2));
+  assert.ok(stopsOf(r).length > before.length, `the stops changed: ${before.join(',')} then ${stopsOf(r).join(',')}`);
+  await elapse(SETTLE_WAIT_MS + 1000);
+  assertLanded(r, 'p1', drag, 'after the stops changed');
+  const at = rowOffsetOf(r.m.container);
+  assert.ok(stopsOf(r).some((s) => Math.abs(s - at) < 1), `rests on a stop of the new stops: ${at} of ${stopsOf(r).join(',')}`);
+});
+
 test('a later change to the stops does not scroll a row the settle has placed', async () => {
   ensureMockTimers();
   const r = await mountRig(16, { window: 2932 });
