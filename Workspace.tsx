@@ -229,7 +229,9 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   const windowMovedRoot = windowStep && drawn.current.containerWidth !== 0 && drawn.current.numbers !== undefined && rowNumbers !== undefined && drawn.current.numbers.rowScroll !== rowNumbers.rowScroll;
   // A window jump lands the same way: the new size and panel count in one commit, nothing sliding or growing to reach them.
   const landing = useWindowJump(containerWidth, heightBudget ?? 0, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides)) || firstLanding || windowMovedRoot;
-  const rowResizeSettled = (given ?? (heightBudget === undefined ? derived : !landing && !windowStep)) && !windowMovedRoot;
+  // A margin glide from where the row stands would draw the strip past the narrower window's edge for as long as it ran.
+  const marginWouldCut = windowStep && rowNumbers !== undefined && drawn.current.numbers !== undefined && drawn.current.numbers.rowMarginLeft + rowNumbers.stripWidth > rowNumbers.windowWidth + 0.5;
+  const rowResizeSettled = (given ?? (heightBudget === undefined ? derived : !landing && !windowStep)) && !windowMovedRoot && !marginWouldCut;
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
   // nearest stop would scroll the row while the person drags. The release settles once.
   const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);

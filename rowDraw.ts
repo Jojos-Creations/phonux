@@ -1,5 +1,6 @@
 /**
- * The row's one drawing pass. Where each slot rests is written here, and nowhere else, once per commit. So is everything the row
+ * The row's one drawing pass. Where each slot rests is written here once per commit; React's first render and PanelRow.tsx's no-animation
+ * fallback for the root's nudge write the same rest, and nothing else does. So is everything the row
  * draws from where its strip is, other than the strip itself, from the same numbers and the same scroll: the cut at the grid's
  * edges, the held panels' clamp, the cut and fade of a strip panel beside a held one, and which panels the window does not reach.
  * A slot's own mover (slotMover.ts) only adds how far the slot is from that rest while it moves.

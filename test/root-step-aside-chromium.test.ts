@@ -91,17 +91,22 @@ function assertSettled(s: Seen, trace: string): void {
   for (const x of s.slots) assert.ok(x.left >= -0.5 && x.right <= s.window + 0.5, `panel ${x.id} is cut, ${x.left}..${x.right} in ${s.window}: ${trace}`);
 }
 
-/** The panels shown in each painted frame until stopped: read in a task after the frame's own, so a commit made ahead of the paint counts. */
+/**
+ * The panels shown in each frame until stopped. A new width is read in the observer pass that paints it, after the row's own observer, so a
+ * commit made ahead of the paint counts; motion after it in a task behind each frame. A size the browser has taken but not yet rendered is skipped: no frame shows it.
+ */
 const WATCH = `(() => {
-  const rec = { frames: 0, cut: [], shown: new Set(), stop: false };
+  const rec = { frames: 0, cut: [], shown: new Set(), stop: false, rendered: innerWidth };
   window.__frames = rec;
   const read = () => {
-    rec.frames += 1;
     const w = innerWidth;
+    if (w !== rec.rendered || rec.stop) return;
+    rec.frames += 1;
     const slots = [...document.querySelectorAll('[data-row-slot]')].filter((el) => getComputedStyle(el).visibility !== 'hidden').map((el) => { const r = el.getBoundingClientRect(); return { id: el.dataset.rowId, left: Math.round(r.left), right: Math.round(r.right) }; });
     rec.shown.add(slots.map((x) => x.id).sort().join(' '));
     for (const x of slots) if (x.left < -1 || x.right > w + 1) rec.cut.push(w + ':' + x.id + ':' + x.left + '..' + x.right);
   };
+  new ResizeObserver(() => { rec.rendered = innerWidth; read(); }).observe(document.documentElement);
   const tick = () => { if (rec.stop) return; const c = new MessageChannel(); c.port1.onmessage = read; c.port2.postMessage(0); requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
 })()`;

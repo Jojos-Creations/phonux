@@ -624,6 +624,18 @@ export function usePanelManager(
     setPanels((prev) => prev.map((p) => (run.has(p.id) ? { ...p, live: false } : p)));
   };
 
+  /** Whether `id` going live, beside `also`, would step the root aside. */
+  const pushesRootAside = (id: string, also: ReadonlySet<string> = new Set()): boolean => options?.rootAsideIn?.(panels.map((p) => (p.id === id || also.has(p.id) ? { ...p, live: true } : p))) === true;
+  /** Whether `id`, the only panel `returned` would draw, lies past the root's neighbor that cannot sit beside it: drawn there it would break the run, so the root rests alone. */
+  const pastPanelRootCannotSitBeside = (id: string, returned: readonly PanelWindow[]): boolean => {
+    const rootAt = panels.findIndex((p) => p.id === rootId);
+    const at = panels.findIndex((p) => p.id === id);
+    if (returned.length !== 1 || rootAt < 0) return false;
+    const between = panels.slice(Math.min(rootAt, at) + 1, Math.max(rootAt, at)).filter(parksForRoom);
+    const nearest = at > rootAt ? between[0] : between.at(-1);
+    return nearest !== undefined && pushesRootAside(nearest.id);
+  };
+
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, by: number | 'left' | 'right', record = true): boolean => {
     const count = by === 'left' ? -1 : by === 'right' ? 1 : by;
@@ -761,7 +773,7 @@ export function usePanelManager(
           if (!extendsRun(panels, drawn, id)) continue;
           if (heldBack(id, panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id))))) continue;
           const returned = panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id));
-          if (settles(returned) && options?.rootAsideIn?.(panels.map((p) => (p.id === id || revealed.has(p.id) ? { ...p, live: true } : p))) !== true) {
+          if (settles(returned) && !pushesRootAside(id, revealed) && !pastPanelRootCannotSitBeside(id, returned)) {
             revealed.add(id);
             grew = true;
           }
