@@ -163,10 +163,10 @@ function planCreate(options: CreatePanelOptions | undefined, template: PanelTemp
   };
 }
 
-/** Whether a host-bag `create` of `template` may add another, given the entries as they stand: `hostCreatable`, `multiple` and `maxInstances`. */
 /** The root as the row draws it while it has stepped aside: a parked panel, in the drawn entries only, never on the list. */
 const drawnAside = (p: PanelWindow): PanelWindow => ({ ...p, live: false, collapsible: true });
 
+/** Whether a host-bag `create` of `template` may add another, given the entries as they stand: `hostCreatable`, `multiple` and `maxInstances`. */
 function mayCreate(settings: ResolvedPanelSettings, templateId: string, entries: readonly PanelWindow[]): boolean {
   if (!settings.hostCreatable) return false;
   const have = entries.filter((p) => p.view === templateId).length;
