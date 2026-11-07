@@ -6,12 +6,12 @@
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, rowAnchor, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, maxScrollOf, nearestStop, rootStepsAside, rowAnchor, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { ROW_BUMP_PX, ROW_BUMP_SEC, rowScrollerFor } from '../rowScroller.js';
 import { applyRowIntent, holdRow } from '../rowIntents.js';
@@ -354,7 +354,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   });
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
   const stopsOnGrid = tuning.rowGesture === 'step';
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid, rest };
+  // Capacity goes on pricing the list beside the root, so a panel that stepped it aside takes no neighbor; only the row draws it as parked.
+  const rootAsideIn = (row: readonly PanelWindow[]): boolean => rootStepsAside({ entries: row, rootId, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap });
+  const rootAside = rootAsideIn(panels);
+  const drawnPanels = useMemo(() => (rootAside ? panels.map((p) => (p.id === rootId ? { ...p, live: false } : p)) : panels), [panels, rootAside, rootId]);
+  const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest: rootAside ? null : rest };
   const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The direction of a step that swaps panels, until the commit that draws the swap.
   const swapStepRef = useRef<'left' | 'right' | null>(null);
@@ -400,6 +404,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const requestScroll = (request: Omit<ScrollRequest, 'misses'>): boolean => {
     const el = i.overflowContainerRef.current;
     if (el === null) return false;
+    if (rootAside && request.id === rootId && !rowScrollerFor(el).claimHeld()) showRoot(sideOfRoot());
     if (rowScrollerFor(el).claimHeld()) {
       // A host's scrollTo during a resize hold is kept: the resize's release settles the row, then the scroll runs. Automatic
       // scrolls stay dropped, as a drag drops them.
@@ -457,6 +462,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     clearEnterSide,
     scrollRow,
     restRow,
+    showRoot,
     reorderPanel,
     resizePanel,
     enterSideById,
@@ -481,6 +487,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
     rest,
+    rootAsideIn,
     setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 && (next.head ?? 0) === 0 ? null : { rest: next, madeFor: restKeyOf(row) }),
   });
 
@@ -508,6 +515,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (last !== null && last.direction !== direction && now < last.ends) return false;
     lastSwapRef.current = { ends: reducedMotion ? 0 : now + tuning.slide.durationSec * 1000, direction };
     return true;
+  };
+
+  /** The side of the drawn panels the root is on. */
+  const sideOfRoot = (): 'left' | 'right' => (panels.findIndex((p) => p.id === rootId) < panels.findIndex(isParkLive) ? 'left' : 'right');
+  /** Whether a step `direction` reaches the root that stepped aside: it is on that side, and no parked panel a step brings in lies between. */
+  const rootIsNext = (direction: 'left' | 'right'): boolean => {
+    if (!rootAside || sideOfRoot() !== direction) return false;
+    const reveal = parkedToReveal(panels, direction);
+    if (reveal === null) return true;
+    const between = panels.indexOf(reveal) - panels.findIndex((p) => p.id === rootId);
+    return direction === 'left' ? between < 0 : between > 0;
   };
 
   /** What a rest step reads from the row as drawn now. */
@@ -586,6 +604,11 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (!rowNumbers.rowScroll || maxScroll <= 0) {
       const gate = lastSwapRef.current;
       if (!swapAllowed(direction)) return;
+      if (rootIsNext(direction)) {
+        swapStepRef.current = direction;
+        showRoot(direction);
+        return;
+      }
       const plan = restStep(restInput(direction));
       swapStepRef.current = direction;
       if (plan !== null) {
@@ -1414,7 +1437,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       });
       if (token !== undefined) gate.release(token);
     },
-    entries: panels,
+    entries: drawnPanels,
     fixedViewCount,
     liveWidths,
     maxLiveWidth,

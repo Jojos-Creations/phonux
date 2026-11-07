@@ -73,6 +73,8 @@ export interface UsePanelManagerResult {
   scrollRow: (direction: 'left' | 'right', keep?: string) => boolean;
   /** Moves the row to a new rest in one commit: the panel a side brings in, the drawn panel an end parks, and the blanks left. */
   restRow: (plan: { reveal?: 'left' | 'right'; park?: 'left' | 'right'; rest: RowRest }) => void;
+  /** Brings the root that stepped aside back: the drawn panels park, and the root rests alone until a step or the room brings one of them in. `side` is the side of them it is on. */
+  showRoot: (side: 'left' | 'right') => void;
   /** Moves `id` `by` row-slots (negative: left; 'left' and 'right' are one slot); see `movePanel` for the no-op contract, and `movePanelBy` for a count that runs out at an edge. `record` false (a call from code) leaves the person's arrangement, `overrides`, as it was. True when the move changes this render's list. */
   reorderPanel: (id: string, by: number | 'left' | 'right', record?: boolean) => boolean;
   /** `setSlots` through setPanels; if the row no longer fits, the same update parks what the capacity drop would, keeping every acted-on panel live. False for a no-op. `record` false leaves `overrides` as it was. */
@@ -138,6 +140,8 @@ export interface PanelManagerOptions {
   rest?: RowRest | null;
   /** Takes a new rest and the row it was made for. */
   setRest?: (rest: RowRest, row: readonly PanelWindow[]) => void;
+  /** Whether the root would step aside for this row. A panel returning for room never makes it: only a person's step does. */
+  rootAsideIn?: (row: readonly PanelWindow[]) => boolean;
 }
 
 /** How a park is classified: a hide that took a hold, or a park the engine made for room. */
@@ -612,6 +616,14 @@ export function usePanelManager(
     setPanels((prev) => flip(prev));
   };
 
+  /** See `UsePanelManagerResult.showRoot`'s own doc comment. */
+  const showRoot = (side: 'left' | 'right'): void => {
+    const run = new Set(panels.filter(isParkLive).map((p) => p.id));
+    if (side === 'left') flushOwn(() => setExitRightIds((prev) => new Set([...prev, ...run])));
+    recordPark([...run], { kind: 'capacity' });
+    setPanels((prev) => prev.map((p) => (run.has(p.id) ? { ...p, live: false } : p)));
+  };
+
   /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, by: number | 'left' | 'right', record = true): boolean => {
     const count = by === 'left' ? -1 : by === 'right' ? 1 : by;
@@ -748,7 +760,8 @@ export function usePanelManager(
           const drawn = new Set(panels.filter((p) => p.live || revealed.has(p.id)).map((p) => p.id));
           if (!extendsRun(panels, drawn, id)) continue;
           if (heldBack(id, panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id))))) continue;
-          if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) {
+          const returned = panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id));
+          if (settles(returned) && options?.rootAsideIn?.(panels.map((p) => (p.id === id || revealed.has(p.id) ? { ...p, live: true } : p))) !== true) {
             revealed.add(id);
             grew = true;
           }
@@ -872,6 +885,7 @@ export function usePanelManager(
     clearEnterSide,
     scrollRow,
     restRow,
+    showRoot,
     reorderPanel,
     resizePanel,
     placeAt,

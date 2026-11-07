@@ -30,11 +30,11 @@ export interface PanelRowEntry<P = JsonValue> extends Omit<PanelSummary<P>, 'siz
 }
 
 /**
- * Whether `p` is drawn in the row: an always-shown column, or a parkable entry while it is live, and never the
- * marker. Every reader of presence goes through this one function, so a marker excluded here is excluded everywhere.
+ * Whether `p` is drawn in the row: an entry while it is live, and never the marker. An always-shown column is live, except the root
+ * in the entries a row draws while it has stepped aside (`rootStepsAside`). Every reader of presence goes through this one function, so a marker excluded here is excluded everywhere.
  * @internal
  */
-export const isPresent = (p: { collapsible: boolean; live: boolean; marker?: boolean }): boolean => p.marker !== true && (!p.collapsible || p.live);
+export const isPresent = (p: { collapsible: boolean; live: boolean; marker?: boolean }): boolean => p.marker !== true && p.live;
 
 /**
  * The widths of the present panels a drag can cross, nearest first on each side. An always-shown column is

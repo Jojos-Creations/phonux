@@ -1,7 +1,8 @@
 // The real Workspace, PanelRow and a dot bar built from usePanelDots, as an app builds them, for the real-gesture checks in
 // test/row-gestures-chromium.test.ts: wheel notches, key presses, clicks on dots and on panels.
-// Query: slots=1,2,1 gap=<px> maxlive=<n> hold=<root edgeHold> reveal=<never|...> park=1 (panels park instead of scrolling) rootpark=1 (the root too, so the row swaps)
+// Query: slots=1,2,1 gap=<px> maxlive=<n> hold=<root edgeHold> reveal=<never|...> park=1 (panels park instead of scrolling) rootpark=1 (the root too, so the row swaps) scrollrow=1 (overrides park: the panels scroll) flush=1 (measure the window as the library's own mount does, in the frame it changes)
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, usePanelDots, usePanelResizing, useProvidePanels } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
@@ -12,7 +13,7 @@ const SLOTS = (q.get('slots') ?? '1,1,1,1,1,1').split(',').map(Number);
 const GAP = Number(q.get('gap') ?? 16);
 const MAXLIVE = q.get('maxlive') === null ? null : Number(q.get('maxlive'));
 const HOLD = q.get('hold');
-const PARK = q.get('park') === '1';
+const PARK = q.get('park') === '1' && q.get('scrollrow') !== '1';
 const ROOTPARK = q.get('rootpark') === '1';
 const PHONE = 390;
 const ROOT = 'root';
@@ -61,7 +62,7 @@ function App() {
   const [w, setW] = React.useState(0);
   React.useLayoutEffect(() => {
     const el = ref.current!;
-    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    const ro = new ResizeObserver(() => (q.get('flush') === '1' ? flushSync(() => setW(el.clientWidth)) : setW(el.clientWidth)));
     ro.observe(el);
     setW(el.clientWidth);
     return () => ro.disconnect();
@@ -78,6 +79,7 @@ function App() {
     stops: () => latest.rowNumbers.stops as number[],
     ids: () => latest.rowNumbers.ids as string[],
     dots: () => latestDots,
+    workspace: ws,
     engineId: (k: number) => latest.entries.filter((e: any) => e.id !== ws.rootId)[k].id,
     setSlots: (k: number, n: number) => latest.setSlots((window as any).__g.engineId(k), n),
     scrollTo: (k: number, align?: string) => latest.scrollTo((window as any).__g.engineId(k), align),

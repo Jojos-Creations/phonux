@@ -222,12 +222,14 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   React.useLayoutEffect(() => {
     if (firstLanding && containerWidth > 0) setLanding(false);
   }, [firstLanding, containerWidth]);
-  // A window jump lands the same way: the new size and panel count in one commit, nothing sliding or growing to reach them.
-  const landing = useWindowJump(containerWidth, heightBudget ?? 0, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides)) || firstLanding;
   // What the last commit drew. A window step moves the row with no animation; any other change past the first measurement glides.
   const drawn = React.useRef({ numbers: rowNumbers, containerWidth, heightBudget });
   const windowStep = drawn.current.containerWidth !== containerWidth || drawn.current.heightBudget !== heightBudget;
-  const rowResizeSettled = given ?? (heightBudget === undefined ? derived : !landing && !windowStep);
+  // The window moved the root aside or back: only that flips a measured row between scrolling and not. A slide there would cut the wide panel.
+  const windowMovedRoot = windowStep && drawn.current.containerWidth !== 0 && drawn.current.numbers !== undefined && rowNumbers !== undefined && drawn.current.numbers.rowScroll !== rowNumbers.rowScroll;
+  // A window jump lands the same way: the new size and panel count in one commit, nothing sliding or growing to reach them.
+  const landing = useWindowJump(containerWidth, heightBudget ?? 0, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides)) || firstLanding || windowMovedRoot;
+  const rowResizeSettled = (given ?? (heightBudget === undefined ? derived : !landing && !windowStep)) && !windowMovedRoot;
   // A panel being resized by hand holds the row where it is: its strip changes under the pointer, and a settle onto the
   // nearest stop would scroll the row while the person drags. The release settles once.
   const resizingId = React.useSyncExternalStore(chromeStore.subscribeResizing, chromeStore.resizing, () => null);

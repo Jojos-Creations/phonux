@@ -240,7 +240,7 @@ it come second. A row gesture or a close later in the same handler prices the re
 
 ### The fit cap
 
-A panel is never wider than the widest ONE live panel can be beside the fixed columns in
+(A row whose root reads `overflow` 'scroll', which is every row built from settings, caps a panel at the window instead, and the root steps aside for it: see "The root steps aside".) A panel is never wider than the widest ONE live panel can be beside the fixed columns in
 the current window: `max(phone width, row width - 2 x gap - fixed columns - gap)` (`computeMaxLiveWidth`, from the same
 budget arithmetic the row's fit count uses), and it is drawn at the whole slots that fit that width. So a wide panel always
 fits in the row instead of overflowing it, at every window size. With the root as the only fixed column, a 390 phone and a
@@ -418,6 +418,16 @@ rests within half the gap between the two stops around it. A row whose panels al
 A parking row can rest with blanks (`rowRest.ts`). `tail` is whole slots after the last drawn panel: a step right with no panel waiting parks the leftmost drawn panel and opens one, up to the last panel's center, and a step left closes it. `lead` is a half slot after the always-shown columns, set only by a dot click on a panel half a slot off center, which happens on an even slot count; that rest draws one panel fewer with a half blank at each end, and any step snaps it back to whole slots. Blanks count in `stripWidth`, so the margin and the root stay where the full row has them, and capacity takes them off, so no parked panel refills one. A rest is held against the row and window it was made for: any other change to either ends it. It is never saved.
 
 `head` is slots before the always-shown columns. They move the whole row right so the root can reach the center: a step left with nothing parked on that side opens one, parking the rightmost drawn panel when the row has no slot to spare, and stops when another slot would pass the center. A click on the root's dot takes those steps, then a half step when the window has an even count of slots (`head` and `tail` each gain a half). A step right closes them and the panels parked come back. A row whose panels do not return on a step never opens one.
+
+### The root steps aside
+
+In a row that swaps (every drawn panel but the fixed columns has `overflow` 'park'), the floor of one panel can leave a panel that does not fit beside the root. `rootStepsAside` (rowNumbers.ts) answers that: when the one parking panel drawn does not fit the window beside the root and does fit it without, the root is not drawn, and the panel rests whole and centered. It is derived from the list and the window, so a window change moves the root in the commit that carries the new width, and a window that commits before its paint (`flushSync` in the observer, as the library's own mount does) shows no cut frame; a window step that moves the root lands in one commit, as a window jump does, because a slide there would cut the panel. A host that measures with a plain state update draws the old row for one frame.
+
+Nothing is stored. The root stays live on the list, so the save, `panelList` and capacity are unchanged, and capacity goes on pricing the row beside it: a panel that stepped it aside takes no neighbor. Only the entries the row draws (`entries`, `rowNumbers`) read it `live: false`, which is the root's parked dot. A hold is therefore set aside with the root and comes back with it, and `edgeHold` itself never changes.
+
+A step toward the root with no parked panel between (`rootIsNext`), its dot and `scrollTo` park the drawn panels (`showRoot`) and the root rests alone: a panel the root cannot sit beside would break the run, so none is drawn past it. A panel returning for room never steps the root aside, or the root could not stay; a person's step does, and so does a window narrowing under a panel already shown. `showRoot` takes a side and the rule reads the root's place in the list, so a root that comes back at the far right needs a new intent through `swapPanels`, not a new rule.
+
+A row with a cap keeps its live panels whatever the window, so two or more drawn past the fit still scroll, wide or not, a wide one cut at the edge as in any scrolling row, and a second fixed column that leaves a wide panel no room leaves the row as it was.
 
 ### Edge holds
 
