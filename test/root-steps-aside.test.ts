@@ -36,7 +36,7 @@ test('a hand-built root sits in a row that caps its panels, so it needs no step'
 });
 
 test('two parking panels past the fit are a capped row, which scrolls', () => {
-  assert.equal(at([root, entry('a', 1, 'park'), entry('b', 1, 'park')], 1000), false);
+  assert.equal(at([root, entry('a', 2, 'park'), entry('b', 1, 'park')]), false);
 });
 
 test('a second fixed column that leaves the panel no room leaves the row as it was', () => {
