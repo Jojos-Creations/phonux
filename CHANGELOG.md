@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The root can be summoned. `panels.rootView()` says whether it is `'shown'`, `'summoned'` or `'away'`; `panels.summonRoot()` brings it to the view's edge on the side it lies, parking the panels in that edge's slot while the rest of the view stands still; `panels.dismissRoot()`, or a step away from it, returns them. A wide panel in that slot moves over and runs off the far edge instead of parking. A press inside a host's `data-row-nav` element rests no panel, as the dot bar's does.
+- A step brings in a wide panel the window's edge still cuts before a parked one, and a parked panel beside the run arrives by the row's swap, which parks the far end: a step could park the wide panel in the middle of the view instead. A root scrolled off no longer counts as a live panel a parked one waits behind.
 - `RowRest` is exported as a type: `computeRowNumbers` takes it, so the API report could not be regenerated without it. The dot hook no longer clamps a drag itself; the claim it writes through already holds it to the row's range.
 - The dot bar is the row's ruler drawn small. `rowDots.ts` is gone; `rowBar.ts` places every dot at its panel's ruler position and the oval at the window's, so the oval's edge stays under a dragged pointer and dots no longer move as the row does. `PanelDots.dots` gains `riding` for a dot that keeps to the oval's end over the dots beneath it. Visible: the oval now hugs the slots a rest shows instead of overhanging them by the centering margin, and while the root rides, its home slot at the end of the bar is empty.
 
