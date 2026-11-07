@@ -1,6 +1,6 @@
 // The real Workspace, PanelRow and a dot bar built from usePanelDots, as an app builds them, for the real-gesture checks in
 // test/row-gestures-chromium.test.ts: wheel notches, key presses, clicks on dots and on panels.
-// Query: slots=1,2,1 gap=<px> maxlive=<n> hold=<root edgeHold> reveal=<never|...> park=1 (panels park instead of scrolling) rootpark=1 (the root too, so the row swaps) scrollrow=1 (overrides park: the panels scroll) flush=1 (measure the window as the library's own mount does, in the frame it changes)
+// Query: slots=1,2,1 gap=<px> maxlive=<n> hold=<root edgeHold> reveal=<never|...> park=1 (panels park instead of scrolling) rootpark=1 (the root too, so the row swaps) scrollrow=1 (overrides park: the panels scroll) crossable=0 (no panel crosses the root) flush=1 (measure the window as the library's own mount does, in the frame it changes)
 import * as React from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
@@ -35,7 +35,7 @@ function View({ name }: { name: string }) {
 }
 
 const ws = createWorkspace({
-  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: 'none', ...(ROOTPARK ? { overflow: 'park' } : {}), ...(HOLD ? { edgeHold: HOLD } : {}) } as any }),
+  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} />) as any, settings: { title: 'History', frame: 'none', ...(q.get('crossable') === '0' ? { crossable: false } : {}), ...(ROOTPARK ? { overflow: 'park' } : {}), ...(HOLD ? { edgeHold: HOLD } : {}) } as any }),
   templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} />) as any, settings: { slots: SLOTS[k], maxSlots: 64, frame: 'none', ...(PARK ? { overflow: 'park' } : {}) } as any })),
   tuning: { rowGesture: 'step', rowGap: GAP, ...(MAXLIVE === null ? {} : { maxLivePanels: MAXLIVE }) } as any,
 });

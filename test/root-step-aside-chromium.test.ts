@@ -20,7 +20,7 @@ interface Page {
   waitForTimeout(ms: number): Promise<void>;
   evaluate<T, A = undefined>(fn: ((arg: A) => T) | string, arg?: A): Promise<T>;
   setViewportSize(size: { width: number; height: number }): Promise<void>;
-  mouse: { move(x: number, y: number): Promise<void>; click(x: number, y: number): Promise<void> };
+  mouse: { move(x: number, y: number): Promise<void>; click(x: number, y: number): Promise<void>; down(): Promise<void>; up(): Promise<void> };
   keyboard: { press(key: string): Promise<void> };
 }
 
@@ -323,6 +323,55 @@ for (const [seed, hold] of [[7, 'left'], [11, null], [23, 'left']] as const) {
     assert.ok([...rows].some((row) => !row.includes('root')), `control: the walk stepped the root aside: ${trace}`);
   });
 }
+
+/** The window's moves of the root in each frame, while a panel presses it, read before and through a resize. */
+const STEPS = `(() => {
+  const s = { frames: 0, worst: 0, nudged: 0, last: null, stop: false };
+  window.__steps = s;
+  const tick = () => {
+    if (s.stop) return;
+    const root = document.querySelector('[data-row-slot][data-row-id="root"]');
+    if (root !== null) {
+      const left = root.getBoundingClientRect().left;
+      if (s.last !== null) s.worst = Math.max(s.worst, Math.abs(left - s.last));
+      s.last = left;
+      s.frames += 1;
+      if (root.getAnimations().some((a) => a.effect.getKeyframes().some((k) => 'translate' in k))) s.nudged += 1;
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+})()`;
+
+test('a window resized while a panel presses the root moves the root a frame at a time, its rest carrying the nudge', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open(`${WIDE}&crossable=0`, 1800);
+  await page.mouse.move(900, 300);
+  for (let k = 0; k < 12; k += 1) {
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(450);
+  }
+  const g = (await page.evaluate(`(() => { const r = document.querySelector('[data-row-id="root"]').getBoundingClientRect(); const bars = [...document.querySelectorAll('[data-row-slot]:not([data-row-id="root"]) [data-panel-grab-bar]')].map((b) => b.getBoundingClientRect()).sort((a, b) => a.left - b.left); const b = bars[0]; return b ? { x: b.left + b.width / 2, y: b.top + b.height / 2, rootRight: r.right, rootLeft: r.left } : null; })()`)) as { x: number; y: number; rootRight: number; rootLeft: number } | null;
+  assert.ok(g !== null, 'control: a panel beside the root has a grab bar');
+  assert.ok(g.rootLeft > 300, `control: the row rests with a blank before the root: ${g.rootLeft}`);
+  await page.evaluate(STEPS);
+  await page.mouse.move(g.x, g.y);
+  await page.waitForTimeout(150);
+  await page.mouse.down();
+  for (let x = g.x - 10; x > g.rootRight - 260; x -= 20) {
+    await page.mouse.move(x, g.y);
+    await page.waitForTimeout(16);
+  }
+  await page.waitForTimeout(700);
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.waitForTimeout(800);
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  const s = (await page.evaluate('(() => { const v = window.__steps; v.stop = true; return v; })()')) as { frames: number; worst: number; nudged: number };
+  assert.ok(s.frames >= 40 && s.nudged >= 10, `control: the nudge ran across the frames read: ${JSON.stringify(s)}`);
+  assert.ok(s.worst <= 120, `the root moved ${s.worst} px in one frame: ${JSON.stringify(s)}`);
+});
 
 test('a row that scrolls keeps its edge rule: the root stays beside a wide panel, cut at the window edge', async (t) => {
   const r = await rig(t);

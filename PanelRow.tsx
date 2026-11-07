@@ -335,17 +335,16 @@ export function PanelRow({
             const root = barrierEl();
             if (root == null || px === nudged.current) return;
             nudged.current = px;
-            // The root's rest is its `translate`, so the nudge is drawn from it.
-            const to = (Number(root.dataset.rowSlot) || 0) - px;
             // No Web Animations (a test DOM): the nudge lands at once. A throw here would stop Motion's frame loop for good.
             if (typeof root.animate !== 'function') {
-              root.style.translate = restTranslate(to);
+              root.style.translate = restTranslate((Number(root.dataset.rowSlot) || 0) - px);
               return;
             }
-            // On `translate`, which the slot's mover never touches, by the Web Animations API, because the theme turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
-            const from = getComputedStyle(root).translate;
+            // An offset added to the rest on `translate`, so a rest the pass moves during a nudge carries it. 'add' leaves the compositor, which a nudge can afford: it runs only against the barrier, never in a glide. By the
+            // Web Animations API, because the theme turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
+            const from = (Number.parseFloat(getComputedStyle(root).translate) || 0) - (Number.parseFloat(root.style.translate) || 0);
             nudgeAnim.current?.cancel();
-            const anim = root.animate([{ translate: from === 'none' ? '0px' : from }, { translate: `${to}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards' });
+            const anim = root.animate([{ translate: `${from}px 0px` }, { translate: `${-px}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards', composite: 'add' });
             nudgeAnim.current = anim;
             if (px === 0) anim.onfinish = () => anim.cancel();
           },
