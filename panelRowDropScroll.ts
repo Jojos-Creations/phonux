@@ -6,6 +6,7 @@ import { edgeScrollSpeed, edgeScrollStep } from './edgeScroll.js';
 import type { DragScroll } from './panelSlotContext.js';
 import { rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
 import { stepTarget } from './scrollTargets.js';
+import { applyRowIntent, holdRow } from './rowIntents.js';
 
 /** A drag's hold on the row scroller: the claim, the scroll it counts from, and the frame state. */
 export interface EdgeHold {
@@ -31,7 +32,7 @@ export interface EdgeHold {
 /** Takes the claim on `scrollerEl`'s scroller for a drag that counts its scroll from `startScroll`; null while another drag holds it. */
 export function openEdgeHold(scrollerEl: HTMLElement, startScroll: number, slot: DragScroll, keepId?: string): EdgeHold | null {
   const scroller = rowScrollerFor(scrollerEl);
-  const claim = scroller.claim();
+  const claim = holdRow(scroller);
   if (claim === null) return null;
   claim.setMaxScroll(slot.maxScroll);
   return { scroller, scrollerEl, claim, startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false, keepId, cycleWaitMs: 0 };
@@ -82,7 +83,7 @@ export function endEdgeHold(h: EdgeHold, slot: DragScroll | undefined, reduceMot
   if (settle && slot !== undefined && slot.settleStops.length > 0) {
     const at = h.scroller.scrollLeft();
     const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
-    if (Math.abs(to - at) >= 0.5) h.scroller.glideTo(to, { durationSec: slot.settleSec, instant: reduceMotion, ease: slot.settleEase });
+    if (Math.abs(to - at) >= 0.5) applyRowIntent(h.scroller, { kind: 'settle', to, durationSec: slot.settleSec, instant: reduceMotion, ease: slot.settleEase });
   }
   return distance;
 }

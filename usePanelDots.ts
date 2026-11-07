@@ -10,7 +10,8 @@ import { centreScroll, dotLayout, dotMap, dragScroll, withHeld, withParked, type
 import { maxScrollOf, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 import { halfStepIn, stepRowIn } from './rowStep.js';
-import { FAST_SCROLL_FLOOR_SEC, stepGlide } from './rowFastScroll.js';
+import { applyRowIntent, holdRow } from './rowIntents.js';
+import { FAST_SCROLL_FLOOR_SEC } from './rowFastScroll.js';
 import { FAST_SCROLL } from './rowConstants.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
@@ -208,7 +209,7 @@ export function usePanelDots(i: {
     const index = n.ids.indexOf(id);
     // A held panel is always on screen, so its dot takes the row back to the panels beside it.
     if (el && n.held.some((h) => h.id === id && h.side === 'left')) {
-      stepGlide(rowScrollerFor(el), 0, { mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
+      applyRowIntent(rowScrollerFor(el), { kind: 'step', to: 0, mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
       return;
     }
     if (!el || index < 0) return;
@@ -220,14 +221,14 @@ export function usePanelDots(i: {
     // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted center.
     // Numbers built by hand may omit the stops; such a row has none to snap to.
     const at = Math.min(maxScroll, target + n.stripStart - n.leftInset);
-    stepGlide(rowScrollerFor(el), n.stops?.length ? snapToStop(n, index, at) : at, { mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
+    applyRowIntent(rowScrollerFor(el), { kind: 'step', to: n.stops?.length ? snapToStop(n, index, at) : at, mode: tuning.fastScroll ?? FAST_SCROLL, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reduced, windowWidth: n.stripWindow });
   };
 
   const startOvalDrag = () => {
     const el = scroller.current;
     if (!el) return null;
     const scroll = rowScrollerFor(el);
-    const claim: ScrollClaim | null = scroll.claim();
+    const claim: ScrollClaim | null = holdRow(scroll);
     if (claim === null) return null;
     claim.setMaxScroll(maxScroll);
     const startScroll = scroll.scrollLeft();

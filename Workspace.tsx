@@ -30,6 +30,7 @@ import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
 import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
+import { applyRowIntent, holdRow } from './rowIntents.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
  * flattened here (not a nested `shell` object) so this file never imports a host measurement type.
@@ -238,7 +239,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const container = overflowContainerRef.current;
     if (resizingId === null || container === null) return undefined;
     const scroller = rowScrollerFor(container);
-    const claim = scroller.claim({ replayScroll: true });
+    const claim = holdRow(scroller, { replayScroll: true });
     // Where the panel's edges are in the window now, read from the element once the claim has stopped any glide: the numbers
     // can be ahead of what is drawn (a margin or a slide still gliding, a panel drawn shrunk).
     const slot = container.querySelector<HTMLElement>(`[data-row-id="${resizingId}"]`);
@@ -267,7 +268,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         const held = pin === null || edges === null ? scroller.scrollLeft() : scrollHoldingEdge(n, n.ids.indexOf(resizingId), pin, edges[pin], scroller.scrollLeft());
         // The settle lands first; a scroll the claim kept is replayed after it, so it overrides the settle.
         const to = nearestStop(n, held);
-        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+        if (Math.abs(to - scroller.scrollLeft()) >= 0.5) applyRowIntent(scroller, { kind: 'settle', to, durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
         scroller.replayDeferred();
       };
       if (width(numbersRef.current) !== width(began) || pin === null) return run();
@@ -353,7 +354,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (scrolls || container === null || rowScrollerFor(container).scrollLeft() === 0) return;
     const scroller = rowScrollerFor(container);
     scroller.stop();
-    scroller.glideTo(0, { durationSec: 0, instant: true, ease: resolved.slide.glideEase });
+    applyRowIntent(scroller, { kind: 'place', to: 0, ease: resolved.slide.glideEase });
   }, [scrolls, overflowContainerRef]);
   React.useLayoutEffect(() => {
     const container = overflowContainerRef.current;
@@ -374,7 +375,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         const span = n.stopSpans[n.stops.indexOf(near)];
         // A panel the nearest stop already shows stays put, even cut: a click in a wide panel half under a held one must not jump it whole.
         const to = k < 0 || (span !== undefined && k >= span.first && k < span.end) ? near : snapToStop(n, k, at);
-        if (Math.abs(to - at) >= 0.5) scroller.glideTo(to, { durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
+        if (Math.abs(to - at) >= 0.5) applyRowIntent(scroller, { kind: 'settle', to, durationSec: resolved.slide.durationSec, instant: reduced, ease: resolved.slide.glideEase });
       });
     };
     container.addEventListener('focusin', onFocus);

@@ -14,7 +14,7 @@ import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, rowAnchor, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { ROW_BUMP_PX, ROW_BUMP_SEC, rowScrollerFor } from '../rowScroller.js';
-import { stepGlide } from '../rowFastScroll.js';
+import { applyRowIntent, holdRow } from '../rowIntents.js';
 import { createRestWatch } from './restWatch.js';
 import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
@@ -630,7 +630,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       bump();
     }
     else if (step.kind === 'scroll') {
-      stepGlide(scroller, step.to, { mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
+      applyRowIntent(scroller, { kind: 'step', to: step.to, mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
     }
   };
 
@@ -649,7 +649,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (rowNumbers.anchor !== undefined) {
       base = Math.max(0, base + rowNumbers.anchor);
       if (rowNumbers.stepStops.length === 0 && base < 1) base = 0;
-      scroller.glideTo(base, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
+      applyRowIntent(scroller, { kind: 'place', to: base, ease: tuning.slide.glideEase });
     }
     const before = settledNumbersRef.current;
     settledNumbersRef.current = rowNumbers;
@@ -662,7 +662,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
     // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
     if (rowNumbers.stepStops.length === 0) {
-      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
+      if (base >= 0.5) applyRowIntent(scroller, { kind: 'settle', to: 0, durationSec: tuning.slide.durationSec, instant: reducedMotion || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
       return;
     }
     // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
@@ -678,7 +678,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // A window step lands at once, as the row's margin does: a glide per step would trail the window's edge.
     const windowStep = before !== undefined && before.windowWidth !== rowNumbers.windowWidth;
     if (Math.abs(to - base) < 0.5) return;
-    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening || windowStep, ease });
+    applyRowIntent(scroller, { kind: 'settle', to, durationSec: tuning.slide.durationSec, instant: reducedMotion || opening || windowStep, ease });
   }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad, rowNumbers.anchor]);
   useLayoutEffect(() => {
     drawnSlotsRef.current = slotsKey(rowNumbers);
@@ -908,7 +908,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         to = snapped(k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
       }
     }
-    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
+    if (to !== 0) applyRowIntent(scroller, { kind: 'place', to, ease: tuning.slide.glideEase });
   });
 
   // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
@@ -957,7 +957,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       }),
     );
     if (Math.abs(to - from) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase })) {
+    if (!applyRowIntent(scroller, { kind: 'show', to, durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase })) {
       scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
     }
   });
