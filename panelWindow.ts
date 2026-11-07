@@ -10,7 +10,6 @@ import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import { HOP_FRACTION } from './rowConstants.js';
-import { waitsLeft } from './rowDots.js';
 
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
@@ -173,6 +172,15 @@ export function appendPanel(panels: PanelWindow[], info: { url?: string } & Appe
     slots,
   };
   return computeRowOrder([...panels, entry], rootId);
+}
+
+/**
+ * Whether a parked panel with `before` drawn panels ahead of it in the row waits on the bar's left, of `drawn` drawn panels: one
+ * inside the drawn run waits on the side nearer its place, a tie on the left. The row's step follows the same rule, so a step
+ * toward a dot always reaches it.
+ */
+export function waitsLeft(before: number, drawn: number): boolean {
+  return before <= 0 || (before < drawn && before <= drawn - before);
 }
 
 /** Whether the row may park `p` to make room: a collapsible entry whose `overflow` is 'park', which every hand-built collapsible entry reads as. Any other entry scrolls instead. @internal */

@@ -48,6 +48,7 @@ export interface DrawnPanel {
 export interface RowLayout {
   readonly drawn: readonly DrawnPanel[];
   readonly pitchPx: number;
+  readonly gapPx: number;
   readonly stripPx: number;
   /** The panel held at the left edge when the hold is in effect, else null. */
   readonly held: DrawnPanel | null;
@@ -93,7 +94,7 @@ export function layoutOf(m: RowModel): RowLayout {
   const stops: number[] = [];
   for (let n = 0; n <= lastStop; n += 1) stops.push(n * pitchPx - centerPx);
   const rightEdge = heldRight === null ? 0 : heldRight.w + m.gapPx;
-  return { drawn, pitchPx, stripPx, held, heldRight, windowPx: m.windowPx, centerPx, lo: centerPx + leftEdge, hi: m.windowPx - centerPx - rightEdge, stops };
+  return { drawn, pitchPx, gapPx: m.gapPx, stripPx, held, heldRight, windowPx: m.windowPx, centerPx, lo: centerPx + leftEdge, hi: m.windowPx - centerPx - rightEdge, stops };
 }
 
 const clampTo = (v: number, low: number, high: number): number => Math.min(high, Math.max(low, v));
@@ -154,22 +155,31 @@ export interface RowDots {
   readonly oval: { left: number; width: number };
 }
 
+/**
+ * The ruler drawn small: `k` track px to a ruler px, and a dot gap of `dotGapPx`, so a dot's left is its panel's left scaled and its
+ * right stops one dot gap short of the next slot. `grid` is the span of the ruler the oval draws, and `riders` the ruler x of each
+ * panel that does not sit at its own place, as a held one rides its edge of the window.
+ */
+export function scaledRuler(l: RowLayout, k: number, dotGapPx: number, grid: { left: number; width: number }, riders: ReadonlyMap<string, number>): RowDots {
+  const oval = { left: k * grid.left, width: k * (grid.width + l.gapPx) - dotGapPx };
+  const eps = SHOWN_TOLERANCE_PX * k;
+  const dots = l.drawn.map((p) => {
+    const left = k * (riders.get(p.id) ?? p.x);
+    const width = k * (p.w + l.gapPx) - dotGapPx;
+    const seen = Math.min(left + width, oval.left + oval.width) - Math.max(left, oval.left);
+    return { id: p.id, left, width, lit: riders.has(p.id) || seen >= Math.min(width, oval.width) - eps };
+  });
+  return { dots, oval };
+}
+
 /** The ruler shrunk to `trackPx`. A dot is lit by the same rule as `onScreenIds`, applied to the scaled numbers. */
 export function dotsOf(m: RowModel, trackPx: number): RowDots {
   const l = layoutOf(m);
   const k = l.stripPx > 0 ? trackPx / l.stripPx : 0;
-  const oval = { left: k * (m.view + l.lo), width: k * (l.hi - l.lo) };
-  const eps = SHOWN_TOLERANCE_PX * k;
-  const dots = l.drawn.map((p) => {
-    const held = isHeld(l, p);
-    // A held panel's dot rides its edge of the window as the panel does.
-    const edge = p.id === l.held?.id ? Math.max(p.x, m.view) : p.id === l.heldRight?.id ? Math.min(p.x, m.view + l.windowPx - p.w) : p.x;
-    const left = k * edge;
-    const width = k * p.w;
-    const seen = Math.min(left + width, oval.left + oval.width) - Math.max(left, oval.left);
-    return { id: p.id, left, width, lit: held || seen >= Math.min(width, oval.width) - eps };
-  });
-  return { dots, oval };
+  const riders = new Map<string, number>();
+  if (l.held !== null) riders.set(l.held.id, Math.max(l.held.x, m.view));
+  if (l.heldRight !== null) riders.set(l.heldRight.id, Math.min(l.heldRight.x, m.view + l.windowPx - l.heldRight.w));
+  return scaledRuler(l, k, k * m.gapPx, { left: m.view + l.lo, width: l.hi - l.lo }, riders);
 }
 
 export function viewRange(m: RowModel): { min: number; max: number } {

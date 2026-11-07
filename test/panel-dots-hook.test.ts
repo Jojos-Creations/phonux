@@ -28,6 +28,7 @@ const numbers = {
   leftInset: 0,
   rightInset: 0,
   held: [],
+  stuck: [],
   endPad: 0,
   ids: ['a', 'b', 'c'],
   widths: [390, 390, 390],

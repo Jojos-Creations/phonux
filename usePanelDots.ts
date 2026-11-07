@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
-import { centreScroll, dotLayout, dotMap, dragScroll, withHeld, withParked, type ParkedDot } from './rowDots.js';
+import { barOf, centreScroll, type RowBar } from './rowBar.js';
 import { maxScrollOf, snapToStop, type RowNumbers } from './rowNumbers.js';
 import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 import { halfStepIn, stepRowIn } from './rowStep.js';
@@ -17,8 +17,8 @@ import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
 export interface PanelDots {
-  /** Each panel's dot in track px, in row order: the drawn panels and the parked ones a scroll can bring in. `hollow` is the panel setting `hollowDot`. */
-  readonly dots: readonly { readonly id: string; readonly left: number; readonly width: number; readonly hollow: boolean }[];
+  /** Each panel's dot in track px, at its place on the row's ruler: the drawn panels and the parked ones a scroll can bring in. `hollow` is the panel setting `hollowDot`. `riding` marks the dot of a panel that stays on screen as the row moves: it keeps to the oval's end and lies over the dots beneath it, so draw it on top. */
+  readonly dots: readonly { readonly id: string; readonly left: number; readonly width: number; readonly hollow: boolean; readonly riding: boolean }[];
   /** The window oval in track px, over the dots of the panels on screen. */
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
@@ -82,14 +82,14 @@ function ovalCursor(x: number | null, oval: { left: number; width: number }, sid
 }
 
 /** The step that brings the drawn panel `id` nearer the window's center in a row that parks, or null when none does: it is as near as a step gets, or nothing can take the slot it leaves. To the right, the row's own blank slots can. */
-function centerStep(n: RowNumbers, id: string, maxScroll: number, bar: { dots: readonly { id: string; left: number }[]; oval: { left: number }; parked: ReadonlySet<string> }, entries: readonly WorkspaceRowEntry[]): 'left' | 'right' | null {
+function centerStep(n: RowNumbers, id: string, maxScroll: number, bar: RowBar, entries: readonly WorkspaceRowEntry[]): 'left' | 'right' | null {
   const index = n.ids.indexOf(id);
   if (maxScroll > 0 || index < 0 || n.ids.length < 2) return null;
   const off = n.stripStart + n.leftOffsets[index]! + n.widths[index]! / 2 - n.windowWidth / 2;
   const slot = n.leftOffsets[1]! - n.leftOffsets[0]! - (n.leadPx ?? 0);
   if (Math.abs(off) <= slot / 2 + 1) return null;
   const direction = off > 0 ? 'right' : 'left';
-  const waits = bar.dots.some((d) => bar.parked.has(d.id) && (direction === 'left' ? d.left < bar.oval.left : d.left > bar.oval.left));
+  const waits = bar.dots.some((d) => bar.parked.has(d.id) && (direction === 'left' ? d.left < bar.run.left : d.left >= bar.run.right));
   if (waits) return direction;
   if (direction === 'left') return null;
   // The row opens a blank only by parking its leftmost panel, which must be able to come back, and never past the last panel's center.
@@ -97,20 +97,6 @@ function centerStep(n: RowNumbers, id: string, maxScroll: number, bar: { dots: r
   const first = n.ids.map((x) => entries.find((e) => e.id === x)).find((e) => e !== undefined && e.collapsible !== false);
   const lastOff = n.stripStart + n.leftOffsets[last]! + n.widths[last]! / 2 - n.windowWidth / 2;
   return n.ids.length >= 3 && first?.settings?.revealOnScroll !== 'never' && lastOff - slot >= -1 ? 'right' : null;
-}
-
-/** The parked panels of `entries` a scroll can bring in, each placed after the drawn panels ahead of it in the row's order. */
-function parkedOf(entries: readonly WorkspaceRowEntry[], drawn: readonly string[]): ParkedDot[] {
-  const shown = new Set(drawn);
-  const parked: ParkedDot[] = [];
-  let before = 0;
-  for (const e of entries) {
-    if (shown.has(e.id)) before += 1;
-    else if (e.live === false && e.marker !== true && e.settings?.revealOnScroll !== 'never') {
-      parked.push({ id: e.id, before, slots: e.slots ?? 1, hollow: e.settings?.hollowDot === true });
-    }
-  }
-  return parked;
 }
 
 /** A step left while the root sits a whole slot or more left of the window's center, so blanks open before it; null otherwise. */
@@ -154,19 +140,7 @@ export function usePanelDots(i: {
 
   // Where the strip's window starts, along the strip: a held group takes its room from the window, not from the scroll.
   const seen = scrollLeft - (n.stripStart - n.leftInset);
-  const hollow = n.ids.map((id) => entries.find((e) => e.id === id)?.settings?.hollowDot === true);
-  const map = dotMap({ widths: n.widths, leftOffsets: n.leftOffsets });
-  const layout = dotLayout({
-    ids: n.ids,
-    hollow,
-    map,
-    windowWidth: n.stripWindow,
-    // The track starts at the strip's first panel, not at scroll 0.
-    scrollLeft: seen,
-  });
-  const parked = parkedOf(entries, n.ids);
-  const heldDots = n.held.map((h) => ({ id: h.id, side: h.side, slots: h.width / map.phone, hollow: entries.find((e) => e.id === h.id)?.settings?.hollowDot === true }));
-  const bar = withHeld(withParked(layout, map, parked), heldDots);
+  const bar = barOf(n, entries, scrollLeft);
   const shown = [...n.held.map((h) => h.id), ...n.ids.filter((_, k) => Math.min(n.leftOffsets[k]! + n.widths[k]!, seen + n.stripWindow) - Math.max(n.leftOffsets[k]!, seen) > 1)];
   const maxScroll = maxScrollOf(n);
   const step = (direction: 'left' | 'right'): void => {
@@ -178,7 +152,7 @@ export function usePanelDots(i: {
   // only scrolls a row toward its end changes no parked panel, so the wait for the next step also ends after one slide.
   // A row that parks then goes on stepping toward the center, for a drawn panel's dot too, while a panel waits on that side to take the slot it leaves.
   const [seek, setSeek] = React.useState<{ id: string; direction: 'left' | 'right'; steps: number } | null>(null);
-  const parkedKey = parked.map((p) => p.id).join(' ');
+  const parkedKey = [...bar.parked].join(' ');
   React.useEffect(() => {
     if (seek === null) return undefined;
     const direction = bar.parked.has(seek.id) ? seek.direction : entries.find((e) => e.id === seek.id)?.collapsible === false ? rootStep(n, seek.id, maxScroll) : centerStep(n, seek.id, maxScroll, bar, entries);
@@ -201,9 +175,9 @@ export function usePanelDots(i: {
       const dot = bar.dots.find((d) => d.id === id);
       if (!el || dot === undefined || rowScrollerFor(el).claimHeld()) return;
       // One step per parked dot between the window and this one, and one more for a row that must first scroll to its end.
-      const left = dot.left < bar.oval.left;
-      const between = bar.dots.filter((d) => bar.parked.has(d.id) && (left ? d.left >= dot.left && d.left < bar.oval.left : d.left <= dot.left && d.left > bar.oval.left)).length;
-      setSeek({ id, direction: left ? 'left' : 'right', steps: between + 1 + (maxScroll > 0 ? 0 : parked.length + n.ids.length) });
+      const left = dot.left < bar.run.left;
+      const between = bar.dots.filter((d) => bar.parked.has(d.id) && (left ? d.left >= dot.left && d.left < bar.run.left : d.left <= dot.left && d.left >= bar.run.right)).length;
+      setSeek({ id, direction: left ? 'left' : 'right', steps: between + 1 + (maxScroll > 0 ? 0 : bar.parked.size + n.ids.length) });
       return;
     }
     const index = n.ids.indexOf(id);
@@ -215,7 +189,7 @@ export function usePanelDots(i: {
     if (!el || index < 0) return;
     const target = centreScroll({ index, leftOffsets: n.leftOffsets, widths: n.widths, windowWidth: n.stripWindow, maxScroll });
     if (target === null) {
-      if (!rowScrollerFor(el).claimHeld()) setSeek({ id, direction: 'right', steps: parked.length + n.ids.length });
+      if (!rowScrollerFor(el).claimHeld()) setSeek({ id, direction: 'right', steps: bar.parked.size + n.ids.length });
       return;
     }
     // A stepping row rests on its stops only, so the dot's rest is the stop that shows the panel, not the margin-shifted center.
@@ -235,7 +209,7 @@ export function usePanelDots(i: {
     let open = true;
     return {
       drag(dx: number) {
-        if (open) claim.write(dragScroll({ startScroll, dx, map, maxScroll }));
+        if (open) claim.write(Math.min(Math.max(startScroll + dx / bar.scale, 0), maxScroll));
       },
       end() {
         if (!open) return;

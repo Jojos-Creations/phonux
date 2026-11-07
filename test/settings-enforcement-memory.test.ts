@@ -6,7 +6,9 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { dotLayout, dotMap } from '../rowDots.js';
+import { barOf } from '../rowBar.js';
+import type { RowNumbers } from '../rowNumbers.js';
+import type { WorkspaceRowEntry } from '../workspaceRow.js';
 import * as React from 'react';
 import { act } from 'react';
 import { useProvidePanels } from '../index.js';
@@ -396,7 +398,7 @@ test('differential hostCreatable: the Host-bag create makes a panel under true a
 
 test('differential hollowDot: the dot bar draws the panel hollow under true and solid under false', () => {
   const hollowFor = (value: boolean): boolean | undefined =>
-    dotLayout({ ids: ['a'], hollow: [value], map: dotMap({ widths: [390], leftOffsets: [0] }), windowWidth: 600, scrollLeft: 0 }).dots[0]?.hollow;
+    barOf({ ids: ['a'], widths: [390], leftOffsets: [0], windowWidth: 600, rowMarginLeft: 0, endPad: 0, held: [], stuck: [] } as unknown as RowNumbers, [{ id: 'a', settings: { hollowDot: value } } as unknown as WorkspaceRowEntry], 0).dots[0]?.hollow;
   differential('hollowDot', (run) => {
     for (const value of [true, false]) run(value, () => hollowFor(value));
   });

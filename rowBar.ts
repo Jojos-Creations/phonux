@@ -1,0 +1,151 @@
+/**
+ * The dot bar: the row's one ruler drawn small. Every panel the bar counts lies on the ruler in row order, and the window's span on
+ * that ruler comes from the scroll alone, so a dot and the oval are one number scaled and cannot disagree with the row. Pure.
+ */
+import { waitsLeft } from './panelWindow.js';
+import { layoutOf, scaledRuler } from './rowModel.js';
+import type { RowNumbers } from './rowNumbers.js';
+import type { WorkspaceRowEntry } from './workspaceRow.js';
+
+/** The width of a one-phone panel's dot, in px. */
+export const DOT_PHONE_PX = 22;
+
+/** The space between two dots, in px. */
+export const DOT_GAP_PX = 8;
+
+/** A dot's place in the bar's track, in px. */
+export interface DotPlace {
+  readonly id: string;
+  readonly left: number;
+  readonly width: number;
+  readonly hollow: boolean;
+  /** The panel stays on screen as the row moves, so its dot keeps to the oval's end and lies over the dots beneath it. */
+  readonly riding: boolean;
+}
+
+/** The whole bar, in track px from its left edge. */
+export interface RowBar {
+  readonly dots: readonly DotPlace[];
+  readonly oval: { readonly left: number; readonly width: number };
+  /** The bar's width: its dots and the gaps between them. */
+  readonly width: number;
+  /** The ids of the parked dots, which a click brings in by stepping the row. */
+  readonly parked: ReadonlySet<string>;
+  /** Where the panels the row moves start and end: a parked dot left of `left` waits left, one at or past `right` waits right. */
+  readonly run: { readonly left: number; readonly right: number };
+  /** Track px to one px of scroll. */
+  readonly scale: number;
+}
+
+/** Drops the float noise of scaling, so a dot on a whole slot compares equal to that slot. */
+const tidy = (px: number): number => Math.round(px * 1e6) / 1e6;
+
+interface Item {
+  readonly id: string;
+  readonly slots: number;
+  readonly hollow: boolean;
+  readonly drawn: boolean;
+  readonly shown: boolean;
+}
+
+/**
+ * The panels in ruler order. A parked panel lying inside the drawn run waits on the side a step reaches it from, as the window on a
+ * ruler is one span. Past an always-shown panel that the rest have moved away from, it keeps its place: that panel rides over it.
+ */
+function rulerOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], slotsOf: (w: number) => number): { items: Item[]; left: string[]; right: string[] } {
+  const heldRight = n.held.filter((h) => h.side === 'right');
+  const widthOf = new Map<string, number>([...n.ids.map((id, k): [string, number] => [id, n.widths[k]!]), ...n.held.map((h): [string, number] => [h.id, h.width])]);
+  const hollowOf = (id: string): boolean => entries.find((e) => e.id === id)?.settings?.hollowDot === true;
+  const item = (id: string, slots: number, drawn: boolean): Item => ({ id, slots, hollow: hollowOf(id), drawn, shown: drawn && entries.find((e) => e.id === id)?.collapsible === false });
+  const items: Item[] = [];
+  for (const e of entries) {
+    const w = widthOf.get(e.id);
+    if (heldRight.some((h) => h.id === e.id)) continue;
+    if (w !== undefined) items.push(item(e.id, slotsOf(w), true));
+    else if (e.live === false && e.marker !== true && e.settings?.revealOnScroll !== 'never') items.push(item(e.id, Math.max(1, Math.round(e.slots ?? 1)), false));
+  }
+  for (const id of widthOf.keys()) if (!items.some((p) => p.id === id) && !heldRight.some((h) => h.id === id)) items.push(item(id, slotsOf(widthOf.get(id)!), true));
+  for (const h of heldRight) items.push(item(h.id, slotsOf(h.width), true));
+  const at = items.flatMap((p, k) => (p.drawn ? [k] : []));
+  const first = at[0];
+  const last = at[at.length - 1];
+  const left = n.held.filter((h) => h.side === 'left').map((h) => h.id);
+  const right = heldRight.map((h) => h.id);
+  if (first === undefined || last === undefined) return { items, left, right };
+  for (const s of n.stuck) {
+    if (items[first]!.id === s.id) left.push(s.id);
+    else if (items[last]!.id === s.id) right.push(s.id);
+  }
+  const rides = (k: number): boolean => items[k]!.shown && !left.includes(items[k]!.id) && !right.includes(items[k]!.id);
+  if (at.length > 1 && rides(first) && at[1] !== first + 1) left.push(items[first]!.id);
+  if (at.length > 1 && rides(last) && at[at.length - 2] !== last - 1) right.push(items[last]!.id);
+  const runAt = at.filter((k) => !left.includes(items[k]!.id) && !right.includes(items[k]!.id));
+  const start = runAt[0];
+  const end = runAt[runAt.length - 1];
+  if (start === undefined || end === undefined || end === start) return { items, left, right };
+  const strip = new Set(n.ids);
+  const before = (k: number): number => items.slice(0, k).filter((p) => strip.has(p.id)).length;
+  const inside = items.slice(start, end + 1).map((p, k) => ({ p, k: k + start }));
+  const waiting = inside.filter(({ p }) => !p.drawn);
+  const leftWait = waiting.filter(({ k }) => waitsLeft(before(k), n.ids.length)).map(({ p }) => p);
+  const rightWait = waiting.filter(({ k }) => !waitsLeft(before(k), n.ids.length)).map(({ p }) => p);
+  return { items: [...items.slice(0, start), ...leftWait, ...inside.filter(({ p }) => p.drawn).map(({ p }) => p), ...rightWait, ...items.slice(end + 1)], left, right };
+}
+
+/** The bar for a row at `scroll`. `entries` is every panel in row order; one the numbers do not draw counts only while it is parked and can come back. */
+export function barOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], scroll: number): RowBar {
+  const positive = [...n.widths, ...(n.widths.length === 0 ? n.held.map((h) => h.width) : [])].filter((w) => w > 0);
+  const phonePx = positive.length === 0 ? 1 : Math.min(...positive);
+  const slotsOf = (w: number): number => Math.max(1, Math.round(w / phonePx));
+  // A span between two panels is `slots` phones and as many gaps, so the narrowest per-slot span is one phone and one gap.
+  const pitches = n.widths.slice(0, -1).map((w, k) => (n.leftOffsets[k + 1]! - n.leftOffsets[k]!) / slotsOf(w));
+  const pitchPx = pitches.length === 0 ? phonePx : Math.min(...pitches);
+  const { items, left, right } = rulerOf(n, entries, slotsOf);
+  const l = layoutOf({ panels: items.map((p) => ({ id: p.id, slots: p.slots })), heldLeft: null, phonePx, gapPx: pitchPx - phonePx, windowPx: 0, view: 0 });
+  const { gapPx } = l;
+  const scale = (DOT_PHONE_PX + DOT_GAP_PX) / pitchPx;
+  const placed = new Map(l.drawn.map((p) => [p.id, p]));
+  const run = l.drawn.filter((p) => items[p.index]!.drawn && !left.includes(p.id) && !right.includes(p.id));
+  const room = left.reduce((sum, id) => sum + placed.get(id)!.w + gapPx, 0);
+  const spanOf = items.reduce((sum, p, k) => sum + (p.drawn ? l.drawn[k]!.w + gapPx : 0), -gapPx);
+  // The grid is what a rest shows: the window less its centering. A row that does not fill it shows only its panels.
+  const gridPx = Math.max(0, Math.min(spanOf, n.windowWidth - n.rowMarginLeft - n.endPad));
+  const from = (run[0]?.x ?? l.drawn.find((p) => items[p.index]!.drawn)?.x ?? 0) - (run.length === 0 ? 0 : room) + scroll;
+  const grid = { left: Math.min(Math.max(from, 0), Math.max(0, l.stripPx - gridPx)), width: gridPx };
+  const riders = new Map<string, number>();
+  let edge = grid.left;
+  for (const id of left) {
+    const p = placed.get(id)!;
+    const x = Math.max(p.x, edge);
+    riders.set(id, x);
+    edge = x + p.w + gapPx;
+  }
+  edge = grid.left + grid.width;
+  for (const id of [...right].reverse()) {
+    const p = placed.get(id)!;
+    const x = Math.min(p.x, edge - p.w);
+    riders.set(id, x);
+    edge = x - gapPx;
+  }
+  const { dots, oval } = scaledRuler(l, scale, DOT_GAP_PX, grid, riders);
+  const places = dots.map((d, k): DotPlace => ({ id: d.id, left: tidy(d.left), width: tidy(d.width), hollow: items[k]!.hollow, riding: riders.has(d.id) }));
+  const lastRun = run[run.length - 1];
+  return {
+    dots: places.sort((a, b) => a.left - b.left),
+    oval: items.some((p) => p.drawn) ? { left: tidy(oval.left), width: tidy(oval.width) } : { left: 0, width: 0 },
+    width: items.length === 0 ? 0 : tidy(scale * (l.stripPx + gapPx) - DOT_GAP_PX),
+    parked: new Set(items.filter((p) => !p.drawn).map((p) => p.id)),
+    run: { left: tidy(scale * (run[0]?.x ?? 0)), right: lastRun === undefined ? 0 : tidy(scale * (lastRun.x + lastRun.w + gapPx)) },
+    scale,
+  };
+}
+
+/**
+ * The scroll that centers panel `index` in the window, clamped to the row's legal range. Null when the row cannot
+ * scroll or the window is not measured: a click on a dot then does nothing.
+ */
+export function centreScroll(i: { index: number; leftOffsets: readonly number[]; widths: readonly number[]; windowWidth: number; maxScroll: number }): number | null {
+  if (!(i.maxScroll > 0) || !Number.isFinite(i.windowWidth)) return null;
+  const centre = (i.leftOffsets[i.index] ?? 0) + (i.widths[i.index] ?? 0) / 2;
+  return Math.min(Math.max(centre - i.windowWidth / 2, 0), i.maxScroll);
+}

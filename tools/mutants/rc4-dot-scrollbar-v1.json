@@ -1,21 +1,21 @@
 {
   "tests": [
-    "test/row-dots.test.ts",
+    "test/row-bar.test.ts",
     "test/panel-dots-hook.test.ts"
   ],
   "mutants": [
     {
       "name": "the drag maps track px to scroll px without clamping to the row",
-      "file": "rowDots.ts",
-      "find": "return Math.min(Math.max(i.startScroll + i.dx / f, 0), i.maxScroll);",
-      "replace": "return i.startScroll + i.dx / f;",
+      "file": "usePanelDots.ts",
+      "find": "claim.write(Math.min(Math.max(startScroll + dx / bar.scale, 0), maxScroll));",
+      "replace": "claim.write(startScroll + dx / bar.scale);",
       "expectRed": [
-        "a drag maps track px to scroll px and clamps to the row"
+        "a drag past either end stops at the row's range"
       ]
     },
     {
       "name": "a click returns the panel centre instead of the centring scroll",
-      "file": "rowDots.ts",
+      "file": "rowBar.ts",
       "find": "return Math.min(Math.max(centre - i.windowWidth / 2, 0), i.maxScroll);",
       "replace": "return centre;",
       "expectRed": [
