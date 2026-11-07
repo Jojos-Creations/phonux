@@ -358,7 +358,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const rootAsideIn = (row: readonly PanelWindow[]): boolean => rootStepsAside({ entries: row, rootId, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap });
   const rootAside = rootAsideIn(panels);
   const drawnPanels = useMemo(() => (rootAside ? panels.map((p) => (p.id === rootId ? { ...p, live: false } : p)) : panels), [panels, rootAside, rootId]);
-  const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest: rootAside ? null : rest };
+  const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest };
   const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The direction of a step that swaps panels, until the commit that draws the swap.
   const swapStepRef = useRef<'left' | 'right' | null>(null);
