@@ -11,7 +11,7 @@ import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, rootStepsAside, rowAnchor, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, gridEdgesOf, maxScrollOf, nearestStop, rootStepsAside, rowAnchor, slotSpanAt, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { ROW_BUMP_PX, ROW_BUMP_SEC, rowScrollerFor } from '../rowScroller.js';
 import { applyRowIntent } from '../rowIntents.js';
@@ -38,6 +38,7 @@ import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import { isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
+import type { RootView } from '../panelManager.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
@@ -239,6 +240,9 @@ function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<Worksp
 }
 
 /** A scroll the row owes after a commit; one is pending at a time and the last recorded wins. */
+/** A root brought into the view: the side it stands on, the panels it parked, and the scroll to go back to, null when the row draws it only for the summon. */
+type RootSummon = { side: 'left' | 'right'; returns: readonly string[]; from: number | null };
+
 type ScrollRequest = {
   id: string;
   kind: 'open' | 'move';
@@ -359,12 +363,16 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const stopsOnGrid = tuning.rowGesture === 'step';
   // Capacity goes on pricing the list beside the root, so a panel that stepped it aside takes no neighbor; only the row draws it as parked.
   const rootAsideIn = (row: readonly PanelWindow[]): boolean => rootStepsAside({ entries: row, rootId, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap });
-  const rootAside = rootAsideIn(panels);
+  // A root that was summoned stands in the row whatever the row would otherwise do with it.
+  const [summoned, setSummoned] = useState<RootSummon | null>(null);
+  const rootAside = summoned === null && rootAsideIn(panels);
   const drawnPanels = rootAside ? panels.map((p) => (p.id === rootId ? drawnAside(p) : p)) : panels;
   const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest };
   const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The direction of a step that swaps panels, until the commit that draws the swap.
   const swapStepRef = useRef<'left' | 'right' | null>(null);
+  // Where the settle takes the row in the commit a summon changes the list: the scroll goes with the slots' own slide, so the panels that stay stand still on screen.
+  const summonAimRef = useRef<number | null>(null);
   const rowNumbers = ((): RowNumbers => {
     const n = computeRowNumbers(rowInput);
     const el = i.overflowContainerRef.current;
@@ -592,6 +600,74 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const rowEl = i.overflowContainerRef.current;
   useEffect(() => (rowEl === null ? undefined : registerRowKeys(rowEl, { half: (id) => restOnHalfRef.current(id) })), [rowEl]);
 
+  /**
+   * Where the root stands now: in the view, summoned there, or out of it. The scroll it is heading for counts, so a press during a glide answers for where the row will rest.
+   * A held root is always in view.
+   */
+  const rootView = (): RootView => {
+    if (summoned !== null) return 'summoned';
+    if (rootAside) return 'away';
+    const k = rowNumbers.ids.indexOf(rootId);
+    const el = i.overflowContainerRef.current;
+    if (k < 0 || el === null) return 'shown';
+    const scroller = rowScrollerFor(el);
+    const span = slotSpanAt(rowNumbers, k, scroller.glideTarget() ?? scroller.scrollLeft());
+    const grid = gridEdgesOf(rowNumbers);
+    return span.left >= grid.lo - 1 && span.right <= grid.hi + 1 ? 'shown' : 'away';
+  };
+
+  /**
+   * Brings a root that is out of the view to the edge it is nearest: the panels in that edge's slot, and any between it and the root, park, and the rest of the view stays still.
+   * A wide panel in that slot does not park: the row slides it over by one slot, so it runs off the far edge. False when there is nothing to do.
+   */
+  const summonRoot = (): boolean => {
+    const el = i.overflowContainerRef.current;
+    if (el === null || rootView() !== 'away') return false;
+    const scroller = rowScrollerFor(el);
+    if (scroller.claimHeld()) return false;
+    const n = rowNumbers;
+    const k = n.ids.indexOf(rootId);
+    if (rootAside) {
+      // The row draws the root again beside the panel that stepped it aside, which slides over as a wide panel does.
+      swapStepRef.current = 'left';
+      setSummoned({ side: sideOfRoot(), returns: [], from: null });
+      return true;
+    }
+    const at = scroller.glideTarget() ?? scroller.scrollLeft();
+    const slot = i.phoneWidth + tuning.rowGap;
+    const grid = gridEdgesOf(n);
+    const side = slotSpanAt(n, k, at).left < grid.lo ? 'left' : 'right';
+    const hide: string[] = [];
+    for (let j = k + (side === 'left' ? 1 : -1); j >= 0 && j < n.ids.length; j += side === 'left' ? 1 : -1) {
+      const span = slotSpanAt(n, j, at);
+      if (side === 'left' ? span.left >= grid.lo + slot - 1 : span.right <= grid.hi - slot + 1) break;
+      if (side === 'left' && span.right > grid.lo + slot + 1) break;
+      hide.push(n.ids[j]!);
+    }
+    const rootRest = n.stripStart + n.leftOffsets[k]! - grid.lo;
+    setSummoned({ side, returns: hide, from: at });
+    if (hide.length > 0) {
+      summonAimRef.current = side === 'left' ? rootRest : null;
+      swapPanels(hide.map((id) => ({ id, stickiness: 'sticky' as const })), []);
+      return true;
+    }
+    return applyRowIntent(scroller, { kind: 'summon', to: nearestStop({ ...n, stops: n.stepStops }, rootRest), durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
+  };
+
+  /** Sends a summoned root back out: what it parked returns where it stood, and the row is as it was. False when no summon stands. */
+  const dismissRoot = (): boolean => {
+    if (summoned === null) return false;
+    const el = i.overflowContainerRef.current;
+    setSummoned(null);
+    if (summoned.returns.length > 0) {
+      summonAimRef.current = summoned.from;
+      swapPanels([], summoned.returns.map((id) => ({ id, place: 'in-place' as const })));
+    } else if (summoned.from !== null && el !== null) {
+      applyRowIntent(rowScrollerFor(el), { kind: 'summon', to: summoned.from, durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
+    }
+    return true;
+  };
+
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
   const stepRow = (direction: 'left' | 'right'): void => {
     const el = i.overflowContainerRef.current;
@@ -599,6 +675,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     watchRest();
     const scroller = rowScrollerFor(el);
     if (scroller.claimHeld()) return;
+    if (summoned !== null) {
+      // A step away sends a summoned root back, which is that step; a step toward it goes on as any step, and the row is an ordinary one again.
+      if (direction !== summoned.side) {
+        dismissRoot();
+        return;
+      }
+      setSummoned(null);
+    }
     const maxScroll = maxScrollOf(rowNumbers);
     // A step with nowhere to go gives the iOS rubber band instead of nothing.
     const bump = (): void => {
@@ -642,9 +726,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       stops: rowNumbers.stepStops,
       gap: tuning.rowGap,
       hidden,
+      phoneWidth: i.phoneWidth,
+      liveParks: rowNumbers.ids.map((id) => { const p = panels.find((e) => e.id === id); return p === undefined || parksForRoom(p); }),
     });
     if (step.kind === 'show') {
-      if (swapAllowed(direction)) activatePanel(step.id);
+      if (!swapAllowed(direction)) return;
+      // The panel beside the run comes in as it does at the row's end, parking the far end, so a step never parks a panel in the middle of the view.
+      if (parkedToReveal(panels, direction)?.id === step.id) {
+        swapStepRef.current = direction;
+        if (scrollRow(direction)) return;
+        swapStepRef.current = null;
+      }
+      activatePanel(step.id);
     }
     else if (step.kind === 'none') {
       // An end of a parking row wider than its window: the parked panels past it come in as they do in a row that fits.
@@ -697,7 +790,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     endWidthRef.current = undefined;
     // A step that swapped panels goes on to move the row its one slot, from where the anchor left it.
     const stepped = rowNumbers.anchor === undefined || swapStepRef.current === null ? 0 : (swapStepRef.current === 'left' ? -1 : 1) * (i.phoneWidth + tuning.rowGap);
-    const to = atEnd ? rowNumbers.stepStops.at(-1)! : nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base + stepped);
+    const aim = summonAimRef.current;
+    summonAimRef.current = null;
+    const to = atEnd ? rowNumbers.stepStops.at(-1)! : nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, aim ?? base + stepped);
     // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
     const opening = !restedRef.current;
     restedRef.current = true;
@@ -864,6 +959,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   useLayoutEffect(() => {
     core.bindCycle((direction, keepId) => scrollRow(direction, keepId));
     return () => core.bindCycle(undefined);
+  });
+  useLayoutEffect(() => {
+    core.bindSummon({ view: rootView, summon: summonRoot, dismiss: dismissRoot });
+    return () => core.bindSummon(undefined);
   });
   const attachOwner = useRef({});
   useLayoutEffect(() => {

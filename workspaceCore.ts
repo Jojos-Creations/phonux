@@ -9,7 +9,7 @@ import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
 import { checkPatch, configured, flipRefusal, flipsParkable, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, unchanged, type ConfigureOutcome, type HostSplit } from './panelConfigure.js';
 import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
-import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type ResetResult } from './panelManager.js';
+import { accepted, makePanelManager, refused, type RootView, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError, type PanelRefusal } from './panelManagerError.js';
 import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, EnterFrom, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
@@ -304,6 +304,8 @@ export interface EngineBinding {
   cycle(direction: 'left' | 'right', keepId: string): boolean;
   /** The attached hook binds (or, with undefined, unbinds) what a swap at the edge runs. */
   bindCycle(sink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined): void;
+  /** The attached hook binds (or, with undefined, unbinds) what the root's summon runs. */
+  bindSummon(sink: RootSummonSink | undefined): void;
   /** The workspace's own templates, the root's included. */
   templates(): readonly PanelTemplate[];
   /** The template this workspace holds under `id`, or undefined: what its row renders a panel of `id` with. */
@@ -355,6 +357,13 @@ interface Retired {
 const RETIRED_LIMIT = 256;
 
 const CORES = new WeakMap<WorkspaceHandle, Core>();
+
+/** What the attached hook does for the root's summon. */
+export interface RootSummonSink {
+  view(): RootView;
+  summon(): boolean;
+  dismiss(): boolean;
+}
 
 interface Core {
   binding: EngineBinding;
@@ -506,6 +515,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let touchSink: ((engineId: string, control: boolean) => void) | undefined;
   let blurSink: (() => void) | undefined;
   let cycleSink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined;
+  let summonSink: RootSummonSink | undefined;
   const notesBeforeSink: SettingNote[] = [];
 
   const reportConflicts = (id: PanelId, res: PanelSettingsResolution): void => {
@@ -754,6 +764,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     operate: (id, call, src) => operate(id, call, src),
     resetLayout: (target) => resetLayout(target),
     swap: (show, hide) => swapPanels(show, hide),
+    rootView: () => summonSink?.view() ?? 'shown',
+    summonRoot: () => summonSink?.summon() ?? false,
+    dismissRoot: () => summonSink?.dismiss() ?? false,
     configure: (id, patch, caller) => configureOne(id, patch, caller),
     configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
     configureTuning: (patch) => configureTuningOne(patch),
@@ -1196,6 +1209,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     cycle: (direction, keepId) => cycleSink?.(direction, keepId) ?? false,
     bindCycle: (sink) => {
       cycleSink = sink;
+    },
+    bindSummon: (sink) => {
+      summonSink = sink;
     },
     bindNotes: (sink) => {
       noteSink = sink;

@@ -85,6 +85,9 @@ export const accepted = (changed: boolean): PanelResult => ({ ok: true, changed 
 /** A refusal; the caller has touched nothing. @internal */
 export const refused = (code: PanelRefusal, message: string): PanelResult => ({ ok: false, code, message });
 
+/** Where the root panel stands: `'shown'` in the view, `'summoned'` brought there by `summonRoot`, `'away'` out of it. @public */
+export type RootView = 'shown' | 'summoned' | 'away';
+
 /**
  * Every panel of a workspace by id, as handles that can also operate on it, with the calls that configure panels, templates and the workspace's tuning and reset a layout.
  * @public
@@ -121,6 +124,15 @@ export interface PanelManager {
    * leave the row empty.
    */
   swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide?: readonly PanelId[]): PanelResult;
+  /** Where the root panel stands: in the view, summoned there, or out of it. A row that is not on screen reads as 'shown'. */
+  rootView(): RootView;
+  /**
+   * Brings the root panel, out of the view, to the view's edge on the side it lies: the panels in that edge's slot park, and return when the root goes.
+   * A wide panel in that slot moves over instead, and runs off the far edge. False when the root is already in view.
+   */
+  summonRoot(): boolean;
+  /** Sends a summoned root back out and returns what it parked. False when no summon stands; a step of the row away from the root does the same. */
+  dismissRoot(): boolean;
   /**
    * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).
    * Empty when the row holds no panel `id`: a pending, closed or unknown panel has no family.
@@ -145,6 +157,9 @@ export function makePanelManager(source: ReadSource): PanelManager {
     configureTuning: (patch) => source.configureTuning(patch),
     resetLayout: (target) => source.resetLayout(target),
     swap: (show, hide = []) => source.swap(show, hide),
+    rootView: () => source.rootView(),
+    summonRoot: () => source.summonRoot(),
+    dismissRoot: () => source.dismissRoot(),
     familyOf: (id) => source.familyOf(id),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),

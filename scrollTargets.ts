@@ -68,6 +68,10 @@ export function gestureTarget(i: {
   stops?: readonly number[];
   gap: number;
   hidden: readonly HiddenCandidate[];
+  /** For each live panel, whether it parks for room. One that never does is no panel a parked one waits behind, so it does not count as beyond the window. Absent: all do. */
+  liveParks?: readonly boolean[];
+  /** One phone's width: a panel wider than this that the window's edge cuts comes in before any parked panel. Absent: no panel does. */
+  phoneWidth?: number;
 }): { kind: 'show'; id: string } | { kind: 'scroll'; to: number } | { kind: 'none' } {
   const windowLeft = i.base + i.gap;
   const windowRight = i.base + i.clientWidth - i.gap;
@@ -80,10 +84,15 @@ export function gestureTarget(i: {
   const sideRight = (h: HiddenCandidate): boolean => h.liveBefore > lastInView;
   const sideLeft = (h: HiddenCandidate): boolean => h.liveBefore <= (firstInView < 0 ? count : firstInView);
   const candidates = i.hidden.filter((h) => h.policy !== 'never' && (i.direction === 'right' ? sideRight(h) : sideLeft(h)));
-  if (candidates.length > 0) {
+  // A wide panel the window's edge still cuts comes in first: a parked panel swapped in now would leave it unseen, and it may be the one that parks.
+  const edgePanel = i.direction === 'right' ? lastInView : firstInView;
+  const edgeCut = i.phoneWidth !== undefined && edgePanel >= 0 && i.liveWidths[edgePanel]! > i.phoneWidth + 1 && (i.direction === 'right' ? lefts[edgePanel]! + i.liveWidths[edgePanel]! > windowRight + 1 : lefts[edgePanel]! < windowLeft - 1);
+  const canScroll = stepTarget(i.direction, i.base, i.stops !== undefined && i.stops.length > 0 ? i.stops : i.liveStarts, i.maxScroll) !== null;
+  if (candidates.length > 0 && !(edgeCut && canScroll)) {
     const nearest = candidates.reduce((best, h) => (i.direction === 'right' ? (h.liveBefore < best.liveBefore ? h : best) : h.liveBefore >= best.liveBefore ? h : best));
     const between = i.direction === 'right' ? nearest.liveBefore - 1 - lastInView : (firstInView < 0 ? count : firstInView) - nearest.liveBefore;
-    const beyondWindow = i.direction === 'right' ? count - 1 - lastInView : firstInView;
+    const parks = (k: number): boolean => i.liveParks?.[k] !== false;
+    const beyondWindow = i.liveStarts.filter((_, k) => parks(k) && (i.direction === 'right' ? k > lastInView : k < firstInView)).length;
     const reachable = nearest.held || nearest.policy === 'any' ? between <= 0 : between <= 0 && beyondWindow <= 0;
     if (reachable) return { kind: 'show', id: nearest.id };
   }

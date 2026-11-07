@@ -4,7 +4,7 @@
  * before the panel exists, while it is live and after the workspace detaches.
  */
 import type { JsonValue } from './hostApi.js';
-import type { ConfigureResult, PanelOpSource, PanelResult, ResetResult } from './panelManager.js';
+import type { ConfigureResult, PanelOpSource, PanelResult, ResetResult, RootView } from './panelManager.js';
 import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign, WorkspaceTuning } from './panelSettings.js';
 import type { InstancePatch, SettingsPatch, ViewPatch } from './settingsPatch.js';
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, ViewHandle } from './panelTemplate.js';
@@ -78,6 +78,12 @@ export interface ReadSource {
   resetLayout(target: PanelId | 'all'): ResetResult;
   /** Parks `hide` and shows `show` in one update. */
   swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult;
+  /** Where the root stands in the view. */
+  rootView(): RootView;
+  /** Brings the root to the view's edge. */
+  summonRoot(): boolean;
+  /** Sends a summoned root back. */
+  dismissRoot(): boolean;
   /** Patches one panel's settings, for a panel's own caller or for its view. */
   configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
   /** Patches the template-scope settings of a template. */

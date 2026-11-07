@@ -809,12 +809,15 @@ export interface PanelManager {
     configureTuning(patch: {
         [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
     }): ConfigureResult;
+    dismissRoot(): boolean;
     familyOf(id: PanelId): readonly PanelId[];
     get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
     getSnapshot(): PanelSnapshot;
     list(f?: ListFilter): readonly PanelHandle[];
     resetLayout(target: PanelId | 'all'): ResetResult;
+    rootView(): RootView;
     subscribe(l: () => void): () => void;
+    summonRoot(): boolean;
     swap(show: readonly (PanelId | {
         id: PanelId;
         place?: AddPlacement | 'in-place';
@@ -1358,6 +1361,9 @@ export type ResolvedWorkspaceTuning = {
     shrinkUnfocused: boolean;
     firstPressFocusOnly: boolean;
 };
+
+// @public
+export type RootView = 'shown' | 'summoned' | 'away';
 
 // @public
 export const ROW_ID_ATTRIBUTE = "data-row-id";

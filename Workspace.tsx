@@ -301,7 +301,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       const focused = container.ownerDocument.activeElement;
       if (focused instanceof HTMLElement && container.contains(focused) && focused.closest('[data-row-slot]') !== null) focused.blur();
       // The dot bar moves the row, and a move rests no panel: a wide one slides past at its width.
-      if (!(event.target instanceof Element && event.target.closest('[data-dot-bar]') !== null)) binding?.blur();
+      if (!(event.target instanceof Element && event.target.closest('[data-dot-bar],[data-row-nav]') !== null)) binding?.blur();
     };
     const view = container.ownerDocument.defaultView ?? window;
     view.addEventListener('pointerdown', onPress);

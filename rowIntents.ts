@@ -18,6 +18,8 @@ export type RowIntent =
   | (Move & { kind: 'settle'; durationSec: number; instant: boolean })
   /** A scroll that brings a panel into view. */
   | (Move & { kind: 'show'; durationSec: number; instant: boolean })
+  /** The row brings the root to an edge of the view, or carries it back out: the part of a summon the list cannot do, where a wide panel moves out instead of parking. */
+  | (Move & { kind: 'summon'; durationSec: number; instant: boolean })
   /** The row is put somewhere with no motion. */
   | (Move & { kind: 'place' });
 
@@ -33,6 +35,7 @@ export function applyRowIntent(scroller: RowScroller, intent: RowIntent): boolea
       return scroller.glideTo(intent.to, { durationSec: 0, instant: true, ease: intent.ease });
     case 'settle':
     case 'show':
+    case 'summon':
       return scroller.glideTo(intent.to, { durationSec: intent.durationSec, instant: intent.instant, ease: intent.ease });
   }
 }
