@@ -665,6 +665,7 @@ export interface PanelDots {
         readonly left: number;
         readonly width: number;
         readonly hollow: boolean;
+        readonly riding: boolean;
     }[];
     readonly oval: {
         readonly left: number;

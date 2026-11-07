@@ -2432,20 +2432,24 @@ each dot's track place (`left`, `width`, `hollow`), the window oval's `left` and
 and props the bar, the oval and each dot spread. The library draws no dot and no oval; the app places and styles them, so no
 color, radius or border is set here.
 
-**Geometry.** The track scales the row's strip: a dot sits at its panel's strip offset and is as wide as the panel, so a wide
-panel is a wide dot. The library sets no minimum dot width; the app decides one when it draws the dot. The oval is the window
-in track px over the dots of the panels on screen, and it fills the track while the window is unmeasured or the row fits. All
-of it is pure, in `rowDots.ts`.
+**Geometry.** The bar is the row's ruler drawn small, in `rowBar.ts`. Every panel the bar counts lies on the ruler in row order, one
+dot slot (a 22 px dash and an 8 px gap) to one row slot, so a dot's left is its panel's ruler x scaled and a wide panel is a wide dot.
+The oval is the window's grid on that ruler: its left comes from the scroll alone, at one rate, and its width is the slots a rest shows,
+no wider than the panels on screen. Dots do not move as the row moves; the oval does. The library sets no minimum dot width; the app
+decides one when it draws the dot.
 
-**Parked panels have dots.** Each parked panel a scroll can bring in (`live: false`, not a marker, `revealOnScroll` not
-`'never'`) gets a dot at its place in the row order, placed by `withParked` after the drawn panels ahead of it, so with more
-panels than fit the hidden ones are still counted and the oval moves. A click on a parked dot steps the row toward it, one
-step per slide, until it is drawn. An always-shown root never moves, so its dot stays in the oval's end slot; the panels
-parked between it and the panels on screen wait outside the oval instead of splitting it.
+**Parked panels have dots.** Each parked panel a scroll can bring in (`live: false`, not a marker, `revealOnScroll` not `'never'`) gets a
+dot at its place on the ruler, so with more panels than fit the hidden ones are still counted and the oval moves. A click on a parked dot
+steps the row toward it until it is drawn. A panel parked inside a run of panels the row moves waits just outside that run, on the side
+a step reaches it from (`waitsLeft`), because the window on a ruler is one span.
 
-**Writes.** A click on a dot centers its panel (`centreScroll`, clamped to the row's range); a row that cannot scroll gives no
+**Riding dots.** A panel that stays on screen as the row moves (held at an edge, stuck, or an always-shown root the drawn panels have moved
+away from) keeps to the oval's end and lies over the dots beneath it, marked `riding`. Its home slot stays empty on the ruler, and a dot
+it covers cannot be pressed until the oval moves off it. A root that stepped aside is parked, so it sits at home.
+
+**Writes.** A click on a dot centers its panel (`centreScroll`, clamped to the row's range), through `applyRowIntent`; a row that cannot scroll gives no
 target and the click does nothing. The oval drag takes the row's claim (`rowScrollerFor(...).claim()`), writes each drag as
-`write(dragScroll(...))`, and releases the claim on `end()` and when the bar unmounts mid-drag, so a bar that never got its
+the start scroll plus the pointer's travel over the bar's scale, and releases the claim on `end()` and when the bar unmounts mid-drag, so a bar that never got its
 pointerup cannot hold the row. A row whose claim is held marks itself `data-row-held`, so a row that refuses steps can be
 told from one that never got the input. The bar never writes `scrollLeft` itself. A held row (a gesture or another drag)
 refuses a new drag with null.
