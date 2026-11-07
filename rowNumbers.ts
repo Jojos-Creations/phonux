@@ -186,14 +186,15 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
 }
 
 /**
- * The row's numbers read off the position model, or null for a row the model does not express: an unmeasured window, a row
- * that does not scroll, a window narrower than a phone, a hold that is not on the first panel, and rests that draw blanks. A right hold on the first panel is read as
- * the panel docked in the last slot, so the model is given it last. `computeRowNumbers` then answers with the older arithmetic. @internal
+ * The row's numbers read off the position model, or null for a row the model does not express: an unmeasured window, a scrolling row
+ * whose window is narrower than a phone, a hold that is not on the first panel, and a scrolling row that fits and rests with blanks. A right hold on the first panel is read as
+ * the panel docked in the last slot, so the model is given it last. A row that never scrolls is read as one with no hold. `computeRowNumbers` then answers with the older arithmetic. @internal
  */
 export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): RowNumbers | null {
   const present = i.entries.filter(isPresent);
   const measured = i.containerWidth !== 0;
-  if (!measured || !present.some((p) => p.settings?.overflow === 'scroll')) return null;
+  if (!measured) return null;
+  if (!present.some((p) => p.settings?.overflow === 'scroll')) return flatRowNumbers(i, present);
   const windowWidth = Math.max(0, i.containerWidth - 2 * i.gap);
   if (windowWidth < i.phoneWidth) return null;
   const holds = present.flatMap((p, k) => (p.settings?.edgeHold === 'left' || p.settings?.edgeHold === 'right' || p.settings?.edgeHold === 'both' ? [{ k, hold: p.settings.edgeHold }] : []));
@@ -260,6 +261,58 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
     stepStops: stops,
     stopSpans: stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow)),
     endPad,
+  };
+}
+
+/**
+ * The numbers of a measured row that never scrolls, the swap row: every drawn panel on the model's ruler with no hold, no stop and
+ * no end padding. Its panels are sized against the room the always-shown columns leave, and its margin is `computeRowLayout`'s,
+ * which counts the fixed columns by the host's `fixedItemCount` and not by the panels drawn. A rest's blanks lengthen the ruler:
+ * the panels from the first parking one on move by `lead`, all of them by `head`.
+ */
+function flatRowNumbers(i: Parameters<typeof computeRowNumbers>[0], present: readonly PanelRowEntry[]): RowNumbers {
+  const fixedItemCount = i.fixedItemCount ?? present.filter((p) => !p.collapsible).length;
+  const windowWidth = Math.max(0, i.containerWidth - 2 * i.gap);
+  const maxLiveWidth = computeMaxLiveWidth({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount });
+  const model: RowModel = {
+    panels: present.map((p) => ({ id: p.id, slots: drawnSlotsOf(p, i.phoneWidth, maxLiveWidth, i.gap) ?? 1 })),
+    heldLeft: null,
+    phonePx: i.phoneWidth,
+    gapPx: i.gap,
+    windowPx: windowWidth,
+    view: 0,
+  };
+  const l = layoutOf(model);
+  const widths = l.drawn.map((d) => d.w);
+  const slotPx = i.phoneWidth + i.gap;
+  const rest = i.rest ?? null;
+  const leadAt = rest === null ? -1 : present.findIndex(parksForRoom);
+  const headPx = (rest?.head ?? 0) * slotPx;
+  const leftOffsets = l.drawn.map((d, k) => d.x + (leadAt >= 0 && k >= leadAt ? rest!.lead * slotPx : 0) + headPx);
+  const stripWidth = l.stripPx + headPx + (rest === null ? 0 : (rest.lead + rest.tail) * slotPx);
+  const rowMarginLeft = computeRowLayout({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: i.gap, fixedItemCount, liveWidths: present.flatMap((p, k) => (p.collapsible ? [widths[k]!] : [])) }).computedRowMarginLeft;
+  return {
+    rowScroll: false,
+    windowWidth,
+    stripWidth,
+    rowMarginLeft,
+    ids: l.drawn.map((d) => d.id),
+    widths,
+    leftOffsets,
+    held: [],
+    stuck: [],
+    leftInset: 0,
+    rightInset: 0,
+    stripStart: rowMarginLeft,
+    stripWindow: windowWidth,
+    maxLiveWidth,
+    reservedWidths: present.flatMap((p, k) => (parksForRoom(p) ? [] : [widths[k]!])),
+    parkLiveWidths: present.flatMap((p, k) => (parksForRoom(p) ? [widths[k]!] : [])),
+    stops: [],
+    stepStops: [],
+    stopSpans: [],
+    endPad: 0,
+    ...(rest !== null && rest.lead > 0 ? { leadPx: rest.lead * slotPx } : {}),
   };
 }
 

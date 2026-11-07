@@ -42,7 +42,7 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
     }),
     { minLength: 2, maxLength: 9 },
   ),
-  scroll: fc.integer({ min: 0, max: 9 }).map((n) => n > 0),
+  scroll: fc.integer({ min: 0, max: 9 }).map((n) => n > 3),
   first: fc.constantFrom('off' as const, 'left' as const, 'right' as const, 'both' as const),
   phone: fc.integer({ min: 300, max: 430 }),
   gap: fc.constantFrom(0, 8, 16, 24),
@@ -54,8 +54,10 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
 // The first panel is the held one most often: a hold on any other panel is a case the model does not express.
 function inputsOf(r: Row, distinct = r.panels.length) {
   const entries = r.panels.map((p, k) => {
-    const entry = made(`p${k % distinct}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, overflow: r.scroll && (k > 0 || p.parks || r.first !== 'off') ? 'scroll' : 'park', parkable: !p.pinned });
-    return p.live || p.pinned ? entry : { ...entry, live: false };
+    const entry = made(`p${k % distinct}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, overflow: r.scroll && (k > 0 || p.parks || r.first !== 'off') ? 'scroll' : 'park', parkable: !(p.pinned && r.scroll) });
+    // A hand-built fixed column beside parking panels: not collapsible, so the margin counts it among the fixed items.
+    const column = p.pinned && !r.scroll ? { ...entry, collapsible: false } : entry;
+    return p.live || (p.pinned && r.scroll) ? column : { ...column, live: false };
   });
   return { entries, phoneWidth: r.phone, containerWidth: r.container, gap: r.gap, wholePanels: r.whole, rest: r.rest };
 }
@@ -75,7 +77,7 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
       const viaModel = rowNumbersViaModel(input) !== null;
       seen(viaModel ? 'model' : 'fallback');
       if (viaModel) {
-        seen(old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
+        seen(!old.rowScroll ? (r.rest !== null ? 'model:flat-rest' : 'model:flat') : old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
       } else {
         seen(r.container === 0 ? 'fallback:unmeasured' : old.stuck.length > 0 ? 'fallback:both' : old.held.some((h) => h.side === 'right') ? 'fallback:right' : r.rest !== null ? 'fallback:rest' : 'fallback:other');
       }
@@ -83,7 +85,7 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
     }),
     { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 1500) },
   );
-  const thin = ['model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
+  const thin = ['model:flat', 'model:flat-rest', 'model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
   assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 1500), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));
