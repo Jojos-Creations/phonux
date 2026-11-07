@@ -92,8 +92,9 @@ test('gestureTarget: a wide panel the window edge cuts comes in before the parke
   assert.deepEqual(gestureTarget({ ...row, base: 800, phoneWidth: 320 }).kind, 'show');
 });
 
-test('gestureTarget: a live panel that never parks is no panel a parked one waits behind', () => {
+test('gestureTarget: a root off the window is no panel a parked one waits behind, and any other live panel still is', () => {
   const row = { direction: 'left' as const, base: 344, clientWidth: 700, maxScroll: 344, liveStarts: [0, 344, 688], liveWidths: [320, 320, 320], stops: [0, 344], gap: 24, hidden: [{ id: 'prev', liveBefore: 1, held: false, policy: 'edges' as const }] };
   assert.equal(gestureTarget(row).kind, 'scroll');
-  assert.deepEqual(gestureTarget({ ...row, liveParks: [false, true, true] }), { kind: 'show', id: 'prev' });
+  assert.deepEqual(gestureTarget({ ...row, rootAt: 0 }), { kind: 'show', id: 'prev' });
+  assert.equal(gestureTarget({ ...row, rootAt: 2 }).kind, 'scroll');
 });

@@ -68,8 +68,8 @@ export function gestureTarget(i: {
   stops?: readonly number[];
   gap: number;
   hidden: readonly HiddenCandidate[];
-  /** For each live panel, whether it parks for room. One that never does is no panel a parked one waits behind, so it does not count as beyond the window. Absent: all do. */
-  liveParks?: readonly boolean[];
+  /** The root's place among the live panels. It never leaves the row for a parked panel, so a parked one does not wait behind it; any other live panel beyond the window still counts. Absent or -1: no root in the list. */
+  rootAt?: number;
   /** One phone's width: a panel wider than this that the window's edge cuts comes in before any parked panel. Absent: no panel does. */
   phoneWidth?: number;
 }): { kind: 'show'; id: string } | { kind: 'scroll'; to: number } | { kind: 'none' } {
@@ -91,8 +91,7 @@ export function gestureTarget(i: {
   if (candidates.length > 0 && !(edgeCut && canScroll)) {
     const nearest = candidates.reduce((best, h) => (i.direction === 'right' ? (h.liveBefore < best.liveBefore ? h : best) : h.liveBefore >= best.liveBefore ? h : best));
     const between = i.direction === 'right' ? nearest.liveBefore - 1 - lastInView : (firstInView < 0 ? count : firstInView) - nearest.liveBefore;
-    const parks = (k: number): boolean => i.liveParks?.[k] !== false;
-    const beyondWindow = i.liveStarts.filter((_, k) => parks(k) && (i.direction === 'right' ? k > lastInView : k < firstInView)).length;
+    const beyondWindow = i.liveStarts.filter((_, k) => k !== i.rootAt && (i.direction === 'right' ? k > lastInView : k < firstInView)).length;
     const reachable = nearest.held || nearest.policy === 'any' ? between <= 0 : between <= 0 && beyondWindow <= 0;
     if (reachable) return { kind: 'show', id: nearest.id };
   }

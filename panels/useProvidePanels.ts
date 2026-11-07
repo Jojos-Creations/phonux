@@ -727,7 +727,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       gap: tuning.rowGap,
       hidden,
       phoneWidth: i.phoneWidth,
-      liveParks: rowNumbers.ids.map((id) => { const p = panels.find((e) => e.id === id); return p === undefined || parksForRoom(p); }),
+      rootAt: rowNumbers.ids.indexOf(rootId),
     });
     if (step.kind === 'show') {
       if (!swapAllowed(direction)) return;

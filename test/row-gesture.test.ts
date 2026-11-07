@@ -606,16 +606,32 @@ test('a swipe toward a held panel past three live panels steps over each and rev
 test('an engine-parked panel between the live ones: edges and never step past it, any reaches it, in both directions', async () => {
   for (const [policy, reached] of [['edges', false], ['any', true], ['never', false]] as const) {
     for (const direction of ['right', 'left'] as const) {
-      const m = stepRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: policy }, { live: false }), made('c')), narrow);
+      const parked = made('b', { overflow: 'park', revealOnScroll: policy }, { live: false });
+      // The live panel it waits behind is a page on either side; a root is not one (the test below).
+      const m = stepRow(direction === 'right' ? row(rootEntry(), parked, made('c')) : row(rootEntry(), made('a'), parked, made('c')), narrow);
       mock.timers.enable({ apis: ['setTimeout'] });
       const stops = stopsOf(m, narrow);
-      if (direction === 'left') setRowOffset(m.container, stops[1]!);
+      if (direction === 'left') setRowOffset(m.container, stops.at(-1)!);
       await swipe(m, direction === 'right' ? 50 : -50);
       assert.equal(m.live().includes('b'), reached, `${policy} ${direction}`);
-      if (!reached) assert.equal(rowOffsetOf(m.container), direction === 'right' ? stops[1] : 0, `${policy} ${direction}: it stepped instead`);
+      if (!reached) assert.equal(rowOffsetOf(m.container), direction === 'right' ? stops[1] : stops.at(-2), `${policy} ${direction}: it stepped instead`);
       mock.timers.reset();
       cleanup();
     }
+  }
+});
+
+test('a root scrolled off the window is no panel an engine-parked one waits behind: a step toward it reaches the parked panel, where never steps past', async () => {
+  for (const [policy, reached] of [['edges', true], ['any', true], ['never', false]] as const) {
+    const m = stepRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: policy }, { live: false }), made('c')), narrow);
+    mock.timers.enable({ apis: ['setTimeout'] });
+    const stops = stopsOf(m, narrow);
+    setRowOffset(m.container, stops[1]!);
+    await swipe(m, -50);
+    assert.equal(m.live().includes('b'), reached, policy);
+    if (!reached) assert.equal(rowOffsetOf(m.container), 0, `${policy}: it stepped instead`);
+    mock.timers.reset();
+    cleanup();
   }
 });
 
