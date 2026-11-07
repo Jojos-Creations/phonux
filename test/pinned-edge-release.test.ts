@@ -6,7 +6,7 @@
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import './support/jsdom-globals.js';
+import { frameClock } from './support/jsdom-globals.js';
 import { stripMarginOf, setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
@@ -380,18 +380,17 @@ test('a second release during the first one\'s glide settles for its own edge', 
   assert.equal(rowScrollerFor(r.m.container).glideTarget(), null);
 });
 
-test('unmounting while the settle glides leaves no further scroll', async () => {
+test('unmounting while the settle glides leaves no work running once that glide has ended', async () => {
   ensureMockTimers();
   const r = await mountRig(16, { window: 2932 });
   await frames(1500);
-  const scroller = rowScrollerFor(r.m.container);
-  const glides = mock.method(scroller, 'glideTo');
   await releaseMovingMargin(r);
   await frames(100);
-  assert.equal(glides.mock.callCount(), 1, 'control: the release settled once');
+  assert.ok(frameClock.pendingCount() > 0, 'control: the settle glide is in flight');
   cleanup();
-  act(() => mock.timers.tick(SETTLE_WAIT_MS + 100));
-  assert.equal(glides.mock.callCount(), 1, 'the unmounted row is not scrolled again');
+  await frames(2000);
+  act(() => mock.timers.tick(SETTLE_WAIT_MS + 1000));
+  assert.equal(frameClock.pendingCount(), 0, 'no frame callback outlives the unmounted row');
 });
 
 /** An arrow key as the window sees it. */

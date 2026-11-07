@@ -1,6 +1,6 @@
 /**
  * What the row's drawing pass writes for a held panel, seen in a real browser: where the panel is drawn after the row is measured
- * again, how far it may travel, and the cut at the window's edge. jsdom has no layout, so none of it shows there. Needs
+ * again, how far it may travel, and the cut at the window's edge; and the settle glide a change of stops starts. jsdom has no layout, so none of it shows there. Needs
  * Playwright and Chromium; it skips when either is missing. The page is tools/proof/edge-hold-entry.tsx.txt.
  */
 import { test, type TestContext } from 'node:test';
@@ -128,4 +128,35 @@ test('a row that scrolls freely with a held panel is cut at the window\'s edges'
   await moveTo(page, 300);
   assert.notEqual(await page.evaluate("document.querySelector('[data-row-window]').style.clipPath"), '', 'the window cuts the strip');
   assert.equal(await coverAt(page, 992), null, 'nothing is drawn in the window\'s right gap');
+});
+
+test('a change of stops glides the row onto a stop at once: moving, smooth, landed within a second', async (t) => {
+  const r = await rig(t);
+  if (r === undefined) return;
+  const page = await r.open('slots=1,1,1,1,1,1,1,1&gesture=step', 1000);
+  await moveTo(page, 500);
+  const start = (await page.evaluate('window.__e.offset()')) as number;
+  assert.ok(start > 400 && start < 600, `control: the row rests between stops at ${start}`);
+  // Sampled every frame in the page, from the frame the stops change in.
+  await page.evaluate(
+    `window.__samples = []; const t0 = performance.now(); const tick = () => { window.__samples.push([performance.now() - t0, window.__e.offset()]); if (performance.now() - t0 < 1500) requestAnimationFrame(tick); }; requestAnimationFrame(tick); window.__e.provided().setSlots('p2', 2);`,
+  );
+  await page.waitForTimeout(1700);
+  const samples = (await page.evaluate('window.__samples')) as [number, number][];
+  const stops = (await page.evaluate('[...window.__e.provided().rowNumbers.stepStops]')) as number[];
+  const end = samples.at(-1)![1];
+  assert.ok(stops.some((stop) => Math.abs(stop - end) < 1), `the row rests on a stop: ${end} of ${stops.join(',')}`);
+  assert.ok(Math.abs(end - start) > 100, `control: the settle moved the row (${start} to ${end})`);
+  const landedAt = samples.find(([, x]) => Math.abs(x - end) < 1)![0];
+  assert.ok(landedAt < 1000, `it lands within a second: ${Math.round(landedAt)} ms`);
+  const startedAt = samples.find(([, x]) => Math.abs(x - start) > 2)![0];
+  assert.ok(startedAt < 150, `it starts at once, not after a wait: ${Math.round(startedAt)} ms`);
+  const between = samples.filter(([, x]) => Math.abs(x - start) > 2 && Math.abs(x - end) > 2);
+  assert.ok(between.length >= 5, `it is a glide, not a jump: ${between.length} frames between the two`);
+  const direction = Math.sign(end - start);
+  between.forEach(([, x], k) => {
+    const before = k === 0 ? start : between[k - 1]![1];
+    assert.ok((x - before) * direction >= -0.5, `it never goes back: ${before} then ${x}`);
+    assert.ok(Math.abs(x - before) < Math.abs(end - start) / 2, `no frame covers half the way: ${before} then ${x}`);
+  });
 });
