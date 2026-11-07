@@ -618,9 +618,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       hidden,
     });
     if (step.kind === 'show') {
-      // A panel that parks for room comes in by the swap, which parks at the far end; an activation parks by touch and could split the run.
-      const shown = panels.find((p) => p.id === step.id);
-      if (swapAllowed(direction) && !(shown !== undefined && parksForRoom(shown) && scrollRow(direction))) activatePanel(step.id);
+      if (swapAllowed(direction)) activatePanel(step.id);
     }
     else if (step.kind === 'none') {
       // An end of a parking row wider than its window: the parked panels past it come in as they do in a row that fits.

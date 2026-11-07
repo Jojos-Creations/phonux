@@ -549,8 +549,7 @@ export function usePanelManager(
   const scrollRow = (direction: 'left' | 'right', keep?: string): boolean => {
     const reveal = parkedToReveal(panels, direction);
     if (!reveal) return false;
-    // Only the panel the caller names is kept: one an earlier step revealed sits at the far end, and passing over it would park the panel inside it and split the run.
-    const kept = new Set(keep === undefined ? [] : [keep]);
+    const kept = keep === undefined ? keptIds() : new Set([...keptIds(), keep]);
     markKeepLive(reveal.id);
     // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow..
     const sized = withPendingSlots(panels);
