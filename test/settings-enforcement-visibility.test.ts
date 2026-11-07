@@ -244,7 +244,7 @@ test('differential tuning.saveQuietMs: the workspace is saved at the configured 
 
 /**
  * Runs `steps` against a provider over [a b live, c d e parked at the right] with a wheel listener and a clock the test moves; returns
- * the live ids after. A wheel of one phone width plus the row gap (406) is exactly one step of travel; the clock moves performance.now
+ * the live ids after. A wheel of one phone width plus the row gap (406) is exactly one step of travel; the clock the events are stamped from moves
  * only, so the quiet timer never fires and the events stay one gesture.
  */
 function clocked(tuning: { gestureLockMs: number }, steps: (wheel: (deltaX: number) => void, advance: (ms: number) => void, setLock: (ms: number) => void, live: () => string[]) => void, extra: (container: HTMLElement) => void = () => undefined): string[] {
@@ -257,7 +257,12 @@ function clocked(tuning: { gestureLockMs: number }, steps: (wheel: (deltaX: numb
   mock.method(performance, 'now', () => clock);
   const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false }), park('d', {}, { live: false }), park('e', {}, { live: false })), { width: W(2), over: { overflowContainerRef: ref, tuning: { ...tuning, rowGesture: 'step' } } });
   mock.timers.enable({ apis: ['setTimeout'] });
-  const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
+  const wheel = (deltaX: number): void => {
+    // The lock reads each event's own stamp, so the stamp comes from the clock the test moves.
+    const event = new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true });
+    Object.defineProperty(event, 'timeStamp', { value: clock });
+    act(() => void container.dispatchEvent(event));
+  };
   steps(wheel, (ms) => void (clock += ms), (ms) => p.setOver({ overflowContainerRef: ref, tuning: { gestureLockMs: ms, rowGesture: 'step' } }), p.live);
   const seen = p.live();
   mock.timers.reset();
