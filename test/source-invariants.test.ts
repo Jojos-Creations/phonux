@@ -136,7 +136,7 @@ function collapsibleReads(source: string, file: string): Site[] {
 const ENTRY_FILES = ['panelWindow.ts', 'panelRowEntry.ts', ...readdirSync(join(ROOT, 'panels')).filter((f) => /[.]tsx?$/.test(f)).sort().map((f) => `panels/${f}`)];
 const sitesOf = (sites: Site[]): string[] => sites.map((s) => `${s.fn}:${s.key}`).sort();
 
-test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createRootPanel; `key` is written by applyTemplate alone", () => {
+test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createRootPanel and the drawn-only copy of drawnAside; `key` is written by applyTemplate alone", () => {
   assert.ok(ENTRY_FILES.length >= 7, 'the scan list is short: panels/ was not read');
   const outside: string[] = [];
   for (const file of ENTRY_FILES) {
@@ -147,6 +147,8 @@ test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 lit
     [
       'panelWindow.ts appendPanel:collapsible',
       'panelWindow.ts createRootPanel:collapsible',
+      // The drawn entries only: the list keeps the root fixed, so nothing saved or priced reads this.
+      'panels/useProvidePanels.ts drawnAside:collapsible',
       // A template registered after the restore names the entries that were built without it, so lateRegister gives each its key.
       'panels/useProvidePanels.ts lateRegister:key',
     ],

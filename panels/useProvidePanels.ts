@@ -164,6 +164,9 @@ function planCreate(options: CreatePanelOptions | undefined, template: PanelTemp
 }
 
 /** Whether a host-bag `create` of `template` may add another, given the entries as they stand: `hostCreatable`, `multiple` and `maxInstances`. */
+/** The root as the row draws it while it has stepped aside: a parked panel, in the drawn entries only, never on the list. */
+const drawnAside = (p: PanelWindow): PanelWindow => ({ ...p, live: false, collapsible: true });
+
 function mayCreate(settings: ResolvedPanelSettings, templateId: string, entries: readonly PanelWindow[]): boolean {
   if (!settings.hostCreatable) return false;
   const have = entries.filter((p) => p.view === templateId).length;
@@ -357,7 +360,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // Capacity goes on pricing the list beside the root, so a panel that stepped it aside takes no neighbor; only the row draws it as parked.
   const rootAsideIn = (row: readonly PanelWindow[]): boolean => rootStepsAside({ entries: row, rootId, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap });
   const rootAside = rootAsideIn(panels);
-  const drawnPanels = rootAside ? panels.map((p) => (p.id === rootId ? { ...p, live: false, collapsible: true } : p)) : panels;
+  const drawnPanels = rootAside ? panels.map((p) => (p.id === rootId ? drawnAside(p) : p)) : panels;
   const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest };
   const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The direction of a step that swaps panels, until the commit that draws the swap.
