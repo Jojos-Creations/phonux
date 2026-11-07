@@ -4,7 +4,7 @@
  */
 import { waitsLeft } from './panelWindow.js';
 import { layoutOf, scaledRuler } from './rowModel.js';
-import type { RowNumbers } from './rowNumbers.js';
+import { gridEdgesOf, slotSpanAt, type RowNumbers } from './rowNumbers.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** The width of a one-phone panel's dot, in px. */
@@ -50,9 +50,10 @@ interface Item {
 
 /**
  * The panels in ruler order. A parked panel lying inside the drawn run waits on the side a step reaches it from, as the window on a
- * ruler is one span. Past an always-shown panel that the rest have moved away from, it keeps its place: that panel rides over it.
+ * ruler is one span. Past an always-shown panel that the rest have moved away from, it keeps its place: that panel rides over it. That
+ * panel rides only while the window at `scroll` shows it: scrolled out it is in `gone`, and its dot keeps its own place outside the oval.
  */
-function rulerOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], slotsOf: (w: number) => number): { items: Item[]; left: string[]; right: string[] } {
+function rulerOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], slotsOf: (w: number) => number, scroll: number): { items: Item[]; left: string[]; right: string[]; gone: string[] } {
   const heldRight = n.held.filter((h) => h.side === 'right');
   const widthOf = new Map<string, number>([...n.ids.map((id, k): [string, number] => [id, n.widths[k]!]), ...n.held.map((h): [string, number] => [h.id, h.width])]);
   const hollowOf = (id: string): boolean => entries.find((e) => e.id === id)?.settings?.hollowDot === true;
@@ -71,25 +72,34 @@ function rulerOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], slotsOf: 
   const last = at[at.length - 1];
   const left = n.held.filter((h) => h.side === 'left').map((h) => h.id);
   const right = heldRight.map((h) => h.id);
-  if (first === undefined || last === undefined) return { items, left, right };
+  const gone: string[] = [];
+  if (first === undefined || last === undefined) return { items, left, right, gone };
   for (const s of n.stuck) {
     if (items[first]!.id === s.id) left.push(s.id);
     else if (items[last]!.id === s.id) right.push(s.id);
   }
   const rides = (k: number): boolean => items[k]!.shown && !left.includes(items[k]!.id) && !right.includes(items[k]!.id);
-  if (at.length > 1 && rides(first) && at[1] !== first + 1) left.push(items[first]!.id);
-  if (at.length > 1 && rides(last) && at[at.length - 2] !== last - 1) right.push(items[last]!.id);
-  const runAt = at.filter((k) => !left.includes(items[k]!.id) && !right.includes(items[k]!.id));
+  const grid = gridEdgesOf(n);
+  const outOfWindow = (id: string): boolean => {
+    const k = n.ids.indexOf(id);
+    if (k < 0) return false;
+    const span = slotSpanAt(n, k, scroll);
+    return span.right <= grid.lo || span.left >= grid.hi;
+  };
+  if (at.length > 1 && rides(first) && at[1] !== first + 1) (outOfWindow(items[first]!.id) ? gone : left).push(items[first]!.id);
+  if (at.length > 1 && rides(last) && at[at.length - 2] !== last - 1 && !outOfWindow(items[last]!.id)) right.push(items[last]!.id);
+  else if (at.length > 1 && rides(last) && at[at.length - 2] !== last - 1) gone.push(items[last]!.id);
+  const runAt = at.filter((k) => !left.includes(items[k]!.id) && !right.includes(items[k]!.id) && !gone.includes(items[k]!.id));
   const start = runAt[0];
   const end = runAt[runAt.length - 1];
-  if (start === undefined || end === undefined || end === start) return { items, left, right };
+  if (start === undefined || end === undefined || end === start) return { items, left, right, gone };
   const strip = new Set(n.ids);
   const before = (k: number): number => items.slice(0, k).filter((p) => strip.has(p.id)).length;
   const inside = items.slice(start, end + 1).map((p, k) => ({ p, k: k + start }));
   const waiting = inside.filter(({ p }) => !p.drawn);
   const leftWait = waiting.filter(({ k }) => waitsLeft(before(k), n.ids.length)).map(({ p }) => p);
   const rightWait = waiting.filter(({ k }) => !waitsLeft(before(k), n.ids.length)).map(({ p }) => p);
-  return { items: [...items.slice(0, start), ...leftWait, ...inside.filter(({ p }) => p.drawn).map(({ p }) => p), ...rightWait, ...items.slice(end + 1)], left, right };
+  return { items: [...items.slice(0, start), ...leftWait, ...inside.filter(({ p }) => p.drawn).map(({ p }) => p), ...rightWait, ...items.slice(end + 1)], left, right, gone };
 }
 
 /** The bar for a row at `scroll`. `entries` is every panel in row order; one the numbers do not draw counts only while it is parked and can come back. */
@@ -100,13 +110,15 @@ export function barOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], scro
   // A span between two panels is `slots` phones and as many gaps, so the narrowest per-slot span is one phone and one gap.
   const pitches = n.widths.slice(0, -1).map((w, k) => (n.leftOffsets[k + 1]! - n.leftOffsets[k]!) / slotsOf(w));
   const pitchPx = pitches.length === 0 ? phonePx : Math.min(...pitches);
-  const { items, left, right } = rulerOf(n, entries, slotsOf);
+  const { items, left, right, gone } = rulerOf(n, entries, slotsOf, scroll);
   const l = layoutOf({ panels: items.map((p) => ({ id: p.id, slots: p.slots })), heldLeft: null, phonePx, gapPx: pitchPx - phonePx, windowPx: 0, view: 0 });
   const { gapPx } = l;
   const scale = (DOT_PHONE_PX + DOT_GAP_PX) / pitchPx;
   const placed = new Map(l.drawn.map((p) => [p.id, p]));
-  const run = l.drawn.filter((p) => items[p.index]!.drawn && !left.includes(p.id) && !right.includes(p.id));
-  const room = left.reduce((sum, id) => sum + placed.get(id)!.w + gapPx, 0);
+  const run = l.drawn.filter((p) => items[p.index]!.drawn && !left.includes(p.id) && !right.includes(p.id) && !gone.includes(p.id));
+  // What the strip holds before the run: the scroll counts it, and a panel the window has left is on the strip as a rider is.
+  const before = gone.filter((id) => (run[0] === undefined ? false : placed.get(id)!.x < run[0].x));
+  const room = [...left, ...before].reduce((sum, id) => sum + placed.get(id)!.w + gapPx, 0);
   const spanOf = items.reduce((sum, p, k) => sum + (p.drawn ? l.drawn[k]!.w + gapPx : 0), -gapPx);
   // The grid is what a rest shows: the window less its centering. A row that does not fill it shows only its panels.
   const gridPx = Math.max(0, Math.min(spanOf, n.windowWidth - n.rowMarginLeft - n.endPad));

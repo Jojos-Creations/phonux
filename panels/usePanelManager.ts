@@ -598,7 +598,8 @@ export function usePanelManager(
     const reveal = plan.reveal === undefined ? null : parkedToReveal(panels, plan.reveal);
     const live = panels.filter(isParkLive);
     // A reveal the row has no room for parks at the far end here: left to the reconcile it would park by tie-break, inside the run.
-    const overflows = reveal !== null && !settles(panels.filter((p) => isParkLive(p) || p.id === reveal.id));
+    // The room is the plan's: a step that closes a blank gives its slot to the panel it brings in.
+    const overflows = reveal !== null && !rowPricing({ ...env, rest: plan.rest }, panels).settles(panels.filter((p) => isParkLive(p) || p.id === reveal.id));
     const parkSide = plan.park ?? (overflows ? (plan.reveal === 'left' ? 'right' : 'left') : undefined);
     const parked = parkSide === undefined ? undefined : parkSide === 'left' ? live[0] : live.at(-1);
     const flip = (row: PanelWindow[]): PanelWindow[] => row.map((p) => (p.id === parked?.id ? { ...p, live: false } : p.id === reveal?.id ? { ...p, live: true } : p));

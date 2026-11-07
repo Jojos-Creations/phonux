@@ -72,9 +72,11 @@ export function gestureTarget(i: {
   rootAt?: number;
   /** One phone's width: a panel wider than this that the window's edge cuts comes in before any parked panel. Absent: no panel does. */
   phoneWidth?: number;
+  /** The row's slot grid, as `gridEdgesOf` gives it: nothing draws past it, so a panel in the margin beside it is out of the view. Absent: the view is the window less a gap each side. */
+  grid?: { lo: number; hi: number };
 }): { kind: 'show'; id: string } | { kind: 'scroll'; to: number } | { kind: 'none' } {
-  const windowLeft = i.base + i.gap;
-  const windowRight = i.base + i.clientWidth - i.gap;
+  const windowLeft = i.base + i.gap + (i.grid?.lo ?? 0);
+  const windowRight = i.grid === undefined ? i.base + i.clientWidth - i.gap : i.base + i.gap + i.grid.hi;
   const lefts = i.liveStarts.map((start) => start + i.gap);
   const overlaps = lefts.map((left, k) => left < windowRight && left + i.liveWidths[k]! > windowLeft);
   const firstInView = overlaps.indexOf(true);

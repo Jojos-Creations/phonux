@@ -59,8 +59,10 @@ test('scrolling: wheel steps move the strip end to end and reveal nothing, where
   const control = await rigOf({ reveal: 'edges' });
   const back = (): void => wheel(control, { deltaX: -100 });
   await steps([() => wheel(control, { deltaX: 100 }), () => wheel(control, { deltaX: 100 }), back]);
-  // 812 is a one-phone grid rest that does not center, so w4 is cut by the window's left edge there and counts as in view:
-  // the step back reveals w3, which arrives by the row's swap, so the far end parks and no panel in the view goes.
+  // At 812 w4 lies past the grid, in the margin, and nothing draws there: the step back brings it into the view, and the next one
+  // reveals w3, which arrives by the row's swap, so the far end parks and no panel in the view goes.
+  assert.equal(control.row(), 'root w1* w2* w3* w4 w5 w6 w7 w8', 'control: w4 in the margin is out of the view, so the row slides first');
+  await steps([back]);
   assert.equal(control.row(), 'root w1* w2* w3 w4 w5 w6 w7 w8*', 'control: one phone width back from 812 reveals w3 and parks the far end, w8');
   await steps([back]);
   assert.equal(control.row(), 'root w1* w2 w3 w4 w5 w6 w7* w8*', 'control: each step back reveals the next parked panel in order');
@@ -79,7 +81,7 @@ test('scrolling: Shift+wheel steps reveal nothing, where revealOnScroll edges re
   fresh();
 
   const control = await rigOf({ reveal: 'edges' });
-  await steps([() => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true })]);
+  await steps([() => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: 100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true }), () => wheel(control, { deltaY: -100, shiftKey: true })]);
   assert.equal(control.row(), 'root w1* w2 w3 w4 w5 w6 w7* w8*');
 });
 
@@ -90,7 +92,7 @@ test('scrolling: arrow keys step the strip and reveal nothing, where revealOnScr
   fresh();
 
   const control = await rigOf({ reveal: 'edges' });
-  await steps([() => key('ArrowRight'), () => key('ArrowRight'), () => key('ArrowLeft'), () => key('ArrowLeft')]);
+  await steps([() => key('ArrowRight'), () => key('ArrowRight'), () => key('ArrowLeft'), () => key('ArrowLeft'), () => key('ArrowLeft')]);
   assert.equal(control.row(), 'root w1* w2 w3 w4 w5 w6 w7* w8*');
 });
 

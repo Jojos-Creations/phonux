@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DOT_GAP_PX, DOT_PHONE_PX, barOf, centreScroll } from '../rowBar.js';
-import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, gridEdgesOf, maxScrollOf, slotSpanAt, type RowNumbers } from '../rowNumbers.js';
 import type { WorkspaceRowEntry } from '../workspaceRow.js';
 
 const SLOT = DOT_PHONE_PX + DOT_GAP_PX;
@@ -151,6 +151,9 @@ test('property: every dot is its panel on the ruler scaled and the oval is the w
       x += slotsOf(entries.find((e) => e.id === id)!);
     }
     const what = `seed ${seed}: ${row.name} at ${at}`;
+    // A panel the window has left rides nothing: its dot keeps its own place outside the oval.
+    const riderAt = row.rider === null ? -1 : n.ids.indexOf(row.rider);
+    const riderOut = riderAt >= 0 && (slotSpanAt(n, riderAt, at).right <= gridEdgesOf(n).lo || slotSpanAt(n, riderAt, at).left >= gridEdgesOf(n).hi);
     near(bar.width, x * SLOT - DOT_GAP_PX, `${what}: the bar is the ruler's length`);
     assert.equal(bar.dots.length, order.length, `${what}: every panel has a dot`);
     near(bar.scale, SLOT / (PHONE + GAP), `${what}: one slot of row is one slot of bar`);
@@ -163,17 +166,33 @@ test('property: every dot is its panel on the ruler scaled and the oval is the w
     for (const d of bar.dots) {
       const e = entries.find((p) => p.id === d.id)!;
       near(d.width, slotsOf(e) * SLOT - DOT_GAP_PX, `${what}: ${d.id}'s width`);
-      assert.equal(d.riding, d.id === row.rider, `${what}: ${d.id} rides only as the held or passed panel`);
-      if (d.id !== row.rider) near(d.left, home.get(d.id)!, `${what}: ${d.id} sits at its place on the ruler`);
+      assert.equal(d.riding, d.id === row.rider && !riderOut, `${what}: ${d.id} rides only as the held or passed panel`);
+      if (d.id !== row.rider || riderOut) near(d.left, home.get(d.id)!, `${what}: ${d.id} sits at its place on the ruler`);
       else if (row.side === 'left') near(d.left, Math.max(home.get(d.id)!, bar.oval.left), `${what}: the rider is at the oval's left`);
       else near(d.left + d.width, Math.min(home.get(d.id)! + d.width, bar.oval.left + bar.oval.width), `${what}: the rider is at the oval's right`);
       assert.equal(bar.parked.has(d.id), !row.drawn.includes(d.id), `${what}: ${d.id} is parked exactly when the row does not draw it`);
     }
     rows += 1;
-    if (row.rider !== null) riders += 1;
+    if (row.rider !== null && !riderOut) riders += 1;
     if (at > 0) scrolled += 1;
     kinds.add(row.name.split(' ')[0]!);
   }
   assert.deepEqual([...kinds].sort(), ['aside', 'held', 'heldRight', 'parked', 'parkedHeld', 'passed', 'scroll'], 'every kind of row was generated');
   assert.ok(rows > 1500 && riders > 300 && scrolled > 300, `the property saw enough: ${rows} rows, ${riders} with a rider, ${scrolled} scrolled`);
+});
+
+test('a root scrolled out of the window rides nothing: seven dots stand apart, in list order, and the oval holds only the panels in view', () => {
+  const ids = ['root', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+  const drawn = ['root', 'p3', 'p4', 'p5', 'p6'];
+  const entries = ids.map((id) => ({ id, live: drawn.includes(id), collapsible: id !== 'root', slots: 1, settings: { revealOnScroll: 'edges', hollowDot: id === 'root' } })) as unknown as WorkspaceRowEntry[];
+  const n = computeRowNumbers({ entries: entries as never, phoneWidth: 320, containerWidth: 1400, gap: 24, fixedItemCount: 0, wholePanels: true, rest: null } as never);
+  assert.deepEqual([...n.ids], drawn, 'control: the row draws the root and the four panels past the parked two');
+  const out = barOf(n, entries, 344);
+  assert.deepEqual(out.dots.map((d) => d.id), ids, 'every panel has a dot, in list order');
+  for (let k = 1; k < out.dots.length; k += 1) assert.ok(out.dots[k]!.left >= out.dots[k - 1]!.left + out.dots[k - 1]!.width, `${out.dots[k]!.id} stands clear of the dot before it`);
+  assert.equal(out.dots.some((d) => d.riding), false, 'no dot rides');
+  const inOval = out.dots.filter((d) => d.left >= out.oval.left - 1 && d.left + d.width <= out.oval.left + out.oval.width + 1).map((d) => d.id);
+  assert.deepEqual(inOval, ['p3', 'p4', 'p5', 'p6']);
+  const home = barOf(n, entries, 0);
+  assert.equal(home.dots.find((d) => d.id === 'root')?.riding, true, 'control: in view the root rides the oval as it did');
 });

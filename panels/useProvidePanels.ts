@@ -240,8 +240,8 @@ function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<Worksp
 }
 
 /** A scroll the row owes after a commit; one is pending at a time and the last recorded wins. */
-/** A root brought into the view: the side it stands on, the panels it parked, and the scroll to go back to, null when the row draws it only for the summon. */
-type RootSummon = { side: 'left' | 'right'; returns: readonly string[]; from: number | null };
+/** A root brought into the view: the side it stands on, the panels it parked, the scroll to go back to, null when the row draws it only for the summon, and which panels were live when it came. */
+type RootSummon = { side: 'left' | 'right'; returns: readonly string[]; from: number | null; wasLive: ReadonlyMap<string, boolean> };
 
 type ScrollRequest = {
   id: string;
@@ -636,7 +636,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (rootAside) {
       // The row draws the root again beside the panel that stepped it aside, which slides over as a wide panel does.
       swapStepRef.current = 'left';
-      setSummoned({ side: sideOfRoot(), returns: [], from: null });
+      setSummoned({ side: sideOfRoot(), returns: [], from: null, wasLive: new Map() });
       return true;
     }
     const at = scroller.glideTarget() ?? scroller.scrollLeft();
@@ -653,7 +653,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // On the right the panels that park stand left of the root, so it rests that much further left.
     const parkedSpan = hide.reduce((sum, id) => sum + n.widths[n.ids.indexOf(id)]! + tuning.rowGap, 0);
     const rootRest = n.stripStart + n.leftOffsets[k]! + (side === 'left' ? -grid.lo : n.widths[k]! - grid.hi - parkedSpan);
-    setSummoned({ side, returns: hide, from: at });
+    setSummoned({ side, returns: hide, from: at, wasLive: new Map(panels.filter(parksForRoom).map((p) => [p.id, p.live])) });
     if (hide.length > 0) {
       summonAimRef.current = rootRest;
       swapPanels(hide.map((id) => ({ id, stickiness: 'sticky' as const })), []);
@@ -667,9 +667,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (summoned === null) return false;
     const el = i.overflowContainerRef.current;
     setSummoned(null);
-    if (summoned.returns.length > 0) {
+    // A step toward the root swaps panels while the summon stands, so the row goes back to what was live when it came, not only to what the summon parked.
+    const shows = panels.filter((p) => summoned.wasLive.get(p.id) === true && !p.live);
+    const hides = panels.filter((p) => summoned.wasLive.get(p.id) === false && p.live);
+    if (shows.length + hides.length > 0) {
       summonAimRef.current = summoned.from;
-      swapPanels([], summoned.returns.map((id) => ({ id, place: 'in-place' as const })));
+      swapPanels(hides.map((p) => ({ id: p.id, stickiness: 'until-room' as const })), shows.map((p) => ({ id: p.id, place: 'in-place' as const })));
     } else if (summoned.from !== null && el !== null) {
       applyRowIntent(rowScrollerFor(el), { kind: 'summon', to: summoned.from, durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase });
     }
@@ -760,6 +763,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       hidden,
       phoneWidth: i.phoneWidth,
       rootAt: rowNumbers.ids.indexOf(rootId),
+      ...(Number.isFinite(rowNumbers.windowWidth) ? { grid: gridEdgesOf(rowNumbers) } : {}),
     });
     if (step.kind === 'show') {
       if (!swapAllowed(direction)) return;

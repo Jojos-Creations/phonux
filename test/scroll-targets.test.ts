@@ -98,3 +98,10 @@ test('gestureTarget: a root off the window is no panel a parked one waits behind
   assert.deepEqual(gestureTarget({ ...row, rootAt: 0 }), { kind: 'show', id: 'prev' });
   assert.equal(gestureTarget({ ...row, rootAt: 2 }).kind, 'scroll');
 });
+
+test('gestureTarget: a panel in the margin beside the grid is out of the view, so the row slides before a parked panel comes in', () => {
+  // A 1800 window: five 320 slots on a 344 pitch, the grid 28 in from each side of a 1752 row, and a sixth panel in the margin past it.
+  const row = { direction: 'right' as const, base: 0, clientWidth: 1800, maxScroll: 344, gap: 24, liveStarts: [28, 372, 716, 1060, 1404, 1748], liveWidths: [320, 320, 320, 320, 320, 320], stops: [0, 344], hidden: [hidden({ liveBefore: 6, held: true })] };
+  assert.equal(gestureTarget(row).kind, 'show', 'control: with no grid the panel in the margin reads as in the view');
+  assert.deepEqual(gestureTarget({ ...row, grid: { lo: 28, hi: 1724 } }), { kind: 'scroll', to: 344 });
+});
