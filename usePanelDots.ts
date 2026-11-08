@@ -4,6 +4,7 @@
  * click never fights a glide or a gesture already holding the row.
  */
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
 import { barOf, centreScroll, type RowBar } from './rowBar.js';
@@ -12,7 +13,8 @@ import { rowScrollerFor, type ScrollClaim } from './rowScroller.js';
 import { halfStepIn, stepRowIn } from './rowStep.js';
 import { applyRowIntent, holdRow } from './rowIntents.js';
 import { FAST_SCROLL_FLOOR_SEC } from './rowFastScroll.js';
-import { FAST_SCROLL } from './rowConstants.js';
+import { EDGE_SCROLL_MAX_PX_PER_SEC, EDGE_SCROLL_ZONE_PX, FAST_SCROLL } from './rowConstants.js';
+import { depthSpeed, edgeSteps } from './edgeScroll.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
@@ -35,7 +37,7 @@ export interface PanelDots {
    * Spread on the element that holds the dots and the oval. A press that begins on the oval and moves past a few px drags it; any
    * other press selects the dot it began on. The pointer is captured, so the drag follows it off the bar. On a row that cannot scroll, the oval
    * moves with the pointer and the row steps each time the oval passes half a dot, bringing in hidden panels; on release the oval
-   * settles over the panels on screen. A drag carried past a scrolling row's end steps it one stop per dot it travels. A wheel over
+   * settles over the panels on screen. On a row that scrolls the oval stays at the place it was grabbed under the pointer, drawn in the event that moved it. A pointer past a scrolling row's end steps the row toward it every animation frame it stays there, faster the farther past it is, held still or not. A wheel over
    * the bar, either axis, steps the row too, and the oval follows each step.
    */
   readonly barProps: {
@@ -63,10 +65,10 @@ export interface PanelDots {
 /** A press that moves this far across the bar drags the oval; a shorter one is a click. */
 const DRAG_THRESHOLD_PX = 4;
 
-/** Track px a drag travels past the row's end for one step: about one phone dot and its gap. */
+/** Track px of time-driven travel past the row's end for one step: one phone dot and its gap. */
 const OVERSHOOT_STEP_PX = 30;
 
-/** How far a carried oval gets ahead of the row's window before the row steps: half a phone dot and its gap. */
+/** How far a carried oval is from the row's window before the row steps toward it: half a phone dot and its gap, where the next window is nearer. */
 const CARRY_STEP_PX = 15;
 
 /** Wheel travel over the bar for one step, and the quiet that ends a wheel gesture. */
@@ -223,100 +225,176 @@ export function usePanelDots(i: {
   const [pointer, setPointer] = React.useState<{ x: number; overDot: boolean } | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const drag = React.useRef<ReturnType<typeof startOvalDrag>>(null);
-  // Only a press begun on the oval can drag. `moved` latches once such a press passes the threshold: that press drags and never selects. `edgeX` is where the pointer was when
-  // the drag last met the row's end (or last stepped), so travel beyond it steps the row.
-  const press = React.useRef<{ x: number; id: string | null; onOval: boolean; moved: boolean; carries: boolean; edgeX: number | null } | null>(null);
+  /**
+   * A press on the bar. Only one begun on the oval can drag; `moved` latches once it passes the threshold, and that press drags and
+   * never selects. `clientX` is the pointer now, `bar` the element pressed and `grab` where along the oval it took hold, in track px.
+   * A drag of a scrolling row writes the scroll that puts the oval at `grab` under the pointer: `base.scroll` plus the pointer's
+   * travel since `base.x`, scaled; `from` is the scroll its claim counts from. `carried` and `lastMs` are the time-driven travel
+   * past the row's end.
+   */
+  const press = React.useRef<{
+    x: number;
+    clientX: number;
+    bar: HTMLElement;
+    grab: number;
+    id: string | null;
+    onOval: boolean;
+    moved: boolean;
+    carries: boolean;
+    base: { scroll: number; x: number } | null;
+    from: number;
+    carried: number;
+    lastMs: number | null;
+  } | null>(null);
   const wheel = React.useRef<{ travel: number; at: number }>({ travel: 0, at: 0 });
 
-  // On a row that steps instead of scrolling, the oval is carried by the pointer 1:1 and the row steps each time it passes half a
-  // dot from where the row is; on release the oval settles on the window the row came to rest on.
+  // On a row that steps instead of scrolling, the oval is carried by the pointer 1:1 and the row steps each time it is half a dot
+  // or more from where the row is; on release the oval settles on the window the row came to rest on.
   const [carry, setCarry] = React.useState<{ from: number; dx: number } | null>(null);
   const shownOval = carry === null ? bar.oval : { ...bar.oval, left: Math.min(Math.max(carry.from + carry.dx, 0), Math.max(0, bar.width - bar.oval.width)) };
-  // The oval's place when the last step was asked for: until the row answers it, the next step waits, so one pointer move never asks twice.
+  // The row's oval when the last carry step was asked for, and when. A step the row answers moves that oval, and the next step may
+  // follow at once; one it has not answered is asked again only after the fast-scroll floor, so one pointer move never asks twice.
   const stepAsked = React.useRef<{ at: number; time: number } | null>(null);
-  React.useEffect(() => {
-    if (carry === null) return;
+  // The frame loop and the handlers read this render's numbers, not the ones of the render they began in.
+  const latest = React.useRef({ bar, maxScroll, carry, step, startOvalDrag });
+  latest.current = { bar, maxScroll, carry, step, startOvalDrag };
+  const frame = React.useRef<number | null>(null);
+
+  /** Steps a row that cannot scroll toward the carried oval while the oval is half a dot or more from the row's window. */
+  const catchUp = (dx: number): void => {
+    const l = latest.current;
+    // The carry as this move sets it: the render that draws it may not have run yet.
+    const from = l.carry?.from ?? l.bar.oval.left;
+    const shown = Math.min(Math.max(from + dx, 0), Math.max(0, l.bar.width - l.bar.oval.width));
     const ask = stepAsked.current;
-    if (ask !== null && ask.at === bar.oval.left && performance.now() - ask.time < tuning.slide.durationSec * 1000 + 50) return;
+    if (ask !== null && ask.at === l.bar.oval.left && performance.now() - ask.time < FAST_SCROLL_FLOOR_SEC * 1000) return;
     stepAsked.current = null;
-    const off = shownOval.left - bar.oval.left;
+    const off = shown - l.bar.oval.left;
     if (Math.abs(off) < CARRY_STEP_PX) return;
-    stepAsked.current = { at: bar.oval.left, time: performance.now() };
-    step(off > 0 ? 'right' : 'left');
-  }, [carry?.dx, bar.oval.left]);
+    stepAsked.current = { at: l.bar.oval.left, time: performance.now() };
+    l.step(off > 0 ? 'right' : 'left');
+  };
+
+  /** Takes the row for the drag, counting from the pointer now so the oval sits at its grab under it. False while the row is held elsewhere. */
+  const take = (p: NonNullable<typeof press.current>): boolean => {
+    const el = scroller.current;
+    const l = latest.current;
+    const d = el === null ? null : l.startOvalDrag();
+    if (d === null || el === null) return false;
+    drag.current = d;
+    const scroll = rowScrollerFor(el).scrollLeft();
+    const at = p.clientX - p.bar.getBoundingClientRect().left;
+    p.from = scroll;
+    p.base = { scroll: scroll + (at - p.grab - l.bar.oval.left) / l.bar.scale, x: p.clientX };
+    return true;
+  };
+
+  /**
+   * One frame of the drag (`nowMs`) or one pointer move (null). A scrolling row is written to the pointer 1:1. Past the row's end the
+   * pointer's depth beyond it steps the row by time, as edge scrolling does, so a pointer held still there keeps bringing panels in.
+   */
+  const follow = (p: NonNullable<typeof press.current>, nowMs: number | null): void => {
+    const el = scroller.current;
+    const l = latest.current;
+    if (el === null) return;
+    const row = rowScrollerFor(el);
+    // A wide panel parking mid-drag can leave the row with nothing to scroll: the drag goes on as a carry from where the pointer is.
+    if (!p.carries && l.maxScroll <= 0) {
+      drag.current?.end();
+      drag.current = null;
+      p.carries = true;
+      p.base = null;
+      p.x = p.clientX;
+      setCarry({ from: l.bar.oval.left, dx: 0 });
+      return;
+    }
+    if (p.carries) {
+      const dx = p.clientX - p.x;
+      setCarry((c) => (c === null || c.dx === dx ? c : { ...c, dx }));
+      catchUp(dx);
+      return;
+    }
+    // A step past the row's end gave the row to its glide: once that lands the drag takes it back, with the oval at its grab under the pointer.
+    if (drag.current === null && (row.glideTarget() !== null || row.claimHeld() || !take(p))) {
+      p.lastMs = null;
+      return;
+    }
+    if (p.base === null) return;
+    const want = p.base.scroll + (p.clientX - p.base.x) / l.bar.scale;
+    drag.current?.drag((want - p.from) * l.bar.scale);
+    const at = row.scrollLeft();
+    const past = want > l.maxScroll + 0.5 && at >= l.maxScroll - 0.5 ? (want - l.maxScroll) * l.bar.scale : want < -0.5 && at <= 0.5 ? want * l.bar.scale : 0;
+    const dt = nowMs === null || p.lastMs === null ? 0 : nowMs - p.lastMs;
+    if (nowMs !== null) p.lastMs = nowMs;
+    const next = edgeSteps({ carried: p.carried, speed: depthSpeed(past, EDGE_SCROLL_ZONE_PX, EDGE_SCROLL_MAX_PX_PER_SEC), dtMs: dt, unitPx: OVERSHOOT_STEP_PX / l.bar.scale });
+    p.carried = next.carried;
+    if (next.steps === 0) return;
+    // A step needs the row, so the drag gives it back for the step and takes it again once the step has landed.
+    p.carried = 0;
+    p.lastMs = null;
+    drag.current?.end();
+    drag.current = null;
+    l.step(next.steps > 0 ? 'right' : 'left');
+  };
+
+  // Every frame of a drag, so a pointer held still goes on moving what it asks for: the carry's steps, and the steps past the end.
+  const tick = (nowMs: number): void => {
+    frame.current = null;
+    const p = press.current;
+    if (p === null || !p.moved) return;
+    flushSync(() => follow(p, nowMs));
+    frame.current = requestAnimationFrame(tick);
+  };
 
   const cursor = ovalCursor(pointer?.x ?? null, shownOval, ovalSide, dragging, pointer?.overDot === true);
   const stop = (): void => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
     drag.current?.end();
     drag.current = null;
+    stepAsked.current = null;
     setDragging(false);
     setCarry(null);
   };
   // A bar that unmounts mid-drag (the row stops overflowing) gets no pointerup: its claim would hold the row against every later step.
-  React.useEffect(() => () => drag.current?.end(), []);
+  React.useEffect(
+    () => () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      drag.current?.end();
+    },
+    [],
+  );
   const dotOf = (target: EventTarget): HTMLElement | null => (target instanceof Element ? target.closest<HTMLElement>('[data-dot]') : null);
   const barProps: PanelDots['barProps'] = {
     onPointerDown: (e) => {
       if (e.button !== 0) return;
       const at = e.clientX - e.currentTarget.getBoundingClientRect().left;
       const onOval = at >= shownOval.left && at <= shownOval.left + shownOval.width + 2 * ovalSide;
-      press.current = { x: e.clientX, id: dotOf(e.target)?.dataset.dot ?? null, onOval, moved: false, carries: maxScroll <= 0, edgeX: null };
+      press.current = { x: e.clientX, clientX: e.clientX, bar: e.currentTarget, grab: at - shownOval.left, id: dotOf(e.target)?.dataset.dot ?? null, onOval, moved: false, carries: maxScroll <= 0, base: null, from: 0, carried: 0, lastMs: null };
       e.currentTarget.setPointerCapture?.(e.pointerId);
     },
     onPointerMove: (e) => {
-      setPointer({ x: e.clientX - e.currentTarget.getBoundingClientRect().left, overDot: dotOf(e.target) !== null });
+      const next = { x: e.clientX - e.currentTarget.getBoundingClientRect().left, overDot: dotOf(e.target) !== null };
       const p = press.current;
-      if (!p) return;
-      const dx = e.clientX - p.x;
-      if (!p.moved && p.onOval && Math.abs(dx) > DRAG_THRESHOLD_PX) {
-        p.moved = true;
-        setDragging(true);
-        p.carries = maxScroll <= 0;
-        if (p.carries) setCarry({ from: bar.oval.left, dx: 0 });
-        else drag.current = startOvalDrag();
-      }
-      if (!p.moved) return;
-      // A wide panel parking mid-drag can leave the row with nothing to scroll: the drag goes on as a carry from where the pointer is.
-      if (!p.carries && maxScroll <= 0) {
-        drag.current?.end();
-        drag.current = null;
-        p.carries = true;
-        p.x = e.clientX;
-        setCarry({ from: bar.oval.left, dx: 0 });
+      if (!p) {
+        setPointer(next);
         return;
       }
-      if (p.carries) {
-        setCarry((c) => (c === null ? c : { ...c, dx }));
-        return;
-      }
-      const row = scroller.current === null ? null : rowScrollerFor(scroller.current);
-      // A step past the row's end gave the row to its glide: once that lands the drag takes it back, from where the pointer is now.
-      if (drag.current === null && row !== null && row.glideTarget() === null && !row.claimHeld()) {
-        drag.current = startOvalDrag();
-        if (drag.current !== null) {
-          p.x = e.clientX;
-          p.edgeX = null;
-          return;
+      p.clientX = e.clientX;
+      // A drag is drawn in the event that moved it, before the browser paints: the oval is never a frame behind the pointer.
+      flushSync(() => {
+        setPointer(next);
+        if (!p.moved && p.onOval && Math.abs(e.clientX - p.x) > DRAG_THRESHOLD_PX) {
+          p.moved = true;
+          setDragging(true);
+          p.carries = maxScroll <= 0;
+          if (p.carries) setCarry({ from: bar.oval.left, dx: 0 });
+          // Taking the row ends a glide in flight, as a press on the row does.
+          else take(p);
+          if (frame.current === null) frame.current = requestAnimationFrame(tick);
         }
-      }
-      if (drag.current === null && row?.glideTarget() != null) return;
-      drag.current?.drag(dx);
-      // Past the end the drag steps the row instead.
-      const el = scroller.current;
-      const at = el == null ? 0 : rowScrollerFor(el).scrollLeft();
-      const atEnd = drag.current === null || (dx > 0 ? at >= maxScroll - 0.5 : at <= 0.5);
-      if (!atEnd) {
-        p.edgeX = null;
-        return;
-      }
-      p.edgeX ??= e.clientX;
-      const past = e.clientX - p.edgeX;
-      if (Math.abs(past) < OVERSHOOT_STEP_PX) return;
-      p.edgeX = e.clientX;
-      // A step may hand the row to its glide; the drag picks up again from wherever that leaves it.
-      drag.current?.end();
-      drag.current = null;
-      step(past > 0 ? 'right' : 'left');
+        if (p.moved) follow(p, null);
+      });
     },
     onPointerUp: () => {
       const p = press.current;
