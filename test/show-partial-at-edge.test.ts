@@ -27,10 +27,15 @@ afterEach(() => {
 /** Which drawn entries of `n` lie wholly outside the slot grid at offset `at`: the row's reach rule, restated from its numbers. */
 const outOfReach = (n: RowNumbers, at: number): boolean[] => n.ids.map((_, k) => slotCutAt(n, k, at, GAP).away);
 
-/** The cut at the grid's edges: on the strip's fixed parent, so the same at every offset, counted from where the strip starts after the left group. */
+/**
+ * The cut at the grid's edges: on the strip's fixed parent, so the same at every offset, counted from where the strip starts after the left
+ * group, and held open one gap past each edge with no group beside it, where a panel's glow shows and no panel rests.
+ */
 const windowClip = (n: RowNumbers): string => {
   const { lo, hi } = gridEdgesOf(n);
-  return `polygon(${lo - n.leftInset}px -100000px, ${hi - n.leftInset}px -100000px, ${hi - n.leftInset}px 100000px, ${lo - n.leftInset}px 100000px)`;
+  const a = lo - n.leftInset - (n.leftInset === 0 && n.stuck.length === 0 ? GAP : 0);
+  const b = hi - n.leftInset + (n.rightInset === 0 && n.stuck.length === 0 ? GAP : 0);
+  return `polygon(${a}px -100000px, ${b}px -100000px, ${b}px 100000px, ${a}px 100000px)`;
 };
 
 const mounted = (count = 5, container = 1000) => {
@@ -57,7 +62,7 @@ test('golden at the first stop: two whole panels in the grid, none hidden, and t
   assert.equal(t.numbers().rowMarginLeft, 86, 'positive control: the margin is half the 172 leftover');
   assert.deepEqual(t.shown(), ['', '', '', '', '', '']);
   assert.deepEqual(t.inert(), [false, false, true, true, true, true]);
-  assert.equal(t.window().style.clipPath, windowClip(t.numbers()), 'the strip is cut at the grid, 86 to 882, by its fixed parent');
+  assert.equal(t.window().style.clipPath, windowClip(t.numbers()), 'the strip is cut one gap past the grid, 70 to 898, by its fixed parent');
   assert.equal(t.strip().style.clipPath, '', 'the strip itself carries no cut');
   assert.deepEqual(t.cuts(), ['', '', '', '', '', ''], 'no hold: a slot carries no cut of its own');
 });

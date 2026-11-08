@@ -152,7 +152,12 @@ test('a mounted row never hides a slot: every slot keeps visibility, the window 
     assert.deepEqual(t.slots().map((el) => el.style.clipPath), t.slots().map(() => ''), `no hold: no slot carries its own cut at ${at}`);
     // The cut is on the window element, which never moves, so it is the same at every offset; the strip carries none.
     const window = t.m.container.querySelector<HTMLElement>('[data-row-window]')!;
-    assert.equal(window.style.clipPath, `polygon(86px -100000px, ${968 - 86}px -100000px, ${968 - 86}px 100000px, 86px 100000px)`, `the window is cut at the grid at ${at}`);
+    // One gap past the grid's edges, where a panel's glow shows: no panel rests there, since the next one starts a gap past the edge.
+    assert.equal(window.style.clipPath, `polygon(${86 - 16}px -100000px, ${968 - 86 + 16}px -100000px, ${968 - 86 + 16}px 100000px, ${86 - 16}px 100000px)`, `the window is cut one gap past the grid at ${at}`);
+    const shownLo = 86 - 16;
+    const shownHi = 968 - 86 + 16;
+    const resting = n.ids.map((_, k) => slotSpanAt(n, k, at)).filter((s) => s.right > shownLo && s.left < shownHi);
+    assert.ok(resting.every((s) => s.left >= 86 && s.right <= 968 - 86), `no panel resting at ${at} reaches into the gap the cut holds open: ${JSON.stringify(resting)}`);
     assert.equal(t.strip().style.clipPath, '', `the strip carries no cut of its own at ${at}`);
     const away = n.ids.map((_, k) => slotCutAt(n, k, at, 16).away);
     assert.ok(away.some((a) => a) && away.some((a) => !a), `control: ${at} has slots on both sides of reach`);

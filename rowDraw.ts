@@ -86,10 +86,17 @@ export function useRowDraw(boxRef: React.RefObject<HTMLElement | null>, rowNumbe
     // written once: a cut written from the strip's position each frame trails the strip when the compositor draws it. That parent
     // starts where the strip does, after the left group. A row held only at the left runs on to the window's edge, where its slots
     // cut themselves (`slotEdgesAt`).
+    // An edge with no held group beside it is cut one gap past the grid, so the focused panel's glow fades out there as it does between
+    // two panels instead of stopping in a hard line at the grid's edge. No panel rests in that gap: the next one starts past it.
+    // Beside a held group or a stuck panel the gap is theirs, so that edge stays at the grid.
     const windowEl = strip.parentElement;
     if (windowEl !== null) {
       const right = (bleeds ? n.windowWidth + gap : grid.hi) - n.leftInset;
-      const cut = clips && Number.isFinite(right) ? `polygon(${grid.lo - n.leftInset}px -${CLIP_OPEN_PX}px, ${right}px -${CLIP_OPEN_PX}px, ${right}px ${CLIP_OPEN_PX}px, ${grid.lo - n.leftInset}px ${CLIP_OPEN_PX}px)` : '';
+      const openLeft = n.leftInset === 0 && n.stuck.length === 0 ? gap : 0;
+      const openRight = !bleeds && n.rightInset === 0 && n.stuck.length === 0 ? gap : 0;
+      const lo = grid.lo - n.leftInset - openLeft;
+      const hi = right + openRight;
+      const cut = clips && Number.isFinite(right) ? `polygon(${lo}px -${CLIP_OPEN_PX}px, ${hi}px -${CLIP_OPEN_PX}px, ${hi}px ${CLIP_OPEN_PX}px, ${lo}px ${CLIP_OPEN_PX}px)` : '';
       if (windowEl.style.clipPath !== cut) windowEl.style.clipPath = cut;
     }
 

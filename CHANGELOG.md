@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A stepping row cuts what it draws one gap past its slot grid, not at it, on each side with no held group: the focused panel's glow fades out at the window's edge as it does between two panels. It stopped in a hard line at the panel's side, leaving dark bars beside a wide panel. No panel rests in that gap, so the margins still show none.
 - A summon works from either side. A root off to the right comes into the far right slot, and a wide panel in the last slot moves over and runs off the far edge, as on the left; it parked before. A step toward a summoned root leaves the summon standing. `panels.dismissRoot()`, or a step away, returns the row to the panels that were live when the summon came, so a panel a step toward the root swapped in parks again; it stayed, and the far end stayed parked. A dot or a scroll to a panel that carries a summoned root out returns what the summon parked.
 - A step judges the view by the slot grid (`gridEdgesOf`), not by the window less a gap: where the margin is wider than the gap, as at 1800 px, a panel in the margin counted as in view, so a step swapped a parked panel in where the row should have slid.
 - A rest step that closes a blank prices the panel it reveals against the rest it plans, not the current one: it could park a panel for room the blank was about to give up.
