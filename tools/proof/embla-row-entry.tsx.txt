@@ -88,6 +88,9 @@ const pos = (): number => {
 const frames: any[] = [];
 let recording = false;
 let pointerX = 0;
+// Wheel events since the last frame: a frame no wheel reached cannot move a row that follows its input exactly.
+let wheels = 0;
+window.addEventListener('wheel', () => (wheels += 1), { capture: true, passive: true });
 window.addEventListener('pointermove', (e) => (pointerX = e.clientX), true);
 const frame = (t: number): void => {
   if (recording) {
@@ -97,7 +100,8 @@ const frame = (t: number): void => {
       const r = el.getBoundingClientRect();
       panels[el.dataset.rowId!] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
     }
-    frames.push({ t, pos: pos(), winW: win.width, winLeft: win.left, pointerX, panels });
+    frames.push({ t, pos: pos(), winW: win.width, winLeft: win.left, pointerX, wheels, panels });
+    wheels = 0;
   }
   requestAnimationFrame(frame);
 };

@@ -2012,6 +2012,7 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneHeight?: number;
     phoneWidth: number;
+    rowEngine?: 'own' | 'embla';
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
     rowResizeSettled?: boolean;

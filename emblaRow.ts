@@ -97,10 +97,10 @@ export function revealScroll(left: number, width: number, scroll: number, window
  */
 export function pressStartsRowDrag(event: Pick<Event, 'isTrusted' | 'target' | 'type'>): boolean {
   if (!event.isTrusted) return true;
-  const target = event.target instanceof Element ? event.target : null;
-  if (target === null) return false;
+  const target = event.target as Element | null;
+  if (target === null || typeof target.closest !== 'function') return false;
   if (event.type === 'mousedown') return target.closest(`[${ROW_SLOT_ATTRIBUTE}]`) === null;
-  return target.closest('button,a[href],input,select,textarea,[contenteditable=""],[contenteditable="true"],[role="slider"],iframe,webview,[data-dnd-grab],[data-panel-grab]') === null;
+  return target.closest('button,a[href],input,select,textarea,[contenteditable=""],[contenteditable="true"],[role="slider"],iframe,frame,embed,object') === null;
 }
 
 /** The options the row runs Embla with: one stop per slot marker, a flick may pass several. @internal */

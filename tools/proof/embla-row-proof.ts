@@ -33,7 +33,7 @@ const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
 const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,resize').split(','));
 mkdirSync(OUT, { recursive: true });
 
-// biome-ignore lint/suspicious/noExplicitAny: the slice of Playwright's Page this script uses, typed loosely as the other proofs do
+// The slice of Playwright's Page this script uses, typed loosely.
 type Page = any;
 const launched = await launchChromium<Page>({ skip: () => {} }, 'embla-row-proof');
 if (launched === undefined) process.exit(2);
@@ -79,14 +79,16 @@ function cutNarrow(f: any, phone: number): string[] {
   }
   return cut;
 }
-// Still frames while the row moves: frames with no motion between the first and the last frame that moved.
-function stillWhileMoving(fr: any[]): { moving: number; still: number; maxFramePx: number } {
-  const moves = fr.slice(1).map((f, k) => Math.abs(f.pos - fr[k].pos));
-  const a = moves.findIndex((m) => m > 0.01);
-  if (a < 0) return { moving: 0, still: 0, maxFramePx: 0 };
-  const b = moves.length - 1 - [...moves].reverse().findIndex((m) => m > 0.01);
+// Still frames while the row moves: frames with no motion between the first and the last frame that moved. `stalled` counts only
+// those a wheel event reached: a frame with no input cannot move a row that follows its input exactly, so `still` alone measures
+// how often the page got no event in a frame, not the row.
+function stillWhileMoving(fr: any[]): { moving: number; still: number; stalled: number; maxFramePx: number } {
+  const moves = fr.slice(1).map((f, k) => ({ m: Math.abs(f.pos - fr[k].pos), wheels: f.wheels ?? 1 }));
+  const a = moves.findIndex((x) => x.m > 0.01);
+  if (a < 0) return { moving: 0, still: 0, stalled: 0, maxFramePx: 0 };
+  const b = moves.length - 1 - [...moves].reverse().findIndex((x) => x.m > 0.01);
   const span = moves.slice(a, b + 1);
-  return { moving: span.length, still: span.filter((m) => m <= 0.01).length, maxFramePx: +Math.max(...span).toFixed(1) };
+  return { moving: span.length, still: span.filter((x) => x.m <= 0.01).length, stalled: span.filter((x) => x.m <= 0.01 && x.wheels > 0).length, maxFramePx: +Math.max(...span.map((x) => x.m)).toFixed(1) };
 }
 
 async function stream(name: string, slots: string, D: number, send: (page: Page) => Promise<number>): Promise<Record<string, unknown>> {
@@ -105,11 +107,11 @@ async function stream(name: string, slots: string, D: number, send: (page: Page)
   const rest = after.length > 0 ? after[after.length - 1].pos : Number.NaN;
   const s = stillWhileMoving(during);
   const restCut = after.length > 0 ? cutNarrow(after[after.length - 1], phone) : [];
-  const row = { input, moved: +(atInputEnd - start).toFixed(1), pxPerInputPx: +((atInputEnd - start) / input).toFixed(3), framesDuringInput: during.length, framesMoving: s.moving, stillFramesWhileMoving: s.still, maxFramePx: s.maxFramePx, rest: +rest.toFixed(1), restOnGrid: onGrid(rest, pitch, max), hitEnd: atInputEnd >= max - 1, narrowCutAtRest: restCut, errors: errors.length };
+  const row = { input, moved: +(atInputEnd - start).toFixed(1), pxPerInputPx: +((atInputEnd - start) / input).toFixed(3), framesDuringInput: during.length, framesMoving: s.moving, stillFramesWhileMoving: s.still, stalledFrames: s.stalled, maxFramePx: s.maxFramePx, rest: +rest.toFixed(1), restOnGrid: onGrid(rest, pitch, max), hitEnd: atInputEnd >= max - 1, narrowCutAtRest: restCut, errors: errors.length };
   if (during.length === 0 || s.moving === 0) empty.push(`${name}: no motion`);
   if (!row.restOnGrid) failed.push(`${name}: rest ${row.rest} off the grid`);
   if (restCut.length > 0) failed.push(`${name}: narrow panel cut at rest ${restCut}`);
-  if (s.still > 0) failed.push(`${name}: ${s.still} still frames while moving`);
+  if (s.stalled > 0) failed.push(`${name}: ${s.stalled} frames a wheel reached stood still while the row moved`);
   if (row.hitEnd) failed.push(`${name}: ran into the row's end, which caps the distance and proves nothing`);
   if (errors.length > 0) failed.push(`${name}: page errors ${errors.join(' | ')}`);
   if (name.endsWith('mixed') && D === 12) await page.screenshot({ path: join(OUT, `${ENGINE}-${name}-rest.png`) });

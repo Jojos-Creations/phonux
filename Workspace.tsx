@@ -31,7 +31,7 @@ import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './r
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 import { applyRowIntent, holdRow } from './rowIntents.js';
-import { ROW_ENGINE_ATTRIBUTE, RowEngineContext, type RowEngine } from './emblaRow.js';
+import { ROW_ENGINE_ATTRIBUTE, RowEngineContext } from './emblaRow.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
  * flattened here (not a nested `shell` object) so this file never imports a host measurement type.
@@ -196,7 +196,7 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
    * whole slots, and wheel, trackpad, drag and the arrow keys move one continuous strip that rests on the slot grid. Experimental:
    * the dot bar, Workspace summon, maximize, reorder and parking still assume the 'own' row.
    */
-  rowEngine?: RowEngine;
+  rowEngine?: 'own' | 'embla';
 }
 
 /** A subscription that never fires, for a shell given no workspace. */
