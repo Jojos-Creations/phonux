@@ -2460,8 +2460,17 @@ refuses a new drag with null.
 
 **Bar, oval and dot props.** `barProps` goes on the element holding the dots and the oval: a press that moves past a few px
 drags the oval, one that does not selects the dot it began on, and the pointer is captured so the drag follows it off the
-bar. A drag carried past the row's end, or on a row that cannot scroll, steps the row one stop per dot it travels, bringing
-hidden panels in as a scroll at the row's edge does; a wheel over the bar, either axis, steps the row the same way.
+bar. On a row that scrolls, the oval stays where it was grabbed under the pointer on every frame: the drag writes the scroll
+1:1 and the bar is rendered in the pointer event that moved it (`flushSync`), so it is never a frame behind (since 2026-11-08;
+it trailed by one move before, 24 px on 20 of 41 frames of a 24 px-per-frame drag in headless Chromium, 0 px after). A pointer
+past the row's end steps the row toward it by time, every animation frame it stays there, as edge scrolling does and as
+dnd-kit's AutoScroller and the browser's own autoscroll do: `depthSpeed` ramps from 0 at the end to
+`EDGE_SCROLL_MAX_PX_PER_SEC` one `EDGE_SCROLL_ZONE_PX` past it, and `edgeSteps` turns that into one step per dot of travel,
+so a pointer held still keeps bringing hidden panels in, faster the deeper it is; the drag gives the row back for each step
+and takes it again when the step lands, with the oval back at its grab under the pointer. Before, it stepped once per 30 px
+of further pointer travel, so a still pointer stopped the row. On a row that cannot scroll the oval is carried 1:1 and the row
+steps toward it, checked every frame, whenever it is half a dot or more away; a step the row has not answered is asked again
+after the fast-scroll floor. A wheel over the bar, either axis, steps the row.
 `ovalProps` makes the oval a focusable slider (0 to 100 along the row), `dotProps(id)` marks a dot and selects it on a
 keyboard activation, and `cursor` says what the pointer shows where it rests.
 
