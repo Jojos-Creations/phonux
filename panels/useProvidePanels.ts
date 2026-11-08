@@ -705,7 +705,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   }, [summonStands, i.overflowContainerRef]);
 
   // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
-  const stepRow = (direction: 'left' | 'right'): void => {
+  // `paceSec`: a swipe's step asked while the last one glides, with the time the swipe took to travel it; the retarget may take that long, so the row moves at the swipe's pace.
+  const stepRow = (direction: 'left' | 'right', paceSec?: number): void => {
     const el = i.overflowContainerRef.current;
     if (el === null) return;
     watchRest();
@@ -785,7 +786,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       bump();
     }
     else if (step.kind === 'scroll') {
-      applyRowIntent(scroller, { kind: 'step', to: step.to, mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
+      applyRowIntent(scroller, { kind: 'step', to: step.to, mode: tuning.fastScroll, durationSec: Math.max(tuning.slide.durationSec, paceSec ?? 0), ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
     }
   };
 

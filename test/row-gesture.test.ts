@@ -72,7 +72,7 @@ test('gestureLockMs holds back a notch that comes too soon after the last step; 
   assert.equal(m.scroller.glideTarget(), stops[1], 'a reversal steps back inside the lock');
 });
 
-test('the first event of a gesture steps; the travel that follows while that glide is in flight steps nothing and is not kept', async () => {
+test('the first event of a gesture steps; the travel that follows while that glide is in flight is kept, and each phone width of it steps once more', async () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
@@ -82,9 +82,9 @@ test('the first event of a gesture steps; the travel that follows while that gli
   m.wheel({ deltaX: 406 });
   tick(30);
   m.wheel({ deltaX: 406 });
-  assert.equal(m.scroller.glideTarget(), stops[1], 'two phone widths of travel in the glide do not step: every rest is shown');
-  await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(rowOffsetOf(m.container), stops[1]);
+  assert.equal(m.scroller.glideTarget(), stops[3], 'two phone widths of travel in the glide retarget it two stops on: a swipe moves the row as far as it travels');
+  await advanceFrames(GLIDE_DONE_MS * 2);
+  assert.equal(rowOffsetOf(m.container), stops[3], 'and the row comes to rest on a stop');
 });
 
 test('while the gesture goes on, travel in its direction steps again once the glide it started has landed', async () => {
@@ -141,7 +141,7 @@ test('a page-mode wheel (deltaMode 2) is a phone width per event, and each one a
   assert.equal(m.scroller.glideTarget(), stops[3], 'three lines are 48 px: a notch');
 });
 
-test('a held plateau of equal deltas is one step however far it travels, and mouse notches 200 ms apart each step', () => {
+test('a held plateau of equal deltas steps once per phone width it travels, and mouse notches 200 ms apart each step', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
@@ -149,23 +149,26 @@ test('a held plateau of equal deltas is one step however far it travels, and mou
     m.wheel({ deltaX: 100 });
     tick(16);
   }
-  assert.equal(m.scroller.glideTarget(), stops[1], '2000 px a frame apart: the first event steps, the rest are the same stream');
+  assert.equal(m.scroller.glideTarget(), stops[5], '2000 px a frame apart: the first event steps, and the 1900 px after it four more');
   tick(200);
   m.wheel({ deltaX: 100 });
   tick(200);
   m.wheel({ deltaX: 100 });
-  assert.equal(m.scroller.glideTarget(), stops[3], 'each notch after a quiet gap is a fresh gesture');
+  assert.equal(m.scroller.glideTarget(), stops[7], 'each notch after a quiet gap is a fresh gesture');
 });
 
-test('a swipe whose deltas fade away is one step, however long its tail', () => {
+test('a swipe whose deltas fade away steps once at its start and once per phone width of its tail', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
+  let travel = 0;
   for (let delta = 120; delta >= 4; delta = Math.floor(delta * 0.9)) {
     m.wheel({ deltaX: delta });
+    travel += delta;
     tick(16);
   }
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  assert.equal(m.scroller.glideTarget(), stops[1 + Math.floor((travel - 120) / 406)]);
+  assert.ok(travel - 120 >= 406, 'control: the tail is longer than a phone width');
 });
 
 test('a swipe that fades inside one phone width of travel is one step', () => {
@@ -188,12 +191,13 @@ const feed = (m: MountedRow, trace: readonly number[], every = 16, over: { delta
 };
 const RAMP = [2, 4, 9, 18, 32, 50, 70, 88, 100, 104, 100, 92, 82, 72, 62, 52, 44, 36, 30, 24, 19, 15, 12, 9, 7, 5, 4, 3, 2, 1];
 
-test('a swipe whose deltas ramp up, peak and fade is one step, not one per rising event', () => {
+test('a swipe whose deltas ramp up, peak and fade steps once per phone width it travels, not once per rising event', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   feed(m, RAMP);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  // 1148 px: the first event steps, and the 1146 px after it two more.
+  assert.equal(m.scroller.glideTarget(), stops[3]);
 });
 
 /** A wheel event the browser stamped `at` ms on the page clock, handled whenever the clock stands at the call. */
@@ -222,39 +226,41 @@ function streamWithStall(m: MountedRow, trace: readonly number[], every: number)
   assert.ok(frameClock.now() >= origin + every * STALL_FROM + STALL_MS, 'control: the page stalled');
 }
 
-test('a trackpad swipe whose events are handled late together after a main-thread stall is still one step', () => {
+test('a trackpad swipe whose events are handled late together after a main-thread stall steps as the same swipe unstalled does, with no notch', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   streamWithStall(m, [2, 4, 9, 18, 32, 50, 70, 88, 100, 104, 100, 92, 82, 72, 62, 52, 44, 36, 30, 24, 19, 15, 12, 9, 7, 5, 4, 3, 2, 1], 16);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  assert.equal(m.scroller.glideTarget(), stops[3], 'as the unstalled ramp: one step and one per phone width after it');
 });
 
-test('a high-resolution stream of 45 px events every 8 ms, stalled the same way, is still one step', () => {
+test('a high-resolution stream of 45 px events every 8 ms, stalled the same way, steps once per phone width and reads no notch', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   streamWithStall(m, Array.from({ length: 40 }, () => 45), 8);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  // 1800 px: the first event steps and the 1755 px after it four more; a stalled event read as a notch would add one.
+  assert.equal(m.scroller.glideTarget(), stops[5]);
 });
 
-test('jitter in a swipe tail (14, 12, 13, 11) adds no step, and the same tail further on adds none either while the glide is in flight', () => {
+test('jitter in a swipe tail (14, 12, 13, 11) is travel like any other: no step until a phone width has gathered, then one', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   feed(m, [100, 80, 60, 40, 30, 33, 36, 32, 14, 12, 13, 11]);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  assert.equal(m.scroller.glideTarget(), stops[1], '361 px after the first event: short of a phone width');
   feed(m, [12, 10, 11, 9, 10]);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  assert.equal(m.scroller.glideTarget(), stops[2], '413 px: one step more');
 });
 
-test('a second swipe that starts in the first one tail is the same stream: no second step while the first glide is in flight', () => {
+test('a second swipe that starts in the first one tail is the same stream: it steps by its travel, with no fresh first-event step', () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
   feed(m, [100, 70, 40, 20, 10, 20, 40, 80]);
   feed(m, [100, 100]);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
+  // 480 px after the first event: one step more, where a fresh gesture would have stepped at its first event as well.
+  assert.equal(m.scroller.glideTarget(), stops[2]);
 });
 
 test('a quantised tail (3, 2, 1, 1, 1, 2, 1) adds almost no travel and does not step again', () => {
@@ -317,7 +323,7 @@ test('after 150 ms without a wheel event the next one is a fresh gesture and ste
   assert.equal(m.scroller.glideTarget(), stops[2], 'the quiet ended it');
 });
 
-test('a wheel that stops leaves the row where its one step put it', async () => {
+test('a wheel that stops leaves the row on the stop its travel reached', async () => {
   const m = stepRow(eleven(), 1000);
   const stops = stopsOf(m, 1000);
   mock.timers.enable({ apis: ['setTimeout'] });
@@ -328,7 +334,8 @@ test('a wheel that stops leaves the row where its one step put it', async () => 
   m.wheel({ deltaX: 400 });
   tick(1000);
   await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(rowOffsetOf(m.container), stops[1]);
+  // 440 px after the first event: one step more, and the row rests on that stop.
+  assert.equal(rowOffsetOf(m.container), stops[2]);
 });
 
 test('Shift+deltaY acts as horizontal and a plain deltaY does not; the row cancels the sideways wheels it takes and leaves the vertical one', () => {

@@ -18,7 +18,6 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { arrowKeyBelongsElsewhere, contentScrolls } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
-import { rowScrollerFor } from '../rowScroller.js';
 import { registerRowKeys } from '../rowStep.js';
 
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
@@ -30,6 +29,9 @@ const LINE_PX = 16;
  */
 const NOTCH_GAP_MS = 40;
 const NOTCH_MIN_PX = 40;
+
+/** The longest a swipe's later step may glide: a swipe slower than one step in this long lets each glide land before the next. */
+const MAX_PACE_SEC = 1.5;
 
 /** Finger travel before a touch is read as horizontal or vertical: a tap or a small wobble never steps the row. */
 const TOUCH_AXIS_PX = 8;
@@ -61,8 +63,10 @@ export function feedRowWheel(from: Element, wheel: { deltaX: number; deltaY?: nu
 /**
  * One gesture travels as far as it is pushed, one step per `stepPx` of wheel travel, never by free pixels: the first
  * event of a gesture steps at once, so a short swipe or one wheel notch still moves, and every further `stepPx` of
- * travel in the same direction steps again once the glide in flight has landed. A reversal starts a fresh gesture. Each
- * step is the caller's glide to the next stop, so the row always comes to rest on one. A mouse wheel's notches (events a
+ * travel in the same direction steps again, also while the glide in flight is still moving: that step retargets it, and
+ * `paceSec` (the time the travel took) tells the caller how long the retargeted glide may take, so the row keeps moving at
+ * the swipe's pace. A reversal starts a fresh gesture. Each step is the caller's glide to the next stop, so the row always
+ * comes to rest on one. A mouse wheel's notches (events a
  * pause apart) are the exception: each one steps, and steps faster than a glide add to its target.
  *
  * A finger drag feeds the same accumulator: a finger moving left is the travel a wheel reports as `deltaX` > 0, so it asks
@@ -73,7 +77,7 @@ export function feedRowWheel(from: Element, wheel: { deltaX: number; deltaY?: nu
  */
 export function useRowScrollGesture(
   overflowContainerRef: RefObject<HTMLDivElement | null>,
-  onStep: (direction: 'left' | 'right') => void,
+  onStep: (direction: 'left' | 'right', paceSec?: number) => void,
   gestureLockMs: number = GESTURE_LOCK_MS,
   mode: 'step' | 'off' = 'step',
   gestureQuietMs: number = GESTURE_QUIET_MS,
@@ -143,15 +147,16 @@ export function useRowScrollGesture(
         return;
       }
       against = 0;
-      // A swipe's momentum must not stack steps into one glide: every rest is shown, so a wide panel passes one slot at a time.
-      if (rowScrollerFor(container).glideTarget() !== null) {
-        travel = 0;
-        return;
-      }
+      // Travel counts while a glide is in flight, so a swipe moves the row one stop per `stepPx` of travel however fast it comes,
+      // through a wide panel as through a narrow one. Each later step of the swipe glides over the time the swipe took to travel
+      // it (a step asked mid-glide retargets it, carrying its speed), so the row moves at the swipe's pace without stopping at
+      // each slot; the last step still lands on a stop.
       travel += Math.abs(amount);
       if (travel < unit || now - lastStepAt < gestureLockMsRef.current) return;
-      travel = 0;
-      step(direction, now);
+      travel -= unit;
+      const pace = Math.min(MAX_PACE_SEC, (now - lastStepAt) / 1000);
+      lastStepAt = now;
+      onStepRef.current(direction > 0 ? 'right' : 'left', pace);
     };
     // Who owns the wheel gesture in progress: 'row' once it has stepped, 'content' when Option began it, null between gestures.
     let wheelOwner: 'row' | 'content' | null = null;
