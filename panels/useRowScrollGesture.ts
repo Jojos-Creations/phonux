@@ -2,7 +2,8 @@
  * The row's scroll gesture: wheel travel, a horizontal finger drag, or an arrow key asks for steps in a direction. What a
  * step does is the caller's: this hook only filters the input, keeps the burst lock and installs the listeners.
  *
- * Under `mode` 'off' no listener is installed and nothing scrolls the row.
+ * Under `mode` 'off' no listener is installed and nothing scrolls the row. A row on Embla (`rowEngine="embla"`) is moved by
+ * Embla's own listeners, so these return at once there.
  *
  * The row owns sideways wheel scrolling wherever the pointer is, panel content included: its wheel listener runs in the
  * capture phase and cancels a sideways wheel and stops it before content sees it. Option (Alt) held at a gesture's
@@ -19,6 +20,7 @@ import type { RefObject } from 'react';
 import { arrowKeyBelongsElsewhere, contentScrolls } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
 import { registerRowKeys } from '../rowStep.js';
+import { runsOnEmbla } from '../emblaRow.js';
 
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
 const LINE_PX = 16;
@@ -162,6 +164,7 @@ export function useRowScrollGesture(
     let wheelOwner: 'row' | 'content' | null = null;
     let wheelQuietTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent): void => {
+      if (runsOnEmbla(container)) return;
       if (wheelQuietTimer) clearTimeout(wheelQuietTimer);
       wheelQuietTimer = setTimeout(() => {
         wheelOwner = null;
@@ -185,10 +188,12 @@ export function useRowScrollGesture(
     // One finger's drag: decided as horizontal or vertical once it has moved TOUCH_AXIS_PX, then fed by its steps.
     let touch: { startX: number; startY: number; lastX: number; target: EventTarget | null; axis: 'x' | 'y' | 'none' } | null = null;
     const onTouchStart = (e: TouchEvent): void => {
+      if (runsOnEmbla(container)) return;
       const point = e.touches[0];
       touch = e.touches.length === 1 && point !== undefined ? { startX: point.clientX, startY: point.clientY, lastX: point.clientX, target: e.target, axis: 'none' } : null;
     };
     const onTouchMove = (e: TouchEvent): void => {
+      if (runsOnEmbla(container)) return;
       const point = e.touches[0];
       if (touch === null || point === undefined || e.touches.length !== 1) return;
       if (touch.axis === 'none') {
@@ -206,9 +211,11 @@ export function useRowScrollGesture(
       if (moved !== 0) feed(-moved, e.timeStamp);
     };
     const onTouchEnd = (): void => {
+      if (runsOnEmbla(container)) return;
       touch = null;
     };
     const onKeyDown = (e: KeyboardEvent): void => {
+      if (runsOnEmbla(container)) return;
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       if (arrowKeyBelongsElsewhere(e, document)) return;
       // A workspace a column keeps off-screen is inert: its row must not step for a key meant for the one in view.

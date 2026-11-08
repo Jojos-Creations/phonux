@@ -35,6 +35,7 @@ import { restTranslate } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, emblaWindowOf, slotMarkerLefts, useEmblaRow } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -473,10 +474,14 @@ export function PanelRow({
     );
   };
   useRowDraw(boxRef, rowNumbers, gap, holds);
-  return (
-    <ChromeStoreContext.Provider value={chrome}>
-    <PanelViewContextValue.Provider value={viewContext}>
-    <RowDropContext.Provider value={rowDrop}>
+  // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
+  const onEmbla = React.useContext(RowEngineContext) === 'embla';
+  const stripPx = reservedWidth + gapSpan;
+  const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);
+  const windowRef = React.useRef<HTMLDivElement>(null);
+  useEmblaRow(windowRef, boxRef, onEmbla, workspaceTuning.gestureQuietMs);
+  const box = (
+    <>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
     what is present at app start to skip animating a restored session. `display: none` (not width 0) so an
     empty row consumes no flex `gap` from its siblings. */}
@@ -493,9 +498,10 @@ export function PanelRow({
         flexShrink: 0,
         height: rowHeight,
         display: presentAll.length > 0 ? 'block' : 'none',
-        width: reservedWidth + gapSpan,
+        width: onEmbla ? emblaWindow.width : stripPx,
       }}
     >
+      {onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap).map((left) => <div key={left} aria-hidden {...{ [EMBLA_SLOT_ATTRIBUTE]: left }} style={{ position: 'absolute', top: 0, left, width: phoneWidth, height: 0, pointerEvents: 'none' }} />) : null}
       {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
       <SlotRanksContext.Provider value={slotRanks}>
       <AnimatePresence initial={false}>
@@ -508,6 +514,21 @@ export function PanelRow({
       </AnimatePresence>
       </SlotRanksContext.Provider>
     </Box>
+    </>
+  );
+  // Cut one gap past each window edge, as the old row's grid cut: a focus glow fades there and no neighbour starts inside it.
+  const emblaCut = `polygon(${-gap}px -100000px, ${emblaWindow.width + gap}px -100000px, ${emblaWindow.width + gap}px 100000px, ${-gap}px 100000px)`;
+  return (
+    <ChromeStoreContext.Provider value={chrome}>
+    <PanelViewContextValue.Provider value={viewContext}>
+    <RowDropContext.Provider value={rowDrop}>
+    {onEmbla ? (
+      <div ref={windowRef} {...{ [EMBLA_WINDOW_ATTRIBUTE]: '' }} style={{ position: 'relative', flexShrink: 0, width: emblaWindow.width, clipPath: emblaCut, display: presentAll.length > 0 ? 'block' : 'none' }}>
+        {box}
+      </div>
+    ) : (
+      box
+    )}
     </RowDropContext.Provider>
     </PanelViewContextValue.Provider>
     </ChromeStoreContext.Provider>

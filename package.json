@@ -15,16 +15,18 @@
     "./testing/row": "./testingRow.ts"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1"
+    "@dnd-kit/core": "^6.3.1",
+    "embla-carousel": "8.6.0",
+    "embla-carousel-wheel-gestures": "8.1.0"
   },
   "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "@mui/material": "^9.3.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@mui/material": "^9.3.1",
+    "jsdom": "^26.0.0",
     "motion": "^13.3.0",
-    "jsdom": "^26.0.0"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "peerDependenciesMeta": {
     "jsdom": {

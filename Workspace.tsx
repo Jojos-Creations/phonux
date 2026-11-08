@@ -31,6 +31,7 @@ import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './r
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 import { applyRowIntent, holdRow } from './rowIntents.js';
+import { ROW_ENGINE_ATTRIBUTE, RowEngineContext, type RowEngine } from './emblaRow.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
  * flattened here (not a nested `shell` object) so this file never imports a host measurement type.
@@ -190,6 +191,12 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   beforeRow?: React.ReactNode;
   /** The row's content: the panels. */
   children: React.ReactNode;
+  /**
+   * What moves the row. 'own' (the default) is the library's row. 'embla' runs it on Embla Carousel instead: the window shows
+   * whole slots, and wheel, trackpad, drag and the arrow keys move one continuous strip that rests on the slot grid. Experimental:
+   * the dot bar, Workspace summon, maximize, reorder and parking still assume the 'own' row.
+   */
+  rowEngine?: RowEngine;
 }
 
 /** A subscription that never fires, for a shell given no workspace. */
@@ -205,7 +212,8 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: '1px', height: '1px', mar
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, bottomPadding, workspace, beforeRow, children, ...rest } = props;
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, bottomPadding, workspace, beforeRow, children, rowEngine = 'own', ...rest } = props;
+  const embla = rowEngine === 'embla';
   const binding = workspace === undefined ? undefined : bindingOf(workspace);
   const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
   const gap = resolved.rowGap;
@@ -314,7 +322,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (container === null) return undefined;
     const edge = (direction: 'left' | 'right', target: EventTarget | null): boolean => focusEdgePanel(container, chromeStore.active(), direction, target);
     const onKey = (event: KeyboardEvent): void => {
-      if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || arrowKeyBelongsElsewhere(event, container.ownerDocument)) return;
+      if (embla || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || arrowKeyBelongsElsewhere(event, container.ownerDocument)) return;
       if (container.closest('[inert]') !== null) return;
       if (edge(event.key === 'ArrowLeft' ? 'left' : 'right', event.target)) event.preventDefault();
     };
@@ -325,7 +333,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       view.removeEventListener('keydown', onKey, true);
       unregister();
     };
-  }, [overflowContainerRef, chromeStore]);
+  }, [overflowContainerRef, chromeStore, embla]);
   // A panel whose width differs from the last commit's under the same container width was resized on purpose; a window resize moves
   // the container width too and keeps its snap.
   const panelResizing = resizingId !== null || (drawn.current.containerWidth === containerWidth && panelWidthChanged(drawn.current.numbers, rowNumbers));
@@ -413,6 +421,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         aria-label={labels.row}
         {...rest}
         data-row-scroller=""
+        {...(embla ? { [ROW_ENGINE_ATTRIBUTE]: 'embla' } : {})}
         sx={{
           position: 'relative',
           display: 'flex',
@@ -425,7 +434,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           pb: `${bottomPad}px`,
           pl: `${gap}px`,
           // A scrolling row's range ends at its numbers, not this padding; a right edge hold counts its inset from the row's edge.
-          pr: scrolls ? 0 : `${gap}px`,
+          pr: scrolls && !embla ? 0 : `${gap}px`,
           overflowX: style.overflowX,
           // The row never scrolls vertically: a panel scrolls its own content, and a wheel over the row must not move it off its workspace.
           overflowY: 'hidden',
@@ -440,15 +449,16 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         {holdsLeft ? <div data-row-edge="left" style={leftEdgeStyle} /> : null}
         {/* The row's scroller owns the strip's transform: its centering margin and its offset are one translate. The transform
             makes the strip one stacking context, so it takes the slots' own base layer, or a later positioned sibling would cover them. */}
-        <div data-row-window="" style={{ display: 'flex', marginRight: 'auto', zIndex: ROW_LAYER_Z.BASE, flexShrink: scrolls ? 0 : 1 }}>
+        {/* An Embla row has no strip for the row scroller to find: Embla moves the box inside it, which the row draws centered. */}
+        <div {...(embla ? {} : { 'data-row-window': '' })} style={embla ? { display: 'flex', flex: '1 1 auto', minWidth: 0, justifyContent: 'center', zIndex: ROW_LAYER_Z.BASE } : { display: 'flex', marginRight: 'auto', zIndex: ROW_LAYER_Z.BASE, flexShrink: scrolls ? 0 : 1 }}>
         <motion.div
           ref={rowRef}
-          data-row-strip=""
+          {...(embla ? { 'data-row-embla-strip': '' } : { 'data-row-strip': '' })}
           style={{ display: 'flex', gap: `${gap}px`, position: 'relative', zIndex: ROW_LAYER_Z.BASE, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={marginTop === undefined ? {} : { marginTop }}
           transition={reduced || !rowResizeSettled ? { duration: 0 } : slideToTransition(resolved.slide)}
         >
-          {children}
+          <RowEngineContext.Provider value={rowEngine}>{children}</RowEngineContext.Provider>
         </motion.div>
         </div>
         {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}
