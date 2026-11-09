@@ -1312,7 +1312,15 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   const SLOTS24 = Array(24).fill(1).join(',');
   // 24 parkable one-slot pages after the root (25 slots), a window of four, cap 8: pages far from the view are unloaded placeholders.
   const QUERY = '&park=1&cap=8&grab=1';
-  const stripXs = (f: any): Record<string, number> => Object.fromEntries(Object.entries(f.drawn as Record<string, { x: number }>).map(([n, d]) => [n, d.x + f.pos]));
+  // An unloaded page is recorded under its engine id (it has no content to carry its name): `named` maps the ids back, per row opened.
+  let idNames: Record<string, string> = {};
+  const nameIds = async (page: Page): Promise<void> => {
+    const names: string[] = await g(page, 'order');
+    idNames = Object.fromEntries(await Promise.all(names.map(async (n) => [String(await g(page, 'idOf', n)), n])));
+  };
+  const named = (n: string): string => idNames[n] ?? n;
+  const stripXs = (f: any): Record<string, number> => Object.fromEntries(Object.entries(f.drawn as Record<string, { x: number }>).map(([n, d]) => [named(n), d.x + f.pos]));
+  const widthOf = (f: any, name: string): number => Object.entries(f.drawn as Record<string, { w: number }>).find(([n]) => named(n) === name)![1].w;
   // Per frame: how far page `name` is drawn from where the pointer holds it (the pointer's offset into the page at the press).
   const driftOf = (fr: any[], name: string, offset: number): number => Math.max(0, ...fr.filter((f) => f.boxX?.[name] !== undefined).map((f) => Math.abs(f.pointerX - f.winLeft - offset - f.boxX[name])));
   const travelOf = (fr: any[]): number => (fr.length < 2 ? 0 : +(fr[fr.length - 1].pos - fr[0].pos).toFixed(1));
@@ -1350,6 +1358,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   // 1. Held at the right edge for 1 s with no mouse motion, then held mid-row for 1 s (the control), then dropped.
   {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
     const win = await g(page, 'win');
     const order0: string[] = await g(page, 'order');
     await g(page, 'record');
@@ -1370,6 +1379,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     await page.mouse.up();
     await sleep(1200);
     const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, 'reorder-hold-frames.json'), JSON.stringify({ h0, h1, m0, m1, frames: fr }));
     const hold = fr.slice(h0, h1);
     const mid = fr.slice(m0, m1);
     const released = fr[m1 - 1];
@@ -1380,7 +1390,15 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const releasedStrip = released.boxX.p2 + released.pos;
     const landStrip = last.drawn.p2.x + last.pos;
     const expected = orderWith(order0, 'p2', Math.round(landStrip / PITCH));
-    const involved = new Set(order0.slice(Math.min(order0.indexOf('p2'), order1.indexOf('p2')), Math.max(order0.indexOf('p2'), order1.indexOf('p2')) + 1));
+    // The pages the drag may move: every page whose slot the dragged page's box passed over (a preview hop moves it one slot, and it
+    // glides back if the pointer leaves it again), and the pages between its start and its landing. Any other page moves 0 px.
+    const grabbed = fr.filter((f: any) => f.grabbing === 'p2' && f.boxX.p2 !== undefined);
+    const boxW = fr[0].drawn.p2.w;
+    const sweptLo = Math.min(...grabbed.map((f: any) => f.boxX.p2 + f.pos));
+    const sweptHi = Math.max(...grabbed.map((f: any) => f.boxX.p2 + f.pos)) + boxW;
+    const rest0 = stripXs(fr[0]);
+    const passedOver = Object.keys(rest0).filter((n) => n !== 'p2' && Math.min(sweptHi, rest0[n]! + widthOf(fr[0], n)) - Math.max(sweptLo, rest0[n]!) > 0);
+    const involved = new Set([...order0.slice(Math.min(order0.indexOf('p2'), order1.indexOf('p2')), Math.max(order0.indexOf('p2'), order1.indexOf('p2')) + 1), ...passedOver]);
     const jumps = stripJumps(fr);
     const uninvolved = Object.entries(jumps).filter(([n]) => !involved.has(n));
     const crossed = Object.entries(jumps).filter(([n]) => involved.has(n) && n !== 'p2');
@@ -1388,6 +1406,9 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       hold: { frames: hold.length, travelPx: travelOf(hold), stillFrames: stillOf(hold), worstDriftPx: +driftOf(hold, 'p2', at.offset).toFixed(2) },
       midControl: { frames: mid.length, travelPx: travelOf(mid), worstDriftPx: +driftOf(mid, 'p2', at.offset).toFixed(2) },
       uninvolvedMaxMovePx: Math.max(0, ...uninvolved.map(([, v]) => v)),
+      uninvolvedWorst: uninvolved.sort((x, y) => y[1] - x[1]).slice(0, 3).map(([n, v]) => `${n}:${v}`).join(','),
+      sweptStripPx: [+sweptLo.toFixed(1), +sweptHi.toFixed(1)],
+      passedOver: passedOver.join(','),
       crossed: crossed.length,
       crossedMaxFramePx: Math.max(0, ...crossed.map(([, v]) => v)),
       blankFrames: fr.filter((f: any) => f.blankIn.length > 0).length,
@@ -1404,6 +1425,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       frames: fr.length,
     };
     res.edgeHold = r;
+    if (grabbed.length < 30 || r.passedOver === '') empty.push(`reorder edgeHold: ${grabbed.length} frames with p2 grabbed, passed over [${r.passedOver}]: no swept range to judge the other pages by`);
     if (r.hold.frames < 30 || r.midControl.frames < 30) empty.push(`reorder edgeHold: ${r.hold.frames} hold frames, ${r.midControl.frames} control frames`);
     if (r.midControl.travelPx !== 0) empty.push(`reorder edgeHold control: held mid-row the row moved ${r.midControl.travelPx} px, so travel at the edge says nothing`);
     if (!(r.hold.travelPx >= 400) || r.hold.stillFrames > 1) failed.push(`reorder edgeHold: held at the edge with no mouse motion the row moved ${r.hold.travelPx} px in 1 s (${r.hold.stillFrames} still frames of ${r.hold.frames})`);
@@ -1420,6 +1442,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   // 2. Escape mid-drag, after the edge has scrolled the row: the order, the row and every page return to where they were.
   {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
     const win = await g(page, 'win');
     const order0: string[] = await g(page, 'order');
     const pos0 = await g(page, 'pos');
@@ -1443,9 +1466,12 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     await close();
   }
 
-  // 3. A drop into the window's left-edge slot, no edge scroll: the view stays where it was and the page lands where it was let go.
-  {
+  // 3. A drop into the window's left-edge slot from slot 5. (a) The pointer stops outside the left band (the hop rule takes a page
+  // more than half over): the view stays where it was and p7 lands at the edge. (b) The pointer goes into the band, so the row
+  // scrolls while it is held: the release settles on the stop nearest where it was let go, and p7 lands whole where it was dropped.
+  for (const into of ['outside', 'band'] as const) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
     await g(page, 'jumpToSlot', 5);
     await sleep(500);
     const win = await g(page, 'win');
@@ -1454,27 +1480,67 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     await g(page, 'record');
     const commits0 = await g(page, 'orderChanges');
     const at = await press(page, 'p7');
-    // Two slots left, which stays out of the left band: the row must not scroll.
-    await glideMouse(page, at, at.x - 2 * PITCH);
+    const toX = into === 'outside' ? at.x - 2 * PITCH + 120 : at.x - 2 * PITCH;
+    await glideMouse(page, at, toX);
     await sleep(200);
-    await page.screenshot({ path: join(OUT, 'reorder-leftEdge-mid.png') });
+    const pointerInWin = toX - win.left;
+    await page.screenshot({ path: join(OUT, `reorder-leftEdge-${into}-mid.png`) });
     const k0 = await g(page, 'mark');
     await page.mouse.up();
-    await sleep(1000);
+    await sleep(1500);
     const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, `reorder-leftEdge-${into}-frames.json`), JSON.stringify({ k0, frames: fr }));
+    const held = fr.slice(0, k0);
     const drop = fr.slice(k0);
+    const released = fr[k0 - 1];
     const last = fr[fr.length - 1];
-    const others = Object.entries(stripJumps(drop)).filter(([n]) => n !== 'p7');
-    const r = { rowBefore: pos0, rowAfter: +last.pos.toFixed(1), rowMaxMovePx: Math.max(0, ...drop.map((f: any) => Math.abs(f.pos - pos0))), p7ScreenX: +last.drawn.p7.x.toFixed(1), othersMaxMoveAfterDropPx: Math.max(0, ...others.map(([, v]) => v)), orderAsExpected: (await g(page, 'order')).join(',') === orderWith(order0, 'p7', 5).join(','), orderChanges: (await g(page, 'orderChanges')) - commits0, winLeft: win.left };
-    res.leftEdgeDrop = r;
-    if (r.rowMaxMovePx > 0.5 || Math.abs(r.p7ScreenX) > 0.5 || r.othersMaxMoveAfterDropPx > 0.5 || !r.orderAsExpected || r.orderChanges !== 1) failed.push(`reorder leftEdgeDrop: the row moved ${r.rowMaxMovePx} px at the drop (${pos0} > ${r.rowAfter}), p7 rests at ${r.p7ScreenX} (want 0), other pages moved ${r.othersMaxMoveAfterDropPx} px after the drop, order ${r.orderAsExpected}, ${r.orderChanges} commits`);
-    if (errors.length > 0) failed.push(`reorder leftEdgeDrop: page errors ${errors.join(' | ')}`);
+    const max = await g(page, 'max');
+    // The pages the drag may move: those whose slot p7's box passed over (see edgeHold). Any other page stays put along the strip.
+    const boxW = fr[0].drawn.p7.w;
+    const grabbed = held.filter((f: any) => f.grabbing === 'p7' && f.boxX.p7 !== undefined);
+    const sweptLo = Math.min(...grabbed.map((f: any) => f.boxX.p7 + f.pos));
+    const sweptHi = Math.max(...grabbed.map((f: any) => f.boxX.p7 + f.pos)) + boxW;
+    const rest0 = stripXs(fr[0]);
+    const passedOver = new Set(Object.keys(rest0).filter((n) => Math.min(sweptHi, rest0[n]! + widthOf(fr[0], n)) - Math.max(sweptLo, rest0[n]!) > 0));
+    const others = Object.entries(stripJumps(fr)).filter(([n]) => n !== 'p7' && !passedOver.has(n));
+    const landStrip = last.drawn.p7.x + last.pos;
+    const nearest = Math.min(max, Math.round(released.pos / PITCH) * PITCH);
+    const order1: string[] = await g(page, 'order');
+    const r = {
+      pointerInWindowPx: +pointerInWin.toFixed(1),
+      rowBefore: pos0,
+      rowAtRelease: +released.pos.toFixed(1),
+      rowAfter: +last.pos.toFixed(1),
+      rowMaxMoveHeldPx: +Math.max(0, ...held.map((f: any) => Math.abs(f.pos - pos0))).toFixed(2),
+      rowMaxMoveAfterDropPx: +Math.max(0, ...drop.map((f: any) => Math.abs(f.pos - released.pos))).toFixed(2),
+      restOnGrid: onGrid(last.pos, PITCH, max),
+      nearestStop: nearest,
+      p7ScreenX: +last.drawn.p7.x.toFixed(1),
+      p7LandStripPx: +landStrip.toFixed(1),
+      passedOver: [...passedOver].join(','),
+      othersMaxMovePx: Math.max(0, ...others.map(([, v]) => v)),
+      othersWorst: others.sort((x, y) => y[1] - x[1]).slice(0, 3).map(([n, v]) => `${n}:${v}`).join(','),
+      order: order1.slice(4, 10).join(','),
+      orderAsExpected: order1.join(',') === orderWith(order0, 'p7', into === 'outside' ? 5 : Math.round(landStrip / PITCH)).join(','),
+      orderChanges: (await g(page, 'orderChanges')) - commits0,
+    };
+    res[`leftEdgeDrop_${into}`] = r;
+    if (grabbed.length < 10) empty.push(`reorder leftEdgeDrop ${into}: ${grabbed.length} frames with p7 grabbed`);
+    if (into === 'outside') {
+      if (r.pointerInWindowPx <= 48 || r.rowMaxMoveHeldPx > 0.5 || r.rowMaxMoveAfterDropPx > 0.5 || Math.abs(r.p7ScreenX) > 0.5 || r.othersMaxMovePx > 0.5 || !r.orderAsExpected || r.orderChanges !== 1)
+        failed.push(`reorder leftEdgeDrop outside: pointer ${r.pointerInWindowPx} px into the window; the row moved ${r.rowMaxMoveHeldPx} px held and ${r.rowMaxMoveAfterDropPx} px after the drop (${pos0} > ${r.rowAfter}), p7 rests at ${r.p7ScreenX} (want 0), pages not passed over moved ${r.othersMaxMovePx} px (${r.othersWorst}), order ${r.orderAsExpected}, ${r.orderChanges} commits`);
+    } else {
+      if (!(r.rowMaxMoveHeldPx >= 50) || Math.abs(r.rowAfter - nearest) > 0.5 || !r.restOnGrid || Math.abs(r.p7ScreenX - (Math.round(landStrip / PITCH) * PITCH - last.pos)) > 0.5 || r.othersMaxMovePx > 0.5 || !r.orderAsExpected || r.orderChanges !== 1)
+        failed.push(`reorder leftEdgeDrop band: the row moved ${r.rowMaxMoveHeldPx} px while held, released at ${r.rowAtRelease}, rests at ${r.rowAfter} (nearest stop ${nearest}, grid ${r.restOnGrid}); p7 lands at strip ${r.p7LandStripPx}, pages not passed over moved ${r.othersMaxMovePx} px (${r.othersWorst}), order ${r.orderAsExpected}, ${r.orderChanges} commits`);
+    }
+    if (errors.length > 0) failed.push(`reorder leftEdgeDrop ${into}: page errors ${errors.join(' | ')}`);
     await close();
   }
 
   // 4. Keys on the grab strip: ArrowRight moves the page one place and leaves the row where it is; a page moved out of view comes into it.
   {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
     const order0: string[] = await g(page, 'order');
     await page.focus('[data-grab="p1"]');
     await page.keyboard.press('ArrowRight');
@@ -1485,12 +1551,22 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     await page.focus('[data-grab="p3"]');
     await page.keyboard.press('ArrowRight');
     await sleep(900);
+    const posAt900 = await g(page, 'pos');
+    // Embla's glide ends on a long tail (0.5 px left at 900 ms, measured): judge the rest once the row stands still for 10 frames.
+    const t0 = Date.now();
+    for (let still = 0, was = posAt900; still < 10 && Date.now() - t0 < 4000; ) {
+      await nextFrame(page);
+      const now = await g(page, 'pos');
+      still = Math.abs(now - was) < 0.01 ? still + 1 : 0;
+      was = now;
+    }
+    const settledMs = 900 + Date.now() - t0;
     const shown = await g(page, 'shown');
     const p3 = shown.find((s: any) => s.id === 'p3');
     const win = await g(page, 'win');
     const max = await g(page, 'max');
     const pos = await g(page, 'pos');
-    const r = { firstPress: { rowAfter: inView.pos, orderAsExpected: inView.order }, outOfView: { orderAsExpected: (await g(page, 'order')).join(',') === orderWith(order1, 'p3', 4).join(','), p3x: p3?.x, whole: p3 !== undefined && p3.x >= -0.5 && p3.x + p3.w <= win.width + 0.5, rowAfter: +pos.toFixed(1), onGrid: onGrid(pos, PITCH, max) } };
+    const r = { posAt900: +posAt900.toFixed(2), settledMs, firstPress: { rowAfter: inView.pos, orderAsExpected: inView.order }, outOfView: { orderAsExpected: (await g(page, 'order')).join(',') === orderWith(order1, 'p3', 4).join(','), p3x: p3?.x, whole: p3 !== undefined && p3.x >= -0.5 && p3.x + p3.w <= win.width + 0.5, rowAfter: +pos.toFixed(1), onGrid: onGrid(pos, PITCH, max) } };
     res.keys = r;
     if (Math.abs(r.firstPress.rowAfter) > 0.5 || !r.firstPress.orderAsExpected) failed.push(`reorder keys: ArrowRight on p1's grab strip gave order ${r.firstPress.orderAsExpected}, row at ${r.firstPress.rowAfter} (want 0)`);
     if (!r.outOfView.orderAsExpected || !r.outOfView.whole || !r.outOfView.onGrid) failed.push(`reorder keys: p3 moved out of view: order ${r.outOfView.orderAsExpected}, drawn at ${r.outOfView.p3x} (whole ${r.outOfView.whole}), row ${r.outOfView.rowAfter} on grid ${r.outOfView.onGrid}`);
