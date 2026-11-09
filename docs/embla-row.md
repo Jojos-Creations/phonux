@@ -464,16 +464,57 @@ before the fix, where `git diff 8e85487` of the fixed file was empty), passes no
   Embla window: the row stays, Right focuses the leftmost page in view (p11), Left the rightmost (p12). `EMBLA_WINDOW_ATTRIBUTE` moved
   to `rowDom.ts`. Mutant (the Embla early return back): fails 2.
 
-Not done in this pass: item 5 (reorder proof tightening, reduced-motion checks, the AHEAD_STEPS=0 mutant, the summon clip pixel
-check); item 6 (the step-8 API loose ends listed below); item 7 has a proof case (`reorder.wheelBefore`, a wheel gesture running when
-the hold starts) that was not run.
+Items 5, 6 and 7, left from this pass, are in the fourth pass below.
 
 - ArrowRight after a window-bar summon (app `workspace-summon.mjs`: "a step away returns the row", "stepping left reaches Workspace",
   "one step carries it out" at 1400 and 1800, 6 failures on the 8d42f37 build). The key reached the row and Embla took it, but
   `scrollNext` steps from Embla's selected index, which a direct write (the summon's land) leaves stale, so it named the stop the row
   rested on. A key step now goes one stop from the stop nearest where the row is heading, and a step away from a summoned root
-  dismisses it (the own row's "a step away returns the row"). App proof on the 76059ee build: 1787 checks, 0 failed. No library proof
-  case or mutant for this one yet.
+  dismisses it (the own row's "a step away returns the row"). App proof on the 76059ee build: 1787 checks, 0 failed. Library case
+  since: `summon.arrowAway` (fourth pass, below).
+
+## Fourth pass (items 5, 6, 7 and 11)
+
+Each check fails on a `git archive` extract of the commit before its fix with the new proof copied in, passes now, and fails with one
+mutant of its fix.
+
+- Arrow after a summon (`--cases summon.arrowAway`, item 11). From the left, ArrowRight returns the row (p14..p17 at 5684, the pages in
+  view standing still) and the next ArrowRight rests one stop on; from the right, ArrowLeft returns it and ArrowRight steps to p2..p5.
+  At 8d42f37: 6 failures (ArrowRight stepped to 6089.5 with the summon over; ArrowLeft left the root summoned). Mutant (the step-away
+  dismiss removed): the same 6. The other half of 76059ee (a step counts from the stop nearest where the row is heading, not Embla's
+  selected index) has no library case: reverting it to `scrollNext` passes, because every library write ends in a `scrollTo` that sets
+  the index; the app's window-bar summon (`workspace-summon.mjs`) is its check.
+- A wheel gesture running when a reorder hold starts (`--cases reorder.wheelBefore,reorder.wheelClick`, item 7). The plugin holds
+  Embla's drag with an untrusted press and lets go only when the gesture's tail ends; that release glided the row to a stop under the
+  held page (d288b48: 168 px under the hold, Embla pressed in 14 held frames). A person's press now ends the wheel's press and leaves the
+  row where it is drawn (as a press stops a native scroll's momentum); its release settles the row on a stop unless a reorder hold took
+  it, and the hold ends one too. Now 0 px, 0 frames, 0 px drift; a press and release with no drag: 137.8 px moved under the press at
+  d288b48, 0 now, rest on the grid. Mutant (nothing ends the press): both fail. The drift is read off the grab point in the first frame
+  recorded after the press, once the pointer stands still (the dragged box follows a pointer move a frame late).
+- API (`--cases summon.api`, item 6). `panel.scrollTo()` answered off the old scroller (0 on a strip): from slot 10, a scrollTo of p2
+  moved the row to 812 and answered `changed: false`; it now reads where the Embla row is heading (`emblaWouldShow`). A request for the
+  Workspace while it stood aside was dropped; it comes back at the edge it left by and is shown (root at 0). `usePanelPresence` never
+  read 'scrolledAway' on Embla (0 of 20 inert pages); the row's away store now follows the inert marks (20 of 20). A scroll request no
+  longer asks the old scroller whether a drag holds the row: the Embla row's holds defer it (`whenEmblaFree`). At bb5dc10: 3 failures;
+  one mutant per fix fails its own check.
+- Reduce Motion on the row's own moves (`--cases summon.reducedRelease`, item 5). A mouse drag's release, a wheel release with a strip
+  change waiting for it (`moveEmbla`'s rebuild) and a focus reveal land in 1, 0 and 1 moving frames; without Reduce Motion the same
+  inputs glide 59-63 frames (control). Mutant (the reduced flag never set): all three fail, and `summon.reduced`'s arrow.
+- The loader's look-ahead (`--cases blank.lead`, item 5). Far dot press at cap 4: pages the glide carries into the window load 2-8
+  frames before they enter (median 4; the first at 0 as the glide starts). `AHEAD_STEPS = 0`: 14 of 18 enter in the frame they load,
+  median 0, fails. The look-ahead stays: it is the time a page (a web view) gets to draw before it is seen.
+- Reorder checks tightened (item 5): passed-over range from held frames only, a page passed over only when the box covered more than
+  half of it, 70 px per frame for a passed-over page (was 101.5; hops measure 30.8-33.8) in `edgeHold` and both left-edge drops, and
+  the band drop must land within half a slot of where it was let go (1873.6 released, 2030 landed).
+
+Not applicable on a strip, with the evidence: `revealOnScroll` brings in a panel parked for room when a step reaches the row's end;
+on a strip nothing parks for room (step 7: `rowPricing` gives a strip an infinite capacity, 25 of 25 slots drawn), so there is no
+such panel. A host's own hide stays hidden on a strip and is not revealed by a step (the old row's step would): untested, noted. The
+settle after a hand resize: on a strip every width commit runs `moveEmbla`, which rests the row on a stop (step 5's width cases rest on
+the grid in every run), so no separate settle is needed; a hand resize itself is still untried on Embla.
+
+Not done: a presented-frame pixel check that fails when the summon's leaving-page clip is removed (the screenshots remain the only
+evidence that the root slides beside the cut page, not over it).
 
 ## Not done yet (still on the old row, or not working on Embla yet)
 
@@ -482,9 +523,8 @@ the hold starts) that was not run.
   during a size glide were not tried on Embla; maximize was tried with a wheel and a key, not with a window resize while grown.
 - Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, and a window one slot wide were not tried; a
   real trackpad flick carrying the root out was not tried (the proof uses a glide and a dot press).
-- `revealOnScroll` and the settle after a hand resize move nothing on Embla (`scrollOnOpen` and a host's `scrollTo` do since step 8;
-  `panel.scrollTo()`'s answer still asks the old scroller whether it would move). The old row's `scrolledAway` presence is not set on
-  Embla (only `inert` is).
+- `revealOnScroll` and the settle after a hand resize: not applicable on a strip (fourth pass); a host-hidden panel is not revealed by a
+  step on Embla.
 - Edge-held panels (`edgeHold`) were not tried on Embla: the old drawing pass that holds them needs the old strip.
 - Shift + vertical wheel is not read as sideways; a finger drag was not measured (headless has no touch stream); a real
   trackpad and Safari were not tried.
