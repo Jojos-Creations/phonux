@@ -18,7 +18,7 @@ import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { frameClock } from '../testingClock.js';
 import { panelWidthOf } from '../panelTiers.js';
 import { appendPanel, createRootPanel, leastRecentlyTouchedId, parkLevers, promoteToLive } from '../panelWindow.js';
-import { fewestParksThatSettle, type UsePanelManagerResult } from '../panels/usePanelManager.js';
+import { type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
@@ -698,66 +698,6 @@ test('a capacity drop parks the leftmost excess', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('d'), park('e')), W(5));
   e.setWidth(W(3));
   assert.deepEqual(e.parked(), ['a', 'b']);
-});
-
-/** A copy of the park choice without tie-breaks: the oracle fewestParksThatSettle is held to. */
-function referenceFewest(live: readonly PanelWindow[], widthOf: (p: PanelWindow) => number, settles: (set: readonly PanelWindow[]) => boolean, keepIds: readonly string[] = []): string[] {
-  const narrowestFirst = (set: readonly PanelWindow[]): PanelWindow[] => [...set].sort((a, b) => widthOf(a) - widthOf(b));
-  const inRowOrder = (set: readonly PanelWindow[]): PanelWindow[] => live.filter((p) => set.includes(p));
-  const mustKeep: PanelWindow[] = [];
-  for (const id of keepIds) {
-    const p = live.find((q) => q.id === id);
-    if (p && !mustKeep.includes(p) && settles(inRowOrder([...mustKeep, p]))) mustKeep.push(p);
-  }
-  const candidates = live.filter((p) => !mustKeep.includes(p));
-  let keep = candidates.length;
-  while (keep > 0 && mustKeep.length + keep > 1 && !settles(inRowOrder([...mustKeep, ...narrowestFirst(candidates).slice(0, keep)]))) keep--;
-  const kept: PanelWindow[] = [...mustKeep];
-  const toPark: string[] = [];
-  candidates.forEach((p, i) => {
-    const stillToKeep = keep - (kept.length - mustKeep.length);
-    const rest = candidates.slice(i + 1);
-    const canPark = toPark.length < candidates.length - keep && rest.length >= stillToKeep && settles(inRowOrder([...kept, ...narrowestFirst(rest).slice(0, stillToKeep)]));
-    if (canPark) toPark.push(p.id);
-    else kept.push(p);
-  });
-  return toPark;
-}
-
-test('fewestParksThatSettle returns what the reference choice returns, over 200 seeded rows', () => {
-  let rowsThatParked = 0;
-  for (let seed = 1; seed <= 200; seed += 1) {
-    const rng = mulberry32(seed);
-    const count = 2 + Math.floor(rng() * 7);
-    const live = Array.from({ length: count }, (_, i) => park(`p${i}`));
-    const widths = new Map(live.map((p) => [p.id, pick(rng, [390, 390, 500, 768])]));
-    const widthOf = (p: PanelWindow): number => widths.get(p.id)!;
-    const budget = 600 + Math.floor(rng() * 2400);
-    const cap = 1 + Math.floor(rng() * count);
-    const settles = (set: readonly PanelWindow[]): boolean => set.length <= cap && set.reduce((sum, p) => sum + widthOf(p), 0) <= budget;
-    const keepIds = rng() < 0.4 ? [pick(rng, live).id] : [];
-    const expected = referenceFewest(live, widthOf, settles, keepIds);
-    assert.deepEqual(fewestParksThatSettle(live, widthOf, settles, keepIds), expected, `seed ${seed}`);
-    assert.deepEqual(fewestParksThatSettle(live, widthOf, settles, keepIds, 'leftmost'), expected, `seed ${seed} with the tie-break named`);
-    if (expected.length > 0) rowsThatParked += 1;
-  }
-  assert.ok(rowsThatParked >= 50, `only ${rowsThatParked} of the 200 rows parked anything, so the comparison proved little`);
-});
-
-test('fewestParksThatSettle: rightmost parks the right end', () => {
-  const live = [park('a'), park('b'), park('c'), park('d')];
-  const equalWidth = (): number => 390;
-  const atMost2 = (set: readonly PanelWindow[]): boolean => set.length <= 2;
-  assert.deepEqual(fewestParksThatSettle(live, equalWidth, atMost2, [], 'leftmost'), ['a', 'b']);
-  assert.deepEqual(fewestParksThatSettle(live, equalWidth, atMost2, [], 'rightmost'), ['c', 'd']);
-});
-
-test('fewestParksThatSettle never parks a kept id unless the earlier ones already fill the row', () => {
-  const live = [park('a'), park('b'), park('c')];
-  const atMost2 = (set: readonly PanelWindow[]): boolean => set.length <= 2;
-  assert.deepEqual(fewestParksThatSettle(live, () => 390, atMost2, ['a']), ['b'], 'a would park first, but it is kept');
-  const atMost1 = (set: readonly PanelWindow[]): boolean => set.length <= 1;
-  assert.deepEqual(fewestParksThatSettle(live, () => 390, atMost1, ['a', 'b']), ['b', 'c'], 'a fills the one slot, so the second kept id gives way');
 });
 
 // ---------------------------------------------------------------------------

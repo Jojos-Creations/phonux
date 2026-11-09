@@ -1,5 +1,5 @@
 /**
- * The row on Embla Carousel (`Workspace`'s `rowEngine="embla"`): Embla owns where the strip is, and turns drag, wheel and
+ * The row on Embla Carousel, the library's only row: Embla owns where the strip is, and turns drag, wheel and
  * glide into motion that settles on a stop. Ours is the window, sized to whole slots, and one invisible marker per slot, which
  * Embla takes as its slides, so each slot edge is a stop, a wide panel's inner ones included.
  *
@@ -22,11 +22,6 @@ export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
 // Declared in rowDom so the row's key and band code can read it without importing Embla.
 export { EMBLA_WINDOW_ATTRIBUTE };
 
-/** Which engine moves a row. 'own' is the library's row; 'embla' is the row on Embla Carousel. @internal */
-export type RowEngine = 'own' | 'embla';
-
-/** The engine the enclosing `Workspace` moves its row with; the row reads it to draw for that engine. @internal */
-export const RowEngineContext = React.createContext<RowEngine>('own');
 
 /**
  * How far from the view, in slots, a parkable panel keeps its content loaded on an Embla row. Two: a step, an arrow key or a short

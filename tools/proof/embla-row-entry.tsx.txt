@@ -25,7 +25,7 @@ const easeEmbla = (embla: any, px: number): void => {
 
 const q = new URLSearchParams(location.search);
 const SLOTS = (q.get('slots') ?? '1,1,1,1,1,1').split(',').map(Number);
-const ENGINE = q.get('engine') === 'own' ? 'own' : 'embla';
+const ENGINE = 'embla';
 const PARK = q.get('park') === '1';
 const CAP = q.get('cap') === null ? null : Number(q.get('cap'));
 const NEAR = q.get('near') === null ? undefined : Number(q.get('near'));
@@ -112,7 +112,7 @@ function App() {
       ro.disconnect();
     };
   }, []);
-  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref, rowEngine: ENGINE } as any);
+  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref } as any);
   latest = p;
   // How often the list's order changed: a drop commits the order once.
   const order = p.entries.map((e: any) => e.id).join(' ');
@@ -121,7 +121,7 @@ function App() {
   return (
     <HostProvider host={host}>
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-        <Workspace rowEngine={ENGINE} rowNearSlots={NEAR} overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
+        <Workspace rowNearSlots={NEAR} overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
           <PanelRow entries={p.entries} rootId={ws.rootId} closingIds={NONE} enteringViaAnchorIds={NONE} rowNumbers={p.rowNumbers} maxLiveWidth={p.maxLiveWidth} workspace={ws} />
         </Workspace>
         {BAR === null ? null : <Bar p={p} scroller={ref} />}
@@ -248,7 +248,7 @@ requestAnimationFrame(frame);
   PITCH: PHONE + GAP,
   PHONE,
   GAP,
-  ready: () => latest !== undefined && Number.isFinite(latest.rowNumbers?.windowWidth) && document.querySelectorAll('[data-row-slot]').length === ids.length + 1 && (ENGINE === 'own' || emblaOf(container()) !== undefined),
+  ready: () => latest !== undefined && Number.isFinite(latest.rowNumbers?.windowWidth) && document.querySelectorAll('[data-row-slot]').length === ids.length + 1 && (emblaOf(container()) !== undefined),
   pos,
   logical,
   // Where Embla is going, scroll px.

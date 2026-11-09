@@ -111,10 +111,8 @@ test('rowPricing on a strip: nothing parks for room or the cap', () => {
   const panel = (id: string): PanelWindow => ({ id, view: id, title: id, live: true, collapsible: true, settings: { overflow: 'park' } }) as unknown as PanelWindow;
   const row = Array.from({ length: 12 }, (_, k) => panel(`p${k}`));
   const env: RowEnv = { phoneWidth: PHONE, containerWidth: 1800, gap: GAP, fixedColumnCount: 0, maxLive: 4, dropTieBreak: 'leftmost' };
-  assert.equal(rowPricing({ ...env, strip: true }, row).capacityFor(row), Number.POSITIVE_INFINITY);
-  assert.equal(settleKeeping({ ...env, strip: true }, row, []), row);
-  // Control: the same row off the strip parks down to the cap.
-  assert.equal(settleKeeping(env, row, []).filter((p) => p.live).length, 4);
+  assert.equal(rowPricing(env, row).capacityFor(row), Number.POSITIVE_INFINITY);
+  assert.equal(settleKeeping(env, row, []), row);
 });
 
 test('loadedNear: what the next frames of a glide bring into view, and the window where it goes, load whatever the cap', () => {

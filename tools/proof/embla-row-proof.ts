@@ -1,7 +1,7 @@
 /**
- * The Embla row (`Workspace rowEngine="embla"`) measured in headless Chromium, on the real Workspace and PanelRow:
+ * The Embla row (the library's only row) measured in headless Chromium, on the real Workspace and PanelRow:
  *
- *   node --import tsx tools/proof/embla-row-proof.ts [--engine embla|own] [--out <dir>] [--only wheel,feed,drag,keys,resize,width]
+ *   node --import tsx tools/proof/embla-row-proof.ts [--out <dir>] [--only wheel,feed,drag,keys,resize,width]
  *
  * wheel  a trackpad-style stream (page.mouse.wheel, one event per ~16 ms, 2.5 s) at three speeds over narrow, wide and mixed rows:
  *        row px per input px while input flows, frames that stood still while it moved, the rest on the slot grid.
@@ -75,7 +75,8 @@ const arg = (name: string): string | undefined => {
   const k = process.argv.indexOf(`--${name}`);
   return k < 0 ? undefined : process.argv[k + 1];
 };
-const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
+// The old row is gone (step 8d): `--engine` is accepted for old runners and ignored.
+const ENGINE = 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
 const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open').split(','));
 // `--cases a,b` runs only the named cases of a section (a case's name is in its `want(...)`); every case runs without it.
@@ -870,21 +871,11 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
 if (ONLY.has('strip') && ENGINE === 'embla') {
   const narrow = ROWS.narrow;
   const res: Record<string, unknown> = {};
-  // Control: the same parking row on the own row parks the panels that do not fit, so "every panel has a slot" can fail.
-  {
-    const ctx = await browser.newContext({ viewport: { width: 1800, height: 900 } });
-    const page: Page = await ctx.newPage();
-    await page.goto(`http://localhost:${port}/?engine=own&slots=${narrow}${PARKING}`);
-    await page.waitForFunction(() => (window as any).__g !== undefined && document.querySelectorAll('[data-row-slot]').length > 0, undefined, { timeout: 15000 });
-    await sleep(800);
-    res.ownRowSlots = await g(page, 'slotCount');
-    await ctx.close();
-  }
+  // The old row's control (it parked the panels that did not fit) is gone with that row; the cap's unload checks below are the controls.
   const { page, errors, close } = await open(narrow, 1800, 900, PARKING);
   const statuses: string[] = await g(page, 'statuses');
   res.emblaRowSlots = await g(page, 'slotCount');
   res.parkedOnEmbla = statuses.filter((x) => x.endsWith(':parked'));
-  if (!((res.ownRowSlots as number) < 25)) empty.push(`strip: the own row's control shows ${res.ownRowSlots} slots, so the parking row parked nothing and the check proves nothing`);
   if (res.emblaRowSlots !== 25) failed.push(`strip: the Embla row shows ${res.emblaRowSlots} of 25 slots`);
   if ((res.parkedOnEmbla as string[]).length > 0) failed.push(`strip: parked on Embla: ${res.parkedOnEmbla}`);
   // State: p2 is in view at slot 0; four slots on it is one slot from the view (near), twelve is far.
@@ -2077,7 +2068,9 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   // 5. The root's rules: p1 dragged a slot and a half left, over the root, lands where the own row lands it.
   if (want('reorder.rootRule')) {
     const orders: Record<string, string> = {};
-    for (const engine of ['embla', 'own']) {
+    // The old row's order for this drag, recorded from its runs before step 8d (out-full1: own p1,root,p2,p3).
+    orders.own = 'p1,root,p2,p3';
+    for (const engine of ['embla']) {
       // No parking here: the own row parks a page at the cap, and the reference must draw all 25 slots as the Embla row does.
       const { page, close } = await open(SLOTS24, 1800, 900, '&grab=1', engine);
       const at = await press(page, 'p1');
@@ -2089,7 +2082,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       await close();
     }
     res.rootRule = orders;
-    if (orders.embla !== orders.own) failed.push(`reorder rootRule: p1 dragged over the root lands ${orders.embla} on Embla, ${orders.own} on the own row`);
+    if (orders.embla !== orders.own) failed.push(`reorder rootRule: p1 dragged over the root lands ${orders.embla} on Embla, ${orders.own} on the old row (recorded)`);
   }
 
   // 6. Reduce Motion: the edge hold jumps rest to rest, the page stays under the pointer, the drop lands at once on the grid.
