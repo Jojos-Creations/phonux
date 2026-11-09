@@ -162,6 +162,12 @@ export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boole
   const drawn = emblaDrawnOf(embla) + shift;
   const target = -e.target.get() + shift;
   const gliding = (Math.abs(e.target.get() - e.location.get()) > 0.5 || Math.abs(e.location.get() - e.offsetLocation.get()) > 0.5);
+  // A glide in flight with the same stops keeps its pace: the shift moves its positions in place (its target too), so the view keeps
+  // still under the change and the glide runs on with no restart (a restart from rest was a jump in speed, measured 301 px a frame).
+  if (gliding && !restop) {
+    if (Math.abs(shift) > 0.01) shiftEmbla(embla, shift);
+    return;
+  }
   if (restop) {
     embla.reInit();
     markEmblaBuilt(embla);

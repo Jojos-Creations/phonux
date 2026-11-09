@@ -658,12 +658,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const k = now === null ? -1 : now.layout.ids.indexOf(rootId);
     return now === null || k < 0 || wholeInView(now.layout, k, now.at, now.windowWidth) ? 'shown' : 'away';
   };
-  // The move and the glide, read off the strip and the order as they are when the row is free to move.
+  // The move and the glide, read off the strip and the order as they are when the row is free to move. The view is the one drawn
+  // now: mid-glide the root goes next to what is on screen, so it never appears inside the view, and the glide turns to bring it in.
   const stripSummonNow = (): void => {
     const now = stripNow();
-    if (now === null) return;
-    const move = emblaSummonMove(now.layout, now.at, now.windowWidth, rootId);
-    if (move === null) return;
+    const embla = now === null ? undefined : emblaOf(now.el);
+    if (now === null || embla === undefined) return;
+    const move = emblaSummonMove(now.layout, emblaDrawnOf(embla), now.windowWidth, rootId);
+    if (move === null) {
+      requestScroll({ id: rootId, kind: 'move', align: 'into-view', forced: true, fresh: false });
+      return;
+    }
     const present = panels.filter(isPresent).map((p) => p.id);
     const from = present.indexOf(rootId);
     const others = present.filter((id) => id !== rootId);

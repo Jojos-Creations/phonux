@@ -933,7 +933,9 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
   };
   // Runs `act` and reads every frame until the row settles. Per frame, over the pages drawn in the window or one gap past its edges in
   // either of two frames: all move by one shift (the strip's; a page off it by more than 0.5 px moved on its own, a snap or a slide);
-  // that shift is at most a quarter slot (no jump; `jumps` allows Reduce Motion's) and keeps one direction (`oneWay`); the window has
+  // that shift keeps one direction (`oneWay`) and no frame moves it more than half a slot (no jump: these glides of one or two slots
+  // peak near 125 px a frame, and a summon that put the root inside the view first jumped 270; `jumps` allows Reduce Motion's); the
+  // largest change of speed between frames is reported (`worstKickPx`, a glide's start included); the window has
   // no run wider than a gap that no page covers (no hole) and no unloaded placeholder in it (no blank). The rest is on the grid.
   const run = async (page: Page, label: string, act: () => Promise<unknown>, opts: { jumps?: boolean; oneWay?: boolean; settleMs?: number } = {}): Promise<any> => {
     const changes0 = await g(page, 'orderChanges');
@@ -942,6 +944,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     const ret = await act();
     await sleep(opts.settleMs ?? 1600);
     const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, `summon-${label}-frames.json`), JSON.stringify(fr.map((f: any) => ({ t: f.t, pos: f.pos, named: f.named }))));
     const after = await shown(page);
     const win = await g(page, 'win');
     const max = await g(page, 'max');
@@ -957,6 +960,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     let blankFrames = 0;
     let moving = 0;
     const rootPlaces = new Set<number>();
+    const shifts: { s: number; dt: number }[] = [];
     for (let k = 0; k < fr.length; k += 1) {
       const f = fr[k];
       if (f.named.root !== undefined && f.named.root.x + f.named.root.w > 0.5 && f.named.root.x < W - 0.5) rootPlaces.add(Math.round(f.named.root.x));
@@ -982,16 +986,21 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
         }
       }
       if (Math.abs(shift) > 0.5) moving += 1;
-      worstStep = Math.max(worstStep, Math.abs(shift));
+      shifts.push({ s: shift, dt: Math.max(1, f.t - p.t) });
       if (Math.abs(shift) > 0.5) {
         if (dir === 0) dir = Math.sign(shift);
         else if (Math.sign(shift) !== dir) backFrames += 1;
       }
     }
+    for (let k = 1; k + 1 < shifts.length; k += 1) {
+      const v = (q: { s: number; dt: number }): number => q.s / q.dt;
+      worstStep = Math.max(worstStep, Math.abs(v(shifts[k]!) - (v(shifts[k - 1]!) + v(shifts[k + 1]!)) / 2) * shifts[k]!.dt);
+    }
     const r = {
       returned: ret,
       frames: fr.length,
       moving,
+      fastestPx: +Math.max(0, ...shifts.map((q) => Math.abs(q.s))).toFixed(1),
       order: (await g(page, 'order')).join(),
       orderCommits: (await g(page, 'orderChanges')) - changes0,
       visibleBefore: visible(before, W),
@@ -1003,14 +1012,14 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
       restOnGrid: onGrid(rest, PITCH, max),
       worstOwnPx: +worstOwn.toFixed(1),
       worstOwnAt,
-      worstStepPx: +worstStep.toFixed(1),
+      worstKickPx: +worstStep.toFixed(1),
       backFrames,
       worstHolePx: +worstHole.toFixed(1),
       blankFrames,
     };
     if (fr.length < 10) empty.push(`summon ${label}: ${fr.length} frames recorded`);
     if (worstOwn > 0.5) fail(label, `a page in the window moved ${r.worstOwnPx} px off the strip's own shift (${worstOwnAt}): it jumped or slid on its own`);
-    if (!opts.jumps && worstStep > PITCH / 4) fail(label, `the strip moved ${r.worstStepPx} px in one frame`);
+    if (!opts.jumps && r.fastestPx > PITCH / 2) fail(label, `the strip jumped ${r.fastestPx} px in one frame`);
     if (opts.oneWay !== false && backFrames > 0) fail(label, `${backFrames} frames moved against the glide`);
     if (worstHole > GAP + 1) fail(label, `a run of the window ${r.worstHolePx} px wide that no page covers`);
     if (blankFrames > 0) fail(label, `${blankFrames} frames draw an unloaded placeholder in the window`);
@@ -1105,8 +1114,8 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     await close();
   }
   if (want('summon.midGlide')) {
-    // Pressed while the row glides from slot 14 to 18: the root goes next to the view the glide is heading for; the move keeps the pages
-    // drawn now still (the strip and the glide's target shift together), so the glide lands with the root at the left edge.
+    // Pressed while the row glides from slot 14 to 18: the root goes next to the view drawn at that moment (left of p14 or p15, out of
+    // the window, never inside it) and the glide turns back to bring it in at the left edge (so not one way).
     const { page, errors, close } = await open(row);
     if (!(await placeRoot(page, 2))) empty.push('summon midGlide: the root could not be placed');
     await g(page, 'jumpToSlot', 14);
@@ -1114,11 +1123,12 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     await g(page, 'glideToSlot', 18);
     await sleep(90);
     const mid = await g(page, 'pos');
-    const r = await run(page, 'midGlide', () => g(page, 'summon'));
+    const r = await run(page, 'midGlide', () => g(page, 'summon'), { oneWay: false, settleMs: 2200 });
     r.midPos = +mid.toFixed(1);
     res.midGlide = r;
     if (Math.abs(mid - 14 * PITCH) < 20 || Math.abs(mid - 18 * PITCH) < 20) empty.push(`summon midGlide: the press came at ${mid}, not mid-glide`);
-    if (r.returned !== true || r.order !== orderWith(17) || r.orderCommits !== 1 || r.visibleAfter.join() !== 'root,p18,p19,p20' || Math.abs(r.rest - 17 * PITCH) > 0.5) fail('midGlide', `answered ${r.returned}, order ${r.order} (${r.orderCommits} commits), view ${r.visibleAfter} at ${r.rest}; want the root at 17, root,p18,p19,p20 at ${17 * PITCH}, 1 commit`);
+    const k = r.order.split(',').indexOf('root');
+    if (r.returned !== true || (k !== 13 && k !== 14) || r.order !== orderWith(k) || r.orderCommits !== 1 || r.visibleAfter[0] !== 'root' || Math.abs(r.rest - k * PITCH) > 0.5) fail('midGlide', `answered ${r.returned}, order ${r.order} (${r.orderCommits} commits), view ${r.visibleAfter} at ${r.rest}; want the root at 13 or 14 (next to the drawn view), at the left edge, 1 commit`);
     if (errors.length > 0) fail('midGlide', `page errors ${errors.join(' | ')}`);
     await close();
   }
