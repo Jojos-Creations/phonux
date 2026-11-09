@@ -534,7 +534,7 @@ if (ONLY.has('gesture') && ENGINE === 'embla') {
       if (!acted && act !== null && Date.now() - t0 > 1000) { acted = true; await act(page); }
       await sleep(16);
     }
-    await sleep(1200);
+    await sleep(2200);
     const fr = await g(page, 'stop');
     const mv = frameMoves(fr);
     const rest = fr[fr.length - 1].pos;
@@ -572,7 +572,7 @@ if (ONLY.has('gesture') && ENGINE === 'embla') {
       if (!acted && Date.now() - t0 > 1000) { acted = true; await g(page, 'op', 'setSlots', ids[2], 2); }
       await sleep(16);
     }
-    await sleep(1200);
+    await sleep(2200);
     const fr = await g(page, 'stop');
     const watch = ids[8]!;
     let worst = 0;
