@@ -306,9 +306,67 @@ and p2 grows to 78 px (16 at rest) while the per-frame layout says 16.0 px throu
 main thread with `composite: 'add'` broke it (the DOM gap reached 422 px); the fix needs the slot glides compositable or the size box
 and its neighbours on one clock. Open.
 
+## Step 6: drag to reorder, with edge scroll
+
+The plan's first try, dnd-kit with Embla's auto-scroll, fights the row and was dropped: `@dnd-kit/sortable`'s auto-scroll moved the
+transform-drawn Embla row 0 px, a 1200 px row move under a still pointer fired 0 over events, and it reorders DOM nodes, which would
+reload web views. The fallback the plan named is what shipped: our reorder (the grab strip's drag, `@dnd-kit/core` 6.3.1 for sensors,
+Escape and announcements, as before) with its edge loop pointed at Embla.
+
+- `edgeScrollerOf` and `edgeScrollOf` (`panelRowDropScroll.ts`): a drag inside an Embla row's window edge-scrolls that window and counts
+  from where the strip is drawn. `openEdgeHold` takes `holdEmbla` (`emblaRow.ts`), the one writer while the hold lasts: it writes the
+  drawn position (`writeEmbla`), so the strip and the dragged box move in the same frame and the box stays under the pointer.
+- The bands are the window's own edges (no insets, no hidden panels to swap in; the stops are the strip's rests, which a Reduce Motion
+  hold jumps between). A release settles on Embla's nearest stop; Escape (`edge.end(true)` in `dragToClose.tsx`) returns the row to
+  the stop it started from, with the order unchanged.
+- A person's move (a drop, or an arrow key on the grab strip) is noted by the slot (`noteReorder` on `PanelSlotValue`, recorded by
+  `usePanelDragProps`) in the task that moves the panel. In the render that draws it, `PanelRow` leaves the view where it is drawn
+  instead of keeping the left-edge panel still, and glides (jumps under Reduce Motion) to the nearest stop that shows the moved panel
+  whole if the move took it out of view. A note older than 1 s is ignored (the host refused the move).
+- The dragged panel is never unloaded (`loadedNear`'s `unloadable` skips it), however far the edge scroll carries it.
+
+Embla internals: none new (`holdEmbla` writes through `writeEmbla`, already pinned).
+
+Measured (`embla-row-proof.ts --only reorder`, 1800 x 900, the root and 24 parkable one-slot pages, window of four, cap 8, the proof
+page's `grab=1` mode):
+
+| check | result |
+| --- | --- |
+| p2 held 6 px inside the right edge for 1 s, no mouse motion | row moved 917-946 px, 0 still frames of 71-73; p2's content 0.01 px from the pointer |
+| control: held mid-row 1 s | row 0 px |
+| pages the dragged box never passed over, along the strip, any frame | 0 px (p9..p24, root, p1); passed over p3..p8, each an eased 406 px hop, worst frame 30.8-33.8 px |
+| placeholders drawn in the window over the hold | 0 frames; Embla's own drag 0 pointerDowns |
+| drop | rests 1218 on the grid, p2 lands at the slot it was let go over, 1 order commit |
+| Escape after 497-501 px of edge scroll | row back at 0, every page 0 px off its place, order unchanged, 0 commits |
+| p7 dropped into the left-edge slot from slot 5, pointer 145 px into the window | row 0 px held and after, p7 at 0, 1 commit |
+| same, pointer 25 px in (inside the 48 px band) | row edge-scrolls 151-158 px while held, the release settles on the nearest stop (2030), p7 lands whole there, other pages 0 px |
+| ArrowRight on p1's grab strip | row stays at 0, order moved one place |
+| ArrowRight on p3, the right-edge page | p3 out of view, the row glides to 406 (settled at about 1.4 s), p3 whole at 1218 |
+| p1 dragged a slot and a half left over the root | same order as the own row (`p1,root,p2,p3`) |
+| Reduce Motion: hold at the right edge 1.2 s | 812 px in 2 jumps, drift 0 px, 0 settle frames, rest 1218, 1 commit, 0 blank frames |
+
+The first draft of this section failed three of these on the proof, not the row (frame dumps `reorder-*-frames.json`): it counted
+p6 and p7 as "not crossed" because the final order did not include them, but the held page passed over them at the edge and they
+glided back when the pointer went mid-row; its left-edge drop stopped the pointer 25 px into the window, inside the band, so the row
+edge-scrolled and settled back (158 px out and back); and its key case read the row 900 ms after the press, in Embla's glide tail
+(405.46, 406 at about 1.4 s).
+
+Negative control: this proof copied into a `git archive c19c65d` extract (the row before step 6), switch on: 10 failures; every
+check above fails there except the root rule, ArrowRight on p1, Embla's own drag staying off and the mid-row control (the
+behaviour was already right). On c19c65d the row does not edge-scroll at all, so the drift, pages-not-passed-over and placeholder
+checks fail there only through their travel gate (they read 0 px over 0 px of travel); the original pages-not-crossed reading did
+see p6's 30.7 px hop, so the per-frame strip measure can see a moving page. Mutant: the
+reorder note's branch in `PanelRow` turned off fails 2 (the left-edge drop moves the view 406 px and leaves p7 at -406; ArrowRight
+on p3 leaves it cut at 1624).
+
+Look at the screenshots: `reorder-hold-mid.png` and `reorder-leftEdge-band-mid.png` show a page cut at the window's edge while the
+row edge-scrolls between stops, as any scroll in motion does; at rest nothing is cut (`reorder-leftEdge-outside-mid.png`,
+`reorder-hold-rest.png`). The dragged page is clipped by the window's edge while it is held there (it is not lifted out of the row).
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
-- Drag to reorder and its edge scroll (step 6). Width changes: a hand resize (`usePanelResizing`, a held width) and a window resize
+- Reorder on Embla: a wide (two-slot or wider) page dragged, a drag held at the left edge to the strip's start, a touch drag and a
+  host that refuses a move were not tried. Width changes: a hand resize (`usePanelResizing`, a held width) and a window resize
   during a size glide were not tried on Embla; maximize was tried with a wheel and a key, not with a window resize while grown.
 - Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, and a window one slot wide were not tried; a
   real trackpad flick carrying the root out was not tried (the proof uses a glide and a dot press).
