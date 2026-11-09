@@ -11,7 +11,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { PANEL_SETTINGS_CATALOG, PanelManagerError, PanelRow, Workspace, createWorkspace, definePanel, useHost, useProvidePanels } from '../index.js';
-import type { HistoryAPI, PanelTemplate, PhoneDeviceAPI, SettingsAPI, SnapshotsAPI, WorkspaceHandle, WorkspaceLive, WorkspaceWrapProps } from '../index.js';
+import type { PanelTemplate, PhoneDeviceAPI, SnapshotsAPI, WorkspaceHandle, WorkspaceLive, WorkspaceWrapProps } from '../index.js';
 import { createDefaultTheme, muiThemeFor } from '../defaultTheme.js';
 import { HostProvider } from '../hostApi.js';
 import { ThemeProvider } from '@mui/material/styles';
@@ -25,21 +25,13 @@ afterEach(rigCleanup);
 // ---------------------------------------------------------------------------
 
 const device = (width: number, height = 700): PhoneDeviceAPI => ({ size: { width, height, modelId: 'custom' } });
-const settings = (visible: boolean): SettingsAPI => ({ settingsColumn: { visible, show: () => undefined, hide: () => undefined } });
-const history = (entries: number, close: () => void = () => undefined): HistoryAPI => ({
-  loadClosedPages: async () => [],
-  closedPagesViewer: { isOpen: false, loading: false, entries: Array.from({ length: entries }, (_, i) => ({ id: `e${i}`, title: `t${i}`, url: '', closedAt: '' })), open: () => undefined, close: () => undefined },
-  locked: true,
-  closed: false,
-  close,
-});
 const snapshots = (): SnapshotsAPI => ({ get: () => null, subscribe: () => () => undefined });
 
 /** What the probe view read from `useHost()` at each of its renders. */
 const seen: string[] = [];
 const hostRead = (): string => {
   const h = useHost();
-  return JSON.stringify({ size: h.device.size, column: h.settings.settingsColumn.visible, entries: h.history?.closedPagesViewer.entries.length ?? null, snapshots: h.snapshots !== undefined, labels: h.labels ?? null });
+  return JSON.stringify({ size: h.device.size, snapshots: h.snapshots !== undefined, labels: h.labels ?? null });
 };
 const probe = (id = 'probe'): PanelTemplate =>
   definePanel({
@@ -75,16 +67,6 @@ test('device reaches the view, and the row is priced from its width', async () =
   assert.equal(ws.status === 'disposed', false);
 });
 
-test('settings reaches the view as the settings column', async () => {
-  await started({ settings: settings(true) });
-  assert.equal(hostOf().column, true);
-});
-
-test('history reaches the view', async () => {
-  await started({ history: history(3) });
-  assert.equal(hostOf().entries, 3);
-});
-
 test('snapshots reach the view', async () => {
   await started({ snapshots: snapshots() });
   assert.equal(hostOf().snapshots, true);
@@ -97,7 +79,7 @@ test('labels reach the view', async () => {
 
 test('with none of them a view reads the defaults a bare HostProvider gives', async () => {
   await started();
-  assert.deepEqual(hostOf(), { size: { width: 390, height: 700, modelId: 'default' }, column: false, entries: null, snapshots: false, labels: null });
+  assert.deepEqual(hostOf(), { size: { width: 390, height: 700, modelId: 'default' }, snapshots: false, labels: null });
 });
 
 test('standalone, tuning.rowTop is the row top room and a configure moves it; topInset alone does not set it', async () => {
@@ -194,26 +176,26 @@ test('wrap renders inside the host and around the row, with the workspace, and k
 // 3. update
 // ---------------------------------------------------------------------------
 
-test('a hook in wrap that calls update with new device, settings, history and snapshot values re-renders every reader with them', async () => {
+test('a hook in wrap that calls update with new device and snapshot values re-renders every reader with them', async () => {
   let push: ((live: WorkspaceLive) => void) | undefined;
   function Wrap({ children, workspace }: WorkspaceWrapProps): React.ReactElement {
     push = (live) => workspace.update(live);
     return React.createElement(React.Fragment, null, children);
   }
-  const ws = await started({ wrap: Wrap, device: device(400), settings: settings(false), history: history(1) });
-  assert.deepEqual(hostOf(), { size: { width: 400, height: 700, modelId: 'custom' }, column: false, entries: 1, snapshots: false, labels: null });
-  await act(async () => push!({ device: device(520), settings: settings(true), history: history(4), snapshots: snapshots() }));
-  assert.deepEqual(hostOf(), { size: { width: 520, height: 700, modelId: 'custom' }, column: true, entries: 4, snapshots: true, labels: null });
+  const ws = await started({ wrap: Wrap, device: device(400) });
+  assert.deepEqual(hostOf(), { size: { width: 400, height: 700, modelId: 'custom' }, snapshots: false, labels: null });
+  await act(async () => push!({ device: device(520), snapshots: snapshots() }));
+  assert.deepEqual(hostOf(), { size: { width: 520, height: 700, modelId: 'custom' }, snapshots: true, labels: null });
   assert.equal(ws.status === 'ready' || ws.status === 'loading', true);
 });
 
 test('an update changes nothing it did not name', async () => {
-  const ws = await started({ device: device(400), settings: settings(true), history: history(2), labels: { untitledPanel: 'X' } });
+  const ws = await started({ device: device(400), snapshots: snapshots(), labels: { untitledPanel: 'X' } });
   await act(async () => ws.update({ device: device(480) }));
-  assert.deepEqual(hostOf(), { size: { width: 480, height: 700, modelId: 'custom' }, column: true, entries: 2, snapshots: false, labels: { untitledPanel: 'X' } });
-  await act(async () => ws.update({ history: undefined }));
-  assert.equal(hostOf().entries, null, 'a member named with undefined is taken away');
-  assert.equal(hostOf().column, true);
+  assert.deepEqual(hostOf(), { size: { width: 480, height: 700, modelId: 'custom' }, snapshots: true, labels: { untitledPanel: 'X' } });
+  await act(async () => ws.update({ snapshots: undefined }));
+  assert.equal(hostOf().snapshots, false, 'a member named with undefined is taken away');
+  assert.deepEqual(hostOf().labels, { untitledPanel: 'X' });
 });
 
 test('update refuses root, templates, storage, mount and wrap with invalid-options and changes nothing', async () => {
@@ -241,10 +223,10 @@ test('a hook that hands update fresh objects with fresh closures every render, f
   let wraps = 0;
   function Wrap({ children, workspace }: WorkspaceWrapProps): React.ReactElement {
     wraps += 1;
-    const fresh = { ...history(2, () => undefined), loadClosedPages: async () => [] };
+    const fresh: SnapshotsAPI = { get: () => null, subscribe: () => () => undefined };
     const dev: PhoneDeviceAPI = { size: { width: 430, height: 700, modelId: 'custom' }, chooseModel: async () => undefined };
     React.useEffect(() => {
-      workspace.update({ device: dev, history: fresh, panels: { onPanelsClosed: () => undefined } });
+      workspace.update({ device: dev, snapshots: fresh, panels: { onPanelsClosed: () => undefined } });
     });
     return React.createElement(React.Fragment, null, children);
   }
@@ -253,7 +235,7 @@ test('a hook that hands update fresh objects with fresh closures every render, f
   await advanceFrames(400);
   assert.ok(settled <= 4, `wrap rendered ${settled} times before it settled`);
   assert.equal(wraps, settled, 'and no more after');
-  assert.equal(hostOf().entries, 2);
+  assert.equal(hostOf().snapshots, true);
 });
 
 test('an update from a layout effect in wrap lands in the task that rendered the row, before the browser can paint', async () => {
@@ -291,7 +273,7 @@ test('an update from a layout effect in wrap lands in the task that rendered the
 // ---------------------------------------------------------------------------
 
 test('an option and the same value in a hand-built Host give the same view result', async () => {
-  const values = { device: device(460, 650), settings: settings(true), history: history(2), snapshots: snapshots(), labels: { untitledPanel: 'Same' } };
+  const values = { device: device(460, 650), snapshots: snapshots(), labels: { untitledPanel: 'Same' } };
   const ws = await started(values);
   const byOption = JSON.parse(seen[seen.length - 1]!);
   document.body.replaceChildren();
@@ -327,11 +309,11 @@ test('the mount does not pass rowResizeSettled: Workspace settles the row from t
 // 6. The catalog's tuning leaves
 // ---------------------------------------------------------------------------
 
-test('the catalog holds 22 tuning leaves, and DESIGN.md says so', () => {
+test('the catalog holds 25 tuning leaves, and DESIGN.md says so', () => {
   const leaves = PANEL_SETTINGS_CATALOG.filter((d) => d.name.startsWith('tuning.'));
-  assert.equal(leaves.length, 22);
+  assert.equal(leaves.length, 25);
   const design = readFileSync(fileURLToPath(new URL('../DESIGN.md', import.meta.url)), 'utf8');
   const start = design.indexOf('## Workspace options, wrap and update');
   assert.ok(start >= 0);
-  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 22 tuning leaves/);
+  assert.match(design.slice(start, design.indexOf('\n## ', start + 1)), /holds 25 tuning leaves/);
 });

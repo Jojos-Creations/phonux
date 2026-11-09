@@ -7,17 +7,16 @@
 import type { PhonuxTheme } from './defaultTheme.js';
 import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
-import { askedFlip, cancelled, checkPatch, configured, deferredEntry, deferredResult, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, sameDeferral, shownEntry, shownResult, unchanged, withoutFlip, type ConfigureOutcome, type HostSplit, type InstancePlan } from './panelConfigure.js';
+import { checkPatch, configured, flipRefusal, flipsParkable, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, unchanged, type ConfigureOutcome, type HostSplit } from './panelConfigure.js';
 import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
-import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type PinResult, type ResetResult } from './panelManager.js';
+import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError, type PanelRefusal } from './panelManagerError.js';
-import { decidePinChange, isPinned, withoutDeferral, type PinChange, type PinDecision, type PinStatus } from './panelPin.js';
 import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
-import type { AddPlacement, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
+import type { AddPlacement, EnterFrom, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { definePanel } from './panelTemplate.js';
-import type { DeferredPin, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
+import type { PanelReader, PanelReadHandle, PanelSnapshot, PanelState, PanelTemplate, AnyPanelTemplate, ViewHandle, WorkspaceStatus } from './panelTemplate.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
-import { createHistoryPanel, slotsOf, type PanelWindow } from './panelWindow.js';
+import { createRootPanel, slotsOf, type PanelWindow } from './panelWindow.js';
 import type { PanelViewContext } from './panelViewContext.js';
 import type { DeclaredPanel } from './workspacePlan.js';
 import type { WorkspaceStorage } from './workspaceState.js';
@@ -25,6 +24,7 @@ import type { SettingsPatch } from './settingsPatch.js';
 import { cleanWorkspaceName, DEFAULT_WORKSPACE_NAME } from './workspaceName.js';
 import { entryNamed } from './panelIds.js';
 import { familyIds } from './panelOpener.js';
+import { resolveOpen, type PlaceOpen } from './openPlacement.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
@@ -104,6 +104,11 @@ export type WorkspaceOptions = WorkspaceLive & {
    * one identity for the workspace's life and never remounts. Ignored when `mount` is `false`.
    */
   wrap?: ComponentType<WorkspaceWrapProps>;
+  /**
+   * Default true: after the person closes a panel the auto mount shows a toast whose Undo calls `undoClose`. false leaves the
+   * notice to the host, which reads `PanelsAPI.recentlyClosed`. Fixed at creation. Ignored when `mount` is `false`.
+   */
+  undoToast?: boolean;
 };
 
 /**
@@ -137,10 +142,10 @@ export interface WorkspaceHandle {
    * `duplicate-template` (a different template already holds that id), `instance-id-required`, `invalid-options` (a bad or
    * foreign `id`) or `invalid-settings` (a settings conflict, when the workspace is set to throw on one).
    */
-  addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P>;
+  addPanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P> | string, o?: AddPanelOptions<P>): PanelHandle<P>;
   /**
    * Gives the auto-mounted host new values: only the members of `WorkspaceLive` (`device`, `settings`, `history`, `snapshots`,
-   * `labels`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
+   * `labels`, `icons`, `topInset`, `panels`) may be named, and a member left out is not touched. Readers re-render when the data of a
    * member changed, never for a changed closure alone, so a hook may call this from an effect on every render without a loop.
    * Naming anything else (`root`, `templates`, `storage`, `mount`, `wrap`) changes nothing.
    * @throws PanelManagerError with code `disposed`, or `invalid-options` for a member that is not live.
@@ -154,6 +159,23 @@ export interface WorkspaceHandle {
   registerTemplate(t: AnyPanelTemplate): () => void;
   /** Drops the workspace's listeners and intents; a later `addPanel` throws `disposed`. */
   dispose(): void;
+}
+
+/** What `addPanel` takes besides the template. @public */
+export interface AddPanelOptions<P extends JsonValue = JsonValue> {
+  /** The panel's id; a `multiple` template's panel needs one before the workspace is ready. */
+  id?: PanelId;
+  /** The panel's own settings layer. */
+  settings?: PanelSettings;
+  /** Opaque data for the view. */
+  params?: P;
+  /** The page the panel shows. */
+  url?: string;
+  /**
+   * Picks where a panel this call creates lands among the panels in view, and what the panel in that slot does. Without it
+   * the panel lands where its `placeOnAdd` says. Ignored for a panel that already exists or is made before the workspace is ready.
+   */
+  place?: PlaceOpen;
 }
 
 /**
@@ -197,12 +219,12 @@ export interface EngineOps {
   place(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
   /** Puts a parked or hidden panel where `value` says and makes it live in the same update; a live panel is placed. */
   land(engineId: string, value: AddPlacement | 'in-place', source: PanelOpSource): PanelResult;
+  /** Parks `hideIds` and makes each of `show` live where its `place` says, in one update and one motion; refuses `busy` when any of them already holds a token. */
+  swap(show: readonly { engineId: string; place?: AddPlacement | 'in-place' }[], hideIds: readonly string[]): PanelResult;
   setSlots(engineId: string, slots: number, source: PanelOpSource): PanelResult;
   scrollTo(engineId: string, align: ScrollAlign | undefined): PanelResult;
   /** Re-adds a closed panel, as `create` does; refuses `busy` when the turn's gate says so. */
   reopen(req: CreateRequest): PanelResult;
-  /** Applies the half `by` names to a panel the engine holds, live, parked or hidden, as `pinningWhenNotLive` says. */
-  pin(engineId: string, by: 'pin' | 'unpin', source: PanelOpSource): PinResult;
   /** Resets the panels the engine holds under these ids, in this order, in one update. `follow` scrolls to the one panel it names. */
   reset(engineIds: readonly string[], follow: boolean): ResetResult;
   /** Whether the panel last held under `engineId` closed inside the undo window and can still be undone. */
@@ -229,10 +251,12 @@ export interface CreateRequest {
   url?: string;
   /** True for a panel code declares: it is saved without an instance layer because code gives it again. */
   declared?: boolean;
-  /** A pin change stored for this panel while it was closed, applied as the panel is added. */
-  deferredPin?: DeferredPin;
   /** The engine id of the panel whose view asked for this one, recorded on the entry as its opener. */
   openedBy?: string;
+  /** Where this one open lands, in place of the panel's `placeOnAdd`. */
+  place?: AddPlacement;
+  /** The engine id of the panel that leaves view when the open leaves the row without room. */
+  leaves?: string;
   /** Set for a panel moved in from another workspace: it goes to the end of the row and keeps these fields of the entry it had; `sized` is whether the person chose its size. */
   carried?: Pick<PanelWindow, 'uid' | 'title' | 'slots'> & { sized: boolean };
 }
@@ -258,6 +282,8 @@ export interface EngineBinding {
   readonly live: LiveStore;
   /** The component the auto mount renders around the row, if the app gave one. */
   readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
+  /** Whether the auto mount draws its undo-close toast (see `WorkspaceOptions.undoToast`). */
+  readonly undoToast: boolean;
   /** The theme function the auto mount draws with, if the app gave one. */
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
   /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
@@ -266,22 +292,26 @@ export interface EngineBinding {
   reportNote(note: SettingNote): void;
   /** The attached hook binds (or, with undefined, unbinds) where runtime notes go. */
   bindNotes(sink: ((note: SettingNote) => void) | undefined): void;
-  /** The row tells the workspace the panel drawn under `engineId` was just focused or pressed; the attached hook counts that as a touch. Ignored while no hook is bound. */
-  touch(engineId: string): void;
+  /** The row tells the workspace the panel drawn under `engineId` was just focused or pressed, `control` when on its chrome's own controls; the attached hook counts that as a touch. Ignored while no hook is bound. */
+  touch(engineId: string, control?: boolean): void;
   /** The attached hook binds (or, with undefined, unbinds) where touches go. */
-  bindTouch(sink: ((engineId: string) => void) | undefined): void;
+  bindTouch(sink: ((engineId: string, control: boolean) => void) | undefined): void;
+  /** The row tells the workspace a press landed outside every panel, so no panel is in use; ignored while no hook is bound. */
+  blur(): void;
+  /** The attached hook binds (or, with undefined, unbinds) what such a press runs. */
+  bindBlur(sink: (() => void) | undefined): void;
+  /** A drag held at the row's edge swaps the nearest hidden panel on that side in, keeping `keepId` live; false while no hook is bound or nothing came in. */
+  cycle(direction: 'left' | 'right', keepId: string): boolean;
+  /** The attached hook binds (or, with undefined, unbinds) what a swap at the edge runs. */
+  bindCycle(sink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined): void;
   /** The workspace's own templates, the root's included. */
   templates(): readonly PanelTemplate[];
   /** The template this workspace holds under `id`, or undefined: what its row renders a panel of `id` with. */
   template(id: string): PanelTemplate | undefined;
   /** What `e` resolves to now, over the layers the workspace holds for it: the settings a closed entry is rebuilt with. */
   resolved(e: PanelWindow): ResolvedPanelSettings;
-  /** What `e` resolves to over the layers the workspace holds for it with the person's `parkable` set to the given value. */
-  resolveWith(e: PanelWindow, parkable: boolean): PanelSettingsResolution;
   /** What `e` resolves to over those layers with no person's layer at all: the defaults a reset applies. */
   resolveDefaults(e: PanelWindow): PanelSettingsResolution;
-  /** The pin change stored for the closed panel `key`, removed from its record; undefined when none was. */
-  takeDeferredPin(key: PanelId): DeferredPin | undefined;
   /** The intents recorded so far, as declarations. */
   declared(): readonly DeclaredPanel[];
   /** The entries the first paint starts with: the root or the marker. */
@@ -313,8 +343,6 @@ interface Rec {
   lastEngineId?: string | undefined;
   /** True for a panel `addPanel` named itself (`template~suffix`): nothing can ask for it again once it closes. */
   anonymous: boolean;
-  /** A pin change stored while the panel is closed, applied by `open()` or an undo. */
-  deferredPin?: DeferredPin | undefined;
 }
 
 /** What a handle still answers for a panel that closed and left the snapshot. */
@@ -378,16 +406,13 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
   a.title === b.title &&
   a.url === b.url &&
   a.listed === b.listed &&
-  a.pinned === b.pinned &&
   a.openedBy === b.openedBy &&
   JSON.stringify(a.params) === JSON.stringify(b.params) &&
-  JSON.stringify(a.deferredPin) === JSON.stringify(b.deferredPin) &&
   sameSettingsValue(a.settings, b.settings);
 
 /** `outcome` with the hold-unlisted note appended to its answer when the update leaves a listed, held panel unlisted. */
 function withHoldNote(target: PanelWindow, status: 'live' | 'parked' | 'hidden', outcome: ConfigureOutcome): ConfigureOutcome {
-  // Only the finished outcome says whether a flip of parkable was refused, showed the panel or left it held.
-  if (!('next' in outcome) || outcome.done.shown || status !== 'hidden') return outcome;
+  if (!('next' in outcome) || status !== 'hidden') return outcome;
   if (!effective(target).listed || effective(outcome.next).listed) return outcome;
   return { ...outcome, done: { ...outcome.done, notes: [...outcome.done.notes, holdUnlistedNote(target.id)] } };
 }
@@ -474,11 +499,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   };
 
   const autoMounted = o.mount !== false && typeof document !== 'undefined';
-  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.settings !== undefined ? { settings: o.settings } : {}), ...(o.history !== undefined ? { history: o.history } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
+  const live = createLiveStore({ ...(o.device !== undefined ? { device: o.device } : {}), ...(o.snapshots !== undefined ? { snapshots: o.snapshots } : {}), ...(o.labels !== undefined ? { labels: o.labels } : {}), ...(o.icons !== undefined ? { icons: o.icons } : {}), ...(o.topInset !== undefined ? { topInset: o.topInset } : {}), ...(o.panels !== undefined ? { panels: o.panels } : {}) });
   let warnedHandMount = false;
 
   let noteSink: ((note: SettingNote) => void) | undefined;
-  let touchSink: ((engineId: string) => void) | undefined;
+  let touchSink: ((engineId: string, control: boolean) => void) | undefined;
+  let blurSink: (() => void) | undefined;
+  let cycleSink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined;
   const notesBeforeSink: SettingNote[] = [];
 
   const reportConflicts = (id: PanelId, res: PanelSettingsResolution): void => {
@@ -522,8 +549,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const settings = instanceLayer(e);
     const res = resolutionFor(e, id, e.view, settings, e.overrides, e.id === rootId, splits.get(e.id));
     if (e.settings === undefined) return { ...res, value: effective(e) };
-    // A pin from code flips `parkable` for the session without recording it, so the entry's own value outvotes the layers.
-    return e.settings.parkable === res.value.parkable ? res : resolveEntry(e, { ...e.overrides, parkable: e.settings.parkable });
+    return res;
   };
 
   /** The public id of `e`'s opener while the opener is in the row, else null. */
@@ -547,8 +573,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       params: e.params,
       listed: e.listed,
       settings: res.value,
-      pinned: isPinned(e, entries, res.value.pinning, rootId),
-      deferredPin: e.deferredPin ?? null,
       openedBy: openerKey(e, entries),
     };
   };
@@ -569,8 +593,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       params: r.params ?? template?.params,
       listed: res.value.listed,
       settings: res.value,
-      pinned: false,
-      deferredPin: r.deferredPin ?? null,
       openedBy: null,
     };
   };
@@ -645,7 +667,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const last = states.get(key);
     if (last !== undefined) {
       const res = entryResolution(e);
-      retired.set(key, { state: { ...last, status: 'closed', held: false, engineId: null, index: null, pinned: false, deferredPin: null, openedBy: null }, res });
+      retired.set(key, { state: { ...last, status: 'closed', held: false, engineId: null, index: null, openedBy: null }, res });
       for (const old of [...retired.keys()].slice(0, Math.max(0, retired.size - RETIRED_LIMIT))) {
         retired.delete(old);
         handles.delete(old);
@@ -731,6 +753,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     },
     operate: (id, call, src) => operate(id, call, src),
     resetLayout: (target) => resetLayout(target),
+    swap: (show, hide) => swapPanels(show, hide),
     configure: (id, patch, caller) => configureOne(id, patch, caller),
     configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
     configureTuning: (patch) => configureTuningOne(patch),
@@ -764,7 +787,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const rootEntry = (): PanelWindow => {
     if (root === undefined) return { id: ROOT_MARKER_ID, url: '', title: '', live: true, view: ROOT_MARKER_ID, collapsible: false, listed: false, marker: true };
     const res = resolvePanelSettings({ ...(defaults !== undefined ? { workspace: defaults } : {}), template: root.settings }, { root: true });
-    return applyTemplate({ ...createHistoryPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
+    return applyTemplate({ ...createRootPanel(root.id), title: res.value.title ?? '', view: root.id, ...(root.params !== undefined ? { params: root.params } : {}), key: root.id }, res.value, 'create');
   };
 
   const instanceKeys = (templateId: string): Set<PanelId> => {
@@ -788,8 +811,20 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (problem !== undefined) throw new PanelManagerError('invalid-options', `panel id ${JSON.stringify(id)}: ${problem}`);
   };
 
+  /** What `place` asks of the row as `c` holds it, in engine terms; the panel it closes is closed here, before the open. */
+  const placeOpen = (c: EngineCommit, place: PlaceOpen): { place: AddPlacement; leaves?: string; enterFrom?: EnterFrom } => {
+    const inView = c.entries.filter((e) => e.live && e.collapsible && e.marker !== true);
+    const asked = place({ inView: inView.map(panelKey) });
+    const r = resolveOpen(inView.map(panelKey), asked);
+    const engineOf = (key: PanelId | undefined): string | undefined => inView.find((e) => panelKey(e) === key)?.id;
+    const closes = engineOf(r.closes);
+    if (closes !== undefined) c.ops.close(closes, 'code');
+    const leaves = engineOf(r.leaves);
+    return { place: r.place, ...(leaves !== undefined ? { leaves } : {}), ...(asked.enterFrom !== undefined ? { enterFrom: asked.enterFrom } : {}) };
+  };
+
   /** `addPanel` for the view of the panel drawn under `opener`, which a panel it creates records as its opener; undefined for the host's. */
-  const addPanelBy = (opener: string | undefined) => <P extends JsonValue>(given: PanelTemplate<P> | string, options?: { id?: PanelId; settings?: PanelSettings; params?: P; url?: string }): PanelHandle<P> => {
+  const addPanelBy = (opener: string | undefined) => <P extends JsonValue>(given: PanelTemplate<P> | string, options?: AddPanelOptions<P>): PanelHandle<P> => {
     if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
     let t: PanelTemplate;
     if (typeof given === 'string') {
@@ -827,7 +862,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     records.set(id, rec);
     if (ready && !over) {
       inflight.add(id);
-      commit!.create({ id, templateId: t.id, engineId: suffix ?? newId(), ...(opener !== undefined ? { openedBy: opener } : {}), ...(options?.settings !== undefined ? { settings: options.settings } : {}), ...(options?.params !== undefined ? { params: options.params } : {}), ...(options?.url !== undefined ? { url: options.url } : {}) });
+      const open = options?.place === undefined ? undefined : placeOpen(commit!, options.place);
+      const settings = open?.enterFrom === undefined ? options?.settings : { ...options?.settings, enterFrom: open.enterFrom };
+      commit!.create({ id, templateId: t.id, engineId: suffix ?? newId(), ...(opener !== undefined ? { openedBy: opener } : {}), ...(settings !== undefined ? { settings } : {}), ...(open?.place !== undefined ? { place: open.place } : {}), ...(open?.leaves !== undefined ? { leaves: open.leaves } : {}), ...(options?.params !== undefined ? { params: options.params } : {}), ...(options?.url !== undefined ? { url: options.url } : {}) });
     }
     if (!ready || over) refresh();
     return source.handleOf(id) as PanelHandle<P>;
@@ -863,41 +900,16 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       ...(rec.settings !== undefined ? { settings: rec.settings } : {}),
       ...(rec.params !== undefined ? { params: rec.params } : {}),
       ...(rec.url !== undefined ? { url: rec.url } : {}),
-      ...(rec.deferredPin !== undefined ? { deferredPin: rec.deferredPin } : {}),
     });
     if (!result.ok) return result;
     rec.closed = false;
-    rec.deferredPin = undefined;
     inflight.add(id);
     refresh();
     return result;
   };
 
-  /** What a closed panel with a record is to a pin change: inside the undo window, or past it. */
-  const closedStatus = (rec: Rec): PinStatus => (rec.lastEngineId !== undefined && commit!.ops.inUndoWindow(rec.lastEngineId) ? 'undo' : 'closed-declared');
-
-  /** What `change` does to the closed panel `state` with the record `rec`; a function of its own because configureOne must not name an entry field. */
-  const closedDecision = (rec: Rec, state: PanelState, change: PinChange): PinDecision => decidePinChange({ settings: state.settings }, closedStatus(rec), state.settings.pinningWhenNotLive, change);
-
-  /** `pin()` or `unpin()` on a closed panel: refused, or stored on its record for `open()` or an undo to apply. A closed panel reads unpinned, so `unpin()` and a half that names nothing cancel what is stored. */
-  const pinClosed = (id: PanelId, state: PanelState, verb: 'pin' | 'unpin'): PinResult => {
-    const rec = records.get(id);
-    const closed = refused('is-closed', `panel '${id}' is closed`);
-    if (rec === undefined || (rec.anonymous && !rec.closed)) return closed;
-    const status = closedStatus(rec);
-    const change = { by: verb } as const;
-    if (decidePinChange({ settings: state.settings }, status, state.settings.pinningWhenNotLive, change).kind !== 'defer') return closed;
-    const half = verb === 'pin' ? state.settings.pinning.pinned : state.settings.pinning.unpinned;
-    const stored = rec.deferredPin;
-    const equal = verb === 'unpin' || (half.placement === undefined && half.parkable === undefined);
-    rec.deferredPin = equal ? undefined : change;
-    const moved = JSON.stringify(stored) !== JSON.stringify(rec.deferredPin);
-    if (moved) refresh();
-    return { ...accepted(moved), deferred: !equal };
-  };
-
   /** What a verb does to a panel that is closed: the settings that name it, or a refusal. */
-  const onClosed = (id: PanelId, state: PanelState, verb: PanelVerbCall['verb']): PinResult => {
+  const onClosed = (id: PanelId, state: PanelState, verb: PanelVerbCall['verb']): PanelResult => {
     const rec = records.get(id);
     const reopenable = rec !== undefined && (rec.closed || !rec.anonymous);
     const closed = refused('is-closed', `panel '${id}' is closed`);
@@ -911,16 +923,13 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       case 'toggleVisibility':
         if (!reopenable) return closed;
         return state.settings.toggleWhenClosed === 'reopen' ? reopen(id) : accepted(false);
-      case 'pin':
-      case 'unpin':
-        return pinClosed(id, state, verb);
       default:
         return closed;
     }
   };
 
   /** Runs one operation: the refusals every state shares first, then the verb's table by the panel's state. */
-  const operate = (id: PanelId, call: PanelVerbCall, src: PanelOpSource): PinResult => {
+  const operate = (id: PanelId, call: PanelVerbCall, src: PanelOpSource): PanelResult => {
     const unavailable = lifecycleRefusal(id);
     if (unavailable !== undefined) return unavailable;
     const state = knownState(id);
@@ -950,21 +959,41 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         return ops.setSlots(engineId, call.slots, src);
       case 'scrollTo':
         return state.status === 'live' ? ops.scrollTo(engineId, call.align) : refused('not-live', `panel '${id}' is parked`);
-      case 'pin':
-      case 'unpin':
-        return ops.pin(engineId, call.verb, src);
     }
   };
 
   /** The closed panels a reset can still reach: a record that can be named again. */
   const closedRecords = (): Rec[] => [...records.values()].filter((r) => knownState(r.id)?.status === 'closed' && (r.closed || !r.anonymous));
 
-  /** Clears what a reset clears on a closed panel: its stored pin change, and its place in the undo window. True when something was. */
-  const resetClosed = (r: Rec): boolean => {
-    const had = r.deferredPin !== undefined;
-    r.deferredPin = undefined;
-    const marked = r.lastEngineId !== undefined && commit!.ops.resetClosed(r.lastEngineId);
-    return had || marked;
+  /** Clears what a reset clears on a closed panel: its place in the undo window. True when it was in it. */
+  const resetClosed = (r: Rec): boolean => r.lastEngineId !== undefined && commit!.ops.resetClosed(r.lastEngineId);
+
+  /** `swap`: the engine ids of `show` and `hide`, each a panel the row holds, or the refusal for one it cannot take. */
+  const swapPanels = (show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult => {
+    const first = hide[0] ?? show[0];
+    const unavailable = lifecycleRefusal(first === undefined || typeof first === 'string' ? (first ?? rootId) : first.id);
+    if (unavailable !== undefined) return unavailable;
+    const engineIdOf = (id: PanelId): string | PanelResult => {
+      const state = knownState(id);
+      if (state === undefined) return refused('unknown-panel', `no panel '${id}' in this workspace`);
+      if (state.status === 'pending') return refused('is-pending', `panel '${id}' is still being added`);
+      if (state.status === 'closed') return refused('is-closed', `panel '${id}' is closed`);
+      return state.engineId!;
+    };
+    const hideIds: string[] = [];
+    for (const id of hide) {
+      const engineId = engineIdOf(id);
+      if (typeof engineId !== 'string') return engineId;
+      hideIds.push(engineId);
+    }
+    const shows: { engineId: string; place?: AddPlacement | 'in-place' }[] = [];
+    for (const entry of show) {
+      const { id, place } = typeof entry === 'string' ? { id: entry, place: undefined } : entry;
+      const engineId = engineIdOf(id);
+      if (typeof engineId !== 'string') return engineId;
+      shows.push(place === undefined ? { engineId } : { engineId, place });
+    }
+    return commit!.ops.swap(shows, hideIds);
   };
 
   /** `resetLayout`: one panel, or every panel but the root, back to the cascade's defaults in one update. */
@@ -1021,34 +1050,17 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     if (state.status === 'pending') return failed(refused('is-pending', `panel '${id}' is still being added`));
     const asked = patch as SettingsPatch;
     const input = { call: caller, patch: asked, names: checked.names, workspace: defaults };
-    const rest = withoutFlip(asked, checked.names);
     if (state.status === 'closed') {
       const rec = records.get(id);
       if (rec === undefined || (rec.anonymous && !rec.closed)) return failed(refused('is-closed', `panel '${id}' is closed and nothing can name it again`));
-      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: rec.settings, template: templateOf(rec.templateId)?.settings, split: rec.lastEngineId === undefined ? undefined : splits.get(rec.lastEngineId), person: undefined, current: undefined, root: false, status: 'closed' });
-      const plan = planFor(input);
+      const plan = planInstance({ ...input, base: rec.settings, template: templateOf(rec.templateId)?.settings, split: rec.lastEngineId === undefined ? undefined : splits.get(rec.lastEngineId), person: undefined, root: false, status: 'closed' });
       if (!plan.ok) return refusedPlan(id, plan);
-      if (!plan.changed) {
-        if (asked.parkable === undefined || rec.deferredPin === undefined) return unchanged();
-        rec.deferredPin = undefined;
-        refresh();
-        return cancelled();
-      }
-      const flip = askedFlip(asked, plan, state.settings.parkable);
-      const decision = flip === undefined ? undefined : closedDecision(rec, state, flip);
-      if (decision?.kind === 'refuse') return refusedFlip(id, decision.code!);
-      const waits = decision?.kind === 'defer' ? flip : undefined;
-      const applied = waits === undefined ? plan : planFor(rest);
-      if (!applied.ok) return refusedPlan(id, applied);
-      if (applied.changed) {
-        rec.settings = applied.layer;
-        if (rec.lastEngineId !== undefined && applied.split !== undefined) splits.set(rec.lastEngineId, applied.split);
-      }
-      const stored = rec.deferredPin;
-      if (waits !== undefined) rec.deferredPin = waits;
-      else if (plan.cancelsPin) rec.deferredPin = undefined;
+      if (!plan.changed) return unchanged();
+      if (flipsParkable(asked, plan, state.settings.parkable)) return refusedFlip(id, flipRefusal('closed')!);
+      rec.settings = plan.layer;
+      if (rec.lastEngineId !== undefined && plan.split !== undefined) splits.set(rec.lastEngineId, plan.split);
       refresh();
-      return waits === undefined ? configured(plan) : deferredResult(applied, !sameDeferral(stored, waits));
+      return configured(plan);
     }
     let layer: PanelSettings | undefined;
     let split: HostSplit | undefined;
@@ -1057,30 +1069,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const planUpdate = (target: PanelWindow, status: 'live' | 'parked' | 'hidden'): ConfigureOutcome => {
       base ??= { layer: instanceLayer(target), split: splits.get(target.id) };
       const seen = base;
-      const planFor = (ask: typeof rest): InstancePlan => planInstance({ ...input, ...ask, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, current: target.settings, root: target.id === rootId, slots: slotsOf(target), status });
-      const plan = planFor(input);
+      const plan = planInstance({ ...input, base: seen.layer, template: templateOf(target.view)?.settings, split: seen.split, person: target.overrides, root: target.id === rootId, slots: slotsOf(target), status });
       if (!plan.ok) return { done: refusedPlan(id, plan) };
-      if (!plan.changed) return asked.parkable !== undefined && target.deferredPin !== undefined ? { done: cancelled(), next: withoutDeferral(target) } : { done: unchanged() };
-      const flip = askedFlip(asked, plan, effective(target).parkable);
-      const decision = flip === undefined ? undefined : decidePinChange(target, status, effective(target).pinningWhenNotLive, flip);
-      if (flip !== undefined && decision?.kind === 'refuse') return { done: refusedFlip(id, decision.code!) };
-      if (flip !== undefined && decision?.kind === 'show') {
-        const others = planFor(rest);
-        if (!others.ok) return { done: refusedPlan(id, others) };
-        // The show path resolves the panel through its record, so the record holds the whole patch before the path starts.
-        storeLayer(id, target.id, plan.layer, plan.split);
-        return { done: shownResult(plan), next: shownEntry(target, others, rest.patch, plan), show: flip };
-      }
-      if (flip !== undefined && decision?.kind === 'defer') {
-        const others = planFor(rest);
-        if (!others.ok) return { done: refusedPlan(id, others) };
-        const next = deferredEntry(target, others, rest.patch, flip);
-        if (others.changed) {
-          layer = others.layer;
-          split = others.split;
-        }
-        return next === target ? { done: unchanged() } : { done: deferredResult(others, !sameDeferral(target.deferredPin, flip)), next };
-      }
+      if (!plan.changed) return { done: unchanged() };
+      const refusal = flipsParkable(asked, plan, effective(target).parkable) ? flipRefusal(status) : undefined;
+      if (refusal !== undefined) return { done: refusedFlip(id, refusal) };
       layer = plan.layer;
       split = plan.split;
       return { done: configured(plan), next: reconfigured(target, plan, asked) };
@@ -1128,7 +1121,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     const later = checked.names.filter((n) => !sameSettingsValue((before as Record<string, unknown> | undefined)?.[n], (plan.layer as Record<string, unknown>)[n]));
     const notes: SettingNote[] = checked.names.includes('maxInstances') && !after.multiple ? [{ code: 'max-instances-moot', key: 'maxInstances', message: `maxInstances: template '${templateId}' is not multiple, so this limit has no effect until multiple is true` }] : [];
     for (const note of notes) binding.reportNote(note);
-    return { ok: true, changed: true, shown: false, now: [], later, shadowed: [], notes };
+    return { ok: true, changed: true, now: [], later, shadowed: [], notes };
   };
 
   /** `configureTuning`: the workspace's tuning keys, for this session. */
@@ -1151,7 +1144,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     } else {
       apply();
     }
-    return { ok: true, changed: true, shown: false, now: plan.now, later: plan.later, shadowed: [], notes: [] };
+    return { ok: true, changed: true, now: plan.now, later: plan.later, shadowed: [], notes: [] };
   };
 
   for (const t of o.templates ?? []) registerOne(t);
@@ -1174,6 +1167,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     autoMounted,
     live,
     wrap: o.wrap,
+    undoToast: o.undoToast !== false,
     theme: o.theme,
     warnHandMounted: () => {
       if (!autoMounted || warnedHandMount || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
@@ -1191,9 +1185,17 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
         // A reporter that throws must not break the slot that raised the note.
       }
     },
-    touch: (engineId) => touchSink?.(engineId),
+    touch: (engineId, control = false) => touchSink?.(engineId, control),
+    blur: () => blurSink?.(),
+    bindBlur: (sink) => {
+      blurSink = sink;
+    },
     bindTouch: (sink) => {
       touchSink = sink;
+    },
+    cycle: (direction, keepId) => cycleSink?.(direction, keepId) ?? false,
+    bindCycle: (sink) => {
+      cycleSink = sink;
     },
     bindNotes: (sink) => {
       noteSink = sink;
@@ -1203,14 +1205,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     templates: () => [...(root !== undefined && !templates.has(root.id) ? [root] : []), ...templates.values()].map(withOverrides),
     template: registeredTemplate,
     resolved: (e) => entryResolution(e).value,
-    resolveWith: (e, parkable) => resolveEntry(e, { ...e.overrides, parkable }),
     resolveDefaults: (e) => resolveEntry(e, undefined),
-    takeDeferredPin: (key) => {
-      const rec = records.get(key);
-      const pending = rec?.deferredPin;
-      if (rec !== undefined) rec.deferredPin = undefined;
-      return pending;
-    },
     declared: () => [...records.values()].filter((r) => r.intent && !r.closed).map((r) => ({ id: r.id, templateId: r.templateId, ...(r.settings !== undefined ? { settings: r.settings } : {}), ...(r.params !== undefined ? { params: r.params } : {}), ...(r.url !== undefined ? { url: r.url } : {}) })),
     initialEntries: () => [rootEntry()],
     attach: (who) => {
@@ -1286,7 +1281,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     update: (change) => {
       if (status === 'disposed') throw new PanelManagerError('disposed', 'the workspace was disposed');
       const refusedKeys = refusedLiveKeys(change);
-      if (refusedKeys.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refusedKeys.join(', ')}: only device, settings, history, snapshots, labels, topInset and panels are live`);
+      if (refusedKeys.length > 0) throw new PanelManagerError('invalid-options', `update cannot change ${refusedKeys.join(', ')}: only device, settings, history, snapshots, labels, icons, topInset and panels are live`);
       live.update(change);
     },
     registerTemplate: (t) => {

@@ -8,7 +8,7 @@ import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings } from '../panelSettings.js';
 import { definePanel } from '../panelTemplate.js';
 import type { PanelTemplate } from '../panelTemplate.js';
-import { appendPanel, clearOverrides, createHistoryPanel, recordOverride, type PanelWindow } from '../panelWindow.js';
+import { appendPanel, clearOverrides, createRootPanel, recordOverride, type PanelWindow } from '../panelWindow.js';
 import { computeRowOrder } from '../panelRowOrder.js';
 import { resolveViewIn } from '../templateView.js';
 import { placeholderFor } from '../viewRegistry.js';
@@ -44,10 +44,10 @@ const titles = (entries: readonly PanelWindow[]): (string | undefined)[] => entr
 
 /** A panel as a creation path builds it, carrying settings. */
 const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id }, id, ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create');
 };
-const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createHistoryPanel(ROOT), ...entries], ROOT);
+const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createRootPanel(ROOT), ...entries], ROOT);
 
 // ---------------------------------------------------------------------------
 // The view registry
@@ -89,7 +89,7 @@ test('recordOverride parkable copies collapsible as parkable', () => {
 test('recordOverride skips the root, a marker and an entry with no settings', () => {
   const marker: PanelWindow = { ...made('m'), marker: true };
   const handBuilt: PanelWindow = { id: 'h', url: '', live: true, view: 'web', collapsible: true, listed: true };
-  const rooted = applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
+  const rooted = applyTemplate(createRootPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
   const row = computeRowOrder([rooted, marker, handBuilt, made('ok')], ROOT);
   const ids = row.map((p) => p.id);
   const recorded = recordOverride(row, 'anchor', ids, ROOT);
@@ -104,7 +104,7 @@ test('recordOverride keeps what other keys already hold', () => {
 
 test('clearOverrides sets {} on each listed entry that carries settings and leaves the rest', () => {
   const handBuilt: PanelWindow = { id: 'h', url: '', live: true, view: 'web', collapsible: true, listed: true };
-  const row = computeRowOrder([createHistoryPanel(ROOT), made('a', {}, { overrides: { slots: 2 } }), made('b', {}, { overrides: { parkable: false } }), handBuilt], ROOT);
+  const row = computeRowOrder([createRootPanel(ROOT), made('a', {}, { overrides: { slots: 2 } }), made('b', {}, { overrides: { parkable: false } }), handBuilt], ROOT);
   const cleared = clearOverrides(row, ['a', 'h']);
   assert.deepEqual(cleared.map((p) => p.overrides), [undefined, {}, { parkable: false }, undefined]);
 });
@@ -294,7 +294,7 @@ test('a malformed overrides.parkable is dropped by the sanitizer and the saved p
   const result = run({ saved, templates: [tpl('t')] });
   assert.equal(result.entries[0]!.collapsible, true);
   assert.deepEqual(result.entries[0]!.overrides, {});
-  const projected = projectWorkspaceState([createHistoryPanel(ROOT), ...result.entries], ROOT).panels;
+  const projected = projectWorkspaceState([createRootPanel(ROOT), ...result.entries], ROOT).panels;
   assert.deepEqual(projected.map((p) => p.instance), [{}, {}]);
   assert.deepEqual(projected[1]!.overrides, { parkable: false });
 });
@@ -386,7 +386,7 @@ test('an entry saved before slots restores its top-level formFactor and its over
 test('a new save never writes formFactor and writes slots only when it is not one', () => {
   const saved = file([savedEntry('p', { view: 't', overrides: { formFactor: 'tablet' } as never }), savedEntry('q', { view: 't', slots: 3 }), savedEntry('r', { view: 't', overrides: {} })]);
   const result = run({ saved, templates: [tpl('t')] });
-  const projected = projectWorkspaceState([createHistoryPanel(ROOT), ...result.entries], ROOT);
+  const projected = projectWorkspaceState([createRootPanel(ROOT), ...result.entries], ROOT);
   assert.equal(JSON.stringify(projected).includes('formFactor'), false);
   assert.deepEqual(Object.fromEntries(projected.panels.map((p) => [p.title, p.slots])), { p: 2, q: 3, r: undefined }, 'one slot is not written');
 });

@@ -48,7 +48,7 @@ function settledWorkspace(entries: readonly PanelWindow[], rootId: string): Work
 }
 /** The slot's translateX in px right after a render, before any frame has run; a slot at x 0 carries no transform. */
 const slotX = (container: HTMLElement, id: string): number => {
-  const slot = container.querySelector(`[data-slot="${id}"]`)?.parentElement;
+  const slot = container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `slot ${id} is mounted`);
   const match = /translateX\((-?[\d.]+)px\)/.exec(slot.style.transform);
   return match === null ? 0 : Number(match[1]);

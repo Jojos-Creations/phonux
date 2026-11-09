@@ -12,7 +12,7 @@ import { HostProvider, Workspace } from '../index.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
 import { StaticRow } from './support/seed-workspace.js';
 import { registerTestView } from './support/test-views.js';
@@ -28,8 +28,8 @@ function made(id: string, layer: PanelSettings = {}): PanelWindow {
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 }
 const scrollRoot = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'rn-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
-const legacyRoot = (): PanelWindow => ({ ...createHistoryPanel(ROOT), view: 'rn-view' });
+  applyTemplate({ ...createRootPanel(ROOT), view: 'rn-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+const legacyRoot = (): PanelWindow => ({ ...createRootPanel(ROOT), view: 'rn-view' });
 const legacyPanel = (id: string): PanelWindow => appendPanel([], { url: `https://${id}.example`, title: id, view: 'rn-view' }, id, ROOT)[0]!;
 const numbers = (entries: PanelWindow[], containerWidth = 1000) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: GAP });
 const eleven = (): PanelWindow[] => [scrollRoot(), ...[1, 2, 3, 4, 5].map((k) => made(`pin${k}`, { parkable: false })), ...[1, 2, 3, 4, 5].map((k) => made(`web${k}`))];
@@ -113,7 +113,7 @@ test('computeRowNumbers: a fixedItemCount the host passes prices a hand-built ro
   assert.equal(price(2), 862 - 406, 'a second fixed column takes its width and gap out of the cap');
 });
 
-test('a mounted scrolling row: the container pads 16 on the left, the end element is the right edge space, and the eleven slots plus ten gaps sum to the strip', () => {
+test('a mounted scrolling row: the container pads 16 on the left and none on the right, and the eleven slots plus ten gaps sum to the strip', () => {
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
@@ -121,9 +121,9 @@ test('a mounted scrolling row: the container pads 16 on the left, the end elemen
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);
-  assert.match(markup, /padding-right:0px/, 'the right edge space is the end element, so every engine counts it');
-  assert.match(markup, new RegExp(`data-row-end-pad="" style="flex:0 0 ${n.endPad + GAP}px`), 'the end element is endPad plus the row gap');
-  const slotWidths = [...markup.matchAll(/style="[^"]*?width:(\d+)px/g)].map((m) => Number(m[1]));
+  assert.match(markup, /padding-right:0px/);
+  assert.doesNotMatch(markup, /data-row-end-pad/, 'the range comes from the numbers, so no element holds it open');
+  const slotWidths = [...markup.matchAll(/data-panel-size-box="" style="width:(\d+)px/g)].map((m) => Number(m[1]));
   assert.equal(slotWidths.length, 11);
   assert.equal(slotWidths.reduce((sum, w) => sum + w, 0) + 10 * GAP, n.stripWidth);
   assert.equal(n.stripWidth, 4450);

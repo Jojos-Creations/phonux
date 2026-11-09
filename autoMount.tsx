@@ -4,14 +4,14 @@
  * `import()` from workspaceCore.ts, which keeps `react-dom/client` off the import path of a React-free caller.
  */
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { ThemeProvider } from '@mui/material/styles';
 import { AutoMountContext } from './autoMountContext.js';
 import { PanelRow } from './PanelRow.js';
 import { Workspace } from './Workspace.js';
-import { createDefaultTheme, muiThemeFor, type PhonuxTheme } from './defaultTheme.js';
+import { UndoCloseToast } from './undoCloseToast.js';
+import { createDefaultTheme, PhonuxThemeProvider, type PhonuxTheme } from './defaultTheme.js';
 import { DEFAULT_PHONE_SIZE, HostProvider, type HostInput } from './hostApi.js';
 import { usePhoneFit } from './usePhoneFit.js';
 import { rowBottomReservePx } from './panelChromeSize.js';
@@ -32,8 +32,8 @@ export function workspaceProps(provided: ProvidedPanels, workspace: WorkspaceHan
 }
 
 /** The `PanelRow` props the mount derives from what `useProvidePanels` returned. @internal */
-export function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'enterSideById' | 'maxLiveWidth' | 'rowNumbers' | 'workspace'> {
-  return { entries: provided.entries, rootId: workspace.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace };
+export function rowProps(provided: ProvidedPanels, workspace: WorkspaceHandle): Pick<React.ComponentProps<typeof PanelRow>, 'entries' | 'rootId' | 'closingIds' | 'enteringViaAnchorIds' | 'exitRightIds' | 'swapExitIds' | 'enterSideById' | 'maxLiveWidth' | 'rowNumbers' | 'workspace'> {
+  return { entries: provided.entries, rootId: workspace.rootId, closingIds: provided.closingIds, enteringViaAnchorIds: provided.enteringViaAnchorIds, exitRightIds: provided.exitRightIds, swapExitIds: provided.swapExitIds, enterSideById: provided.enterSideById, maxLiveWidth: provided.maxLiveWidth, rowNumbers: provided.rowNumbers, workspace };
 }
 
 /** The window's width as the row prices itself from it: the scroll container's own `clientWidth`, 0 until it is measured. */
@@ -45,7 +45,8 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>): number 
     const read = (): void => setWidth(el.clientWidth);
     read();
     if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(read);
+    // Committed before the paint the observer runs ahead of, so no frame of a live resize draws the row at the old width.
+    const observer = new ResizeObserver(() => flushSync(read));
     observer.observe(el);
     return () => observer.disconnect();
   }, [ref]);
@@ -73,7 +74,7 @@ function panelsInputOf(workspace: WorkspaceHandle, stand: Map<string, unknown>):
 /** What the default mount renders for `workspace`. @internal */
 type ThemeFor = (mode: 'light' | 'dark') => PhonuxTheme;
 
-const isTheme = (t: unknown): t is PhonuxTheme => typeof t === 'object' && t !== null && typeof (t as PhonuxTheme).primary === 'string' && typeof (t as PhonuxTheme).radiusUnitPx === 'number';
+const isTheme = (t: unknown): t is PhonuxTheme => typeof t === 'object' && t !== null && typeof (t as PhonuxTheme).primary === 'string' && typeof (t as PhonuxTheme).radius === 'number';
 
 /** The theme for the window's color scheme: `make` once per mode, else the default; a throw or a non-theme is reported once and the default is drawn. */
 function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void): PhonuxTheme {
@@ -101,15 +102,11 @@ function useMountTheme(make: ThemeFor | undefined, onError: (e: unknown) => void
 export function AutoRoot({ workspace, columnTop = 0, columnBottom = 0, themed = true }: { workspace: WorkspaceHandle; columnTop?: number; columnBottom?: number; themed?: boolean }): React.ReactElement {
   const binding = bindingOf(workspace);
   const theme = useMountTheme(binding.theme, binding.reportError);
-  const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
   const body = <AutoBody workspace={workspace} columnTop={columnTop} columnBottom={columnBottom} />;
   return (
     <AutoMountContext.Provider value={workspace}>
       {themed ? (
-        <ThemeProvider theme={styling}>
-          <CssBaseline />
-          {body}
-        </ThemeProvider>
+        <PhonuxThemeProvider theme={theme}>{body}</PhonuxThemeProvider>
       ) : (
         body
       )}
@@ -125,15 +122,16 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   const stand = React.useRef(new Map<string, unknown>());
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
-  const containerWidth = useContainerWidth(ref);
+  const measuredWidth = useContainerWidth(ref);
   const preferred = values.device?.size ?? DEFAULT_PHONE_SIZE;
   const tuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
   // Standalone, `tuning.rowTop` alone sets the row's top room; the column's own cell adds its topInset clearance to the band.
   const topPadding = tuning.rowTop ?? (columnTop > 0 ? columnTop + (values.topInset ?? 0) + tuning.rowGap : undefined);
   // A column's band below that outgrows the default pushes the row up by the difference.
   const bottomPadding = columnBottom > 0 ? rowBottomReservePx(tuning.rowGap) + columnBottom : undefined;
-  const phone = usePhoneFit(ref, containerWidth, preferred, tuning, topPadding, bottomPadding);
+  const phone = usePhoneFit(ref, measuredWidth, preferred, tuning, topPadding, bottomPadding);
   const phoneWidth = phone.width;
+  const containerWidth = phone.containerWidth;
   const provided = useProvidePanels({
     ...panelsInputOf(workspace, stand.current),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
@@ -145,16 +143,21 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   const host: HostInput = {
     panels: hostPanelsOf(provided),
     ...(values.device !== undefined ? { device: values.device } : {}),
-    ...(values.settings !== undefined ? { settings: values.settings } : {}),
-    ...(values.history !== undefined ? { history: values.history } : {}),
     ...(values.snapshots !== undefined ? { snapshots: values.snapshots } : {}),
     ...(values.labels !== undefined ? { labels: values.labels } : {}),
+    ...(values.icons !== undefined ? { icons: values.icons } : {}),
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} {...(topPadding !== undefined ? { topPadding } : {})} {...(bottomPadding !== undefined ? { bottomPadding } : {})} {...workspaceProps(provided, workspace)}>
+    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} heightBudget={phone.heightBudget} {...(topPadding !== undefined ? { topPadding } : {})} {...(bottomPadding !== undefined ? { bottomPadding } : {})} {...workspaceProps(provided, workspace)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
+  );
+  const shown = (
+    <>
+      {row}
+      {binding.undoToast ? <UndoCloseToast closed={provided.closedByPerson} onUndo={provided.undoClose} /> : null}
+    </>
   );
   const rowValue = React.useMemo(
     (): WorkspaceRow => ({
@@ -169,7 +172,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   );
   return (
     <HostProvider host={host}>
-      <WorkspaceRowContext.Provider value={rowValue}>{Wrap === undefined ? row : <Wrap workspace={workspace}>{row}</Wrap>}</WorkspaceRowContext.Provider>
+      <WorkspaceRowContext.Provider value={rowValue}>{Wrap === undefined ? shown : <Wrap workspace={workspace}>{shown}</Wrap>}</WorkspaceRowContext.Provider>
     </HostProvider>
   );
 }
@@ -204,12 +207,10 @@ export function mountWorkspace(workspace: WorkspaceHandle, target: HTMLElement |
 export function ColumnRoot({ column }: { column: WorkspaceColumnHandle }): React.ReactElement {
   const core = columnCoreOf(column);
   const theme = useMountTheme(core.theme, core.reportError);
-  const styling = React.useMemo(() => muiThemeFor(theme), [theme]);
   return (
-    <ThemeProvider theme={styling}>
-      <CssBaseline />
+    <PhonuxThemeProvider theme={theme}>
       <WorkspaceColumn column={column} />
-    </ThemeProvider>
+    </PhonuxThemeProvider>
   );
 }
 

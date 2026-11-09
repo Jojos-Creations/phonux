@@ -1,7 +1,7 @@
 /**
  * Below a `PanelSizeBox` the panel and its frame fill it ('100%' on both axes), so one eased size on the box is the size they
- * all draw; outside one they keep their own pixel size. The box eases its real inline width and height, with no transform, and
- * snaps under Reduce Motion.
+ * all draw; outside one they keep their own pixel size. The box takes its new inline width and height at once, a scale draws the
+ * eased size, and it snaps under Reduce Motion.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,7 +80,7 @@ test('in a mounted row the size box has the slot\'s pixels and the Panel and Pan
   ws.addPanel('sized');
   const m = mountWorkspace(ws, { width: 4000 });
   await flush();
-  const box = boxOf(m.container);
+  const box = frameOf(m.container).closest<HTMLElement>('[data-panel-size-box]')!;
   assert.equal(box.style.width, `${2 * PHONE_WIDTH + 16}px`);
   const panel = box.firstElementChild as HTMLElement;
   const frame = frameOf(box);
@@ -89,15 +89,21 @@ test('in a mounted row the size box has the slot\'s pixels and the Panel and Pan
   assert.equal(getComputedStyle(frame).height, '100%');
 });
 
-/** What a test needs to know about the box at one moment: its inline sizes and anything that would scale it. */
-const drawnBox = (el: HTMLElement): { width: number; height: number; transform: string; css: string } => ({
-  width: Number.parseFloat(el.style.width),
-  height: Number.parseFloat(el.style.height),
-  transform: el.style.transform,
+const scaleOf = (el: HTMLElement): [number, number] => {
+  const match = /scale\((-?[\d.e-]+), (-?[\d.e-]+)\)/.exec(el.style.transform);
+  return match === null ? [1, 1] : [Number(match[1]), Number(match[2])];
+};
+
+/** What a test needs to know about the box at one moment: the size it is drawn at, its laid-out size and its inline style. */
+const drawnBox = (el: HTMLElement): { width: number; height: number; layoutWidth: string; layoutHeight: string; css: string } => ({
+  width: Number.parseFloat(el.style.width) * scaleOf(el)[0],
+  height: Number.parseFloat(el.style.height) * scaleOf(el)[1],
+  layoutWidth: el.style.width,
+  layoutHeight: el.style.height,
   css: el.getAttribute('style') ?? '',
 });
 
-test('a resize eases the box\'s own inline width and height over the frames, with no transform and no size variables', async () => {
+test('a resize lays the box out once at the new size and scales it from the size on screen, with no size variables', async () => {
   const m = mount(boxed(390, 700));
   const box = boxOf(m.container);
   assert.deepEqual([drawnBox(box).width, drawnBox(box).height], [390, 700], 'at rest');
@@ -108,7 +114,7 @@ test('a resize eases the box\'s own inline width and height over the frames, wit
     await advanceFrames(16);
     seen.push(drawnBox(box));
   }
-  assert.deepEqual([seen[0]!.width, seen[0]!.height], [390, 700], 'it starts from the size on screen, not the new one');
+  assert.ok(Math.abs(seen[0]!.width - 390) < 1e-6 && Math.abs(seen[0]!.height - 700) < 1e-6, 'it starts from the size on screen, not the new one');
   for (let k = 1; k < seen.length; k += 1) {
     assert.ok(seen[k]!.width >= seen[k - 1]!.width - 1e-6, `the width only grows (frame ${k})`);
     assert.ok(seen[k]!.height <= seen[k - 1]!.height + 1e-6, `the height only shrinks (frame ${k})`);
@@ -116,9 +122,10 @@ test('a resize eases the box\'s own inline width and height over the frames, wit
   assert.ok(seen.some((s) => s.width > 400 && s.width < 770 && s.height > 510 && s.height < 690), 'and passes through sizes between');
   assert.deepEqual([seen.at(-1)!.width, seen.at(-1)!.height], [780, 500], 'it ends at the new size');
   for (const s of seen) {
-    assert.equal(s.transform, '', 'no transform is ever set');
-    assert.doesNotMatch(s.css, /scale|--phonux-size/);
+    assert.deepEqual([s.layoutWidth, s.layoutHeight], ['780px', '500px'], 'laid out at the new size on every frame');
+    assert.doesNotMatch(s.css, /--phonux-size/);
   }
+  assert.equal(box.style.transform, '', 'landed: no transform left behind');
 });
 
 test('under Reduce Motion the box takes its new size in the same commit', async () => {
@@ -136,5 +143,5 @@ test('control: without Reduce Motion the same resize has not arrived in the comm
   const m = mount(boxed(390, 700));
   const box = boxOf(m.container);
   m.rerender(boxed(780, 500));
-  assert.deepEqual([drawnBox(box).width, drawnBox(box).height], [390, 700]);
+  assert.ok(Math.abs(drawnBox(box).width - 390) < 1e-6 && Math.abs(drawnBox(box).height - 700) < 1e-6);
 });

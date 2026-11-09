@@ -14,24 +14,22 @@ import { rigCleanup, slots, track, until } from './support/auto-rig.js';
 
 afterEach(rigCleanup);
 
-/** One entry per render of the view: what `useHost().history` was in that pass. */
+/** One entry per render of the view: whether `useHost().snapshots` was there in that pass. */
 const passes: string[] = [];
-/** The same passes for the other two seeds: the device width and whether the settings column is visible. */
+/** The same passes for the device width. */
 const sizes: number[] = [];
-const columns: boolean[] = [];
 const reader = definePanel({
   id: 'reader',
   view: ({ handle }) => {
-    const { history, device, settings } = useHost();
+    const { snapshots, device } = useHost();
     sizes.push(device.size.width);
-    columns.push(settings.settingsColumn.visible);
-    const seen = history === undefined ? 'absent' : history.locked ? 'locked' : 'open';
+    const seen = snapshots === undefined ? 'absent' : 'present';
     passes.push(seen);
     return React.createElement('i', { 'data-slot': handle.id }, seen);
   },
 });
 
-test('a view that reads useHost().history on the first render of a workspace created without it renders its fallback', async () => {
+test('a view that reads useHost().snapshots on the first render of a workspace created without it renders its fallback', async () => {
   passes.length = 0;
   const ws = track(createWorkspace({ templates: [reader] }));
   ws.addPanel('reader');
@@ -40,26 +38,17 @@ test('a view that reads useHost().history on the first render of a workspace cre
   assert.deepEqual([...new Set(passes)], ['absent']);
 });
 
-test('history, device and settings given to createWorkspace are on the very first render pass of a view', async () => {
+test('snapshots and device given to createWorkspace are on the very first render pass of a view', async () => {
   passes.length = 0;
   sizes.length = 0;
-  columns.length = 0;
   const given = createFakeHost();
   const size = { width: 411, height: 731, modelId: 'test-phone' };
-  const ws = track(
-    createWorkspace({
-      templates: [reader],
-      history: { ...given.history!, locked: true },
-      device: { ...given.device, size },
-      settings: { settingsColumn: { ...given.settings.settingsColumn, visible: true } },
-    }),
-  );
+  const ws = track(createWorkspace({ templates: [reader], snapshots: given.snapshots!, device: { ...given.device, size } }));
   ws.addPanel('reader');
   await until('the panel', () => slots(document.body).length === 1);
-  assert.equal(passes[0], 'locked', 'the first pass already had the value, not a later pass after an effect');
-  assert.deepEqual([...new Set(passes)], ['locked']);
+  assert.equal(passes[0], 'present', 'the first pass already had the value, not a later pass after an effect');
+  assert.deepEqual([...new Set(passes)], ['present']);
   assert.equal(sizes[0], 411, 'the device seed is on the first pass');
-  assert.equal(columns[0], true, 'the settings seed is on the first pass');
   assert.deepEqual([...new Set(sizes)], [411]);
 });
 
@@ -69,34 +58,27 @@ test('a later workspace.update changes what the view reads', async () => {
   const ws = track(createWorkspace({ templates: [reader] }));
   ws.addPanel('reader');
   await until('the panel', () => slots(document.body).length === 1);
-  await act(async () => ws.update({ history: { ...given.history!, locked: false } }));
-  assert.equal(document.body.querySelector('[data-slot]')!.textContent, 'open');
+  await act(async () => ws.update({ snapshots: given.snapshots! }));
+  assert.equal(document.body.querySelector('[data-slot]')!.textContent, 'present');
   assert.equal(passes[0], 'absent');
 });
 
-test('createFakeHost({ absent }) leaves history and snapshots out, and the default still supplies both', () => {
-  const none = createFakeHost({ absent: ['history', 'snapshots'] });
-  assert.equal(none.history, undefined);
+test('createFakeHost({ absent }) leaves snapshots out, and the default supplies them', () => {
+  const none = createFakeHost({ absent: ['snapshots'] });
   assert.equal(none.snapshots, undefined);
   assert.notEqual(none.panels, undefined);
-  const all = createFakeHost();
-  assert.notEqual(all.history, undefined);
-  assert.notEqual(all.snapshots, undefined);
-  const onlyHistory = createFakeHost({ absent: ['history'] });
-  assert.equal(onlyHistory.history, undefined);
-  assert.notEqual(onlyHistory.snapshots, undefined);
+  assert.notEqual(createFakeHost().snapshots, undefined);
 });
 
-test('a view reading history renders its fallback under a HostProvider whose fake leaves history out', () => {
-  passes.length = 0;
+test('a view reading snapshots renders its fallback under a HostProvider whose fake leaves them out', () => {
   const View = (): React.ReactElement => {
-    const { history } = useHost();
-    return React.createElement('b', null, history === undefined ? 'absent' : 'present');
+    const { snapshots } = useHost();
+    return React.createElement('b', null, snapshots === undefined ? 'absent' : 'present');
   };
   const root = document.createElement('div');
   document.body.appendChild(root);
   const r = createRoot(root);
-  act(() => r.render(React.createElement(HostProvider, { host: createFakeHost({ absent: ['history'] }), children: React.createElement(View) })));
+  act(() => r.render(React.createElement(HostProvider, { host: createFakeHost({ absent: ['snapshots'] }), children: React.createElement(View) })));
   assert.equal(root.textContent, 'absent');
   act(() => r.unmount());
   root.remove();

@@ -1,19 +1,19 @@
 /**
  * Every entrance and exit style a panel may take: the cascade from the panel's own `enterFrom` and `exitTo` to the
  * workspace's `tuning.defaultEnterFrom` and `tuning.defaultExitTo`, the slot values each style starts from and leaves to,
- * and the scale an `expand` grows and a `shrink` takes about its center, read from the slot's own style through a mounted PanelRow.
+ * and the scale an `expand` grows about its center and a `shrink` takes about its center (a close) or the edge it parks toward, read from the slot's own style through a mounted PanelRow.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { frameClock } from './support/jsdom-globals.js';
 import * as React from 'react';
-import { MotionConfig, visualElementStore } from 'motion/react';
+import { MotionConfig } from 'motion/react';
 import { PANEL_TRANSITION, createWorkspace } from '../index.js';
 import type { PanelSettings, PanelWindow, WorkspaceHandle, WorkspaceTuning } from '../index.js';
 import { enterDirectionOf, exitStyleOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion, slotDriver } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
@@ -42,7 +42,7 @@ function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'style-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel(ROOT), view: 'style-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 
 /** A row holds its slots' moves until its workspace's restore has settled, so every case here mounts over one that has. */
 function settledWorkspace(entries: readonly PanelWindow[], tuning: WorkspaceTuning = {}): WorkspaceHandle {
@@ -52,11 +52,11 @@ function settledWorkspace(entries: readonly PanelWindow[], tuning: WorkspaceTuni
   assert.equal(workspace.panels.getSnapshot().status, 'ready', 'the workspace did not settle, so every slot would start at its rest');
   return workspace;
 }
-const row = (entries: PanelWindow[], workspace: WorkspaceHandle, reduced = false): React.ReactElement => {
-  const ui = React.createElement(StaticRow, { workspace, entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, exitRightIds: NONE, enterSideById: new Map() });
+const row = (entries: PanelWindow[], workspace: WorkspaceHandle, reduced = false, enterSideById: ReadonlyMap<string, 'left' | 'right'> = new Map()): React.ReactElement => {
+  const ui = React.createElement(StaticRow, { workspace, entries, rootId: ROOT, closingIds: NONE, enteringViaAnchorIds: NONE, exitRightIds: NONE, enterSideById });
   return withHost(reduced ? React.createElement(MotionConfig, { reducedMotion: 'always' }, ui) : ui);
 };
-const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.parentElement ?? null;
+const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axis = (slot: HTMLElement, name: 'X' | 'Y'): number => {
   const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slot.style.transform);
   return match === null ? 0 : Number(match[1]);
@@ -100,7 +100,12 @@ test('validation: enterFrom takes the four new entrances and exitTo the six exit
 
 test('enterDirectionOf: the panel wins unless auto, the workspace default applies at auto, and the new styles beat every mark', () => {
   const formula = (side: 'left' | 'right') => () => side;
-  for (const style of ['top', 'bottom', 'fade', 'expand'] as const) {
+  assert.deepEqual(
+    [enterDirectionOf('expand', false, 'left', true, formula('right')), enterDirectionOf('expand', false, undefined, true, formula('right')), enterDirectionOf('auto', false, 'left', false, formula('right'), 'expand'), enterDirectionOf('expand', false, undefined, false, formula('left'))],
+    ['expand-left', 'expand-right', 'expand-left', 'expand'],
+    'expand: a reveal grows out of the side it comes in from (its mark, else the formula), an open from its center',
+  );
+  for (const style of ['top', 'bottom', 'fade'] as const) {
     assert.equal(enterDirectionOf(style, false, 'left', true, formula('left')), style, `${style} beats a mark and the formula`);
     assert.equal(enterDirectionOf('auto', false, 'left', true, formula('left'), style), style, `a workspace ${style} beats a mark too`);
     assert.equal(enterDirectionOf('right', false, undefined, false, formula('left'), style), 'right', `the panel's own right wins over a workspace ${style}`);
@@ -112,18 +117,23 @@ test('enterDirectionOf: the panel wins unless auto, the workspace default applie
 });
 
 test("exitStyleOf: the panel wins unless auto, the workspace default applies at auto, and both auto keep today's park and close", () => {
-  for (const style of ['left', 'right', 'top', 'bottom', 'fade', 'shrink'] as const) {
+  for (const style of ['left', 'right', 'top', 'bottom', 'fade'] as const) {
     assert.equal(exitStyleOf(style, 'auto', true, false), style, `an explicit ${style} governs a close`);
     assert.equal(exitStyleOf(style, 'auto', false, true), style, `and a park`);
     assert.equal(exitStyleOf('auto', style, false, false), style, `a workspace ${style} applies to a panel at auto`);
   }
+  assert.deepEqual(
+    [exitStyleOf('shrink', 'auto', true, true), exitStyleOf('shrink', 'auto', false, true), exitStyleOf('shrink', 'auto', false, false), exitStyleOf('auto', 'shrink', false, true)],
+    ['shrink', 'shrink-right', 'shrink-left', 'shrink-right'],
+    'shrink: a close shrinks into its center, a park toward the side it leaves by, from the panel or the workspace',
+  );
   assert.equal(exitStyleOf('fade', 'shrink', false, false), 'fade', "the panel's own value wins over the workspace's");
   assert.equal(exitStyleOf('auto', 'auto', true, true), 'down', 'both auto: a close drops down');
   assert.equal(exitStyleOf('auto', 'auto', false, true), 'right', 'both auto: a park leaves by its mark');
   assert.equal(exitStyleOf('auto', 'auto', false, false), 'left', 'both auto: else the left');
 });
 
-test('entrances: top and bottom start one row height off at the rest, fade starts faded at the rest, expand at scale 0 where its neighbours part', () => {
+test('entrances: top and bottom start one row height off at the rest, fade starts faded at the rest, expand at scale 0 where its neighbors part', () => {
   const top = enterStart({ enterFrom: 'top' });
   const bottom = enterStart({ enterFrom: 'bottom' });
   assert.equal(top.x, REST);
@@ -133,19 +143,59 @@ test('entrances: top and bottom start one row height off at the rest, fade start
   const fade = enterStart({ enterFrom: 'fade' });
   assert.deepEqual([fade.x, fade.y, fade.opacity], [REST, 0, '0'], 'fade starts faded at its rest');
   assert.equal(fade.width, WIDTH, 'a fade keeps its width');
-  assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'left').initial, { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'expand starts on the point its neighbours part from');
+  assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'left').initial, { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'expand starts on the point its neighbors part from');
   assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'left').animate, { x: REST, scale: 1, opacity: 1 });
+  for (const side of ['expand-left', 'expand-right'] as const) {
+    assert.deepEqual([panelRowSlotMotion(REST, WIDTH, 700, side, 'left').initial, panelRowSlotMotion(REST, WIDTH, 700, side, 'left').animate], [{ x: REST, scale: 0, opacity: 0 }, { x: REST, scale: 1, opacity: 1 }], `${side} grows at its rest, out of an edge`);
+  }
   assert.deepEqual(panelRowSlotMotion(REST, WIDTH, 700, 'top', 'left').animate, { x: REST, y: 0, opacity: 1 }, 'a vertical entrance comes to rest at y 0');
   assert.equal(panelRowSlotMotion(REST, WIDTH, 700, 'expand', 'shrink').transition, PANEL_TRANSITION, 'every style takes the shared slide transition');
 });
 
 test('exits: top and bottom slide out one row height from the rest, fade fades at the rest and shrink scales to 0 on the slide timing, and auto keeps the close timing', () => {
   const at = (exit: 'top' | 'bottom' | 'fade' | 'shrink' | 'down') => panelRowSlotMotion(REST, WIDTH, 700, 'right', exit).exit;
+  const at2 = (exit: 'shrink-left' | 'shrink-right') => panelRowSlotMotion(REST, WIDTH, 700, 'right', exit).exit;
   assert.deepEqual(at('top'), { x: REST, y: -700, opacity: 0 });
   assert.deepEqual(at('bottom'), { x: REST, y: 700, opacity: 0 });
   assert.deepEqual(at('fade'), { x: REST, opacity: 0 });
-  assert.deepEqual(at('shrink'), { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'shrink ends on the point where its neighbours meet');
+  assert.deepEqual(at('shrink'), { x: REST - SPAN / 2, scale: 0, opacity: 0 }, 'a close shrink keeps its center where the neighbors meet');
+  assert.deepEqual([at2('shrink-left'), at2('shrink-right')], [{ x: REST, scale: 0, opacity: 0 }, { x: REST, scale: 0, opacity: 0 }], 'a park shrink stays at its rest, scaling into an edge');
   assert.deepEqual((at('down') as { transition?: unknown }).transition, { duration: 0.18, ease: 'easeIn' }, 'the auto close keeps its own timing');
+});
+
+test('expand: a reveal from the left grows out of its left edge at its rest, and one from the right out of its right edge, tucked under its neighbor while it grows', async () => {
+  for (const [side, origin] of [['left', /^0% 50%/], ['right', /^100% 50%/]] as const) {
+    const base = [rootEntry(), made('a')];
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, workspace));
+    mounted.rerender(row([...base, made('b', { enterFrom: 'expand' })], workspace, false, new Map([['b', side]])));
+    await advanceFrames(250);
+    const b = slotOf(mounted.container, 'b')!;
+    assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-expand (scale ${scaleOf(b)})`);
+    assert.match(b.style.transformOrigin, origin, `from the ${side} it grows about that edge (${b.style.transformOrigin})`);
+    assert.equal(axis(b, 'X'), REST, 'at its rest');
+    const a = slotOf(mounted.container, 'a')!;
+    assert.ok(Number(b.style.zIndex) < Number(a.style.zIndex), `under its neighbor while it grows from the ${side} (${b.style.zIndex} under ${a.style.zIndex})`);
+    assert.equal(b.style.zIndex, '0', 'one under its rank at the edge of the base tier');
+    await advanceFrames(600);
+    assert.equal(b.style.zIndex, '1', 'and at its rank once grown');
+    mounted.unmount();
+  }
+});
+
+test('expand: a new open growing from its center is drawn beneath the neighbor sliding out of its slot, and back in line once grown', async () => {
+  const base = [rootEntry(), made('a')];
+  const workspace = settledWorkspace(base);
+  const mounted = mount(row(base, workspace));
+  mounted.rerender(row([...base, made('b', { enterFrom: 'expand' })], workspace));
+  await advanceFrames(250);
+  const b = slotOf(mounted.container, 'b')!;
+  const a = slotOf(mounted.container, 'a')!;
+  assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-expand (scale ${scaleOf(b)})`);
+  assert.ok(Number(b.style.zIndex) < Number(a.style.zIndex), `beneath its neighbor while it grows (${b.style.zIndex} under ${a.style.zIndex})`);
+  await advanceFrames(600);
+  assert.equal(b.style.zIndex, '1', 'and at its rank once grown');
+  mounted.unmount();
 });
 
 test('expand: the slot scales up from 0 about its center, at its full width, on the slide duration and easing', async () => {
@@ -166,7 +216,7 @@ test('expand: the slot scales up from 0 about its center, at its full width, on 
   tuned.mounted.unmount();
 });
 
-test('expand: the neighbours to its right slide apart on the same clock, and the growing slot keeps its center where they part', async () => {
+test('expand: the neighbors to its right slide apart on the same clock, and the growing slot keeps its center where they part', async () => {
   const base = [rootEntry(), made('a'), made('c')];
   const workspace = settledWorkspace(base);
   const mounted = mount(row(base, workspace));
@@ -190,12 +240,12 @@ test('expand: the neighbours to its right slide apart on the same clock, and the
   mounted.unmount();
 });
 
-test('expand: the growing slot starts in the same commit as the neighbours parting for it, so the two never run a frame apart', () => {
+test('expand: the growing slot starts in the same commit as the neighbors parting for it, so the two never run a frame apart', () => {
   const started: HTMLElement[] = [];
-  const original = slotDriver.startPending;
-  slotDriver.startPending = (el) => {
+  const original = slotDriver.glide;
+  slotDriver.glide = (el, ...rest) => {
     started.push(el);
-    original(el);
+    original(el, ...rest);
   };
   try {
     const base = [rootEntry(), made('a'), made('c')];
@@ -209,11 +259,11 @@ test('expand: the growing slot starts in the same commit as the neighbours parti
     assert.ok(started.includes(b), 'b starts its expand in the same commit, on the same clock');
     mounted.unmount();
   } finally {
-    slotDriver.startPending = original;
+    slotDriver.glide = original;
   }
 });
 
-test('shrink: a leaving slot scales to 0 about its center, which keeps to the point where its neighbours meet, and keeps its width', async () => {
+test('shrink: a slot parked to the left scales to 0 about its left edge, which stays put, drawn over the neighbor closing up, and keeps its width', async () => {
   const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), made('c')];
   const workspace = settledWorkspace(base);
   const mounted = mount(row(base, workspace));
@@ -224,38 +274,57 @@ test('shrink: a leaving slot scales to 0 about its center, which keeps to the po
   assert.ok(scaleOf(b) > 0 && scaleOf(b) < 1, `mid-shrink (scale ${scaleOf(b)})`);
   assert.equal(widthOf(b), WIDTH, 'its box keeps its full width');
   assert.equal(b.style.overflowX, '', 'and is never clipped');
-  assert.ok(['', '50% 50%', '50% 50% 0px'].includes(b.style.transformOrigin), `it scales about its center (${b.style.transformOrigin})`);
+  assert.match(b.style.transformOrigin, /^0% 50%/, `it scales about its left edge (${b.style.transformOrigin})`);
   assert.ok(axis(c, 'X') > REST && axis(c, 'X') < REST + SPAN, 'c is closing up');
-  // a stays at its rest, so the neighbors meet midway between a's right edge and c's left edge.
-  const center = axis(b, 'X') + WIDTH / 2;
-  const meet = (REST - GAP + axis(c, 'X')) / 2;
-  assert.ok(Math.abs(center - meet) < 1, `b's center (${center}) is where a and c meet (${meet})`);
-  const half = (scaleOf(b) * WIDTH) / 2;
-  assert.ok(center - half >= REST - GAP - 0.5 && center + half <= axis(c, 'X') + 0.5, 'and b fits between them');
+  assert.equal(axis(b, 'X'), REST, 'b stays at its rest, so its left edge stays where it was');
+  assert.ok(Number(b.style.zIndex) > Number(c.style.zIndex), `b is drawn over c (${b.style.zIndex} over ${c.style.zIndex})`);
   mounted.unmount();
 });
 
-test('shrink: the leaving slot and the neighbours closing up over it count from the same moment', async () => {
-  const startOf = (el: HTMLElement, key: string): number | undefined =>
-    (visualElementStore.get(el)?.getValue(key) as { animation?: { startTime?: number | null } } | undefined)?.animation?.startTime ?? undefined;
-  const c0 = made('c', {}, { view: 'slow-view' });
-  const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), c0];
-  const workspace = settledWorkspace(base);
-  const mounted = mount(row(base, workspace));
-  // The commit that removes b runs long between b's exit starting and c's slide starting.
-  slowCommits.on = true;
+test('shrink: the leaving slot and the neighbors closing up over it start at one startTime, however long the commit runs', async () => {
+  // jsdom has no Web Animations API: a stand-in records each animation's element and the startTime the row gives it.
+  const started: { el: Element; startTime: number | null }[] = [];
+  const proto = Element.prototype as unknown as { animate?: unknown };
+  const had = Object.hasOwn(proto, 'animate');
+  const original = proto.animate;
+  proto.animate = function (this: Element) {
+    const record = { el: this, startTime: null as number | null };
+    started.push(record);
+    return {
+      timeline: document.timeline,
+      cancel() {},
+      set startTime(value: number | null) {
+        record.startTime = value;
+      },
+      get startTime() {
+        return record.startTime;
+      },
+    };
+  };
   try {
-    mounted.rerender(row([rootEntry(), made('a'), c0], workspace));
+    const c0 = made('c', {}, { view: 'slow-view' });
+    const base = [rootEntry(), made('a'), made('b', { exitTo: 'shrink' }), c0];
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, workspace));
+    started.length = 0;
+    // The commit that removes b runs long between b's exit starting and c's slide starting.
+    slowCommits.on = true;
+    try {
+      mounted.rerender(row([rootEntry(), made('a'), c0], workspace));
+    } finally {
+      slowCommits.on = false;
+    }
+    const b = slotOf(mounted.container, 'b')!;
+    const c = slotOf(mounted.container, 'c')!;
+    const of = (el: Element): number | null | undefined => started.find((s) => s.el === el)?.startTime;
+    assert.ok(typeof of(c) === 'number', 'control: c slides on an animation with a startTime');
+    assert.equal(of(b), of(c), 'b shrinks on the same startTime');
+    assert.ok(started.every((s) => s.startTime === of(c)), `every animation the commit started shares it (${started.length})`);
+    mounted.unmount();
   } finally {
-    slowCommits.on = false;
+    if (had) proto.animate = original;
+    else delete proto.animate;
   }
-  await advanceFrames(32);
-  const b = slotOf(mounted.container, 'b')!;
-  const c = slotOf(mounted.container, 'c')!;
-  const neighbour = startOf(c, 'x');
-  assert.ok(neighbour !== undefined, 'control: c is sliding, on the commit clock');
-  assert.equal(startOf(b, 'scale'), neighbour, 'b shrinks on the same clock');
-  mounted.unmount();
 });
 
 test('reduced motion: an expand lands at full size at once and a shrink at scale 0, as a slide lands at once', async () => {

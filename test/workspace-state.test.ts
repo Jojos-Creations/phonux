@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRowOrder } from '../panelRowOrder.js';
-import { appendPanel, createHistoryPanel, slotsOf } from '../panelWindow.js';
+import { appendPanel, createRootPanel, slotsOf } from '../panelWindow.js';
 import { ALL_SLOTS } from '../rowConstants.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings } from '../panelSettings.js';
@@ -54,7 +54,7 @@ const drawFrom = (ids: readonly string[]) => {
 };
 
 test('W1 project saves exactly the documented keys, never hostData, size, locked, collapsible or anchoredEnter, and never the root', () => {
-  const root: PanelWindow = { ...createHistoryPanel(ROOT), hostData: { secret: 'root' } };
+  const root: PanelWindow = { ...createRootPanel(ROOT), hostData: { secret: 'root' } };
   const full = panel('7', {
     title: 'Seven',
     params: { k: ['v'] },
@@ -90,7 +90,7 @@ test('W2 project derives permanent from collapsible and emits an optional key on
   const undefinedKeys = panel('undef', { title: undefined, params: undefined, layer: undefined, slots: undefined });
   const rail = panel('rail', { collapsible: false, listed: false, title: 'Rail', slots: 1 });
   const rich = panel('rich', { title: '', params: null, listed: false, layer: 'raised', slots: ALL_SLOTS });
-  const [b, u, r, c] = projectWorkspaceState([createHistoryPanel(ROOT), bare, undefinedKeys, rail, rich], ROOT).panels;
+  const [b, u, r, c] = projectWorkspaceState([createRootPanel(ROOT), bare, undefinedKeys, rail, rich], ROOT).panels;
   assert.deepEqual(Object.keys(b!).sort(), ['anchor', 'live', 'url', 'view'], 'a record without listed, title, params, layer or slots saves none of those keys');
   assert.equal(b!.live, false);
   assert.deepEqual(Object.keys(u!).sort(), ['anchor', 'listed', 'live', 'uid', 'url', 'view'], 'keys that are present but undefined are not emitted');
@@ -109,7 +109,7 @@ test('W3 project fills a missing anchor from position, round-trips through JSON 
   const left = panel('l');
   const right1 = panel('r1');
   const right2 = panel('r2', { anchor: { panel: 'r1', position: 'left', priority: 4 } });
-  const state = projectWorkspaceState([left, createHistoryPanel(ROOT), right1, right2], ROOT);
+  const state = projectWorkspaceState([left, createRootPanel(ROOT), right1, right2], ROOT);
   assert.deepEqual(state.panels.map((p) => [p.uid, p.anchor]), [
     [uidFor('l'), { panel: ROOT, position: 'left', priority: 0 }],
     [uidFor('r1'), { panel: ROOT, position: 'right', priority: 0 }],
@@ -207,17 +207,17 @@ test('W8 hydrate honors each saved live flag and the saved order of collapsible 
 test('W9 project then hydrate round-trips a mixed row: the same panels in the same order, everything but ids and hostData equal', () => {
   let n = 0;
   const id = (): string => `orig-${++n}`;
-  let row: PanelWindow[] = [{ ...createHistoryPanel(ROOT), hostData: { h: 1 } }];
-  row = appendPanel(row, { url: 'https://one.example', title: 'one', hostData: { h: 2 } }, id(), ROOT);
+  let row: PanelWindow[] = [{ ...createRootPanel(ROOT), hostData: { h: 1 } }];
+  row = appendPanel(row, { view: 'web', url: 'https://one.example', title: 'one', hostData: { h: 2 } }, id(), ROOT);
   row = appendPanel(row, { url: 'https://two.example', title: 'two', view: 'note', params: { a: [1, { b: null }] }, slots: 2 }, id(), ROOT);
-  row = appendPanel(row, { url: 'https://rail.example', title: 'rail', permanent: true, anchor: { position: 'left' } }, id(), ROOT);
-  row = appendPanel(row, { url: 'https://three.example', title: 'three', listed: false, layer: 'raised', anchor: { position: 'left' } }, id(), ROOT);
-  row = appendPanel(row, { url: 'https://four.example', title: 'four', slots: ALL_SLOTS, anchor: { position: 'right', priority: -1 } }, id(), ROOT);
+  row = appendPanel(row, { view: 'web', url: 'https://rail.example', title: 'rail', permanent: true, anchor: { position: 'left' } }, id(), ROOT);
+  row = appendPanel(row, { view: 'web', url: 'https://three.example', title: 'three', listed: false, layer: 'raised', anchor: { position: 'left' } }, id(), ROOT);
+  row = appendPanel(row, { view: 'web', url: 'https://four.example', title: 'four', slots: ALL_SLOTS, anchor: { position: 'right', priority: -1 } }, id(), ROOT);
   row = row.map((p) => (p.title === 'one' || p.title === 'four' ? { ...p, live: false } : p));
   assert.ok(new Set(row.map((p) => p.live)).size === 2 && new Set(row.map(slotsOf)).size === 3, 'control: the row is mixed in live flag and slots');
 
   const state = JSON.parse(JSON.stringify(projectWorkspaceState(row, ROOT))) as WorkspaceState;
-  const restored = computeRowOrder([createHistoryPanel(ROOT), ...hydrateWorkspaceState(state, drawFrom(['a', 'b', 'c', 'd', 'e']), ROOT)], ROOT);
+  const restored = computeRowOrder([createRootPanel(ROOT), ...hydrateWorkspaceState(state, drawFrom(['a', 'b', 'c', 'd', 'e']), ROOT)], ROOT);
   const titleOf = new Map(row.map((p) => [p.id, p.title ?? p.id]));
   const restoredTitleOf = new Map(restored.map((p) => [p.id, p.title ?? p.id]));
   const comparable = (p: PanelWindow, names: Map<string, string>) => {
@@ -306,10 +306,10 @@ test('W10 isWorkspaceState accepts a good file and extra keys, and rejects every
 
 /** A panel as a creation path builds it: appendPanel's skeleton resolved by `layer`, carrying settings and a key. */
 const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id }, id, ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id }, id, ROOT)[0]!;
   return { ...applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create') };
 };
-const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createHistoryPanel(ROOT), ...entries], ROOT);
+const rowOf = (...entries: PanelWindow[]): PanelWindow[] => computeRowOrder([createRootPanel(ROOT), ...entries], ROOT);
 
 test('W11 project writes key, instance, overrides, applied and closable for an entry that carries settings, and nothing for a hand-built one', () => {
   const carrying = made('a', { closable: false }, { overrides: { slots: 2 }, applied: { placeOnAdd: 'row-end' }, instance: { title: 'A' } });
@@ -334,14 +334,14 @@ test('W13 project never writes deferredPin, hostData, size or settings, and drop
 
 test('W15 project keeps an anchor that names a panel the row never held, as 0.1.0 did', () => {
   const ghost: PanelWindow = panel('p', { anchor: { panel: 'ghost', position: 'left', priority: 3 } });
-  assert.deepEqual(projectWorkspaceState([createHistoryPanel(ROOT), ghost], ROOT).panels[0]!.anchor, { panel: 'ghost', position: 'left', priority: 3 });
+  assert.deepEqual(projectWorkspaceState([createRootPanel(ROOT), ghost], ROOT).panels[0]!.anchor, { panel: 'ghost', position: 'left', priority: 3 });
 });
 
 test('W17 project writes dismissed only when it holds a key, and root only when the root entry carries a key and settings', () => {
-  assert.equal('dismissed' in projectWorkspaceState([createHistoryPanel(ROOT)], ROOT), false);
-  assert.deepEqual(projectWorkspaceState([createHistoryPanel(ROOT)], ROOT, ['gone']).dismissed, ['gone']);
-  assert.equal('root' in projectWorkspaceState([createHistoryPanel(ROOT)], ROOT), false, 'a hand-built root names nothing');
-  const keyedRoot = applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+  assert.equal('dismissed' in projectWorkspaceState([createRootPanel(ROOT)], ROOT), false);
+  assert.deepEqual(projectWorkspaceState([createRootPanel(ROOT)], ROOT, ['gone']).dismissed, ['gone']);
+  assert.equal('root' in projectWorkspaceState([createRootPanel(ROOT)], ROOT), false, 'a hand-built root names nothing');
+  const keyedRoot = applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
   assert.equal(projectWorkspaceState([{ ...keyedRoot, key: 'history' }], ROOT).root, 'history');
 });
 
@@ -420,7 +420,7 @@ test('W24 hydrate reads a top-level formFactor of a file saved before slots as t
 });
 
 test('W25 project never writes formFactor and writes slots only when it is not one', () => {
-  const row = [createHistoryPanel(ROOT), panel('one', { slots: 1 }), panel('two', { slots: 2 }), panel('none'), panel('all', { slots: ALL_SLOTS })];
+  const row = [createRootPanel(ROOT), panel('one', { slots: 1 }), panel('two', { slots: 2 }), panel('none'), panel('all', { slots: ALL_SLOTS })];
   const entries = projectWorkspaceState(row, ROOT).panels;
   assert.deepEqual(entries.map((e) => e.slots), [undefined, 2, undefined, ALL_SLOTS]);
   for (const entry of entries) assert.equal('formFactor' in entry, false, `${entry.id} has no formFactor`);

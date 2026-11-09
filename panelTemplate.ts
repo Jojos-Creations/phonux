@@ -18,17 +18,6 @@ import type { PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSett
 /** Where a panel is: waiting to be added, in the strip, parked or hidden, or closed. @public */
 export type PanelStatus = 'pending' | 'live' | 'parked' | 'closed';
 
-/** A pin change waiting for the panel to become live. @public */
-export type DeferredPin =
-  | {
-      /** Which call to apply once the panel is live: `pin` or `unpin`. */
-      by: 'pin' | 'unpin';
-    }
-  | {
-      /** The `parkable` value to apply once the panel is live. */
-      parkable: boolean;
-    };
-
 /** Where a workspace is in its life: `detached`, `loading`, `ready` or `disposed`. @public */
 export type WorkspaceStatus = 'detached' | 'loading' | 'ready' | 'disposed';
 
@@ -64,10 +53,6 @@ export interface PanelState {
   readonly listed: boolean;
   /** The panel's settings, resolved from every layer. */
   readonly settings: ResolvedPanelSettings;
-  /** Whether the panel's `pinning` setting currently reads as pinned. */
-  readonly pinned: boolean;
-  /** A pin change waiting for the panel to become live, or null when none is. */
-  readonly deferredPin: DeferredPin | null;
   /**
    * The id of the panel whose view opened this one through its own `useWorkspace().panels.addPanel`, or null for a panel the
    * host opened, one added before the workspace was ready, one that arrived alone from another workspace, and a pending or
@@ -138,6 +123,9 @@ export interface PanelViewProps<P extends JsonValue = JsonValue> {
   manager: PanelReader;
 }
 
+/** Where a template's panels handle a mouse as a finger: see {@link PanelTemplate.touch}. @public */
+export type PanelTouch = boolean | 'content';
+
 /** A panel kind: its id, the view that renders it, its settings layer and its initial params. @public */
 export interface PanelTemplate<P extends JsonValue = JsonValue> {
   /** 1-48 characters, no whitespace, no '~', no leading '_', not all digits, not 'all'; unique in a workspace. */
@@ -151,6 +139,26 @@ export interface PanelTemplate<P extends JsonValue = JsonValue> {
    * scrolls above it. It receives the same props as `view`. Declared on the template and not a setting, so no layer overrides it.
    */
   readonly footer?: React.ComponentType<PanelViewProps<P>>;
+  /**
+   * Handles a mouse as a finger in every panel made from this template, while that panel is active and the pointer is inside
+   * it: a drag scrolls the content under it and coasts on release, scrollbars are hidden, and the cursor is a finger dot.
+   * `true` covers the whole panel, its header and footer included; `'content'` only its frame, leaving the header and footer
+   * to the mouse. The drag never moves the row. Option (Alt) held at the press, and text fields and sliders, keep the mouse.
+   * Defaults to false.
+   */
+  readonly touch?: PanelTouch;
+  /**
+   * Lets a person drag the grab bar of a panel made from this template up and down while it is in a row: a drag down past
+   * `tuning.dragToClose` closes it, and a `DragToClose` given `previewOut` lifts its tile out. Defaults to false, where the
+   * grab bar drags only sideways, to reorder, and Delete on it and the header's close button still close the panel.
+   * `DragToClose` outside a row always drags vertically.
+   */
+  readonly verticalDrag?: boolean;
+  /**
+   * Whether a press on a panel made from this template, while it is not in use, only puts it in use. Left out, the
+   * workspace's `tuning.firstPressFocusOnly` decides. Set it to override that one way or the other for this template.
+   */
+  readonly firstPressFocusOnly?: boolean;
   /** The template's settings layer, applied to every panel made from it. */
   readonly settings?: PanelSettings;
   /** The params a panel made from this template starts with. */
@@ -182,7 +190,7 @@ const isComponent = (view: unknown): boolean => typeof view === 'function' || (t
 export type AnyPanelTemplate = PanelTemplate<any>;
 
 /**
- * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, an `api` the library serves, and a settings layer the
+ * Returns the template unchanged after checking it: a valid id, a component for `view` and for `footer` when given, a `touch` of a boolean or `'content'`, a boolean `verticalDrag` and a boolean `firstPressFocusOnly` when given, an `api` the library serves, and a settings layer the
  * resolver accepts on its own. 
  * @throws PanelManagerError with code `invalid-template` or `invalid-settings`.
  * @public
@@ -193,6 +201,9 @@ export function definePanel<P extends JsonValue = JsonValue>(t: PanelTemplate<P>
   if (idProblem !== undefined) throw new PanelManagerError('invalid-template', `template id ${JSON.stringify(t.id)} ${idProblem}`);
   if (!isComponent(t.view)) throw new PanelManagerError('invalid-template', `template '${t.id}': view must be a React component`);
   if (t.footer !== undefined && !isComponent(t.footer)) throw new PanelManagerError('invalid-template', `template '${t.id}': footer must be a React component`);
+  if (t.touch !== undefined && typeof t.touch !== 'boolean' && t.touch !== 'content') throw new PanelManagerError('invalid-template', `template '${t.id}': touch must be a boolean or 'content'`);
+  if (t.verticalDrag !== undefined && typeof t.verticalDrag !== 'boolean') throw new PanelManagerError('invalid-template', `template '${t.id}': verticalDrag must be a boolean`);
+  if (t.firstPressFocusOnly !== undefined && typeof t.firstPressFocusOnly !== 'boolean') throw new PanelManagerError('invalid-template', `template '${t.id}': firstPressFocusOnly must be a boolean`);
   checkPanelApi(t.id, t.api);
   resolvePanelSettings({ template: t.settings });
   reportLevelTieOnce(t.id, t.api, t.settings);

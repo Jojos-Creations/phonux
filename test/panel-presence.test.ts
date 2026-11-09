@@ -6,6 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, stubSlotBoxes } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -43,12 +44,10 @@ function scrollableRow(over: { wireClosing?: boolean } = {}): MountedRow {
   return m;
 }
 
+/** Gives each slot the box a browser draws; the row measures once per render and follows its own moves from there. */
 function layout(m: MountedRow): void {
-  const scroll = m.container.scrollLeft;
-  [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')].forEach((el, k) => {
-    el.getBoundingClientRect = () => rect(16 + 86 + 406 * k - scroll, 390);
-  });
-  act(() => void m.container.dispatchEvent(new Event('scroll')));
+  stubSlotBoxes(m.container, 16);
+  m.rerender(1000);
 }
 
 test('a panel the window draws reads shown, and shown is true', () => {
@@ -68,7 +67,7 @@ test('a panel scrolled outside the window reads scrolledAway, and shown is false
 test('a panel the row scrolls back into the window reads shown again', () => {
   const m = scrollableRow();
   layout(m);
-  m.container.scrollLeft = 1200;
+  setRowOffset(m.container, 1200);
   layout(m);
   assert.equal(reasonOf('s1'), 'scrolledAway');
   assert.equal(reasonOf('s5'), 'shown');
@@ -78,8 +77,7 @@ test('a scroll that moves no panel across the window renders no view', () => {
   const m = scrollableRow();
   layout(m);
   const before = renders.get('s1');
-  m.container.scrollLeft = 10;
-  layout(m);
+  setRowOffset(m.container, 10);
   assert.equal(renders.get('s1'), before, 'the view re-rendered for a scroll that changed nothing it reads');
 });
 

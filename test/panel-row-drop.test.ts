@@ -6,6 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelRowDrop, useWorkspace } from '../index.js';
@@ -14,6 +15,8 @@ import { landPanelIn } from '../workspaceCore.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
+import { ROW_LAYER_Z } from '../rowConstants.js';
+import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
 
@@ -43,7 +46,7 @@ const HALF = 195;
 const slotOf = (m: MountedRow, id: string): HTMLElement => {
   const grab = m.container.querySelector<HTMLElement>(`[data-grab="${id}"]`);
   assert.ok(grab, `${id} rendered`);
-  const slot = grab.closest<HTMLElement>('[data-drag-to-close]')?.parentElement;
+  const slot = grab.closest<HTMLElement>('[data-drag-to-close]')?.closest<HTMLElement>('[data-row-slot]');
   assert.ok(slot, `${id} sits in a slot`);
   return slot;
 };
@@ -51,6 +54,11 @@ const xOf = (m: MountedRow, id: string): number => {
   const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(m, id).style.transform);
   return match === null ? 0 : Math.round(Number(match[1]));
 };
+const restZ = (m: MountedRow, id: string, tier: number = ROW_LAYER_Z.BASE): string => {
+  const ids = ['root', ...m.live()];
+  return String(slotZ(tier, centerRank(ids.indexOf(id), ids.length), false));
+};
+const DRAGGED = String(ROW_LAYER_Z.DRAGGED);
 const xs = (m: MountedRow, ids: string[]): Record<string, number> => Object.fromEntries(ids.map((id) => [id, xOf(m, id)]));
 const order = (m: MountedRow): string => m.latest().entries.map((p) => p.id).join(',');
 const liveIds = (m: MountedRow): string => m.latest().entries.filter((p) => p.live).map((p) => p.id).join(',');
@@ -291,7 +299,7 @@ test('cancel leaves a panel in view and every slot exactly as it was', async () 
   assert.deepEqual(xs(m, ids), before);
   assert.equal(m.latest().entries, entries, 'the row was never rewritten');
   assert.equal(changes, 0);
-  assert.equal(slotOf(m, 's2').style.zIndex, '1', 'and nothing stays raised');
+  assert.equal(slotOf(m, 's2').style.zIndex, restZ(m, 's2'), 'and nothing stays raised');
 });
 
 // ---------------------------------------------------------------------------
@@ -472,14 +480,14 @@ async function mountedScrolling(): Promise<MountedRow> {
 
 test('held in the right edge band the row scrolls and the hop count follows the scroll; held mid-window it stays', async () => {
   const m = await mountedScrolling();
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
   assert.equal(begin('s1'), true);
   await update(500);
   await frames(60);
-  assert.equal(m.container.scrollLeft, 0, 'the pointer is outside both bands');
+  assert.equal(rowOffsetOf(m.container), 0, 'the pointer is outside both bands');
   await update(WINDOW);
   await frames(60);
-  assert.ok(m.container.scrollLeft > 100, `the row scrolled: ${m.container.scrollLeft}`);
+  assert.ok(rowOffsetOf(m.container) > 100, `the row scrolled: ${rowOffsetOf(m.container)}`);
   assert.equal(m.scroller.claimHeld(), true, 'the drag holds the scroller');
   act(() => hook().cancel());
   assert.equal(m.scroller.claimHeld(), false, 'and gives it back');
@@ -489,11 +497,11 @@ test('held in the right edge band the row scrolls and the hop count follows the 
 test('held in the left edge band the row scrolls back', async () => {
   const m = await mountedScrolling();
   m.scroller.glideTo(1200, { durationSec: 0, instant: true, ease: 'linear' });
-  assert.equal(m.container.scrollLeft, 1200);
+  assert.equal(rowOffsetOf(m.container), 1200);
   begin('s5');
   await update(0);
   await frames(60);
-  assert.ok(m.container.scrollLeft < 1200 - 100, `the row scrolled left: ${m.container.scrollLeft}`);
+  assert.ok(rowOffsetOf(m.container) < 1200 - 100, `the row scrolled left: ${rowOffsetOf(m.container)}`);
   act(() => hook().cancel());
   await settle();
 });

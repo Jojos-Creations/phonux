@@ -6,7 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
-import type { PanelSettings, Pinning } from '../index.js';
+import type { PanelSettings } from '../index.js';
 import { createWorkspace } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
@@ -19,7 +19,6 @@ afterEach(() => cleanup());
 const quiet = { tuning: { saveQuietMs: 5 } };
 const wait = (): Promise<void> => act(async () => void (await new Promise((done) => setTimeout(done, 80))));
 const reset = (r: PinRig, target: string) => r.turn(() => r.ws.panels.resetLayout(target));
-const FIX: Pinning = { pinned: { placement: 'row-start', parkable: false }, unpinned: { placement: 'row-end', parkable: true } };
 const park: PanelSettings = { overflow: 'park' };
 
 // ---------------------------------------------------------------------------
@@ -101,20 +100,6 @@ test('(c) a scrolling row parks none when a slot count grows', async () => {
   assert.deepEqual([...r.live()].sort(), [...live].sort());
 });
 
-test('(d) a person-pinned fixed column becomes parkable again and its overrides are {} in the file', async () => {
-  const store = memoryWorkspaceStorage();
-  const r = await pinRig({ settings: { c: { pinning: FIX } }, workspace: { storage: store, ...quiet } });
-  r.turn(() => r.h.c!.pin('person'));
-  await wait();
-  assert.equal(r.facts('c').parkable, false);
-  assert.equal(JSON.stringify((await store.load())!.panels).includes('"parkable":false'), true, 'positive control: the pin was saved');
-  reset(r, 'c');
-  await wait();
-  assert.deepEqual(r.facts('c'), { parkable: true, listed: true, movable: true, clearable: true, pinned: false });
-  assert.deepEqual((await store.load())!.panels.at(-1)!.overrides, {}, 'c is last in the row again, with nothing left of its pin');
-  assert.equal(r.order().join(' '), 'root a b c');
-});
-
 test('(e) parked and hidden panels are re-placed and stay parked or held', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e'];
   const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, park])) });
@@ -168,23 +153,6 @@ test('before the workspace is attached every call is refused', () => {
   ws.addPanel('x');
   assert.equal(brief(ws.panels.resetLayout('all')), 'not-attached');
   assert.equal(brief(ws.panels.resetLayout('x')), 'not-attached');
-});
-
-test('a stored deferredPin is cleared by resetLayout, for an open and a closed panel', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e'];
-  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { ...park, pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } }, pinningWhenNotLive: 'apply-on-next-show' } as PanelSettings])) });
-  await r.settle();
-  r.turn(() => r.h.b!.pin());
-  r.turn(() => r.h.e!.close());
-  await advanceFrames(9000);
-  r.turn(() => r.h.e!.pin());
-  assert.deepEqual([r.state('b').deferredPin, r.state('e').deferredPin], [{ by: 'pin' }, { by: 'pin' }]);
-  const result = reset(r, 'all');
-  assert.equal(result.ok, true);
-  assert.deepEqual([r.state('b').deferredPin, r.state('e').deferredPin], [null, null]);
-  r.turn(() => r.h.e!.open());
-  await r.settle();
-  assert.equal(r.state('e').pinned, false, 'the cleared deferral does not apply');
 });
 
 // ---------------------------------------------------------------------------

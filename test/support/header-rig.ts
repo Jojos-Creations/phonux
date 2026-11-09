@@ -24,6 +24,8 @@ export interface HeaderRigOptions {
   grab?: boolean;
   /** Passed to Panel as `headerButtons`. */
   panelHeaderButtons?: boolean;
+  /** Passed to Panel as `sizeControl`; off by default, so the button counts here are the declared buttons alone. */
+  sizeControl?: boolean;
   workspace?: Partial<WorkspaceOptions>;
   onNote?: (n: { code: string; panelId?: string | undefined; key?: string | undefined; message: string }) => void;
   width?: number;
@@ -56,7 +58,7 @@ export const titledTemplate = (id: string, o: HeaderRigOptions, settings: PanelS
     view: ({ panel }) =>
       createElement(
         Panel,
-        { ...('title' in o ? { title: o.title } : { title: panel.id }), ...(o.actions === undefined ? {} : { actions: o.actions }), ...(o.panelHeaderButtons === undefined ? {} : { headerButtons: o.panelHeaderButtons }), ...(o.grab === true ? { grabProps: { 'data-grab': '' } } : {}), children: [createElement('i', { key: 'slot', 'data-slot': panel.id }), o.body === undefined ? null : createElement('span', { key: 'body' }, o.body)] },
+        { ...('title' in o ? { title: o.title } : { title: panel.id }), ...(o.actions === undefined ? {} : { actions: o.actions }), ...(o.panelHeaderButtons === undefined ? {} : { headerButtons: o.panelHeaderButtons }), sizeControl: o.sizeControl ?? false, ...(o.grab === true ? { grabProps: { 'data-grab': '' } } : {}), children: [createElement('i', { key: 'slot', 'data-slot': panel.id }), o.body === undefined ? null : createElement('span', { key: 'body' }, o.body)] },
       ),
   });
 

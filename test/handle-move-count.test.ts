@@ -1,12 +1,12 @@
 /**
- * handle.move(by): a signed slot count as one gated call, and the default frame's drag and `usePanelPinned` built on the handle.
+ * handle.move(by): a signed slot count as one gated call, and the default frame's drag built on the handle.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { createWorkspace, definePanel, Panel, PanelFrame, usePanelDragProps, usePanelPinned } from '../index.js';
+import { createWorkspace, definePanel, Panel, PanelFrame, usePanelDragProps } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
@@ -46,28 +46,6 @@ test('a panel a person cannot move refuses a count with not-movable, and the dev
   const r = await pinRig({ settings: { b: { movable: false } } });
   assert.equal(letter(r.turn(() => r.h.b!.move(-1, 'person'))), 'not-movable');
   assert.equal(letter(r.turn(() => r.h.b!.move(-1))), 'T');
-});
-
-test('usePanelPinned reads PanelState.pinned, before and after a pin and a drag across the root', async () => {
-  const seen = definePanel({ id: 'seen', view: ({ panel }) => React.createElement('u', { 'data-seen': panel.id, 'data-pinned': String(usePanelPinned()) }) });
-  const r = await pinRig({ ids: ['a'], extra: [seen] });
-  const s = r.ws.addPanel('seen');
-  await r.settle();
-  const read = (): string => r.m.container.querySelector('[data-seen]')!.getAttribute('data-pinned')!;
-  const agree = (): void => assert.equal(read(), String(s.getState().pinned));
-  agree();
-  r.turn(() => s.pin());
-  await r.settle();
-  assert.equal(s.getState().pinned, true);
-  agree();
-  r.turn(() => s.unpin());
-  await r.settle();
-  assert.equal(s.getState().pinned, false);
-  agree();
-  r.turn(() => s.configure({ pinning: { pinned: { parkable: true }, unpinned: { parkable: false } } }));
-  await r.settle();
-  assert.equal(s.getState().pinned, true, 'the swapped definition reads pinned while the panel sits right of the root');
-  agree();
 });
 
 test('usePanelDragProps offers a close to a closable panel only, and a reorder to a draggable one only', async () => {

@@ -61,11 +61,3 @@ test('showing a parked panel refreshes it: the next panel opened parks an older 
   assert.equal(r.row(), 'root w1 w2* w3* w4 w5', 'w1 was touched when it was shown, so w3 is the oldest now');
 });
 
-test('a pinned panel is never the one parked, even when it is the oldest', async () => {
-  const r = await capRig({ count: 5, initial: 0, cap: 3, pinned: ['w1'], own: { w5: { placeOnAdd: { before: 'w2' } } } });
-  await openAll(r, ['w2', 'w3', 'w4']);
-  assert.equal(r.row(), 'w1 root w2 w3 w4');
-  r.add('w5');
-  await r.settle();
-  assert.equal(r.row(), 'w1 root w5 w2* w3 w4', 'w1 is the oldest of all but sits pinned; w2 is the oldest of the rest');
-});

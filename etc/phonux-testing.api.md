@@ -4,10 +4,10 @@
 
 ```ts
 
-import type * as React_2 from 'react';
+import * as React_2 from 'react';
 
 // @public
-export type AbsentHostMember = 'history' | 'snapshots';
+export type AbsentHostMember = 'snapshots';
 
 // @public
 export type AddPlacement = 'row-start' | 'row-end' | 'parkable-start' | 'parkable-end' | 'after-fixed' | 'order' | {
@@ -41,21 +41,12 @@ export type ChromeTuning = {
 };
 
 // @public
-export interface ClosedPageEntry {
-    closedAt: string;
-    id: string;
-    title: string;
-    url?: string;
-}
-
-// @public
 export type CloseExitEase = 'easeIn' | 'easeOut' | 'easeInOut' | 'linear' | BezierEase;
 
 // @public
 export type ConfigureResult = {
     readonly ok: true;
     readonly changed: boolean;
-    readonly shown: boolean;
     readonly now: readonly string[];
     readonly later: readonly string[];
     readonly shadowed: readonly string[];
@@ -95,13 +86,6 @@ export interface CreatePanelOptions {
 // @public
 export type CssStyle = {
     readonly [property: string]: string | number | CssStyle | undefined;
-};
-
-// @public
-export type DeferredPin = {
-    by: 'pin' | 'unpin';
-} | {
-    parkable: boolean;
 };
 
 // @public
@@ -201,27 +185,11 @@ export type HeaderButtonTextForm = HeaderButtonBase & {
 };
 
 // @public
-export interface HistoryAPI {
-    close(): void;
-    readonly closed: boolean;
-    readonly closedPagesViewer: {
-        readonly isOpen: boolean;
-        readonly loading: boolean;
-        readonly entries: readonly ClosedPageEntry[];
-        open(): void;
-        close(): void;
-    };
-    loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
-    readonly locked: boolean;
-}
-
-// @public
 export interface Host {
     readonly device: PhoneDeviceAPI;
-    readonly history?: HistoryAPI;
+    readonly icons?: Partial<PhonuxIcons>;
     readonly labels?: Partial<PhonuxLabels>;
     readonly panels: PanelsAPI;
-    readonly settings: SettingsAPI;
     readonly snapshots?: SnapshotsAPI;
 }
 
@@ -238,6 +206,15 @@ export type ListFilter = {
     status?: PanelStatus | readonly PanelStatus[];
     listed?: boolean;
 };
+
+// @public
+export interface MaximizablePanel {
+    root(): Element | null;
+    toggle(): boolean;
+}
+
+// @public
+export type MaximizePhase = 'home' | 'growing' | 'maximized' | 'shrinking';
 
 // @public
 export interface MemoryWorkspaceStorage extends WorkspaceStorage {
@@ -260,13 +237,11 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
     hide(source?: 'code' | 'person'): PanelResult;
     move(by: number, source?: 'code' | 'person'): PanelResult;
     open(source?: 'code' | 'person'): PanelResult;
-    pin(source?: 'code' | 'person'): PinResult;
     place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
     scrollTo(align?: ScrollAlign, source?: 'code' | 'person'): PanelResult;
     setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
     show(source?: 'code' | 'person'): PanelResult;
     toggleVisibility(source?: 'code' | 'person'): PanelResult;
-    unpin(source?: 'code' | 'person'): PinResult;
 }
 
 // @public
@@ -376,7 +351,6 @@ export type PanelSnapshot = {
 
 // @public
 export interface PanelState {
-    readonly deferredPin: DeferredPin | null;
     readonly engineId: string | null;
     readonly held: boolean;
     readonly id: PanelId;
@@ -384,7 +358,6 @@ export interface PanelState {
     readonly listed: boolean;
     readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
-    readonly pinned: boolean;
     readonly settings: ResolvedPanelSettings;
     readonly status: PanelStatus;
     readonly templateId: string;
@@ -403,6 +376,7 @@ export interface PanelSummary<P = JsonValue> {
     readonly live: boolean;
     readonly maxSlots?: number;
     readonly params?: P;
+    readonly savedSlots?: number;
     readonly size?: PanelSize;
     readonly slots?: number;
     readonly title?: string;
@@ -440,75 +414,44 @@ export interface PhoneSize {
 }
 
 // @public
+export interface PhonuxIcons {
+    fullscreen: React_2.ReactNode;
+    grab: React_2.ReactNode;
+    noActions: React_2.ReactNode;
+    size: (slots: number) => React_2.ReactNode;
+}
+
+// @public
 export interface PhonuxLabels {
     cannotMove: (title: string, steps: number) => string;
     close: string;
     closed: (title: string) => string;
-    closedPagesEmpty: string;
-    closedPagesLoading: string;
-    closedPagesNoMatches: string;
-    closedPagesSearch: string;
-    closedPagesShowMore: string;
-    closedPagesTitle: string;
-    closedPagesUntitled: string;
+    couldNotFullscreen: string;
+    couldNotResize: string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
+    fullscreen: string;
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
-    historyTitle: string;
-    lock: string;
-    move: string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
     panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
-    pin: string;
-    pinFailed: string;
     row: string;
-    unlock: string;
-    unpin: string;
-    unpinFailed: string;
+    sizeName: (slots: number) => string;
+    undo: string;
+    undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;
     untitledPanel: string;
+    viewSize: string;
     workspaceEmpty: string;
-    workspaceHidden: string;
     workspaceName: string;
-    workspaceNoMatches: string;
-    workspacePinned: string;
-    workspaceSearch: string;
     workspaceUntitled: string;
-    workspaceViewing: string;
 }
 
 // @public
-export type PinHalf = {
-    placement?: AddPlacement;
-    parkable?: boolean;
-};
-
-// @public
-export type Pinning = {
-    pinned: PinHalf;
-    unpinned: PinHalf;
-};
-
-// @public
-export type PinningWhenNotLive = PinWhenNotLive | {
-    parked?: PinWhenNotLive;
-    hidden?: PinWhenNotLive;
-    closed?: 'refuse' | 'apply-on-next-show';
-};
-
-// @public
-export type PinResult = PanelResult & {
-    readonly shown?: boolean;
-    readonly deferred?: boolean;
-    readonly setting?: CatalogName;
-};
-
-// @public
-export type PinWhenNotLive = 'place-only' | 'refuse' | 'show' | 'apply-on-next-show';
+export function reportMaximized(panel: MaximizablePanel, phase: MaximizePhase, register?: boolean): () => void;
 
 // @public
 export type ResolvedPanelSettings = {
@@ -565,15 +508,6 @@ export type SettingNote = {
 };
 
 // @public
-export interface SettingsAPI {
-    readonly settingsColumn: {
-        readonly visible: boolean;
-        show(): void;
-        hide(): void;
-    };
-}
-
-// @public
 export type SettingsPatch = {
     [K in keyof PanelSettings]?: PanelSettings[K] | null;
 };
@@ -597,6 +531,7 @@ export type SettingValues = {
     overflow: Overflow;
     revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
+    resize: 'reveal' | 'reflow';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -609,8 +544,6 @@ export type SettingValues = {
     slots: number;
     maxSlots: number;
     title: string;
-    pinning: Pinning;
-    pinningWhenNotLive: PinningWhenNotLive;
     restoreVisibility: 'saved' | 'live' | 'parked';
     afterClose: 'stay-closed' | 'return-next-launch';
 };
@@ -749,6 +682,7 @@ export type WorkspaceTuning = {
     returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
     dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
+    fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {
         panel: PanelId;
     };
@@ -762,6 +696,8 @@ export type WorkspaceTuning = {
     phoneFitMax?: number;
     defaultEnterFrom?: EnterFrom;
     defaultExitTo?: ExitTo;
+    shrinkUnfocused?: boolean;
+    firstPressFocusOnly?: boolean;
 };
 
 // (No @packageDocumentation comment for this package)

@@ -4,8 +4,11 @@
  *
  * Under `mode` 'off' no listener is installed and nothing scrolls the row.
  *
- * The wheel and touch listeners are passive and never cancel: a stepping row's overflow is hidden, so the browser has nothing of the row's
- * to scroll, and a listener that could cancel would make the browser wait on it for every wheel over a panel, vertical ones too.
+ * The row owns sideways wheel scrolling wherever the pointer is, panel content included: its wheel listener runs in the
+ * capture phase and cancels a sideways wheel and stops it before content sees it. Option (Alt) held at a gesture's
+ * first event leaves that whole gesture to the content. A vertical wheel is never cancelled, so content scrolls as usual.
+ * The listener cannot be passive, so the browser waits on it for every wheel over the row; it returns at once for a vertical one.
+ * The touch listeners stay passive and a panel's own horizontal scroller still takes a drag it can move, since a touch has no Option key.
  *
  * `onStep` is read through a ref and never re-subscribed: it is a fresh closure every render (nothing here may be
  * memoised), and tearing the listeners down would lose the gesture's travel on every re-render, including the
@@ -15,6 +18,7 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { arrowKeyBelongsElsewhere, contentScrolls } from '../arrowKeys.js';
 import { GESTURE_LOCK_MS, GESTURE_QUIET_MS } from '../rowConstants.js';
+import { registerRowKeys } from '../rowStep.js';
 
 /** Pixels per line for a wheel that reports `deltaMode` lines (Firefox's mouse wheel); pages count as one step each. */
 const LINE_PX = 16;
@@ -22,11 +26,35 @@ const LINE_PX = 16;
 /** Finger travel before a touch is read as horizontal or vertical: a tap or a small wobble never steps the row. */
 const TOUCH_AXIS_PX = 8;
 
+/** Keeps a wheel the row took from the content: no native scroll, and no listener inside the row sees it. */
+function cancel(e: WheelEvent): void {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+/**
+ * Hands the row a wheel from content whose input never reaches the page, such as an Electron `<webview>` or a cross-origin
+ * `<iframe>`: a script in that content cancels the wheel itself and passes its deltas here, with `from` the element that shows it.
+ * The row reads the wheel as it reads one over its own content, so a sideways one steps it and a vertical one does nothing.
+ * Pass `altKey` true for a gesture the content keeps, so the row lets the rest of it be.
+ *
+ * @param from - An element inside the row, usually the webview or iframe.
+ * @param wheel - The wheel's deltas, `deltaMode` as `WheelEvent` reports it (0 pixels, 1 lines, 2 pages).
+ * @returns True when the row took the wheel, so the content must not scroll by it.
+ *
+ * @public
+ */
+export function feedRowWheel(from: Element, wheel: { deltaX: number; deltaY?: number; deltaMode?: number; shiftKey?: boolean; altKey?: boolean }): boolean {
+  const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, composed: true, deltaY: 0, deltaMode: 0, ...wheel });
+  from.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
 /**
  * One gesture travels as far as it is pushed, one step per `stepPx` of wheel travel, never by free pixels: the first
  * event of a gesture steps at once, so a short swipe or one wheel notch still moves, and every further `stepPx` of
  * travel in the same direction steps again, momentum included. A reversal starts a fresh gesture. Each step is the
- * caller's glide to the next stop, so the row always comes to rest on one.
+ * caller's glide to the next stop, so the row always comes to rest on one; steps faster than a glide add to its target.
  *
  * A finger drag feeds the same accumulator: a finger moving left is the travel a wheel reports as `deltaX` > 0, so it asks
  * for the step right. A drag that starts vertical is left to the page for the whole touch.
@@ -41,9 +69,12 @@ export function useRowScrollGesture(
   mode: 'step' | 'off' = 'step',
   gestureQuietMs: number = GESTURE_QUIET_MS,
   stepPx = 400,
+  onTravel?: (direction: 'left' | 'right') => void,
 ): void {
   const onStepRef = useRef(onStep);
   onStepRef.current = onStep;
+  const onTravelRef = useRef(onTravel);
+  onTravelRef.current = onTravel;
   const gestureLockMsRef = useRef(gestureLockMs);
   gestureLockMsRef.current = gestureLockMs;
   const gestureQuietMsRef = useRef(gestureQuietMs);
@@ -66,6 +97,7 @@ export function useRowScrollGesture(
     };
     // Both inputs feed this: `amount` is travel in px, positive for a step to the right.
     const feed = (amount: number): void => {
+      if (amount !== 0) onTravelRef.current?.(amount > 0 ? 'right' : 'left');
       const unit = Math.max(1, stepPxRef.current);
       if (quietTimer) clearTimeout(quietTimer);
       quietTimer = setTimeout(() => {
@@ -81,19 +113,31 @@ export function useRowScrollGesture(
       }
       travel += Math.abs(amount);
       if (travel < unit || performance.now() - lastStepAt < gestureLockMsRef.current) return;
-      // Travel beyond one more step carries over, capped so a held burst never queues stops it has not shown yet.
-      travel = Math.min(travel - unit, unit);
+      // Travel beyond one step carries over: a fast burst adds to the target the row glides to, so its steps are not lost.
+      travel -= unit;
       step(direction);
     };
+    // Who owns the wheel gesture in progress: 'row' once it has stepped, 'content' when Option began it, null between gestures.
+    let wheelOwner: 'row' | 'content' | null = null;
+    let wheelQuietTimer: ReturnType<typeof setTimeout> | null = null;
     const onWheel = (e: WheelEvent): void => {
+      if (wheelQuietTimer) clearTimeout(wheelQuietTimer);
+      wheelQuietTimer = setTimeout(() => {
+        wheelOwner = null;
+      }, gestureQuietMsRef.current);
+      if (wheelOwner === null && e.altKey) wheelOwner = 'content';
+      if (wheelOwner === 'content') return;
       // A tilt wheel or two-finger swipe reports deltaX; Shift+wheel usually still reports deltaY, so treat
       // Shift+deltaY as a horizontal ask too. A plain vertical wheel is not a step, and the row does not scroll vertically either (its overflowY is hidden).
       const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) || (e.shiftKey && e.deltaY !== 0);
-      if (!horizontal) return;
       const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (raw === 0) return;
-      // A panel's own horizontal scroller (a carousel, a wide table) takes the swipe while it can still move.
-      if (e.target instanceof Element && contentScrolls(e.target, 'x', Math.sign(raw))) return;
+      if (!horizontal || raw === 0) {
+        // A sideways swipe's vertical wobble stays the row's too, so the content under it does not drift up or down.
+        if (wheelOwner === 'row') cancel(e);
+        return;
+      }
+      wheelOwner = 'row';
+      cancel(e);
       const unit = Math.max(1, stepPxRef.current);
       feed(e.deltaMode === 1 ? raw * LINE_PX : e.deltaMode === 2 ? raw * unit : raw);
     };
@@ -130,20 +174,23 @@ export function useRowScrollGesture(
       if (container.closest('[inert]') !== null) return;
       onStepRef.current(e.key === 'ArrowRight' ? 'right' : 'left');
     };
-    container.addEventListener('wheel', onWheel, { passive: true });
+    container.addEventListener('wheel', onWheel, { capture: true, passive: false });
     container.addEventListener('touchstart', onTouchStart, { passive: true });
     container.addEventListener('touchmove', onTouchMove, { passive: true });
     container.addEventListener('touchend', onTouchEnd, { passive: true });
     container.addEventListener('touchcancel', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKeyDown);
+    const unregister = registerRowKeys(container, { step: (direction) => onStepRef.current(direction) });
     return () => {
-      container.removeEventListener('wheel', onWheel);
+      unregister();
+      container.removeEventListener('wheel', onWheel, { capture: true });
       container.removeEventListener('touchstart', onTouchStart);
       container.removeEventListener('touchmove', onTouchMove);
       container.removeEventListener('touchend', onTouchEnd);
       container.removeEventListener('touchcancel', onTouchEnd);
       window.removeEventListener('keydown', onKeyDown);
       if (quietTimer) clearTimeout(quietTimer);
+      if (wheelQuietTimer) clearTimeout(wheelQuietTimer);
     };
     // `overflowContainerRef` is a stable ref object (a useRef in the host's row shell): this effect attaches once,
     // at mount, and reads the latest `onStep` through `onStepRef` instead of re-subscribing to it.

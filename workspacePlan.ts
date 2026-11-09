@@ -272,7 +272,7 @@ export function reconcileWorkspace(i: ReconcileInput): ReconcileResult {
  * empty `overrides` and the `placeOnAdd` that places it, and placed there unless the caller gave an anchor itself.
  * `name` is a template panel's key; absent, the entry's key is its id.
  */
-export function finishCreated(i: { row: PanelWindow[]; id: string; settings: ResolvedPanelSettings; instance: PanelSettings; name: string | undefined; callerPlaced: boolean; rootId: string; order?: () => readonly string[] }): PanelWindow[] {
+export function finishCreated(i: { row: PanelWindow[]; id: string; settings: ResolvedPanelSettings; instance: PanelSettings; name: string | undefined; callerPlaced: boolean; rootId: string; order?: () => readonly string[]; place?: AddPlacement }): PanelWindow[] {
   const made = i.row.find((p) => p.id === i.id)!;
   const built: PanelWindow = {
     ...applyTemplate(i.name === undefined ? made : { ...made, key: i.name }, i.settings, 'create'),
@@ -283,8 +283,10 @@ export function finishCreated(i: { row: PanelWindow[]; id: string; settings: Res
     i.row.map((p) => (p.id === i.id ? built : p)),
     [i.id],
   );
-  if (i.callerPlaced || i.settings.placeOnAdd === 'row-end') return row;
-  return placePanel(row, i.id, i.settings.placeOnAdd, { fallback: FIXED.placeFallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) }).row;
+  // A one-off `place` is not recorded as `applied`, so a relaunch keeps where it landed.
+  const place = i.place ?? i.settings.placeOnAdd;
+  if (i.callerPlaced || place === 'row-end') return row;
+  return placePanel(row, i.id, place, { fallback: FIXED.placeFallback, rootId: i.rootId, ...(i.order !== undefined ? { order: i.order } : {}) }).row;
 }
 
 /** The notes a host-bag create's conflicts raise, one per setting the cascade overrode or refused. */

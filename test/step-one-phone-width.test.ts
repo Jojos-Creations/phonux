@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
 import { stepTarget } from '../scrollTargets.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 
@@ -16,7 +16,7 @@ const made = (id: string, layer: PanelSettings = {}): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'scroll-row-view' }, id, ROOT)[0]!;
   return applyTemplate(skeleton, resolvePanelSettings({ template: layer }).value, 'create');
 };
-const root = (): PanelWindow => applyTemplate({ ...createHistoryPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
+const root = (): PanelWindow => applyTemplate({ ...createRootPanel(ROOT), view: 'scroll-row-view' }, resolvePanelSettings({ template: { title: 'History' } }, { root: true }).value, 'create');
 const numbers = (entries: PanelWindow[], containerWidth: number) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: 16, wholePanels: true });
 
 /** The stops a walk of single steps visits from 0 to the row's end, one event per step. */

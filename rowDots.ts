@@ -127,3 +127,58 @@ export function dragScroll(i: { startScroll: number; dx: number; map: DotMap; ma
   const at = toScroll(i.map, toTrack(i.map, i.startScroll) + i.dx);
   return Math.min(Math.max(at, 0), i.maxScroll);
 }
+
+/** A parked panel's dot: `before` is how many drawn panels come ahead of it in the row's order. */
+export interface ParkedDot {
+  readonly id: string;
+  readonly before: number;
+  readonly slots: number;
+  readonly hollow: boolean;
+}
+
+/** The whole bar: the drawn panels' layout with each parked panel's dot set at its place in the row's order. */
+export interface FullDotLayout extends DotLayout {
+  /** The bar's width in px. */
+  readonly width: number;
+  /** The ids of the parked dots, which a click brings in by stepping the row. */
+  readonly parked: ReadonlySet<string>;
+}
+
+/**
+ * Whether a parked panel with `before` drawn panels ahead of it in the row waits on the bar's left, of `drawn` drawn panels: one
+ * inside the drawn run waits on the side nearer its place, a tie on the left. The row's step follows the same rule, so a step
+ * toward a dot always reaches it.
+ */
+export function waitsLeft(before: number, drawn: number): boolean {
+  return before <= 0 || (before < drawn && before <= drawn - before);
+}
+
+/**
+ * Sets the parked dots beside the drawn ones, which stay together under the oval: an always-shown panel such as the Workspace
+ * never moves, so its dot stays in the oval's end slot and the panels parked between it and the rest wait outside the oval.
+ */
+export function withParked(layout: DotLayout, map: DotMap, parked: readonly ParkedDot[]): FullDotLayout {
+  const dots: DotPlace[] = [];
+  const shifts: number[] = [];
+  let at = 0;
+  const n = layout.dots.length;
+  const sideOf = (before: number): number => (waitsLeft(before, n) ? 0 : n);
+  const park = (k: number): void => {
+    for (const p of parked) {
+      if (sideOf(p.before) !== k) continue;
+      const width = dotWidthOf(Math.max(1, Math.round(p.slots)));
+      dots.push({ id: p.id, left: at, width, hollow: p.hollow });
+      at += width + DOT_GAP_PX;
+    }
+  };
+  layout.dots.forEach((dot, k) => {
+    park(k);
+    shifts.push(at - dot.left);
+    dots.push({ ...dot, left: at });
+    at += dot.width + DOT_GAP_PX;
+  });
+  park(layout.dots.length);
+  if (layout.dots.length === 0) return { dots, oval: { left: 0, width: 0 }, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
+  const oval = { left: layout.oval.left + shifts[0]!, width: layout.oval.width };
+  return { dots, oval, width: Math.max(0, at - DOT_GAP_PX), parked: new Set(parked.map((p) => p.id)) };
+}

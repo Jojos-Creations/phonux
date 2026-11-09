@@ -34,7 +34,7 @@ function rendered(radius: number, frameProps: Record<string, unknown> = {}, sx?:
 test('the content box follows the theme radius of the frame, in every theme', () => {
   for (const radius of [4, 6, 9]) {
     const { theme, outer, inner } = rendered(radius);
-    assert.equal(radiusOf(outer), `${panelCornerRadiusPx({ ...createDefaultTheme('light'), radiusUnitPx: radius })}px`, `outer at theme radius ${radius}`);
+    assert.equal(radiusOf(outer), `${panelCornerRadiusPx({ ...createDefaultTheme('light'), radius: 4 * radius })}px`, `outer at theme radius ${radius}`);
     assert.equal(radiusOf(inner), radiusOf(outer), `inner at theme radius ${radius}`);
     cleanup();
   }

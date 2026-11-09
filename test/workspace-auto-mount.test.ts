@@ -100,6 +100,7 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
     closingIds: provided.closingIds,
     enteringViaAnchorIds: provided.enteringViaAnchorIds,
     exitRightIds: provided.exitRightIds,
+    swapExitIds: provided.swapExitIds,
     enterSideById: provided.enterSideById,
     maxLiveWidth: provided.maxLiveWidth,
     rowNumbers: provided.rowNumbers,
@@ -138,8 +139,8 @@ test('the auto-mounted workspace renders the same DOM as the hand-wired one, scr
   const html = (el: HTMLElement): string => (el === autoTarget ? (el.firstElementChild as HTMLElement).innerHTML : el.innerHTML).replace(/(Dnd(?:DescribedBy|LiveRegion))-\d+/g, '$1-N');
   const scroller = autoTarget.querySelector<HTMLElement>('[data-row-scroller]')!;
   assert.equal(getComputedStyle(scroller).overflowX, 'hidden', 'a stepping row moves by steps, so the browser has nothing to scroll');
-  // Only an overflowing row draws the end element that holds its scroll range.
-  assert.ok(scroller.querySelector('[data-row-end-pad]') !== null, 'control: at 700 wide the five panels overflow the row');
+  const lastSlot = [...scroller.querySelectorAll<HTMLElement>('[data-row-slot]')].at(-1)!;
+  assert.ok(Number(lastSlot.dataset.rowSlot) + 390 > 700, 'control: at 700 wide the five panels overflow the row');
   assert.equal(html(autoTarget), html(handTarget), 'the rows render the same DOM at 700 wide');
   await act(async () => void auto.panels.get('b')!.close());
   await act(async () => void hand.panels.get('b')!.close());
@@ -173,11 +174,12 @@ test('the mount hands the row and the workspace shell each value useProvidePanel
   assert.equal(row.closingIds, p.closingIds);
   assert.equal(row.enteringViaAnchorIds, p.enteringViaAnchorIds);
   assert.equal(row.exitRightIds, p.exitRightIds);
+  assert.equal(row.swapExitIds, p.swapExitIds);
   assert.equal(row.enterSideById, p.enterSideById);
   assert.equal(row.maxLiveWidth, p.maxLiveWidth);
   assert.equal(row.rowNumbers, p.rowNumbers);
   assert.equal(row.workspace, ws);
-  assert.equal(Object.keys(row).length, 9, 'all nine PanelRow props are accounted for');
+  assert.equal(Object.keys(row).length, 10, 'all ten PanelRow props are accounted for');
   const shell = workspaceProps(p, ws);
   assert.equal(shell.fixedColumnCount, p.fixedViewCount);
   assert.equal(shell.liveWidths, p.liveWidths);
@@ -190,13 +192,11 @@ test('the mount hands the row and the workspace shell each value useProvidePanel
 // 4. HostProvider fills in what a host leaves out
 // ---------------------------------------------------------------------------
 
-test('HostProvider given a host without device and settings still gives every reader a value, the same object each render', () => {
-  const seen: { device: unknown; settings: unknown; width: number; visible: boolean }[] = [];
+test('HostProvider given a host without a device still gives every reader one, the same object each render', () => {
+  const seen: { device: unknown; width: number }[] = [];
   function Reader(): null {
     const host = useHost();
-    seen.push({ device: host.device, settings: host.settings, width: host.device.size.width, visible: host.settings.settingsColumn.visible });
-    host.settings.settingsColumn.show();
-    host.settings.settingsColumn.hide();
+    seen.push({ device: host.device, width: host.device.size.width });
     return null;
   }
   const panels = { panelList: [], create() {}, activate() {}, move() {}, setFormFactor() {}, reanchor() {}, close() {}, recentlyClosed: null, undoClose() {}, clearAll() {} };
@@ -205,20 +205,17 @@ test('HostProvider given a host without device and settings still gives every re
   m.rerender(ui());
   assert.equal(seen.length, 2);
   assert.equal(seen[0]!.width, 390);
-  assert.equal(seen[0]!.visible, false);
   assert.equal(seen[0]!.device, seen[1]!.device, 'the default device is one object across renders');
-  assert.equal(seen[0]!.settings, seen[1]!.settings, 'the default settings are one object across renders');
 });
 
-test('HostProvider hands a host that names both members through as it is', () => {
+test('HostProvider hands a host that names its device through as it is', () => {
   const device = { size: { modelId: 'x', width: 300, height: 600 } };
-  const settings = { settingsColumn: { visible: true, show() {}, hide() {} } };
   let seen: unknown;
   function Reader(): null {
     seen = useHost();
     return null;
   }
-  const host = { device, settings, panels: {} as never };
+  const host = { device, panels: {} as never };
   mount(provide(host, React.createElement(Reader)));
   assert.equal(seen, host);
 });
@@ -238,6 +235,8 @@ test('a resize of the window changes how many panels fit', async () => {
   await until('the first measurement', () => fit() !== undefined && fit() !== 'null');
   const narrow = Number(fit());
   await resize(2400);
+  // The width reaches the capacity once it has settled, which is counted on frames.
+  await advanceFrames(1000);
   await until('the wider row', () => Number(fit()) > narrow);
   assert.ok(Number(fit()) > narrow, `${fit()} fit at 2400 wide, ${narrow} at 1000`);
   assert.ok(ws.rootId.length > 0);
@@ -329,7 +328,7 @@ test('under StrictMode the mount subscribes once per element and disposes every 
   await act(async () => root.render(React.createElement(React.StrictMode, null, React.createElement(AutoRoot, { workspace: ws }))));
   await until('the row', () => slots(target).length === 2);
   const live = [...observers].filter((o) => o.targets.size > 0);
-  assert.equal(live.length, 2, 'the mount and Workspace each hold one live observer, the first run of each effect having been cleaned up');
+  assert.equal(live.length, 2, 'the mount and its phone fit each hold one live observer, the first run of each effect having been cleaned up');
   for (const o of live) assert.equal([...o.targets][0], target.querySelector('[data-row-scroller]'));
   await act(async () => root.unmount());
   assert.equal(observers.size, 0, 'no observer outlives the mount');

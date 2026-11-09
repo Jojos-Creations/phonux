@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useHost } from './hostApi.js';
 
-/** A panel's PanelSummary.id, or a fixed id ('settings' | 'history') for the non-panel columns. @public */
+/** A panel's PanelSummary.id. @public */
 export type ViewId = string;
 
 /** A captured picture of one view, as `useViewSnapshot` returns it. @public */

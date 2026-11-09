@@ -9,6 +9,7 @@ import type { ReorderHandle } from './dragToClose.js';
 import { warnCounterId } from './panelIds.js';
 import { PanelSlotContext } from './panelSlotContext.js';
 import { reorderStepsForOffset } from './panelWindow.js';
+import { screenBoxOf, type ScreenBox } from './slotMover.js';
 
 /**
  * The attribute the library writes, empty-valued, on the root box of the active panel and removes when another panel
@@ -86,6 +87,18 @@ export interface ChromeStore {
   keyOf(engine: PanelId): string;
   /** The engine id of the panel public under `key`, or `key` itself when none is. */
   engineOf(key: string): PanelId;
+}
+
+const PANEL_PRESSES = new WeakSet<Event>();
+
+/** Marks `event` as a press inside a panel; a portal a panel opens counts, since React carries its events through the panel. */
+export function markPanelPress(event: Event): void {
+  PANEL_PRESSES.add(event);
+}
+
+/** Whether `event` was marked by `markPanelPress`. */
+export function isPanelPress(event: Event): boolean {
+  return PANEL_PRESSES.has(event);
 }
 
 export function createChromeStore(): ChromeStore {
@@ -190,7 +203,7 @@ const NO_SUBSCRIBE = (): (() => void) => () => {};
 
 /**
  * The id (key) of the active panel and a setter that takes one: the panel the person last pressed or focused inside, until another
- * panel is used, or the one the host set. Outside a Workspace it is `[null, no-op]`.
+ * panel is used or a press lands outside every panel, or the one the host set. Outside a Workspace it is `[null, no-op]`.
  * @public
  */
 export function useActivePanel(): readonly [PanelId | null, (id: PanelId | null) => void] {
@@ -255,12 +268,6 @@ export function panelRectEvent(key: string, detail: PanelRectDetail): PanelRectE
 export const PANEL_RECT_EVENT = 'phonux:panel-rect';
 
 /**
- * Dispatched on a slot's element with `detail: { id }` before its slide starts, so a listener reads the picture the panel
- * still shows. @internal
- */
-export const PANEL_SLIDE_EVENT = 'phonux:panel-slide';
-
-/**
  * Reports one slot's box while it moves. `kick()` runs a frame loop that reports `moving` on each change and, once nothing
  * is moving and the box has stood still for a frame, one `settled`. `settle()` ends the loop at once with the box as it is,
  * for the moment a motion completes. @internal
@@ -274,13 +281,17 @@ export interface PanelRectReporter {
 /**
  * Builds the reporter for `el`. `id` is read at each report, so a slot whose panel id changes keeps reporting under it;
  * no report is sent while it is undefined. `moving` says whether anything besides the box's own changes keeps the loop
- * going (a slide, a drag, a resize, a row scroll). @internal
+ * going (a slide, a drag, a resize, a row scroll). `stripX` is the row strip's translate now. While the loop runs, the box is
+ * computed from the numbers that move it, measured once as the loop starts and again only when the slot's own width
+ * changes; the settled report is a real measurement. @internal
  */
-export function createRectReporter(el: HTMLElement, env: { id: () => string | undefined; moving: () => boolean }): PanelRectReporter {
+export function createRectReporter(el: HTMLElement, env: { id: () => string | undefined; moving: () => boolean; stripX?: () => number }): PanelRectReporter {
   let frame: number | null = null;
   let last: PanelRect | null = null;
+  let model: { box: () => ScreenBox; width: string } | null = null;
   // One settled report is owed after each stop: set by the first measurement and by every change, cleared when it is sent.
   let owed = false;
+  const stripX = env.stripX ?? ((): number => 0);
   const send = (phase: PanelRectDetail['phase'], rect: PanelRect): void => {
     const id = env.id();
     if (id === undefined) return;
@@ -288,10 +299,8 @@ export function createRectReporter(el: HTMLElement, env: { id: () => string | un
     const Ctor = el.ownerDocument.defaultView?.CustomEvent ?? CustomEvent;
     el.dispatchEvent(new Ctor<PanelRectDetail>(PANEL_RECT_EVENT, { bubbles: true, detail: { id, rect, phase } }));
   };
-  // Returns true only for a change since the previous measurement; the first measurement is a baseline, not a move.
-  const measure = (): boolean => {
-    const box = el.getBoundingClientRect();
-    const rect: PanelRect = { x: box.x, y: box.y, width: box.width, height: box.height };
+  // Returns true only for a change since the previous reading; the first reading is a baseline, not a move.
+  const read = (rect: PanelRect): boolean => {
     const first = last === null;
     const changed = last !== null && (rect.x !== last.x || rect.y !== last.y || rect.width !== last.width || rect.height !== last.height);
     if (first || changed) owed = true;
@@ -299,16 +308,32 @@ export function createRectReporter(el: HTMLElement, env: { id: () => string | un
     last = rect;
     return changed;
   };
+  const measured = (): PanelRect => {
+    const box = el.getBoundingClientRect();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  };
+  const computed = (): PanelRect => {
+    if (model === null || model.width !== el.style.width) model = { box: screenBoxOf(el, stripX), width: el.style.width };
+    return model.box();
+  };
   const settleReport = (): void => {
     if (!owed || last === null) return;
     owed = false;
     send('settled', last);
   };
+  // The rest is measured: whatever the numbers do not model (a column sliding, the page moving) is caught there.
+  const land = (): void => {
+    model = null;
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    read(measured());
+    settleReport();
+  };
   const tick = (): void => {
     frame = null;
-    const changed = measure();
+    const changed = read(computed());
     if (!changed && !env.moving()) {
-      settleReport();
+      land();
       return;
     }
     frame = requestAnimationFrame(tick);
@@ -317,15 +342,11 @@ export function createRectReporter(el: HTMLElement, env: { id: () => string | un
     kick() {
       if (frame === null) frame = requestAnimationFrame(tick);
     },
-    settle() {
-      if (frame !== null) cancelAnimationFrame(frame);
-      frame = null;
-      measure();
-      settleReport();
-    },
+    settle: land,
     stop() {
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
+      model = null;
     },
   };
 }

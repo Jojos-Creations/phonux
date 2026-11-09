@@ -600,36 +600,6 @@
   "scope": "instance"
  },
  {
-  "name": "pinning",
-  "values": "object { pinned: PinHalf, unpinned: PinHalf }; PinHalf = { placement?, parkable? }; valid only if readable after a drag (6A); empty = no pin",
-  "default": "{ pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } (0.1.0's one pin rule)",
-  "behaviour": "What pin() and unpin() do. pin places (gated by placeable), then fixes; unpin frees first, then places, so a fixed pin can always be unpinned. Pinned is READ from facts a drag cannot erase: both halves name parkable -> resolved parkable equals the pinned half's; pinned placement row-start with unpinned row-end or after-fixed -> anchor left of the root (a root-less workspace reads it through the marker entry). If both hold, both are read; an empty definition is valid and reads false; parkable in one half only throws. Other placements only beside the parkable pair. Anything else throws invalid-settings. A fixed pin unlists (note pin-unlists) and never needs room: it may scroll out of view (Q15). A person's press records overrides.anchor and overrides.parkable; code records nothing. An accepted pin or unpin then follows scrollOnMove.",
-  "enforced_by": "Pure isPinned(entry, row, definition) in panelPin.ts reads the anchor through resolvePlacement and the resolved parkable; the resolver validates the definition; pin() and unpin() apply a half in one setPanels through placePanel and applyTemplate(reconfigure); usePanelPinned keeps its anchor reading.",
-  "exists_today": "Partly. usePanelPinned reads an anchor left of the root (PanelRow.tsx:53, :133); the app's pin calls reanchor (app: LivePanel.tsx:56).",
-  "on_configure": "NOW. PanelState.pinned and a slot's pressed state re-read at this commit; nothing moves, parks, shows or scrolls. A deferred pin keeps its direction. An unreadable definition or in-place throws.",
-  "ownerEntry": "phonux-pin-and-reset",
-  "cls": "NOW",
-  "doors": [
-   "instance"
-  ],
-  "scope": "instance"
- },
- {
-  "name": "pinningWhenNotLive",
-  "values": "place-only, refuse, show, apply-on-next-show; or { parked?, hidden?, closed? } (closed: refuse or apply-on-next-show)",
-  "default": "place-only",
-  "behaviour": "What a pin change (pin(), unpin(), a configure flipping parkable) does to a panel that is not live; table in 6A. place-only: the placement half applies in place and the panel stays parked or held; a half naming parkable is refused whole (would-reshape-row). refuse: whole pin refused. show: the show path runs, the change applies in the same commit. apply-on-next-show: stored as deferredPin.",
-  "enforced_by": "One pure decidePinChange(entry, status, setting) used by pin(), unpin() and configure(parkable) returns apply, show, defer or a refusal; deferredPin is applied inside every path that makes the panel live, re-validated, then cleared.",
-  "exists_today": "New. reanchor works on a parked panel and never reveals it (hostApi.tsx:183-187).",
-  "on_configure": "NEXT. Read by the next pin change. A stored deferred pin is neither applied nor dropped by a flip of this setting. C, U: the record's value governs.",
-  "ownerEntry": "phonux-pin-and-reset",
-  "cls": "NEXT",
-  "doors": [
-   "instance"
-  ],
-  "scope": "instance"
- },
- {
   "name": "headerButtons",
   "values": "object: slot id (1-32 chars a-z0-9-) to HeaderButton or false; HeaderButton = { icon, label, onClick, side?, order?, pressed?, description?, tooltip?, disabled?, hidden?, sx? } (section 6)",
   "default": "{} (no button drawn)",

@@ -7,6 +7,9 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
+import { ROW_LAYER_Z } from '../rowConstants.js';
+import { centerRank, slotZ } from '../rowSlotZ.js';
+import { rowOffsetOf } from './support/strip.js';
 import { act, createElement } from 'react';
 import { LIBRARY_PANEL_DEFAULTS } from '../index.js';
 import type { ConfigureResult, HeaderButton, PanelSettings, WorkspaceStorage } from '../index.js';
@@ -112,7 +115,7 @@ async function nowCell(status: Status): Promise<void> {
   if (out.kind === 'stored-on-record') {
     const held = r.provided().recentlyClosed;
     const res = done(a.configure({ closable: false }));
-    assert.deepEqual({ ok: res.ok, changed: res.changed, shown: res.shown, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, shown: false, now: [], later: ['closable'], shadowed: [] });
+    assert.deepEqual({ ok: res.ok, changed: res.changed, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, now: [], later: ['closable'], shadowed: [] });
     assert.equal(r.state(id).status, 'closed', 'a closed panel stays closed');
     assert.equal(r.provided().recentlyClosed === held || (held ?? []).every((s, k) => s === r.provided().recentlyClosed?.[k]), true, 'the window holds the very objects it held');
     assertSideEffects(a, before, cell);
@@ -129,7 +132,7 @@ async function nowCell(status: Status): Promise<void> {
   if (status === 'live') assert.equal(mounted?.['data-close'], 'true', 'before: the view is offered the close control');
   assert.equal(!r.state(id).settings.closable, false, 'before: the History row offers a close');
   const res = done(a.configure({ closable: false }));
-  assert.deepEqual({ ok: res.ok, changed: res.changed, shown: res.shown, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, shown: false, now: ['closable'], later: [], shadowed: [] });
+  assert.deepEqual({ ok: res.ok, changed: res.changed, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, now: ['closable'], later: [], shadowed: [] });
   assert.equal(!r.state(id).settings.closable, true, 'after: the History row no longer offers a close, in the same commit');
   assert.equal(!r.entry(id).settings!.closable, true);
   assert.equal(r.state(id).settings.clearable, false, 'clearable re-derives false (C2)');
@@ -174,7 +177,7 @@ async function nextCell(status: Status): Promise<void> {
   }
   if (out.kind === 'stored-on-record') {
     const res = done(a.configure(NEXT_PATCH));
-    assert.deepEqual({ ok: res.ok, changed: res.changed, shown: res.shown, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, shown: false, now: [], later: ['hideStickiness', 'capacityReturn'], shadowed: [] });
+    assert.deepEqual({ ok: res.ok, changed: res.changed, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, now: [], later: ['hideStickiness', 'capacityReturn'], shadowed: [] });
     assert.equal(r.state(id).status, 'closed');
     assertSideEffects(a, before, cell);
     if (status === 'closed-declared') r.turn(() => r.h[id]!.open());
@@ -187,7 +190,7 @@ async function nextCell(status: Status): Promise<void> {
   assert.equal(out.kind, 'stored');
   const flags = r.state(id);
   const res = done(a.configure(NEXT_PATCH));
-  assert.deepEqual({ ok: res.ok, changed: res.changed, shown: res.shown, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, shown: false, now: [], later: ['hideStickiness', 'capacityReturn'], shadowed: [] });
+  assert.deepEqual({ ok: res.ok, changed: res.changed, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, now: [], later: ['hideStickiness', 'capacityReturn'], shadowed: [] });
   const read = r.ws.panels.get(id)!.getSettings();
   assert.deepEqual([read.value.hideStickiness, read.value.capacityReturn, read.source.hideStickiness], ['until-room', 'manual', 'instance']);
   assert.equal(r.order().join(' '), before.order, 'nothing moved');
@@ -306,13 +309,13 @@ async function scopeCell(status: Status): Promise<void> {
     early?.();
     return [raise(), lower()] as const;
   });
-  assert.deepEqual({ ...done(high) }, { ok: true, changed: true, shown: false, now: [], later: ['hostCreatable'], shadowed: [], notes: [] }, 'a template key that cannot strand an instance is stored, whatever the instance is doing (a template names no panel, so it is never busy)');
+  assert.deepEqual({ ...done(high) }, { ok: true, changed: true, now: [], later: ['hostCreatable'], shadowed: [], notes: [] }, 'a template key that cannot strand an instance is stored, whatever the instance is doing (a template names no panel, so it is never busy)');
   if (cell.counted === true) {
     const refusal = refusedWith(low, 'instance-limit');
     assert.equal(refusal.setting, lowered);
     assert.match(refusal.message, /2 instances/, 'the refusal counts the instances that exist');
   } else {
-    assert.deepEqual({ ...done(low) }, { ok: true, changed: true, shown: false, now: [], later: ['maxInstances'], shadowed: [], notes: [] }, 'an instance that is gone does not count');
+    assert.deepEqual({ ...done(low) }, { ok: true, changed: true, now: [], later: ['maxInstances'], shadowed: [], notes: [] }, 'an instance that is gone does not count');
   }
   assert.equal(r.capture.evicted.length - was.evicted, cell.evicts, 'no instance is touched');
 }
@@ -335,7 +338,6 @@ for (const cls of CLASSES) {
 
 
 const slot = (label: string): HeaderButton => ({ icon: createElement('i', { 'data-icon': label }), label, onClick: () => undefined });
-const PAIR_PIN = { pinned: { parkable: false }, unpinned: { parkable: true } } as const;
 const shape = (res: ConfigureResult): { now: string[]; later: string[]; shadowed: string[] } => {
   const d = done(res);
   return { now: [...d.now], later: [...d.later], shadowed: [...d.shadowed] };
@@ -402,7 +404,7 @@ test('matrix:closable', async () => {
 test('matrix:parkable', async () => {
   probe('parkable');
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-  const r = await matrixRig({ ids, settings: { f: { pinningWhenNotLive: 'apply-on-next-show' }, g: { pinning: PAIR_PIN } } });
+  const r = await matrixRig({ ids });
   const facts = (id: string): unknown[] => {
     const s = r.state(id);
     return [s.settings.parkable, s.listed, s.settings.movable, s.settings.clearable];
@@ -418,7 +420,7 @@ test('matrix:parkable', async () => {
   assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ parkable: false, resizable: true }))), { now: ['parkable', 'resizable'], later: [], shadowed: [] }, 'resizable true beside a fixed column stands: the panel asked for its size itself');
   assert.equal(r.state('a').settings.resizable, true);
   const s = soft();
-  await s.run('K, H with the default place-only: would-reshape-row, the row untouched', async () => {
+  await s.run('K, H: would-reshape-row, the row untouched', async () => {
     r.turn(() => r.h.d!.hide());
     await r.settle();
     const hiddenEntries = r.m.latest().entries;
@@ -426,19 +428,7 @@ test('matrix:parkable', async () => {
     refusedWith(r.turn(() => r.h.d!.configure({ parkable: false })), 'would-reshape-row');
     sameRow(r, hiddenEntries, hiddenRenders, 'place-only on a hidden panel');
   });
-  await s.run('K, H with apply-on-next-show: stored as deferredPin { parkable }, the panel stays hidden', async () => {
-    r.turn(() => r.h.f!.hide());
-    await r.settle();
-    assert.deepEqual(shape(r.turn(() => r.h.f!.configure({ parkable: false }))), { now: [], later: ['parkable'], shadowed: [] });
-    assert.deepEqual([r.state('f').deferredPin, r.state('f').status], [{ parkable: false }, 'parked']);
-  });
-  await s.run("a person's pin outvotes the flip: shadowed", () => {
-    r.turn(() => r.h.g!.pin('person'));
-    assert.equal(r.state('g').settings.parkable, false, 'control: the person pinned g into a fixed column');
-    assert.deepEqual(shape(r.turn(() => r.h.g!.configure({ parkable: true }))), { now: ['parkable'], later: [], shadowed: ['parkable'] });
-    assert.equal(r.state('g').settings.parkable, false);
-  });
-  await s.run('C, U with place-only: is-closed', () => {
+  await s.run('C, U: is-closed', () => {
     const w = mockWindow();
     r.turn(() => r.h.e!.close());
     refusedWith(r.turn(() => r.h.e!.configure({ parkable: false })), 'is-closed');
@@ -450,7 +440,7 @@ test('matrix:parkable', async () => {
 
 test('matrix:movable', async () => {
   probe('movable');
-  const r = await matrixRig({ settings: { c: { pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } } } } });
+  const r = await matrixRig();
   assert.equal(r.seen('b')?.['data-reorder'], 'true', 'before: the reorder grab is offered');
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ movable: false }))), { now: ['movable'], later: [], shadowed: [] });
   assert.equal(r.seen('b')?.['data-reorder'], 'false', 'after, in that commit: no reorder grab');
@@ -467,7 +457,7 @@ test('matrix:movable', async () => {
   await r.settle();
   done(r.turn(() => r.h.c!.configure({ movable: false })));
   assert.deepEqual([r.state('c').settings.movable, r.state('c').status], [false, 'parked'], 'a hidden panel stores it');
-  assert.equal(letter(r.turn(() => r.h.c!.pin())), 'T', 'a placement-bearing pin() is not limited');
+  assert.equal(letter(r.turn(() => r.h.c!.place('row-start'))), 'T', 'a placement of a hidden panel is not limited');
   assert.deepEqual(shape(r.turn(() => r.ws.panels.configure(r.ws.rootId, { movable: true }))), { now: ['movable'], later: [], shadowed: [] }, 'the root takes movable true; only closable and parkable answer C5');
 });
 
@@ -532,7 +522,7 @@ test('matrix:hostCreatable', async () => {
   r.turn(() => r.provided().create({ view: 'm' } as never));
   await r.settle();
   assert.equal(instances(), 1, 'before: a Host-bag create naming the template makes a panel');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTemplate('m', { hostCreatable: false }))) }, { ok: true, changed: true, shown: false, now: [], later: ['hostCreatable'], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTemplate('m', { hostCreatable: false }))) }, { ok: true, changed: true, now: [], later: ['hostCreatable'], shadowed: [], notes: [] });
   r.turn(() => r.provided().create({ view: 'm' } as never));
   await r.settle();
   assert.equal(instances(), 1, 'after: the next Host-bag create makes none');
@@ -602,7 +592,7 @@ test('matrix:maxInstances', async () => {
   assert.match(refusal.message, /3 instances/, 'the refusal carries the count');
   sameRow(r, entries, renders, 'lowering below the instances that exist');
   assert.deepEqual(r.ws.panels.list().map((h) => h.getState().status), ['live', 'live', 'live', 'live'], 'no instance is closed');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTemplate('m', { maxInstances: 9 }))) }, { ok: true, changed: true, shown: false, now: [], later: ['maxInstances'], shadowed: [], notes: [] }, 'raising it is stored');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTemplate('m', { maxInstances: 9 }))) }, { ok: true, changed: true, now: [], later: ['maxInstances'], shadowed: [], notes: [] }, 'raising it is stored');
   assert.equal(done(r.turn(() => r.ws.panels.configureTemplate('m', { maxInstances: 3 }))).changed, true, 'lowering to the count is accepted');
   assert.equal(done(r.turn(() => r.ws.panels.configureTemplate('m', { maxInstances: null }))).changed, true, 'null is accepted');
   const single = await matrixRig({ ids: [], extra: [matrixTemplate('s', { settings: { multiple: false } })] });
@@ -752,7 +742,7 @@ test('matrix:revealOnScroll', async () => {
     if (reveal !== undefined) {
       assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ revealOnScroll: reveal }))), { now: [], later: ['revealOnScroll'], shadowed: [] });
       assert.equal(r.live().join(' '), 'root c', 'nothing is revealed by configure');
-      assert.equal(r.m.container.scrollLeft, 0, 'and nothing scrolls');
+      assert.equal(rowOffsetOf(r.m.container), 0, 'and nothing scrolls');
     }
     swipeRight(r);
     await r.settle();
@@ -776,27 +766,27 @@ test('matrix:scrollOnOpen', async () => {
   probe('scrollOnOpen');
   const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(r.m.container), 0);
   assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'start' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0, 'no scroll happens at configure');
+  assert.equal(rowOffsetOf(r.m.container), 0, 'no scroll happens at configure');
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 1218, "scrollTo() defaults to the setting: c's left edge 1320 less the 16 gap is 1304, and the nearest stop that shows c is 1218");
+  assert.equal(rowOffsetOf(r.m.container), 1218, "scrollTo() defaults to the setting: c's left edge 1320 less the 16 gap is 1304, and the nearest stop that shows c is 1218");
   done(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' })));
   r.turn(() => r.h.a!.scrollTo('start'));
   await r.settle();
   r.turn(() => r.h.c!.scrollTo());
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 812, "none: scrollTo() falls back to into-view: c's right edge 1710 less the 984 visible is 726, and the stop that shows c whole is 812");
+  assert.equal(rowOffsetOf(r.m.container), 812, "none: scrollTo() falls back to into-view: c's right edge 1710 less the 984 visible is 726, and the stop that shows c whole is 812");
   const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
   done(hidden.turn(() => hidden.h.c!.configure({ scrollOnOpen: 'start' })));
-  assert.equal(hidden.m.container.scrollLeft, 0, 'K, H: stored, nothing scrolls');
+  assert.equal(rowOffsetOf(hidden.m.container), 0, 'K, H: stored, nothing scrolls');
   hidden.turn(() => hidden.h.c!.show());
   await hidden.settle();
-  assert.equal(hidden.m.container.scrollLeft, 1218, 'the next show of the hidden panel reads it');
+  assert.equal(rowOffsetOf(hidden.m.container), 1218, 'the next show of the hidden panel reads it');
 });
 
 test('matrix:scrollOnMove', async () => {
@@ -807,11 +797,11 @@ test('matrix:scrollOnMove', async () => {
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
       await r.settle();
-      assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls at configure');
+      assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls at configure');
     }
     r.turn(() => r.h.a!.setSlots(2));
     await r.settle();
-    const at = r.m.container.scrollLeft;
+    const at = rowOffsetOf(r.m.container);
     r.m.unmount();
     return at;
   };
@@ -848,7 +838,7 @@ test('matrix:showWhenClosed', async () => {
   assert.equal(letter(r.turn(() => r.h.c!.show())), 'T', 'C, U: a record configured while closed is used');
 });
 
-const slotAt = (r: MatrixRig, engineId: string): HTMLElement | null => r.m.container.querySelector<HTMLElement>(`[data-slot="${engineId}"]`)?.parentElement ?? null;
+const slotAt = (r: MatrixRig, engineId: string): HTMLElement | null => r.m.container.querySelector<HTMLElement>(`[data-slot="${engineId}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axisOf = (el: HTMLElement | null, name: 'X' | 'Y'): number => {
   const match = el === null ? null : new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(el.style.transform);
   return match === null ? 0 : Number(match[1]);
@@ -900,26 +890,43 @@ test('matrix:placeOnShow', async () => {
   assert.equal(r.order().join(' '), 'b root a c', 'the next show uses the new placement');
 });
 
+test('matrix:resize', async () => {
+  probe('resize');
+  const r = await matrixRig();
+  await r.settle();
+  const revealed = (name: string): boolean => slotAt(r, r.entry(name).id)?.querySelector('[data-panel-size-reveal]') != null;
+  assert.deepEqual([revealed('b'), revealed('c')], [false, false], 'before: both reflow');
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ resize: 'reveal' }))), { now: ['resize'], later: [], shadowed: [] });
+  assert.deepEqual([revealed('b'), revealed('c')], [true, false], 'after, in that commit: only b reveals');
+});
+
 test('matrix:layer', async () => {
   probe('layer');
   const r = await matrixRig();
   await r.settle();
   const z = (name: string): string | undefined => slotAt(r, r.entry(name).id)?.style.zIndex;
-  assert.deepEqual([z('b'), z('c')], ['1', '1'], 'before: both base');
+  // A resting slot's z-index is its tier plus twice its rank from the nearer end of the strip.
+  const restZ = (name: string, tier: number = ROW_LAYER_Z.BASE): string => {
+    const ids = r.provided().rowNumbers.ids;
+    return String(slotZ(tier, centerRank(ids.indexOf(r.entry(name).id), ids.length), false));
+  };
+  assert.deepEqual([z('b'), z('c')], [restZ('b'), restZ('c')], 'before: both base');
   const before = [r.order().join(' '), r.provided().rowNumbers.widths.join(','), r.provided().rowNumbers.leftOffsets.join(',')];
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ layer: 'raised' }))), { now: ['layer'], later: [], shadowed: [] });
-  assert.deepEqual([z('b'), z('c')], ['2', '1'], 'after, in that commit: the z-index changes');
+  assert.deepEqual([z('b'), z('c')], [restZ('b', ROW_LAYER_Z.RAISED), restZ('c')], 'after, in that commit: the z-index changes');
+  assert.ok(Number(z('b')) >= ROW_LAYER_Z.RAISED && Number(z('c')) < ROW_LAYER_Z.RAISED, 'the raised tier is over every base slot');
   assert.deepEqual([r.order().join(' '), r.provided().rowNumbers.widths.join(','), r.provided().rowNumbers.leftOffsets.join(',')], before, 'row order and widths do not change');
   done(r.turn(() => r.h.b!.configure({ layer: 'base' })));
-  assert.equal(z('b'), '1');
+  assert.equal(z('b'), restZ('b'));
   const engine = r.entry('c').id;
   r.turn(() => r.h.c!.hide());
   await frames(2);
   const leaving = slotAt(r, engine);
   assert.equal(leaving !== null, true, 'control: the slot is mid-exit');
-  assert.equal(leaving!.style.zIndex, '1');
+  const leavingZ = leaving!.style.zIndex;
+  assert.ok(Number(leavingZ) < ROW_LAYER_Z.RAISED, 'it leaves in the base tier');
   done(r.turn(() => r.h.c!.configure({ layer: 'raised' })));
-  assert.equal(slotAt(r, engine)?.style.zIndex, '1', 'a slot mid-exit keeps the z-index it left with');
+  assert.equal(slotAt(r, engine)?.style.zIndex, leavingZ, 'a slot mid-exit keeps the tier it left with');
 });
 
 test('matrix:enterFrom', async () => {
@@ -1057,6 +1064,54 @@ test('matrix:tuning.defaultExitTo', async () => {
   assert.equal(axisOf(slotAt(r, engine), 'Y'), 0, 'an exit in progress keeps its style: still sideways, never downward');
 });
 
+test('matrix:tuning.shrinkUnfocused', async () => {
+  probe('tuning.shrinkUnfocused');
+  await wrongScopeInEveryStatus({ tuning: { shrinkUnfocused: true } }, 'tuning.shrinkUnfocused');
+  const r = await matrixRig();
+  await r.settle();
+  const press = (id: string): void => r.turn(() => void r.slot(id)!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
+  const widths = (id: string): unknown[] => [r.entry(id).slots, r.entry(id).savedSlots];
+  r.turn(() => r.h.b!.setSlots(2, 'person'));
+  press('c');
+  assert.deepEqual(widths('b'), [2, undefined], 'control: off by default, b stays two wide while c is active');
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ shrinkUnfocused: true }))), { now: [], later: ['tuning.shrinkUnfocused'], shadowed: [] });
+  assert.deepEqual(widths('b'), [2, undefined], 'nothing resizes at configure');
+  press('c');
+  assert.deepEqual(widths('b'), [1, 2], 'c used again: b rests at one phone and keeps two');
+  press('b');
+  assert.deepEqual(widths('b'), [2, undefined], 'b active again: back to two');
+  for (const bad of ['yes', 1]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ shrinkUnfocused: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+});
+
+test('matrix:tuning.firstPressFocusOnly', async () => {
+  probe('tuning.firstPressFocusOnly');
+  await wrongScopeInEveryStatus({ tuning: { firstPressFocusOnly: true } }, 'tuning.firstPressFocusOnly');
+  const r = await matrixRig();
+  await r.settle();
+  const clicks: string[] = [];
+  const tap = (id: string): void => {
+    const b = r.slot(id)!.querySelector('button') ?? r.slot(id)!.appendChild(document.createElement('button'));
+    if (!b.dataset.counted) {
+      b.dataset.counted = '1';
+      b.addEventListener('click', () => clicks.push(id));
+    }
+    r.turn(() => {
+      b.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+      window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+      b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+  };
+  tap('b');
+  tap('c');
+  assert.deepEqual(clicks, ['b', 'c'], 'control: off by default, the first press on a panel not in use clicks');
+  assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ firstPressFocusOnly: true }))), { now: [], later: ['tuning.firstPressFocusOnly'], shadowed: [] });
+  tap('b');
+  assert.deepEqual(clicks, ['b', 'c'], 'on: the press only puts b in use');
+  tap('b');
+  assert.deepEqual(clicks, ['b', 'c', 'b'], 'b in use: the press clicks');
+  for (const bad of ['yes', 1]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ firstPressFocusOnly: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
+});
+
 test('matrix:title', async () => {
   probe('title');
   const logged: string[] = [];
@@ -1076,45 +1131,6 @@ test('matrix:title', async () => {
   r.turn(() => r.provided().undoClose());
   await r.settle();
   assert.equal(r.seen('b')?.['data-title'], 'After close', 'U: the undo rebuilds with the new title');
-});
-
-test('matrix:pinning', async () => {
-  probe('pinning');
-  const r = await matrixRig();
-  const SWAPPED = { pinned: { parkable: true }, unpinned: { parkable: false } };
-  assert.deepEqual([r.state('c').pinned, r.seen('c')?.['data-pinned']], [false, 'false'], 'before: c is right of the root, so not pinned');
-  const order = r.order().join(' ');
-  const renders = r.m.renders();
-  assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ pinning: SWAPPED }))), { now: ['pinning'], later: [], shadowed: [] });
-  assert.equal(r.state('c').pinned, true, 'after, in that commit: PanelState.pinned is re-read from the new definition');
-  assert.deepEqual([r.order().join(' '), r.live().join(' ')], [order, 'root a b c'], 'nothing moves, parks, shows or scrolls');
-  assert.equal(r.m.renders() - renders, 1, 'one commit');
-  assert.equal(r.seen('c')?.['data-pinned'], 'true', 'usePanelPinned reads PanelState.pinned, so it follows the definition');
-  assert.equal(thrownCode(() => r.h.c!.configure({ pinning: { pinned: { placement: 'row-end' }, unpinned: { placement: 'row-end' } } } as never)), 'invalid-settings', 'a definition that cannot be read after a drag throws');
-  assert.equal(thrownCode(() => r.h.c!.configure({ pinning: { pinned: { placement: 'in-place' }, unpinned: { placement: 'row-end' } } } as never)), 'invalid-settings', 'in-place throws');
-  assert.equal(r.state('c').pinned, true, 'a refused definition changed nothing');
-});
-
-test('matrix:pinningWhenNotLive', async () => {
-  probe('pinningWhenNotLive');
-  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd'] });
-  r.turn(() => r.h.b!.hide());
-  r.turn(() => r.h.c!.hide());
-  r.turn(() => r.h.d!.hide());
-  await r.settle();
-  assert.equal(r.order().join(' '), 'root a b c d');
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ pinningWhenNotLive: 'refuse' }))), { now: [], later: ['pinningWhenNotLive'], shadowed: [] });
-  assert.equal(r.order().join(' '), 'root a b c d', 'nothing moves at configure');
-  assert.equal(letter(r.turn(() => r.h.b!.pin())), 'would-reshape-row', 'the next pin change reads refuse');
-  assert.equal(letter(r.turn(() => r.h.c!.pin())), 'T', 'control: place-only places the hidden panel in place');
-  assert.deepEqual([r.order().join(' '), r.state('c').status], ['c root a b d', 'parked'], 'and it stays hidden');
-  done(r.turn(() => r.h.d!.configure({ pinningWhenNotLive: 'show' })));
-  const shown = r.turn(() => r.h.d!.pin());
-  assert.deepEqual([shown.ok && shown.shown, r.state('d').status], [true, 'live'], 'show: the hold is released and the change applies');
-  done(r.turn(() => r.h.b!.configure({ pinningWhenNotLive: 'apply-on-next-show' })));
-  assert.deepEqual(r.turn(() => r.h.b!.pin()).ok && r.state('b').deferredPin, { by: 'pin' }, 'apply-on-next-show stores it');
-  done(r.turn(() => r.h.b!.configure({ pinningWhenNotLive: 'refuse' })));
-  assert.deepEqual(r.state('b').deferredPin, { by: 'pin' }, 'a flip of this setting neither applies nor drops a stored deferred pin');
 });
 
 test('matrix:headerButtons', async () => {
@@ -1198,7 +1214,7 @@ test('matrix:tuning.rowGap', async () => {
   const xOf = (name: string): number => axisOf(slotAt(r, r.entry(name).id), 'X');
   assert.deepEqual(['a', 'b', 'c'].map(xOf), [406, 812, 1218], 'before: 390 plus the default gap of 16 apart');
   const renders = r.m.renders();
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 40 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.rowGap'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 40 }))) }, { ok: true, changed: true, now: ['tuning.rowGap'], later: [], shadowed: [], notes: [] });
   assert.equal(r.m.renders() - renders, 1, 'one commit');
   assert.deepEqual([r.ws.tuning.rowGap, r.m.latest().rowNumbers.stripWidth], [40, 4 * 390 + 3 * 40], 'the whole row is priced at the new gap in the commit of the call');
   await r.settle();
@@ -1224,7 +1240,7 @@ test('matrix:tuning.rowTop', async () => {
   const r = await matrixRig();
   await r.settle();
   const renders = r.m.renders();
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 162 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.rowTop'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 162 }))) }, { ok: true, changed: true, now: ['tuning.rowTop'], later: [], shadowed: [], notes: [] });
   assert.equal(r.m.renders() - renders, 1, 'one commit');
   assert.equal(r.ws.tuning.rowTop, 162, 'stored at the commit of the call');
   done(r.turn(() => r.ws.panels.configureTuning({ rowTop: 200 })));
@@ -1248,7 +1264,7 @@ test('matrix:tuning.phoneHeight', async () => {
   const r = await matrixRig();
   await r.settle();
   const renders = r.m.renders();
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'auto' }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneHeight'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'auto' }))) }, { ok: true, changed: true, now: ['tuning.phoneHeight'], later: [], shadowed: [], notes: [] });
   assert.equal(r.m.renders() - renders, 1, 'one commit');
   assert.equal(r.ws.tuning.phoneHeight, 'auto', 'stored at the commit of the call');
   done(r.turn(() => r.ws.panels.configureTuning({ phoneHeight: 'fit' })));
@@ -1357,7 +1373,7 @@ test('matrix:tuning.saveQuietMs', async () => {
   assert.equal(saves.length, base + 1, 'and is saved at it');
   r.turn(() => r.h.a!.move(-1, 'person'));
   tick(300);
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ saveQuietMs: 2000 }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.saveQuietMs'], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ saveQuietMs: 2000 }))) }, { ok: true, changed: true, now: [], later: ['tuning.saveQuietMs'], shadowed: [], notes: [] });
   tick(200);
   assert.equal(saves.length, base + 2, 'a timer already armed keeps its deadline');
   r.turn(() => r.h.a!.move(1, 'person'));
@@ -1434,7 +1450,7 @@ test('matrix:tuning.returnTieBreak', async () => {
     await r.settle();
     assert.equal(r.live().join(' '), 'root c');
     if (tieBreak !== undefined) {
-      assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ returnTieBreak: tieBreak }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.returnTieBreak'], shadowed: [], notes: [] });
+      assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ returnTieBreak: tieBreak }))) }, { ok: true, changed: true, now: [], later: ['tuning.returnTieBreak'], shadowed: [], notes: [] });
       assert.equal(r.live().join(' '), 'root c', 'nothing returns now');
     }
     r.turn(() => r.h.c!.close());
@@ -1455,7 +1471,7 @@ test('matrix:tuning.dropTieBreak', async () => {
     await r.settle();
     assert.equal(r.live().join(' '), 'root a b c d');
     if (tieBreak !== undefined) {
-      assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ dropTieBreak: tieBreak }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.dropTieBreak'], shadowed: [], notes: [] });
+      assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ dropTieBreak: tieBreak }))) }, { ok: true, changed: true, now: [], later: ['tuning.dropTieBreak'], shadowed: [], notes: [] });
       assert.equal(r.live().join(' '), 'root a b c d', 'nothing parks now');
     }
     done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 150 })));
@@ -1478,13 +1494,23 @@ test('matrix:tuning.rowGesture', async () => {
   wheel();
   assert.equal(scroller.glideTarget() !== null, true, 'before: step starts a glide on a swipe');
   await r.settle();
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'off' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'off' }))) }, { ok: true, changed: true, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
   assert.equal(r.live().length, 11, 'no panel moves');
-  const at = r.m.container.scrollLeft;
+  const at = rowOffsetOf(r.m.container);
   await r.settle();
   wheel();
-  assert.deepEqual([scroller.glideTarget(), r.m.container.scrollLeft], [null, at], 'after the next render: off installs no listener, so a swipe does nothing');
+  assert.deepEqual([scroller.glideTarget(), rowOffsetOf(r.m.container)], [null, at], 'after the next render: off installs no listener, so a swipe does nothing');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowGesture: 'free' } as never)), 'invalid-settings', "'free' is not a gesture: it throws like any other value outside the set");
+});
+
+test('matrix:tuning.fastScroll', async () => {
+  probe('tuning.fastScroll');
+  await wrongScopeInEveryStatus({ tuning: { fastScroll: 'jump' } }, 'tuning.fastScroll');
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
+  await r.settle();
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ fastScroll: 'jump' }))) }, { ok: true, changed: true, now: [], later: ['tuning.fastScroll'], shadowed: [], notes: [] });
+  assert.equal(r.live().length, 11, 'no panel moves');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ fastScroll: 'skip' } as never)), 'invalid-settings');
 });
 
 test('matrix:tuning.initialScroll', async () => {
@@ -1493,14 +1519,14 @@ test('matrix:tuning.initialScroll', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const r = await matrixRig({ ids, width: 1000 });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0, 'before: the strip starts at the left');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, shown: false, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
+  assert.equal(rowOffsetOf(r.m.container), 0, 'before: the strip starts at the left');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
   await r.settle();
-  assert.equal(r.m.container.scrollLeft, 0, 'nothing scrolls now');
+  assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
   await next.settle();
   // The row's end is 4450 plus 86 of centering at each end, less the 968 window: 3654, the last stop.
-  assert.equal(next.m.container.scrollLeft, 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
+  assert.equal(rowOffsetOf(next.m.container), 3654, 'a mount that reads end puts the strip at its farthest legal scroll');
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 
@@ -1510,13 +1536,13 @@ test('matrix:tuning.chrome', async () => {
   const r = await matrixRig();
   await r.settle();
   assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 120, fadeEase: 'easeOut' });
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))) }, { ok: true, changed: true, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] });
   assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'easeOut' }, 'a one-member patch keeps the other members');
   assert.equal(done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 60 } }))).changed, false, 'an equal patch changes nothing');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeMs: 10001 } })), 'invalid-settings', 'outside 0 to 10000 throws');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { mode: 'sometimes' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeMs, 60, 'a refused patch left the value');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'linear' } }))) }, { ok: true, changed: true, shown: false, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] } as never, 'fadeEase applies at once, like the other members');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'linear' } }))) }, { ok: true, changed: true, now: ['tuning.chrome'], later: [], shadowed: [], notes: [] } as never, 'fadeEase applies at once, like the other members');
   assert.deepEqual({ ...r.ws.tuning.chrome }, { mode: 'always', fadeMs: 60, fadeEase: 'linear' }, 'a fadeEase-only patch keeps the other members');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ chrome: { fadeEase: 'cubic-out' } as never })), 'invalid-settings');
   assert.equal(r.ws.tuning.chrome.fadeEase, 'linear', 'a refused patch left the value');
@@ -1527,7 +1553,7 @@ test('matrix:tuning.resizeSettleSlides', async () => {
   await wrongScopeInEveryStatus({ tuning: { resizeSettleSlides: 2 } }, 'tuning.resizeSettleSlides');
   const r = await matrixRig();
   await r.settle();
-  assert.equal(r.ws.tuning.resizeSettleSlides, 1.25);
+  assert.equal(r.ws.tuning.resizeSettleSlides, 1 / 3);
   const result = done(r.turn(() => r.ws.panels.configureTuning({ resizeSettleSlides: 2 })));
   assert.deepEqual([result.ok, result.changed, result.now], [true, true, ['tuning.resizeSettleSlides']], 'class NOW: applied at this commit');
   assert.equal(r.ws.tuning.resizeSettleSlides, 2);
@@ -1546,7 +1572,7 @@ test('matrix:tuning.maxLivePanels', async () => {
   const r = await matrixRig({ ids: ['a', 'b', 'c', 'd'], park: true, width: 4000 });
   await r.settle();
   assert.equal(r.live().join(' '), 'root a b c d', 'before: no cap, and the window holds every panel');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.maxLivePanels'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }))) }, { ok: true, changed: true, now: ['tuning.maxLivePanels'], later: [], shadowed: [], notes: [] });
   await r.settle();
   assert.equal(r.live().join(' '), 'root c d', 'the two leftmost park at this commit');
   assert.equal(r.ws.tuning.maxLivePanels, 2);
@@ -1617,7 +1643,7 @@ test('matrix:tuning.phoneFit', async () => {
   await wrongScopeInEveryStatus({ tuning: { phoneFit: 'fit' } }, 'tuning.phoneFit');
   const r = await matrixRig();
   assert.equal(r.ws.tuning.phoneFit, 'off', 'before: the library default');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFit: 'fit' }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneFit'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFit: 'fit' }))) }, { ok: true, changed: true, now: ['tuning.phoneFit'], later: [], shadowed: [], notes: [] });
   assert.equal(r.ws.tuning.phoneFit, 'fit');
   for (const bad of ['on', 1, true]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneFit: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
   assert.equal(r.ws.tuning.phoneFit, 'fit', 'a refused value changes nothing');
@@ -1628,7 +1654,7 @@ test('matrix:tuning.phoneFitMin', async () => {
   await wrongScopeInEveryStatus({ tuning: { phoneFitMin: 0.9 } }, 'tuning.phoneFitMin');
   const r = await matrixRig();
   assert.equal(r.ws.tuning.phoneFitMin, 0.82, 'before: the library default');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFitMin: 0.9 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneFitMin'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFitMin: 0.9 }))) }, { ok: true, changed: true, now: ['tuning.phoneFitMin'], later: [], shadowed: [], notes: [] });
   assert.equal(r.ws.tuning.phoneFitMin, 0.9);
   for (const bad of [0, -1, 1.5, '0.9', Number.NaN]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneFitMin: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
   assert.equal(r.ws.tuning.phoneFitMin, 0.9, 'a refused value changes nothing');
@@ -1639,7 +1665,7 @@ test('matrix:tuning.phoneFitMax', async () => {
   await wrongScopeInEveryStatus({ tuning: { phoneFitMax: 1.2 } }, 'tuning.phoneFitMax');
   const r = await matrixRig();
   assert.equal(r.ws.tuning.phoneFitMax, 1.13, 'before: the library default');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFitMax: 1.2 }))) }, { ok: true, changed: true, shown: false, now: ['tuning.phoneFitMax'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ phoneFitMax: 1.2 }))) }, { ok: true, changed: true, now: ['tuning.phoneFitMax'], later: [], shadowed: [], notes: [] });
   assert.equal(r.ws.tuning.phoneFitMax, 1.2);
   for (const bad of [0.9, 4.5, '1.2', Number.NaN]) assert.equal(thrownCode(() => r.ws.panels.configureTuning({ phoneFitMax: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
   assert.equal(r.ws.tuning.phoneFitMax, 1.2, 'a refused value changes nothing');
@@ -1654,13 +1680,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 9 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'resize', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused', 'tuning.fastScroll', 'tuning.firstPressFocusOnly'];
 
-test('the probes ran every catalog name once: 56 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 58 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
-  assert.equal(design.length, 62);
-  assert.equal(CATALOG_NAMES.length, 56);
-  assert.equal(probesExecuted().size, 56);
+  assert.equal(design.length, 60);
+  assert.equal(CATALOG_NAMES.length, 58);
+  assert.equal(probesExecuted().size, 58);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

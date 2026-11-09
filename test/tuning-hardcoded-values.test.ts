@@ -5,14 +5,16 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { cubicBezier } from 'motion/react';
 import { act } from 'react';
 import { DragToClose, LIBRARY_TUNING_DEFAULTS, OVERLAY_Z, ROW_LAYER_Z } from '../index.js';
+import { ALL_SLOTS } from '../rowConstants.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { SlideTuning } from '../index.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
-import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
+import { PanelSlotContext, PanelVerticalDragContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning, type SlotTuning } from '../panelTuning.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
@@ -29,7 +31,6 @@ const slotValue = (tuning: Partial<SlotTuning>): PanelSlotValue => ({
   resizable: true,
   maxSlots: DEFAULT_SLOT.maxSlots,
   neighborWidths: { left: [], right: [] },
-  pinned: false,
   tuning: { ...slotTuning(LIBRARY_TUNING_DEFAULTS), ...tuning },
 });
 
@@ -38,7 +39,7 @@ function mountBox(tuning: Partial<SlotTuning> | null, onClose: () => void = () =
     onClose,
     children: (handle) => React.createElement('div', { 'data-handle': '', onPointerDown: handle.onPointerDown }, 'grab'),
   });
-  const mounted = mount(tuning === null ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(tuning), children: box }));
+  const mounted = mount(tuning === null ? box : React.createElement(PanelSlotContext.Provider, { value: slotValue(tuning), children: React.createElement(PanelVerticalDragContext.Provider, { value: true, children: box }) }));
   const handle = mounted.container.querySelector<HTMLElement>('[data-handle]')!;
   return { handle, box: handle.closest<HTMLElement>('[data-drag-to-close]')! };
 }
@@ -113,14 +114,14 @@ test('closeExitEase: a button close takes the same leaf as a drag close, and the
 async function glidePositions(ease: SlideTuning['glideEase']): Promise<number[]> {
   const el = document.createElement('div');
   document.body.appendChild(el);
-  el.scrollLeft = 0;
+  setRowOffset(el, 0);
   rowScrollerFor(el).glideTo(1600, { durationSec: 1.6, instant: false, ease });
   const seen: number[] = [];
   let elapsed = 0;
   for (const frames of [25, 25, 25]) {
     await advanceFrames(frames * 16);
     elapsed += frames;
-    seen.push(el.scrollLeft);
+    seen.push(rowOffsetOf(el));
   }
   assert.equal(elapsed, 75);
   el.remove();
@@ -145,8 +146,10 @@ test("glideEase: 'linear' and a bezier tuple glide along their own curves, apart
   assert.ok(Math.abs(skewed! - 1600 * cubicBezier(0, 0.2, 1, 0)(0.25)) < 0.5, `[0, 0.2, 1, 0] keeps its four numbers in order, got ${skewed}`);
 });
 
-test('ROW_LAYER_Z: base 1, raised 2, dragged 3, frozen, and every overlay sits above them', () => {
-  assert.deepEqual({ ...ROW_LAYER_Z }, { BASE: 1, RAISED: 2, DRAGGED: 3 });
+test('ROW_LAYER_Z: base 1, raised 100, dragged 200, frozen, the base tier at its deepest rank stays under raised, and every overlay sits above them', () => {
+  assert.deepEqual({ ...ROW_LAYER_Z }, { BASE: 1, RAISED: 100, DRAGGED: 200 });
+  assert.ok(ROW_LAYER_Z.BASE + 2 * Math.floor(ALL_SLOTS / 2) < ROW_LAYER_Z.RAISED - 1);
+  assert.ok(ROW_LAYER_Z.RAISED + 2 * Math.floor(ALL_SLOTS / 2) < ROW_LAYER_Z.DRAGGED);
   assert.ok(Object.isFrozen(ROW_LAYER_Z));
   assert.ok(Math.min(...Object.values(OVERLAY_Z)) > ROW_LAYER_Z.DRAGGED);
 });
@@ -158,12 +161,12 @@ const SLOW = (glideEase: SlideTuning['glideEase']): { slide: Partial<SlideTuning
 /** How far a glide has gone, as a fraction, a quarter of its duration after it started. */
 async function quarterOfGlide(start: (m: ReturnType<typeof mountRow>) => void, glideEase: SlideTuning['glideEase']): Promise<number> {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
-  const from = m.container.scrollLeft;
+  const from = rowOffsetOf(m.container);
   act(() => start(m));
   const target = m.scroller.glideTarget();
   assert.notEqual(target, null, 'control: a glide is under way');
   await advanceFrames(25 * 16);
-  const fraction = (m.container.scrollLeft - from) / (target! - from);
+  const fraction = (rowOffsetOf(m.container) - from) / (target! - from);
   cleanup();
   return fraction;
 }
@@ -180,20 +183,14 @@ for (const [name, start] of [
   });
 }
 
-test('glideEase: the settle after a resize that moves the stops glides along the workspace leaf', async () => {
-  const settle = async (glideEase: SlideTuning['glideEase']): Promise<number> => {
+test('a window resize that moves the stops lands the row on the new last stop at once, whatever the leaf', async () => {
+  for (const glideEase of ['linear', 'cubic-out'] as const) {
     const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
     m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'linear' });
+    assert.equal(rowOffsetOf(m.container), 1624, 'control: the row starts at the old last stop');
     m.rerender(1500);
-    const target = m.scroller.glideTarget();
-    assert.equal(target, 1218, 'control: the row is brought to the new last stop, 133 + 2420 + 133 - 1468');
-    await advanceFrames(25 * 16);
-    const fraction = (1624 - m.container.scrollLeft) / (1624 - 1218);
+    assert.equal(m.scroller.glideTarget(), null, `${glideEase}: no glide trails the window`);
+    assert.equal(rowOffsetOf(m.container), 1218, `${glideEase}: the new last stop, 133 + 2420 + 133 - 1468`);
     cleanup();
-    return fraction;
-  };
-  const linear = await settle('linear');
-  const cubic = await settle('cubic-out');
-  assert.ok(Math.abs(linear - 0.25) < 0.08, `linear covered ${linear}`);
-  assert.ok(cubic > 0.5, `cubic-out covered ${cubic}`);
+  }
 });

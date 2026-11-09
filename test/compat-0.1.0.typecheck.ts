@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { HostProvider, Workspace, createWorkspace, useProvidePanels, type PanelSummary, type PanelWindow, type PanelsAPI, type PanelsInput, type ProvidedPanels, type WorkspaceState, type WorkspaceStorage } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
-import type { Host, SettingsAPI } from '../fakeHost.js';
+import type { Host } from '../fakeHost.js';
 
 /** A literal naming only the fields 0.1.0 required: every later field has to stay optional. */
 export const rootEntry: PanelWindow = { id: 'root', url: '', live: true, view: 'history', collapsible: false, listed: false };
@@ -35,11 +35,7 @@ export const panelsApi: PanelsAPI = {
 // @ts-expect-error setFormFactor is gone
 export const retiredSetFormFactor: PanelsAPI = { ...panelsApi, setFormFactor: (id: string, next: 'phone' | 'tablet' | 'desktop'): void => void [id, next] };
 
-/** The settings member a host built by hand: `settingsColumn` and nothing else. */
-const settings: SettingsAPI = {
-  settingsColumn: { visible: false, show: (): void => undefined, hide: (): void => undefined },
-};
-export const host: Host = { ...createFakeHost(), settings };
+export const host: Host = createFakeHost();
 
 /** The workspace an app hands useProvidePanels: it holds the storage the row is kept in. */
 export const workspace = createWorkspace({ mount: false, storage });
@@ -53,17 +49,9 @@ export const panelsInput = (overflowContainerRef: React.RefObject<HTMLDivElement
   onPanelsClosed: (entry: { id: string; title: string; url: string; closedAt: string }): void => void entry,
 });
 
-const settingsColumn = { visible: false, show: (): void => undefined, hide: (): void => undefined };
-
-/** The four settings members a 0.1.0 host wrote were removed on purpose: a host literal naming one must not compile, and the compiler reports only the first excess property, so each gets its own literal. */
-// @ts-expect-error maxPanelsOnScreen is gone
-export const retiredMaxPanelsOnScreen: Host = { ...createFakeHost(), settings: { settingsColumn, maxPanelsOnScreen: null } };
-// @ts-expect-error fitCount is gone
-export const retiredFitCount: Host = { ...createFakeHost(), settings: { settingsColumn, fitCount: 4 } };
-// @ts-expect-error minPanelsOnScreen is gone
-export const retiredMinPanelsOnScreen: Host = { ...createFakeHost(), settings: { settingsColumn, minPanelsOnScreen: 2 } };
-// @ts-expect-error setMaxPanelsOnScreen is gone
-export const retiredSetMaxPanelsOnScreen: Host = { ...createFakeHost(), settings: { settingsColumn, setMaxPanelsOnScreen: async (n: number | null): Promise<void> => void n } };
+/** The settings member a 0.1.0 host wrote (the settings column and its panel caps) was removed on purpose: a host literal naming it must not compile. */
+// @ts-expect-error settings is gone
+export const retiredSettings: Host = { ...createFakeHost(), settings: { settingsColumn: { visible: false, show: (): void => undefined, hide: (): void => undefined } } };
 
 /** The stored cap a 0.1.0 app passed to useProvidePanels was removed on purpose: an input naming it must not compile. */
 export const retiredStoredCap = (overflowContainerRef: React.RefObject<HTMLDivElement | null>): PanelsInput => ({

@@ -12,7 +12,7 @@ import { computeRowOrder } from '../panelRowOrder.js';
 import type { PanelSettings, SettingNote } from '../panelSettings.js';
 import type { PanelTemplate } from '../panelTemplate.js';
 import { SAVE_QUIET_MS } from '../rowConstants.js';
-import { setSlots, type PanelWindow } from '../panelWindow.js';
+import { setSlots, slotsOf, type PanelWindow } from '../panelWindow.js';
 import { seedEngineIdsPast } from '../workspaceCore.js';
 import { reconcileWorkspace } from '../workspacePlan.js';
 import type { DeclaredPanel } from '../workspacePlan.js';
@@ -49,6 +49,8 @@ export function useWorkspacePersistence(i: {
   onError?: (e: unknown) => void;
   /** True for a workspace: the declared panels are created at mount even with no storage, and the restore settles after them. Read once, at mount. */
   replay?: boolean;
+  /** Read when a restore lands: true starts every restored panel wider than one phone at one phone, keeping its saved width in `savedSlots`. */
+  restAtPhone?: () => boolean;
 }): {
   restoreSettled: boolean;
   /** Adds tombstones for keys that left the list, newest last, dropping the oldest past the cap. */
@@ -163,10 +165,11 @@ export function useWorkspacePersistence(i: {
       setScroll(mark ?? null);
       // Appended after what is already there, so a panel created while load() was pending survives. The root's saved size goes through setSlots, so a root that cannot resize ignores it.
       const adopt = adoptedUids.current;
-      if (restored.length > 0 || rootSlots !== undefined || adopt.size > 0) {
+      const resting = i.restAtPhone?.() === true ? restored.map((p) => (slotsOf(p) > 1 ? { ...p, slots: 1, savedSlots: slotsOf(p) } : p)) : restored;
+      if (resting.length > 0 || rootSlots !== undefined || adopt.size > 0) {
         setPanels((prev) => {
           const adoptedRow = adopt.size === 0 ? prev : prev.map((p) => (adopt.has(p.id) ? { ...p, uid: adopt.get(p.id)! } : p));
-          const added = restored.length > 0 ? computeRowOrder([...adoptedRow, ...restored], rootId) : adoptedRow;
+          const added = resting.length > 0 ? computeRowOrder([...adoptedRow, ...resting], rootId) : adoptedRow;
           return rootSlots === undefined ? added : setSlots(added, rootId, rootSlots);
         });
       }

@@ -7,11 +7,10 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement, type ReactElement } from 'react';
-import type { HeaderButton, Pinning } from '../index.js';
+import type { HeaderButton } from '../index.js';
 import { cleanup } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 
-const ROW_START: Pinning = { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } };
 
 afterEach(() => {
   mock.restoreAll();
@@ -65,42 +64,42 @@ for (const [name, label] of [['Enter', 'Enter'], [' ', 'Space']] as const) {
   });
 }
 
-test('after a pin press that reorders the slot, focus returns to that panel\'s pin button exactly once, with preventScroll', async () => {
-  const rig = await headerRig({ slots: { pin: slot('Pin', { onClick: (h) => void (h.getState().pinned ? h.unpin() : h.pin()) }) } });
+test('after a press that reorders the slot, focus returns to that panel\'s button exactly once, with preventScroll', async () => {
+  const rig = await headerRig({ slots: { pin: slot('Pin', { onClick: (h) => void h.place('row-start') }) } });
   const button = byLabel(rig, 'c', 'Pin');
   act(() => button.focus());
   const focus = mock.method(HTMLElement.prototype, 'focus');
   act(() => button.click());
   assert.equal(rig.order().join(' '), 'c root a b');
   const onPin = focus.mock.calls.filter((c) => c.this === byLabel(rig, 'c', 'Pin'));
-  assert.equal(onPin.length, 1, 'one focus call on that panel\'s pin button');
+  assert.equal(onPin.length, 1, 'one focus call on that panel\'s button');
   assert.deepEqual(onPin[0]!.arguments[0], { preventScroll: true });
   assert.ok(document.activeElement === byLabel(rig, 'c', 'Pin'));
 });
 
 test('a press with no focus on the button moves no focus', async () => {
-  const rig = await headerRig({ slots: { pin: slot('Pin', { onClick: (h) => void h.pin() }) } });
+  const rig = await headerRig({ slots: { pin: slot('Pin', { onClick: (h) => void h.place('row-start') }) } });
   const focus = mock.method(HTMLElement.prototype, 'focus');
   act(() => byLabel(rig, 'c', 'Pin').click());
   assert.equal(focus.mock.calls.length, 0);
 });
 
 test('a re-render without the focused slot moves focus to the same panel\'s header row, never body', async () => {
-  const hideWhenPinned = (c: { state: { pinned: boolean } }): boolean => c.state.pinned;
-  const rig = await headerRig({ ids: ['a', 'b'], settings: { a: { pinning: ROW_START } }, slots: { tmp: slot('Tmp', { hidden: hideWhenPinned }), keep: slot('Keep') } });
+  const hideWhenLocked = (c: { settings: { closable: boolean } }): boolean => !c.settings.closable;
+  const rig = await headerRig({ ids: ['a', 'b'], slots: { tmp: slot('Tmp', { hidden: hideWhenLocked }), keep: slot('Keep') } });
   act(() => byLabel(rig, 'a', 'Tmp').focus());
   assert.ok(document.activeElement === byLabel(rig, 'a', 'Tmp'));
-  act(() => void rig.h.a!.pin());
+  act(() => void rig.h.a!.configure({ closable: false }));
   assert.equal(rig.buttons('a').length, 1);
   assert.ok(document.activeElement === rowOf(rig, 'a'));
   assert.equal(rowOf(rig, 'a').getAttribute('tabindex'), '-1');
 });
 
 test('when the only slot leaves, focus still lands on the header row, which takes tabindex -1', async () => {
-  const rig = await headerRig({ ids: ['a', 'b'], settings: { a: { pinning: ROW_START } }, slots: { tmp: slot('Tmp', { hidden: (c) => c.state.pinned }) } });
+  const rig = await headerRig({ ids: ['a', 'b'], slots: { tmp: slot('Tmp', { hidden: (c) => !c.settings.closable }) } });
   const row = rowOf(rig, 'a');
   act(() => byLabel(rig, 'a', 'Tmp').focus());
-  act(() => void rig.h.a!.pin());
+  act(() => void rig.h.a!.configure({ closable: false }));
   assert.equal(rig.buttons('a').length, 0);
   assert.ok(document.activeElement === row);
   assert.equal(row.getAttribute('tabindex'), '-1');

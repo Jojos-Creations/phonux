@@ -23,18 +23,18 @@ const probe = (id: string) =>
     },
   });
 
-/** Records every slot the row starts a pending slide on, for the length of `run`. */
+/** Records every slot the row starts a slide on, for the length of `run`. */
 async function recordStarts(run: () => Promise<void>): Promise<HTMLElement[]> {
   const started: HTMLElement[] = [];
-  const startPending = slotDriver.startPending;
-  slotDriver.startPending = (el) => {
+  const glide = slotDriver.glide;
+  slotDriver.glide = (el, ...rest) => {
     started.push(el);
-    startPending(el);
+    glide(el, ...rest);
   };
   try {
     await run();
   } finally {
-    slotDriver.startPending = startPending;
+    slotDriver.glide = glide;
   }
   return started;
 }
@@ -51,15 +51,15 @@ async function mountTwoAtZero(): Promise<WorkspaceHandle> {
   return ws;
 }
 
-test('a slot the measuring commit moves is set at once, and no pending slide starts for it', async () => {
+test('a slot the measuring commit moves is set at once, and no slide starts for it', async () => {
   await mountTwoAtZero();
   const moved = slotOf('probe-b');
   const before = moved.dataset.rowSlot;
   const sets: HTMLElement[] = [];
   const set = slotDriver.set;
-  slotDriver.set = (el, values) => {
+  slotDriver.set = (el, mover, pose) => {
     sets.push(el);
-    set(el, values);
+    set(el, mover, pose);
   };
   let started: HTMLElement[] = [];
   try {

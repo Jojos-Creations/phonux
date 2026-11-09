@@ -1,6 +1,6 @@
 /**
  * The public surface a view is written against: any component rendering a phone-shaped column
- * (Settings, History, a live panel, or a third party's) reads what it needs from `useHost()`,
+ * (a live panel, or a third party's) reads what it needs from `useHost()`,
  * renders a `<Panel>`, and never touches `localStorage` or any other app
  * internal (see DESIGN.md). The host mounts ONE `<HostProvider>`; a test uses the same provider
  * with `fakeHost.ts`'s fakes. The provider value is REBUILT EVERY RENDER (see HostProvider).
@@ -9,6 +9,7 @@
 import * as React from 'react';
 import type { PhoneModel } from './phoneModels.js';
 import type { SnapshotsAPI } from './snapshots.js';
+import type { PhonuxIcons } from './icons.js';
 import type { PhonuxLabels } from './labels.js';
 import { OverlayProvider } from './windowOverlay.js';
 import { ViewStateProvider } from './viewState.js';
@@ -29,18 +30,6 @@ export interface PhoneSize {
 
 /** The app's built-in size: upgrading must never silently resize anyone who has not chosen a model. @public */
 export const DEFAULT_PHONE_SIZE: PhoneSize = { modelId: 'default', width: 390, height: 700 };
-
-/** One entry of the persisted "Closed Pages" log. @public */
-export interface ClosedPageEntry {
-  /** The id of this close in the log: the close time and the panel's id, so a panel closed again has its own entry. */
-  id: string;
-  /** The view's title when it was closed. */
-  title: string;
-  /** The view's URL when it was closed; absent for a panel that had none. */
-  url?: string;
-  /** ISO-8601, UTC. */
-  closedAt: string;
-}
 
 /**
  * Any value that survives a JSON round trip: string, number, boolean, `null`, or arrays and plain objects of these.
@@ -74,7 +63,7 @@ export interface PanelSummary<P = JsonValue> {
   readonly url?: string;
   /** The panel's title, when it has one. */
   readonly title?: string;
-  /** Mounted in the row now (false = parked, listed in History only). */
+  /** Mounted in the row now (false = parked). */
   readonly live: boolean;
   /** Opaque per-panel data a create() caller supplied; undefined for built-ins. */
   readonly params?: P;
@@ -82,6 +71,8 @@ export interface PanelSummary<P = JsonValue> {
   readonly slots?: number;
   /** The most slots the panel may take. */
   readonly maxSlots?: number;
+  /** The width a panel resting at one phone (`tuning.shrinkUnfocused`) goes back to when it is next active, while it rests; absent otherwise. A panel's own size is `savedSlots ?? slots`. */
+  readonly savedSlots?: number;
   /** The slots the row draws the panel at now: `slots` capped at what fits the window. A summary a view receives from the row carries it. */
   readonly drawnSlots?: number;
   /** The most slots that fit the window now, at the row's gap: what a resize control may offer, whatever `maxSlots` allows. A summary a view receives from the row carries it. */
@@ -93,37 +84,6 @@ export interface PanelSummary<P = JsonValue> {
 // ---------------------------------------------------------------------------
 // The APIs
 // ---------------------------------------------------------------------------
-
-/** Window-layout settings a view reads and changes. @public */
-export interface SettingsAPI {
-  /** Settings' own sections render inside History's body when this is true (History's gear toggles it), rather than as a separate column. Starts false: a fresh session opens on History's own row list. `show()`/`hide()` last for the session. */
-  readonly settingsColumn: { readonly visible: boolean; show(): void; hide(): void };
-}
-
-/** The persisted Closed Pages log and the History column's own state. @public */
-export interface HistoryAPI {
-  /** The persisted Closed Pages log (every view ever closed, oldest first). NEVER rejects: any failure, including a host with nothing to read, resolves to []. */
-  loadClosedPages(): Promise<readonly ClosedPageEntry[]>;
-  /** The Closed Pages overlay. `open()` (re)fetches through loadClosedPages(). */
-  readonly closedPagesViewer: {
-    /** Whether the overlay is showing. */
-    readonly isOpen: boolean;
-    /** Whether `entries` is still being fetched. */
-    readonly loading: boolean;
-    /** The entries the overlay lists, as last fetched. */
-    readonly entries: readonly ClosedPageEntry[];
-    /** Shows the overlay and fetches the log. */
-    open(): void;
-    /** Hides the overlay. */
-    close(): void;
-  };
-  /** Whether a drag-down close or an API close does anything for History; defaults true. */
-  readonly locked: boolean;
-  /** Whether History has been closed. */
-  readonly closed: boolean;
-  /** A no-op while `locked` (today, always -- see `locked`). */
-  close(): void;
-}
 
 /**
  * `PanelsAPI.create`'s options bag, named so useProvidePanels.ts and fakeHost.ts can each annotate
@@ -139,7 +99,7 @@ export interface CreatePanelOptions {
   params?: JsonValue;
   /** Whether the panel appears in `PanelsAPI.panelList`. Default true; always false with `permanent`. */
   listed?: boolean;
-  /** Where the new entry sits: on `position`'s side of `panel` (default History), `priority` lower = nearer (default: past the far end of that side). Default `{ position: 'right' }`. */
+  /** Where the new entry sits: on `position`'s side of `panel` (default the root), `priority` lower = nearer (default: past the far end of that side). Default `{ position: 'right' }`. */
   anchor?: { panel?: string; position: 'left' | 'right'; priority?: number };
   /** Which stacking tier the new entry's row slot sits in. Default 'base'. */
   layer?: 'base' | 'raised';
@@ -148,7 +108,7 @@ export interface CreatePanelOptions {
   /**
    * Makes the new entry a permanent column: `collapsible:false` (never parked by a row gesture or capacity,
    * never a drag source, and counted in the capacity floor) and `listed:false`, forced regardless of
-   * any `listed` also passed, so a permanent column supplies its own close control rather than the History row's
+   * any `listed` also passed, so a permanent column supplies its own close control rather than a list's
    * trash. Its own control closes it through `close`, which `closable` does not limit. Default false.
    */
   permanent?: boolean;
@@ -158,12 +118,12 @@ export interface CreatePanelOptions {
 
 /** The panel row: list, open, activate, move, resize, re-anchor and close panels. @public */
 export interface PanelsAPI {
-  /** Every listed panel, live or parked, in array order; a panel whose `listed` is false, such as History, is not here. History lists them as given; the row shows the live ones. */
+  /** Every listed panel, live or parked, in array order; a panel whose `listed` is false, such as the root, is not here. The row shows the live ones. */
   readonly panelList: readonly PanelSummary[];
   /**
-   * How many panels, permanent columns such as History included, the window fits at the current phone width and row gap:
-   * the phone-width ceiling for a fresh row, at least one more than the permanent columns. Pinned panels are not subtracted
-   * and a scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
+   * How many panels, permanent columns such as the root included, the window fits at the current phone width and row gap:
+   * the phone-width ceiling for a fresh row, at least one more than the permanent columns. A
+   * scrolling row reports the same number. `null` until the row is measured, never 0; absent from a host that does not report it.
    */
   readonly maxFitPanels?: number | null;
   /**
@@ -197,9 +157,9 @@ export interface PanelsAPI {
   activate(id: string): void;
   /**
    * Moves `id` one row-slot toward `direction`, swapping past whichever OTHER currently-shown panel sits there,
-   * History and any permanent column included -- the row's drag-to-reorder gesture calls this underneath. Every
-   * panel is then re-anchored to History where it stands. No-op for an id that is unknown, parked, itself a
-   * permanent column (e.g. History), or already at that edge of the row.
+   * the root and any permanent column included -- the row's drag-to-reorder gesture calls this underneath. Every
+   * panel is then re-anchored to the root where it stands. No-op for an id that is unknown, parked, itself a
+   * permanent column (e.g. the root), or already at that edge of the row.
    * @deprecated Use `useWorkspace().panels.get(key)?.move(count)`. Still works, with one development warning; removed in a later release.
    */
   move(id: string, direction: 'left' | 'right'): void;
@@ -207,7 +167,7 @@ export interface PanelsAPI {
    * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
    * fits the window. It stays mounted and live, its content the same node, and the row reflows around it. If the row no longer fits,
    * OTHER panels whose `overflow` is 'park' park, never this one -- also when one handler resizes, opens or activates several panels,
-   * unless the earlier of them already fill the row. No-op for an unknown id, a permanent column (e.g. History), a panel that is not
+   * unless the earlier of them already fill the row. No-op for an unknown id, a permanent column (e.g. the root), a panel that is not
    * resizable or a panel already at that count. See DESIGN.md for the slots.
    * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
    * @deprecated Use `useWorkspace().panels.get(key)?.setSlots(slots)`. Still works, with one development warning; removed in a later release.
@@ -216,19 +176,19 @@ export interface PanelsAPI {
   /**
    * Re-places `id`, live or parked, by `anchor` (defaults as for CreatePanelOptions.anchor) and reorders the row
    * to match. On its own it never parks or reveals: which panels fit depends on their widths, never their order.
-   * No-op for an unknown id or a permanent column (e.g. History). See DESIGN.md for the anchor model.
+   * No-op for an unknown id or a permanent column (e.g. the root). See DESIGN.md for the anchor model.
    * @deprecated Use `useWorkspace().panels.get(key)?.place(anchor)`. Still works, with one development warning; removed in a later release.
    */
   reanchor(id: string, anchor: { panel?: string; position: 'left' | 'right'; priority?: number }): void;
-  /** Close a view completely, live or parked: it leaves the row and History at once, a closed event is appended to the persisted log (HistoryAPI), and it can be undone while its undo window lasts (recentlyClosed, undoClose; the panel's `undoWindowMs` setting, where 0 means no undo). Also accepts History's own fixed-panel id (HistoryAPI.close is the same mechanism, offered per-panel so a view need not know the id) -- an id not in `panelList` and not History's id, or a LOCKED fixed panel's id, does nothing.
+  /** Close a view completely, live or parked: it leaves the row and `panelList` at once, the host's `onPanelsClosed` hears of it, and it can be undone while its undo window lasts (recentlyClosed, undoClose; the panel's `undoWindowMs` setting, where 0 means no undo). Also accepts the root's id -- an id not in `panelList` and not the root's id, or a LOCKED fixed panel's id, does nothing.
    * @deprecated Use `useWorkspace().panels.get(key)?.close()`. Still works, with one development warning; removed in a later release.
    */
   close(id: string): void;
-  /** The views closed within the current undo window, oldest first; non-null exactly while it is open, which is until the latest of each recent close's time plus that panel's `undoWindowMs`. Drives the "Closed N pages / Undo" toast. */
+  /** The views closed within the current undo window, oldest first; non-null exactly while it is open, which is until the latest of each recent close's time plus that panel's `undoWindowMs`. The workspace's own undo-close toast shows exactly while it is non-null. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
   /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one touched longest ago if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
-  /** Forgets every panel that is clearable; History, a fixed column and an unclearable panel stay. Not logged and not undoable. */
+  /** Forgets every panel that is clearable; the root, a fixed column and an unclearable panel stay. Not logged and not undoable. */
   clearAll(): void;
 }
 
@@ -245,16 +205,12 @@ export interface PhoneDeviceAPI {
 }
 
 /**
- * Everything a view reaches through `useHost()`. `history`, `snapshots` and `labels` may be absent, so a view reads each with a
+ * Everything a view reaches through `useHost()`. `snapshots`, `labels` and `icons` may be absent, so a view reads each with a
  * fallback. The first frame of an auto-mounted workspace holds exactly the values given to `createWorkspace`; a value that arrives
  * later is absent in that frame and appears after `workspace.update`.
  * @public
  */
 export interface Host {
-  /** Window-layout settings. */
-  readonly settings: SettingsAPI;
-  /** The Closed Pages log and History column. Optional: a host with no closed-page log leaves it out. */
-  readonly history?: HistoryAPI;
   /** The panel row. */
   readonly panels: PanelsAPI;
   /** The phone size. */
@@ -264,6 +220,8 @@ export interface Host {
   readonly snapshots?: SnapshotsAPI;
   /** Overrides of the library's visible strings (see `PhonuxLabels`); a key left out keeps its English default. */
   readonly labels?: Partial<PhonuxLabels>;
+  /** Overrides of the library's own icons (see `PhonuxIcons`); a key left out keeps its default. */
+  readonly icons?: Partial<PhonuxIcons>;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,25 +243,22 @@ export class HostMissingProviderError extends Error {
 const HostContext = React.createContext<Host | null>(null);
 
 /**
- * What `HostProvider` takes: a `Host` whose `settings` and `device` may be left out. A host that never shows a settings
- * column or picks a phone size says nothing about them; `useHost()` still returns the fully resolved `Host`.
+ * What `HostProvider` takes: a `Host` whose `device` may be left out. A host that never picks a phone size says nothing
+ * about it; `useHost()` still returns the fully resolved `Host`.
  * @public
  */
-export type HostInput = Omit<Host, 'settings' | 'device'> & {
-  /** Window-layout settings. Left out: the settings column stays hidden and `show()`/`hide()` do nothing. */
-  readonly settings?: SettingsAPI;
+export type HostInput = Omit<Host, 'device'> & {
   /** The phone size. Left out: `DEFAULT_PHONE_SIZE`, with no model choice and no phone-detect notice. */
   readonly device?: PhoneDeviceAPI;
 };
 
 // Module constants, not built per render: a reader memoised on `useHost().device` must see the same object every render.
-const DEFAULT_SETTINGS: SettingsAPI = { settingsColumn: { visible: false, show: () => {}, hide: () => {} } };
 const DEFAULT_DEVICE: PhoneDeviceAPI = { size: DEFAULT_PHONE_SIZE };
 
-/** `input` as the `Host` readers get: itself when it already names both members, else a copy with the defaults filled in. */
+/** `input` as the `Host` readers get: itself when it already names a device, else a copy with the default filled in. */
 function resolveHost(input: HostInput): Host {
-  if (input.settings !== undefined && input.device !== undefined) return input as Host;
-  return { ...input, settings: input.settings ?? DEFAULT_SETTINGS, device: input.device ?? DEFAULT_DEVICE };
+  if (input.device !== undefined) return input as Host;
+  return { ...input, device: input.device ?? DEFAULT_DEVICE };
 }
 
 /**

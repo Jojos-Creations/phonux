@@ -91,14 +91,6 @@ test('a raise before the workspace has loaded is stored for the load to read, an
   assert.equal(ws.status, 'detached');
 });
 
-test('pinned panels do not count: a raise returns up to the new value of unpinned panels', async () => {
-  const r = await capRig({ count: 6, width: 4000, cap: 2, pinned: ['w1'] });
-  raise(r, 3);
-  await r.settle();
-  assert.equal(r.unpinnedLive().length, 3);
-  assert.deepEqual(r.pinnedLive(), ['w1']);
-});
-
 test('returned panels land where they were and the panels already live keep their order', async () => {
   const r = await capRig({ count: 5, width: 4000, cap: 2 });
   const liveBefore = r.unpinnedLive();

@@ -13,14 +13,14 @@ import { Workspace, createWorkspace } from '../index.js';
 import type { WorkspaceTuning } from '../index.js';
 import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../Workspace.js';
 import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 
 const ROOT = 'root';
-const scrollEntry = (id: string) => applyTemplate(appendPanel([], { url: `https://${id}.example` }, id, ROOT)[0]!, resolvePanelSettings().value, 'create');
-const scrollRoot = () => applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
+const scrollEntry = (id: string) => applyTemplate(appendPanel([], { view: 'web', url: `https://${id}.example` }, id, ROOT)[0]!, resolvePanelSettings().value, 'create');
+const scrollRoot = () => applyTemplate(createRootPanel(ROOT), resolvePanelSettings({}, { root: true }).value, 'create');
 const rowOf = (count: number): RowNumbers => computeRowNumbers({ entries: [scrollRoot(), ...Array.from({ length: count }, (_, k) => scrollEntry(`p${k}`))], phoneWidth: 390, containerWidth: 1000, gap: 16 });
-const legacy: RowNumbers = computeRowNumbers({ entries: [createHistoryPanel(ROOT)], phoneWidth: 390, containerWidth: 1000, gap: 16 });
+const legacy: RowNumbers = computeRowNumbers({ entries: [createRootPanel(ROOT)], phoneWidth: 390, containerWidth: 1000, gap: 16 });
 
 const base: WorkspaceShellStyleInput = { containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [] };
 const shell = (over: Partial<WorkspaceShellStyleInput>) => workspaceShellStyle({ ...base, ...over });

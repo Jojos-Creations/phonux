@@ -1,5 +1,5 @@
 /**
- * A held panel in a real layout: Chromium scrolls the row, and the held panel must stay at its edge while the strip slides under it,
+ * A held panel in a real layout: the row moves, and the held panel must stay at its edge while the strip slides under it,
  * and a panel that cannot fit must scroll normally. Needs Playwright and Chromium; it skips when either is missing (PLAYWRIGHT_DIR=<a
  * directory whose node_modules holds playwright> finds a copy elsewhere). WebKit and Firefox are not run here.
  */
@@ -96,12 +96,13 @@ test('a held panel stays at its edge in Chromium while the strip scrolls under i
       const y = cr.top + cr.height / 2;
       const coverLeft = document.elementFromPoint(cr.left + 200, y)?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId ?? null;
       const coverRight = document.elementFromPoint(cr.right - 200, y)?.closest<HTMLElement>('[data-row-id]')?.dataset.rowId ?? null;
-      const e = (window as unknown as { __e: { provided(): { rowNumbers: { held: { id: string; side: string }[]; windowWidth: number; stops: number[] } } } }).__e.provided();
-      return { scrollLeft: c.scrollLeft, maxScroll: c.scrollWidth - c.clientWidth, windowWidth: e.rowNumbers.windowWidth, held: e.rowNumbers.held, stops: e.rowNumbers.stops, rects, coverLeft, coverRight };
+      const g = (window as unknown as { __e: { offset(): number; maxScroll(): number; provided(): { rowNumbers: { held: { id: string; side: string }[]; windowWidth: number; stops: number[] } } } }).__e;
+      const e = g.provided();
+      return { scrollLeft: g.offset(), maxScroll: g.maxScroll(), windowWidth: e.rowNumbers.windowWidth, held: e.rowNumbers.held, stops: e.rowNumbers.stops, rects, coverLeft, coverRight };
     });
   const scrollTo = async (page: Page, at: number): Promise<void> => {
     await page.evaluate((x) => {
-      document.querySelector<HTMLElement>('[data-row-scroller]')!.scrollLeft = x;
+      (window as unknown as { __e: { moveTo(at: number): void } }).__e.moveTo(x);
     }, at);
     await page.waitForTimeout(120);
   };

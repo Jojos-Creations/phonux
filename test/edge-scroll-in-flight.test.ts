@@ -6,6 +6,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, createWorkspace, definePanel, usePanelReorderSteps } from '../index.js';
@@ -93,16 +94,16 @@ async function configure(r: Rig, patch: Parameters<Rig['ws']['panels']['configur
 }
 /** How far `n` frames move the row. */
 async function gainOver(r: Rig, n: number): Promise<number> {
-  const before = r.m.container.scrollLeft;
+  const before = rowOffsetOf(r.m.container);
   await frames(n);
-  return r.m.container.scrollLeft - before;
+  return rowOffsetOf(r.m.container) - before;
 }
 /** A whole drag of `id` held `n` frames at `at`, released: how far it moved the row. */
 async function wholeDrag(r: Rig, n: number, at = POINTER, id = 's1'): Promise<number> {
-  const before = r.m.container.scrollLeft;
+  const before = rowOffsetOf(r.m.container);
   await dragTo(r, at, id);
   await frames(n);
-  const after = r.m.container.scrollLeft;
+  const after = rowOffsetOf(r.m.container);
   await liftAt(at);
   await frames(30);
   return after - before;

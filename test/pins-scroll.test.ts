@@ -13,7 +13,7 @@ import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers } from '../rowNumbers.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
@@ -26,12 +26,12 @@ const ROOT = 'root';
 const W = (n: number): number => 422 + 406 * n;
 
 const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => {
-  const skeleton = appendPanel([], { url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
+  const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create');
 };
 const park = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => made(id, { overflow: 'park' }, over);
 const rootEntry = (): PanelWindow =>
-  applyTemplate(createHistoryPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 const row = (...entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);
 const liveIds = (panels: readonly PanelWindow[]): string[] => panels.filter((p) => p.collapsible && p.live).map((p) => p.id);
 
@@ -51,7 +51,7 @@ function provide(entries: PanelWindow[], width: number) {
   return { container, live: () => liveIds(latest!.entries), wheel, key };
 }
 
-test('PIN with [A, B parked, C] and A, C live, scrollRow in both directions reveals nothing and sets no state', () => {
+test('PIN with [A, B parked, C] and A, C live, B waits on the side nearer its place: left sets nothing, right brings B in and parks A', () => {
   let manager: UsePanelManagerResult | undefined;
   let panelsNow: PanelWindow[] = [];
   function Probe(): React.ReactElement {
@@ -62,10 +62,30 @@ test('PIN with [A, B parked, C] and A, C live, scrollRow in both directions reve
   }
   mount(React.createElement(Probe));
   const before = panelsNow;
-  act(() => manager!.scrollRow('right'));
   act(() => manager!.scrollRow('left'));
-  assert.equal(panelsNow, before, 'the same array: nothing was set');
-  assert.deepEqual(liveIds(panelsNow), ['a', 'c']);
+  assert.equal(panelsNow, before, 'two drawn panels before B and one after: B waits on the right, so left sets nothing');
+  act(() => manager!.scrollRow('right'));
+  assert.deepEqual(liveIds(panelsNow), ['b', 'c'], 'the live range stays one run');
+});
+
+test('a run parked inside the live range, as rapid opens leave it, is reached one panel per step from its side', () => {
+  const p = provide(row(rootEntry(), park('a'), park('b', { live: false }), park('c', { live: false }), park('d', { live: false }), park('e'), park('f')), W(3));
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    assert.deepEqual(p.live(), ['a', 'e', 'f']);
+    const seen: string[][] = [];
+    for (let k = 0; k < 4; k += 1) {
+      p.key('ArrowLeft');
+      act(() => {
+        mock.timers.tick(5000);
+        frameClock.skip(5000);
+      });
+      seen.push(p.live());
+    }
+    assert.deepEqual(seen, [['a', 'd', 'e'], ['a', 'c', 'd'], ['a', 'b', 'c'], ['a', 'b', 'c']], 'd, c, then b come in, each parking the far right panel, until none is left');
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: A parks, the next parked returns, and a same-direction step waits 30 ms after the last', () => {
@@ -89,16 +109,22 @@ test('PIN a swipe on a row whose parked panel lies beyond the live range swaps: 
     p.wheel(1);
     assert.deepEqual(p.live(), ['c', 'd'], 'after the lock the travel steps again');
     p.wheel(-100);
-    assert.deepEqual(p.live(), ['b', 'c'], 'a reversal is a fresh gesture: the lock does not hold it');
+    assert.deepEqual(p.live(), ['c', 'd'], 'a reversal over a swap in flight waits for it to land');
+    tick(600);
+    p.wheel(-100);
+    assert.deepEqual(p.live(), ['b', 'c'], 'once it has landed the reversal is a fresh gesture: the lock does not hold it');
   } finally {
     mock.timers.reset();
   }
 });
 
-test('PIN arrow keys swap with no lock: ArrowRight then ArrowLeft at once undo each other', () => {
+test('PIN arrow keys swap with no lock, and ArrowLeft right after ArrowRight waits for its swap to land before undoing it', () => {
   const p = provide(row(rootEntry(), park('a'), park('b'), park('c', { live: false })), W(2));
   p.key('ArrowRight');
   assert.deepEqual(p.live(), ['b', 'c']);
+  p.key('ArrowLeft');
+  assert.deepEqual(p.live(), ['b', 'c'], 'the swap back inside the slide does nothing');
+  act(() => frameClock.skip(600));
   p.key('ArrowLeft');
   assert.deepEqual(p.live(), ['a', 'b']);
 });

@@ -183,15 +183,18 @@
         "shouldCloseOnRelease",
         "summarisePanel",
         "usePanelCloseEligible",
+        "usePanelPinned",
         "usePanelReorderEligible",
         "usePhoneAPIs",
         "vendorLabelForUsbVendorId"
       ],
       "types": [
+        "ClosedPageEntry",
         "DetectedPhone",
         "DeviceAPI",
         "Entry",
         "FormFactor",
+        "HistoryAPI",
         "Item",
         "PanelComponent",
         "PhoneAPIs",
@@ -201,6 +204,7 @@
         "PhoneFrameProps",
         "PhoneViewProps",
         "ReleaseMeasure",
+        "SettingsAPI",
         "ViewComponent",
         "ViewProps"
       ]
@@ -210,9 +214,12 @@
         "createFakePhoneAPIs"
       ],
       "types": [
+        "ClosedPageEntry",
         "DetectedPhone",
         "FakePhoneAPIs",
-        "FormFactor"
+        "FormFactor",
+        "HistoryAPI",
+        "SettingsAPI"
       ]
     }
   }

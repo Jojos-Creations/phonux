@@ -2,7 +2,6 @@
  * The `PanelWindow` model -- one browsing panel in the unified row -- and every pure state-transition
  * function that operates on a `PanelWindow[]` array.
  */
-import { DEFAULT_LABELS } from './labels.js';
 import type { JsonValue } from './hostApi.js';
 import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
@@ -10,8 +9,8 @@ import type { PanelAnchor } from './panelRowOrder.js';
 import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
 import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
-import type { DeferredPin } from './panelTemplate.js';
 import { HOP_FRACTION } from './rowConstants.js';
+import { waitsLeft } from './rowDots.js';
 
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
@@ -21,7 +20,7 @@ import { HOP_FRACTION } from './rowConstants.js';
 export interface PanelWindow {
   /** The panel's id, unique in the row. */
   id: string;
-  /** The panel's URL; the empty string for a panel with none, such as History. */
+  /** The panel's URL; the empty string for a panel with none, such as the root. */
   url: string;
   /** The title shown in the panel's header; absent when none was set. */
   title?: string;
@@ -34,11 +33,11 @@ export interface PanelWindow {
   view: string;
   /** Capacity parks (an open, a revive, the row gesture, a capacity drop) may park this entry; `false` marks an always-shown column exempt from all of them. */
   collapsible: boolean;
-  /** Appears in the public `panelList` (History's own row list, and PanelsAPI). */
+  /** Appears in the public `panelList` (PanelsAPI). */
   listed: boolean;
   /** Opaque per-panel data a create() caller supplied (PanelsAPI.create's `params`); undefined for built-ins. It reaches PanelSummary.params; no behavior site here reads it. */
   params?: JsonValue;
-  /** Where this entry sits in the row. Undefined only for History, the root; a hand-built record without one reads as anchored where it already stands, and useProvidePanels orders the row from the anchors, which writes that anchor. */
+  /** Where this entry sits in the row. Undefined only for the root; a hand-built record without one reads as anchored where it already stands, and useProvidePanels orders the row from the anchors, which writes that anchor. */
   anchor?: PanelAnchor;
   /** Which of the row's two stacking tiers this entry's slot sits in -- read ONLY by PanelRow's per-slot zIndex. Default 'base'. */
   layer?: 'base' | 'raised';
@@ -46,6 +45,8 @@ export interface PanelWindow {
   anchoredEnter?: boolean;
   /** How many phone-panel widths wide this entry is set to. Absent on a hand-built entry, which reads as one slot. */
   slots?: number;
+  /** The slot count a panel rested at one phone by `tuning.shrinkUnfocused` goes back to when it is next active; absent otherwise. Saved as its `slots`. */
+  savedSlots?: number;
   /** The resolved settings this entry was created under, whose mirror fields (`collapsible`, `listed`, `layer`, `anchoredEnter`, `slots`) were written from them. Absent for a hand-built entry. */
   settings?: ResolvedPanelSettings;
   /** This entry's stable name, written once when it is created from settings; absent on a hand-built entry, whose `id` stands in. */
@@ -69,17 +70,15 @@ export interface PanelWindow {
   declared?: true;
   /** The engine id of the panel whose view opened this one, set once at create; when that panel leaves the row this takes its opener. Only `keepOpeners` and a move rewrite it. */
   openedBy?: string;
-  /** A pin change waiting for this entry to become live, applied inside whichever path makes it live. Session only: never saved. */
-  deferredPin?: DeferredPin;
   /** True only for the reserved '__root__' entry a row without a root keeps: it holds the anchor point, is never drawn and never counted as a column or a hop. */
   marker?: true;
 }
 
-/** History's own seeded entry: never collapsible (an always-shown column), never listed (it must not list itself), always live, never closed (the close path refuses the root); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default size as every other entry. @internal */
-export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABELS.historyTitle): PanelWindow {
+/** The root's own seeded entry, drawn by the view named `rootId`: never collapsible (an always-shown column), never listed (it must not list itself), always live, never closed (the close path refuses the root); raised, so a left-exiting park slides under it; anchoredEnter, which against itself resolves 'right'; no anchor: it is the root every anchor leads to. Same default size as every other entry. @internal */
+export function createRootPanel(rootId: string, title = ''): PanelWindow {
   return {
     id: rootId, url: '', title, live: true,
-    view: 'history', collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
+    view: rootId, collapsible: false, listed: false, layer: 'raised', anchoredEnter: true,
   };
 }
 
@@ -89,8 +88,8 @@ export function createHistoryPanel(rootId: string, title: string = DEFAULT_LABEL
  * @internal
  */
 export interface AppendPanelOptions {
-  /** The view that renders the new panel, becoming `PanelWindow.view`. Default 'web'; `useProvidePanels` always passes one. */
-  view?: string;
+  /** The view that renders the new panel, becoming `PanelWindow.view`. Every panel names its own: there is no default kind. */
+  view: string;
   /** The new panel's title. */
   title?: string;
   /** Opaque per-panel data, copied through to `PanelWindow.params`. */
@@ -99,9 +98,9 @@ export interface AppendPanelOptions {
   hostData?: JsonValue;
   /** Whether the new panel appears in `panelList`. Default true; a `permanent` panel is never listed. */
   listed?: boolean;
-  /** `panel` defaults to History, `priority` to one past the far end of that side. Default \{ position: 'right' \}. */
+  /** `panel` defaults to the root, `priority` to one past the far end of that side. Default \{ position: 'right' \}. */
   anchor?: {
-    /** The panel to sit beside; absent means History. */
+    /** The panel to sit beside; absent means the root. */
     panel?: string;
     /** Which side of `panel` the new panel sits on. */
     position: 'left' | 'right';
@@ -120,7 +119,7 @@ export interface AppendPanelOptions {
 
 /** An anchor as a caller may give it: `panel` and `priority` are optional and filled in against the row. @internal */
 export type AnchorRequest = NonNullable<AppendPanelOptions['anchor']>;
-/** `request` with its defaults filled against `panels`: History, and one past the highest priority already on that side (`self` excluded). */
+/** `request` with its defaults filled against `panels`: the root, and one past the highest priority already on that side (`self` excluded). */
 function fillAnchor(panels: readonly PanelWindow[], rootId: string, request: AnchorRequest, self?: string): PanelAnchor {
   const panel = request.panel ?? rootId;
   if (request.priority !== undefined) return { panel, position: request.position, priority: request.priority };
@@ -148,7 +147,7 @@ export function anchorPanel(panels: readonly PanelWindow[], id: string, request:
 
 /**
  * Builds a brand-new, live 'extra' panel immutably and places it by `info.anchor` (default: right of
- * History, past every panel already there -- the row's far right end). History is seeded directly, never
+ * the root, past every panel already there -- the row's far right end). The root is seeded directly, never
  * through this function. `permanent` forces `collapsible:false` and `listed:false` (overriding any `info.listed`
  * passed) since such a column must supply its own close control, never the row's trash; that control
  * closes it through the developer's own `close`, which `closable` does not limit.
@@ -163,7 +162,7 @@ export function appendPanel(panels: PanelWindow[], info: { url?: string } & Appe
     ...(info.title !== undefined ? { title: info.title } : {}),
     ...(info.hostData !== undefined ? { hostData: info.hostData } : {}),
     live: true,
-    view: info.view ?? 'web',
+    view: info.view,
     collapsible: !info.permanent,
     listed: info.permanent ? false : (info.listed ?? true),
     ...(info.params !== undefined ? { params: info.params } : {}),
@@ -207,7 +206,7 @@ export function leastRecentlyTouchedId(panels: PanelWindow[], touchedAt: (id: st
  * Which side of the row a park/reveal at `id` reads as, for the exit/enter animation: 'left' when `id`'s
  * own array index sits below every OTHER live collapsible panel's index, 'right' otherwise (a parked panel
  * between two live ones included). Computed fresh from array position every time, never a persisted flag,
- * so an append's park always reads 'left' and a park for an open anchored nearest History reads 'right'.
+ * so an append's park always reads 'left' and a park for an open anchored nearest the root reads 'right'.
  * @internal
  */
 export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'right' {
@@ -219,31 +218,21 @@ export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'ri
   return ownIndex < firstOtherLiveIndex ? 'left' : 'right';
 }
 
-/** The row-slot index of the LEFTMOST (lowest-index) live collapsible panel, or -1 if none are live. @internal */
-export function leftmostLiveIndex(panels: PanelWindow[]): number {
-  for (let i = 0; i < panels.length; i++) if (panels[i]!.collapsible && panels[i]!.live) return i;
-  return -1;
-}
-
-/** The row-slot index of the RIGHTMOST (highest-index) live collapsible panel, or -1 if none are live. @internal */
-export function rightmostLiveIndex(panels: PanelWindow[]): number {
-  let found = -1;
-  panels.forEach((p, i) => {
-    if (p.collapsible && p.live) found = i;
-  });
-  return found;
-}
-
-/** The first PARKED collapsible panel strictly after `index` -- a rightward gesture's own "next one to bring in", or null with nothing parked on that side. @internal */
-export function firstParkedAfter(panels: PanelWindow[], index: number): PanelWindow | null {
-  for (let i = index + 1; i < panels.length; i++) if (panels[i]!.collapsible && !panels[i]!.live) return panels[i]!;
-  return null;
-}
-
-/** The last PARKED collapsible panel strictly before `index` -- a leftward gesture's own "next one to bring in", or null with nothing parked on that side. @internal */
-export function lastParkedBefore(panels: PanelWindow[], index: number): PanelWindow | null {
-  for (let i = index - 1; i >= 0; i--) if (panels[i]!.collapsible && !panels[i]!.live) return panels[i]!;
-  return null;
+/**
+ * The parked panel a step toward `direction` brings in, or null: of the parked panels the dot bar shows on that side, the one
+ * nearest the drawn ones. A panel parked between two drawn ones counts on the side nearer its place in the row, as its dot does, so
+ * every dot is reachable. One whose `revealOnScroll` is 'never' has no dot and is passed over.
+ * @internal
+ */
+export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {
+  const drawn = panels.filter(isPresent).length;
+  let before = 0;
+  const side: PanelWindow[] = [];
+  for (const p of panels) {
+    if (isPresent(p)) before += 1;
+    else if (p.marker !== true && effective(p).revealOnScroll !== 'never' && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+  }
+  return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
 }
 
 /**
@@ -270,7 +259,7 @@ export function promoteToLive(panels: PanelWindow[], id: string, capacity: numbe
 }
 
 /**
- * Closes one panel COMPLETELY: it leaves the array, live or parked, so it leaves the row and History
+ * Closes one panel COMPLETELY: it leaves the array, live or parked, so it leaves the row and the list
  * together. Returns what a caller needs to log it and to undo it -- the array without it, the panel itself
  * and the index it had -- or `null` for an unknown `id` (already closed, cleared): nothing to do, not an
  * error. Every panel anchored to it takes over its own anchor, so they close up in the place it held.
@@ -287,8 +276,8 @@ export function closePanel(panels: PanelWindow[], id: string, rootId: string): {
 
 /**
  * Moves `id` one PRESENT slot (`isPresent`, PanelRow's filter) toward `direction`, past
- * whichever present panel sits there, History included; a parked panel between the two shifts one array slot,
- * keeping firstParkedAfter/lastParkedBefore/sideOfLiveRange meaningful. Every anchor is then re-read from the
+ * whichever present panel sits there, the root included; a parked panel between the two shifts one array slot,
+ * keeping parkedToReveal/sideOfLiveRange meaningful. Every anchor is then re-read from the
  * new order. The SAME array for every no-op: unknown id, a parked panel, one already at that edge, or any array slot from the source to the target
  * (parked ones included) holding an entry whose `crossable` setting is false.
  * @internal

@@ -47,7 +47,7 @@ function View({ id }: { id: string }): React.ReactElement {
 }
 registerTestView('scroll-row-view', ({ panel }) => React.createElement(View, { id: panel.id }));
 
-const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.parentElement!;
+const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector<HTMLElement>(`[data-grab="${id}"]`)!.closest<HTMLElement>('[data-drag-to-close]')!.closest<HTMLElement>('[data-row-slot]')!;
 const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(container, id).style.transform)?.[1] ?? 0));
 const SPAN = 406;
 
@@ -59,7 +59,7 @@ test('a neighbour snaps aside on the frame after the hop point, snaps back when 
   await drag(m.container.querySelector<HTMLElement>('[data-grab="s1"]')!, { dx: 213, dy: 0, steps: 6, hold: 4, keepDown: true });
   await advanceFrames(32);
   assert.equal(xOf(m.container, 's2'), rest - SPAN, 'no slide: it is already there two frames later');
-  assert.equal(slotOf(m.container, 's1').style.zIndex, '3');
+  assert.equal(slotOf(m.container, 's1').style.zIndex, '200');
   await act(async () => {
     const event = new MouseEvent('pointermove', { bubbles: true, clientX: 130, clientY: 100, buttons: 1 });
     for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
@@ -79,7 +79,7 @@ test('a neighbour snaps aside on the frame after the hop point, snaps back when 
   assert.equal(xOf(m.container, 's2'), rest - SPAN, 'the drop moves nobody');
   assert.equal(xOf(m.container, 's1'), rest, 'the dragged slot is at its new rest on the next frame, not sliding to it');
   await advanceFrames(100);
-  assert.equal(slotOf(m.container, 's1').style.zIndex, '1');
+  assert.equal(slotOf(m.container, 's1').style.zIndex, '3', 'at rest at index 2 of 4 it is one step in from the end');
 });
 
 async function dropOnto(m: ReturnType<typeof mountRow>): Promise<void> {

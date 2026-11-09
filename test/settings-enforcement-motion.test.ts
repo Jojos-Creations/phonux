@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the motion settings it owns: layer and enterFrom. One
+ * The engine's reading of the motion settings it owns: layer, enterFrom and resize. One
  * differential per name through a mounted PanelRow, then literal rows for each precedence the catalog states. Entries
  * are built the way a creation path builds them: appendPanel's skeleton, then applyTemplate over a resolved layer.
  * Slot positions are read from the transform each slot carries right after a render, before any frame has run.
@@ -12,7 +12,7 @@ import type { PanelSettings, PanelWindow } from '../index.js';
 import { enterDirectionOf } from '../PanelRow.js';
 import { GAP, panelRowSlotMotion } from '../PanelRowSlot.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { appendPanel, createHistoryPanel } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import type { WorkspaceHandle } from '../index.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
@@ -20,7 +20,7 @@ import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } f
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['layer', 'enterFrom'];
+const OWNED = ['layer', 'enterFrom', 'resize'];
 const SPAN = 390 + GAP;
 
 registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
@@ -31,7 +31,7 @@ function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
-  applyTemplate({ ...createHistoryPanel(ROOT), view: 'motion-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
+  applyTemplate({ ...createRootPanel(ROOT), view: 'motion-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 
 interface Props {
   closing?: ReadonlySet<string>;
@@ -64,7 +64,7 @@ const row = (entries: PanelWindow[], p: Props = {}, workspace?: WorkspaceHandle)
       enterSideById: p.sides ?? new Map(),
     }),
   );
-const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.parentElement ?? null;
+const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axis = (slot: HTMLElement, name: 'X' | 'Y'): number => {
   const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slot.style.transform);
   return match === null ? 0 : Number(match[1]);
@@ -158,16 +158,16 @@ test('exit direction: auto follows exitRightIds, and closingIds exits down witho
   assert.equal(closing.x, REST, 'and does not slide sideways');
 });
 
-test('layer: a raised slot has z-index 2 and a base slot 1, and a hand-built entry reads its own layer field', () => {
+test('layer: a raised slot at the row\'s end has z-index 100 and a base slot 1, and a hand-built entry reads its own layer field', () => {
   const zOf = (b: PanelWindow): string => {
     const mounted = mount(row([rootEntry(), b]));
     const z = slotOf(mounted.container, b.id)!.style.zIndex;
     mounted.unmount();
     return z;
   };
-  assert.equal(zOf(made('b', { layer: 'raised' })), '2');
+  assert.equal(zOf(made('b', { layer: 'raised' })), '100');
   assert.equal(zOf(made('b', { layer: 'base' })), '1');
-  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true, layer: 'raised' }), '2');
+  assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true, layer: 'raised' }), '100');
   assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true }), '1');
 });
 
@@ -203,6 +203,19 @@ test('differential layer: the resolved layer decides the slot stacking', () => {
 test('differential enterFrom: the resolved setting decides which side a new slot starts from', () => {
   differential('enterFrom', (run) => {
     for (const value of ['left', 'right'] as const) run(value, () => enterX({ enterFrom: value }));
+  });
+});
+
+test('differential resize: the resolved setting decides whether the row\'s size box reveals the content or reflows it', () => {
+  differential('resize', (run) => {
+    for (const value of ['reveal', 'reflow'] as const) {
+      run(value, () => {
+        const mounted = mount(row([rootEntry(), made('b', { resize: value })]));
+        const revealed = slotOf(mounted.container, 'b')!.querySelector('[data-panel-size-reveal]') !== null;
+        mounted.unmount();
+        return revealed;
+      });
+    }
   });
 });
 

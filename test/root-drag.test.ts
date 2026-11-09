@@ -13,7 +13,6 @@ import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { flush, mountWorkspace, type MountedWorkspace } from './support/workspace-row.js';
-import { capRig } from './support/cap-rig.js';
 import { settle } from './support/workspace-launch.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import { refusedWith } from './support/configure-matrix.js';
@@ -70,7 +69,6 @@ const grabOf = (r: Rig, key: string): HTMLElement => {
   assert.ok(grab, `${key} has a grab handle`);
   return grab;
 };
-const pinned = (r: Rig): Record<string, boolean> => Object.fromEntries(['a', 'b', 'c'].map((k) => [k, r.ws.panels.get(k)!.getState().pinned]));
 
 
 const ALL = ['root', 'a', 'b', 'c'];
@@ -87,7 +85,7 @@ test('the preview: a held root drag slides the neighbour it would cross aside, a
   assert.equal(xOf(r, 'a'), rest.a! - SPAN, 'the first neighbour made room');
   assert.equal(xOf(r, 'b'), rest.b, 'a neighbour past the hop point has not moved');
   assert.equal(order(r).join(' '), 'root a b c', 'the order only changes at the drop');
-  assert.equal(slotOf(r, 'root').style.zIndex, '3', 'the dragged slot is drawn over its neighbours');
+  assert.equal(slotOf(r, 'root').style.zIndex, '200', 'the dragged slot is drawn over its neighbours');
   await release(SPAN * 0.5 + 10, 0);
   await advanceFrames(3000);
   assert.equal(xOf(r, 'a'), rest.root, 'the crossed neighbour rests where the root was: it did not jump at the drop');
@@ -127,19 +125,6 @@ test('the commit: a drop past two panels re-anchors those two to the root\'s oth
   assert.deepEqual(distinct(commits), ['a b root c'], 'no commit showed the root past only the first panel');
 });
 
-test('the pin flip: crossed panels read pinned and unpinned by their new side, others are unchanged, and the way back flips them again', async () => {
-  const r = await rig({ root: { movable: true } });
-  assert.deepEqual(pinned(r), { a: false, b: false, c: false });
-  await hold(r, SPAN * 1.5 + 10);
-  await release(SPAN * 1.5 + 10, 0);
-  await advanceFrames(3000);
-  assert.deepEqual(pinned(r), { a: true, b: true, c: false });
-  await drag(grabOf(r, 'root'), { dx: -SPAN * 0.5 - 10, dy: 0, steps: 12, hold: 8 });
-  await advanceFrames(3000);
-  assert.equal(order(r).join(' '), 'a root b c');
-  assert.deepEqual(pinned(r), { a: true, b: false, c: false }, 'only the panel crossed back changed');
-});
-
 test('keys: ArrowRight and ArrowLeft on the root\'s grab handle move it one slot, as they do any panel', async () => {
   const r = await rig({ root: { movable: true } });
   const press = async (key: string): Promise<void> => {
@@ -148,7 +133,6 @@ test('keys: ArrowRight and ArrowLeft on the root\'s grab handle move it one slot
   };
   await press('ArrowRight');
   assert.equal(order(r).join(' '), 'a root b c');
-  assert.deepEqual(pinned(r), { a: true, b: false, c: false });
   await press('ArrowLeft');
   assert.equal(order(r).join(' '), 'root a b c');
   await press('ArrowLeft');
@@ -212,20 +196,5 @@ test('a root dragged to the middle is restored there: the saved file names the c
   await settle();
   await advanceFrames(3000);
   assert.equal(order(second).join(' '), 'a root b c');
-  assert.deepEqual(pinned(second), { a: true, b: false, c: false });
 });
 
-test('under a cap, panels the root crosses to its left are pinned and stay live, and the cap counts only the panels right of the root', async () => {
-  const r = await capRig({ count: 6, cap: 2 });
-  assert.equal(r.row(), 'root w1* w2* w3* w4* w5 w6');
-  act(() => void r.ws.panels.configure(r.ws.rootId, { movable: true }));
-  let answer: { ok: boolean; changed?: boolean } | undefined;
-  r.turn(() => {
-    answer = r.ws.panels.get(r.ws.rootId)!.move(2);
-  });
-  await advanceFrames(3000);
-  assert.deepEqual(answer, { ok: true, changed: true });
-  assert.equal(r.row(), 'w1* w2* w3* w4* w5 w6 root');
-  assert.deepEqual(r.pinnedLive(), ['w5', 'w6'], 'the two panels now left of the root are exempt from the cap');
-  assert.deepEqual(r.unpinnedLive(), []);
-});

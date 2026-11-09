@@ -5,6 +5,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { flushSync } from 'react-dom';
@@ -217,10 +218,10 @@ async function addedAt(scrollOnOpen: PanelSettings['scrollOnOpen'] | undefined, 
   const m = mountWorkspace(w, o.width === undefined ? {} : { width: o.width });
   await flush();
   await advanceFrames(900);
-  const mountedAt = m.container.scrollLeft;
+  const mountedAt = rowOffsetOf(m.container);
   act(() => void w.addPanel(t));
   await advanceFrames(900);
-  return { at: m.container.scrollLeft, mountedAt, notes: m.notes.map((n) => n.code) };
+  return { at: rowOffsetOf(m.container), mountedAt, notes: m.notes.map((n) => n.code) };
 }
 
 test('first paint never scrolls: panels declared before mount and replayed at settle leave the row at 0', async () => {
@@ -263,7 +264,7 @@ test('a request recorded while a drag holds the row is dropped with the note scr
   act(() => void w.addPanel(t));
   await advanceFrames(300);
   assert.equal(m.notes.some((n) => n.code === 'scroll-dropped-during-drag'), true);
-  assert.equal(m.container.scrollLeft, 0);
+  assert.equal(rowOffsetOf(m.container), 0);
   claim.release();
 });
 

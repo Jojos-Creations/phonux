@@ -7,7 +7,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
-import type { AnchorRequest, ConfigureResult, PanelHandle, PanelSettings, Pinning, WorkspaceState } from '../index.js';
+import type { AnchorRequest, ConfigureResult, PanelHandle, WorkspaceState } from '../index.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { cleanup } from './support/mount-harness.js';
 import { pinRig, type PinRig, type PinRigOptions } from './support/pin-rig.js';
@@ -73,7 +73,7 @@ test('resizable false after the person resized to two slots: the count stays 2 i
   let r = await launch(store, { extra: ANON });
   const declared = r.turn(() => r.h.b!.setSlots(2, 'person'));
   assert.equal(declared.ok, true);
-  assert.deepEqual({ ...ok(r.turn(() => r.h.b!.configure({ resizable: false }))) }, { ok: true, changed: true, shown: false, now: ['resizable'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...ok(r.turn(() => r.h.b!.configure({ resizable: false }))) }, { ok: true, changed: true, now: ['resizable'], later: [], shadowed: [], notes: [] });
   assert.deepEqual([r.entry('b').slots, r.state('b').settings.slots], [2, 2], 'a declared panel: configure writes no slot count');
   assert.deepEqual({ ...r.turn(() => r.h.b!.setSlots(1, 'person')) }, { ok: false, code: 'not-resizable', message: "panel 'b' cannot be resized" });
   const x = r.turn(() => r.ws.addPanel('m'));
@@ -116,7 +116,7 @@ test('configure on an anonymous instance restores configured; the same patch on 
   let r = await launch(store, { extra: ANON, settings });
   const x = r.turn(() => r.ws.addPanel('m'));
   await r.settle();
-  assert.deepEqual({ ...ok(r.turn(() => x.configure(patch))) }, { ok: true, changed: true, shown: false, now: ['title', 'listed'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual({ ...ok(r.turn(() => x.configure(patch))) }, { ok: true, changed: true, now: ['title', 'listed'], later: [], shadowed: [], notes: [] });
   ok(r.turn(() => r.h.b!.configure(patch)));
   assert.deepEqual([r.state('b').title, r.state('b').listed], ['Configured', false]);
   await quit(r);
@@ -146,61 +146,35 @@ test('configureTemplate and configureTuning are session only: nothing of them is
 
 test('the file\'s overrides are unchanged by any configure, whatever its class and whatever it does to the live panel', async () => {
   const store = memoryWorkspaceStorage();
-  const settings = { b: { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } satisfies Pinning } };
-  let r = await launch(store, { settings });
+  let r = await launch(store);
   r.turn(() => r.h.c!.move(-1, 'person'));
   r.turn(() => r.h.a!.setSlots(2, 'person'));
-  r.turn(() => r.h.b!.pin('person'));
   await wait();
   const before = await overridesOf(store);
-  assert.deepEqual(before, { a: { anchor: right(0), slots: 2 }, c: { anchor: right(1) }, b: { anchor: right(2), parkable: false } }, 'control: the person left an override on each panel');
+  assert.deepEqual(before, { a: { anchor: right(0), slots: 2 }, c: { anchor: right(1) }, b: { anchor: right(2) } }, 'control: the person left an override on each panel');
   const patches: [string, Record<string, unknown>][] = [
     ['a', { closable: false, title: 'A' }],
     ['a', { slots: 1, maxSlots: 2 }],
     ['c', { scrollOnOpen: 'center', placeOnAdd: 'row-start', listed: false }],
-    ['b', { parkable: true }],
-    ['b', { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } }],
     ['c', { headerButtons: { x: false } }],
   ];
   for (const [id, patch] of patches) ok(r.turn(() => r.h[id]!.configure(patch as never)));
   await quit(r);
   assert.deepEqual(await overridesOf(store), before);
-  r = await launch(store, { settings });
-  assert.deepEqual([r.order().join(' '), r.entry('a').slots, r.facts('b').parkable], ['root a c b', 2, false], 'and the next launch applies them all');
+  r = await launch(store);
+  assert.deepEqual([r.order().join(' '), r.entry('a').slots], ['root a c b', 2], 'and the next launch applies them all');
 });
 
-test('a configure of slots or parkable while the person\'s override is restored reports it shadowed', async () => {
+test('a configure of slots while the person\'s override is restored reports it shadowed', async () => {
   const store = memoryWorkspaceStorage();
-  const settings = { b: { pinning: { pinned: { parkable: false }, unpinned: { parkable: true } } satisfies Pinning } };
-  let r = await launch(store, { settings });
+  let r = await launch(store);
   r.turn(() => r.h.c!.setSlots(2, 'person'));
-  r.turn(() => r.h.b!.pin('person'));
   await quit(r);
-  r = await launch(store, { settings });
-  assert.deepEqual([r.entry('c').slots, r.facts('b').parkable], [2, false], 'control: both overrides came back');
+  r = await launch(store);
+  assert.deepEqual([r.entry('c').slots], [2], 'control: the override came back');
   const size = ok(r.turn(() => r.h.c!.configure({ slots: 1 })));
   assert.deepEqual([[...size.now], [...size.later], [...size.shadowed]], [[], ['slots'], ['slots']]);
-  const fixed = ok(r.turn(() => r.h.b!.configure({ parkable: true })));
-  assert.deepEqual([[...fixed.now], [...fixed.later], [...fixed.shadowed]], [['parkable'], [], ['parkable']]);
-  assert.deepEqual([r.entry('c').slots, r.facts('b').parkable, r.h.c!.getSettings().source.slots, r.h.b!.getSettings().source.parkable], [2, false, 'user', 'user']);
-});
-
-test('a deferred pin is never in the file, and a configure of pinning keeps it out too', async () => {
-  const store = memoryWorkspaceStorage();
-  const ids = ['a', 'b', 'c'];
-  const pinning: Pinning = { pinned: { placement: 'row-start' }, unpinned: { placement: 'row-end' } };
-  const r = await launch(store, { ids, settings: Object.fromEntries(ids.map((id) => [id, { pinning, pinningWhenNotLive: 'apply-on-next-show' } as PanelSettings])) });
-  r.turn(() => r.h.b!.hide());
-  r.turn(() => r.h.b!.pin('person'));
-  assert.deepEqual(r.state('b').deferredPin, { by: 'pin' });
-  ok(r.turn(() => r.h.b!.configure({ pinning: { pinned: { placement: 'row-start' }, unpinned: { placement: 'after-fixed' } } })));
-  assert.deepEqual(r.state('b').deferredPin, { by: 'pin' }, 'control: it is still waiting');
-  r.turn(() => r.h.c!.move(-1, 'person'));
-  await quit(r);
-  const text = JSON.stringify(await file(store));
-  assert.equal(text.includes('deferredPin'), false);
-  assert.equal(text.includes('"by"'), false);
-  assert.equal(JSON.parse(text).panels.length > 0, true, 'control: the file was written');
+  assert.deepEqual([r.entry('c').slots, r.h.c!.getSettings().source.slots], [2, 'user']);
 });
 
 test('a Host-bag ask comes back through null in the session, the file keeps it merged in the instance layer and the person\'s overrides alone, and the next launch reads it as the instance layer\'s own', async () => {

@@ -3,14 +3,15 @@
  * PanelRow (PanelRow imports PanelRowSlot, which imports dragToClose: an import there would be a cycle).
  */
 import * as React from 'react';
+import type { PanelSummary } from './hostApi.js';
 import type { NeighborWidths } from './panelRowEntry.js';
 import type { GlideEase, ResolvedPanelSettings, SettingNote } from './panelSettings.js';
 import type { ViewHandle } from './panelTemplate.js';
 import type { SlotTuning } from './panelTuning.js';
 
 /**
- * What a drag of this panel needs to scroll the row at its edge. Absent outside a row and when the row does not
- * scroll, so a drag there never claims a scroller.
+ * What a drag of this panel needs to scroll the row at its edge, or, where the row cannot scroll further that way, to
+ * swap a hidden panel in. Absent outside a row.
  */
 export interface DragScroll {
   /** 'none' when the panel's `scrollOnDrag` is off. */
@@ -35,6 +36,12 @@ export interface DragScroll {
   readonly insetLeft?: number;
   /** The width the right edge group takes, which an edge-scroll band does not reach into. Default 0. */
   readonly insetRight?: number;
+  /** Where a drag stops on the left when a panel no drag may cross starts the row: that panel's right edge plus the row gap, in screen px. The left band ends there. */
+  readonly barrierRight?: () => number | undefined;
+  /** Draws that panel `px` left of its rest, easing there, so a drag pushing against it shows the band is near; 0 eases it home. */
+  readonly nudgeBarrier?: (px: number) => void;
+  /** Swaps the nearest hidden panel on that side in, as a scroll step does, keeping `keepId` live; true when one came in. */
+  readonly cycle?: (direction: 'left' | 'right', keepId: string) => boolean;
 }
 
 /** What a panel's header buttons need to draw and press: its resolved slots, its own handle and where errors and notes go. */
@@ -53,6 +60,8 @@ export interface HeaderButtonsSlot {
 export interface PanelSlotValue {
   /** The panel's id. Optional so a slot value built by hand (a test, a view mounted outside a row) needs none. */
   readonly id?: string | undefined;
+  /** The summary the row hands the panel's view, so the panel's own controls read the widths it offers. Absent outside a row. */
+  readonly summary?: PanelSummary | undefined;
   /** True while a host holds a width on a panel of this row (`usePanelResizing`'s `setDrawnWidth`): the row's moves and its size boxes take no time then, so they follow a pointer. */
   readonly tracking?: boolean | undefined;
   readonly collapsible: boolean;
@@ -61,12 +70,11 @@ export interface PanelSlotValue {
   readonly resizable: ResolvedPanelSettings['resizable'];
   readonly maxSlots: ResolvedPanelSettings['maxSlots'];
   readonly neighborWidths: NeighborWidths;
-  readonly pinned: boolean;
   /** True while the panel is being closed: its exit runs on the close timing, and PanelRow keeps this last value through it. */
   readonly closing?: boolean | undefined;
   /** The size the row draws this slot at, which an omitted `size` on `Panel`, `PanelFrame` and `PanelSizeBox` follows. Absent outside a row, where an omitted size is the phone size. */
   readonly drawn?: { readonly width: number; readonly height: number } | undefined;
-  /** The panel's own handle, which `usePanelDragProps` closes and moves through and `usePanelPinned` reads. Absent in a row without a workspace. */
+  /** The panel's own handle, which `usePanelDragProps` closes and moves through reads. Absent in a row without a workspace. */
   readonly handle?: Pick<ViewHandle, 'close' | 'move' | 'getState' | 'subscribe' | 'setSlots'> | undefined;
   /** The workspace's tuning this row reads: every slot gets the same values. */
   readonly tuning: SlotTuning;
@@ -86,3 +94,6 @@ export interface PanelSlotValue {
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);
+
+/** True under a template declared with `verticalDrag: true`; a grab bar in a row drags up and down only then. */
+export const PanelVerticalDragContext = React.createContext(false);

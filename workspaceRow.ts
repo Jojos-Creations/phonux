@@ -2,7 +2,7 @@ import * as React from 'react';
 import type { RowNumbers } from './rowNumbers.js';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
 
-/** The part of a panel a row's wrap reads: its id, its saved uid, and whether its dot is hollow. @public */
+/** The part of a panel a row's wrap reads: its id, its saved uid, whether it is drawn, its width and whether its dot is hollow. @public */
 export interface WorkspaceRowEntry {
   /** The panel's id. */
   readonly id: string;
@@ -11,8 +11,14 @@ export interface WorkspaceRowEntry {
    * Absent on a hand-built entry.
    */
   readonly uid?: string;
-  /** The panel's settings, when they are set; `hollowDot` is whether its dot is hollow. */
-  readonly settings?: { readonly hollowDot: boolean };
+  /** False while the panel is parked: in the row's order but not drawn. Absent reads as drawn. */
+  readonly live?: boolean;
+  /** True only for the row's reserved anchor entry, which is never drawn and has no dot. */
+  readonly marker?: true;
+  /** How many phone widths wide the panel is set to. Absent reads as one. */
+  readonly slots?: number;
+  /** The panel's settings, when they are set: `hollowDot` is whether its dot is hollow, and a `revealOnScroll` of `'never'` keeps a parked panel out of the dot bar, since no scroll can bring it in. */
+  readonly settings?: { readonly hollowDot: boolean; readonly revealOnScroll?: 'edges' | 'any' | 'never' };
 }
 
 /** What a mounted workspace's row exposes to `wrap` through `useWorkspaceRow()`. @public */

@@ -6,6 +6,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
+import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { MotionConfig } from 'motion/react';
@@ -301,7 +302,7 @@ test("the hold: other panels, the row's scroll and its stop list never see the w
 });
 
 const stripOf = (container: HTMLElement): HTMLElement => container.querySelector<HTMLElement>('[data-row-strip]')!;
-const marginOf = (container: HTMLElement): number => Number.parseFloat(stripOf(container).style.marginLeft || '0');
+const marginOf = (container: HTMLElement): number => stripMarginOf(container);
 /** Where a slot's left and right edges sit in the window: the strip's margin, the slot's drawn x and width, less the row's scroll. */
 const edges = (container: HTMLElement, id: string): { left: number; right: number } => {
   const left = marginOf(container) + xOf(container, id) - container.scrollLeft;
