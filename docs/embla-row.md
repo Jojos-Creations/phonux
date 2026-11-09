@@ -79,10 +79,32 @@ Measured on the real row with the switch on (`embla-row-proof.ts`, mixed row res
 | a panel left of the view moved 3 places right, past the window | 2030 > 1624 | 0 px | 0 |
 | a 3-slot panel left of the view closed | 1624 > 406 | 0 px | 0 |
 
-Not covered yet: a change while the row glides (the jump lands from where the glide is and the glide ends), and opening a panel
-left of the view in the browser (the model test covers it; the proof page has no second template to open).
+Changes under a gesture or a glide (after the steps 1-2 audit). The keep runs only in a render that changed the strip layout or
+the window, so a re-render while a drag pulls the row past its end leaves it there. Embla's own slide watcher is off: it rebuilt on
+every child change of the box (slots and the drop gap, not only markers), back to the selected stop, and a rebuild drops a press or
+wheel gesture (it rebuilds the drag handler and the wheel plugin). `moveEmbla` now applies a change: the keep's shift, and a rebuild
+when the markers or the window changed. While a gesture holds the row the shift moves Embla's positions in place and the rebuild
+waits for the release (`pointerUp`); a rebuild keeps the drawn position, and a glide goes on to the stop nearest its target. The
+resize watch rebuilds only for a box width the row did not set itself (a row shown after it was hidden).
 
-## Step 7: one strip, far pages unloaded (in progress: one defect open)
+| `--only gesture` (mixed row) | before (ad43009) | now |
+| --- | --- | --- |
+| drag pulls the row to about -155 px, viewport +2 px re-renders | row snaps to 0, drag ends | stays at -150.8, drag goes on to -256.6, rests at 0 |
+| wheel stream D12, last panel closed 1 s in (control: stream alone steps back 5.5 px at its settle) | steps back 240 px, row ends at 0.1 (gesture lost) | worst step back 0.9 px, moved 406 |
+| same, last panel resized 2 > 1 slot | steps back 239.9 px | worst 1.75 px, moved 406.1 |
+| from slot 5, wheel stream, the 3-slot panel left of the view narrowed mid-stream | (case added with the fix) | a panel in view moves at most 7.3 px a frame; 406.7 px without the in-place shift |
+| ArrowRight glide from 2030, the 3-slot panel left of the view narrowed 120 ms in | rests at 1802, off the grid | rests at 2030, on the grid |
+
+Embla internals still used, and why: `writeEmbla` (the oval drag's direct write; a rest off any stop needs it), the drawn-position
+restore after a rebuild (without it the release rebuild steps the row back 14-26 px, measured), the in-place shift under a gesture
+(406.7 px jump without it, measured) and `dragHandler.pointerDown()`. A jump at rest to a stop uses the public `scrollTo(i, true)`.
+`test/embla-internals-contract.test.ts` pins 8.6.0 and fails if any member used changes. The property test now also pins closing
+the left-edge panel itself (the panel after it becomes the anchor and stays put); a test requires the audit's surviving mutant
+(keep the scroll when the anchor closes) to fail it.
+
+Not covered yet: opening a panel left of the view in the browser (the model test covers it; the proof page has no second template).
+
+## Step 7: one strip, far pages unloaded
 
 `useProvidePanels({ rowEngine: 'embla' })` (pass the same value as the Workspace's `rowEngine`) makes the row one strip: `rowPricing`
 gives an infinite capacity on a strip, so nothing parks for room or for `tuning.maxLivePanels`, and a panel parked for either comes
@@ -102,11 +124,17 @@ Measured (`embla-row-proof.ts --only strip`, 24 parkable one-slot panels, cap 8,
 | panel moves along the strip while panels unload and load (2-3 changes in the run) | 0 px in every frame |
 | parkable panels loaded in any frame | at most 8 (the cap) |
 
-**Open defect:** once a parkable panel has unloaded, every parkable panel's view renders the library's "unregistered view" fallback
-(`TemplatePanelView` finds no handle: `viewContext.handleFor` returns undefined), the near ones included; with nothing unloaded
-(`rowNearSlots` 99) the views survive a glide. So "a near page keeps its state" and "a far page loads again" fail in the proof
-(`strip: p2 one slot from the view lost its state`, `rowNearSlots 0 leaves 0 ... loaded`). Next: find why the handle lookup
-(`workspaceCore` `handleFor`, `observed ?? committed` entries) drops the parkable panels after the first placeholder.
+The "unregistered view" defect this step shipped with was the proof page, and a library gap behind it. The page created its
+workspace without `mount: false`, so the library's auto mount rendered a second row; its `useProvidePanels` called the workspace's
+`observe` with the root alone during its render, then failed to attach (`already-attached`, reported to `onError`, not a page
+error). That list replaced the attached row's, so the next `PanelRow` render (the first unload's) found no handle for any panel;
+views drawn before kept theirs, which is why nothing broke with nothing unloaded or on a row that never re-rendered. `observe` now
+takes the attach token and ignores a hook while another holds the workspace (`test/workspace-lifecycle.test.ts`: fails on 4af3f06,
+passes now), and the page passes `mount: false`, as the app does. The app was not affected (it passes `mount: false`).
+
+Measured after the fix (`--only strip`): near p2 keeps its state (count 7, 1 mount) at slot 4; far at slot 12, unloaded; back at
+slot 0 it mounts again (2 mounts); at most 8 parkable panels loaded; 0 px movement along the strip in every frame; `rowNearSlots` 0
+leaves 4 loaded with four in view.
 
 ## Step 3: the dot bar on Embla's position
 
@@ -123,7 +151,7 @@ Measured (`--only dots`, same parking row; bar drawn as the app does, clipped an
 | --- | --- |
 | dots | 25 for 25 panels; the oval's ends meet the first and last dot in view at slot 0 and 7 (0 px) |
 | fast oval drag, 6 px a frame, 132 frames | worst oval-to-pointer 0 px, strip 4791 px, rest on the grid |
-| control: Embla's eased drag (`emblaOvalDrag.eased`) | worst 39.4 px, median 35.7: the check fails as it should |
+| control: Embla's eased drag (the proof page's, routed in by its build; shipped code has no seam) | worst 36.2 px, median 31.8: the check fails as it should |
 | pointer held 20 px past a 300 px bar's end for 1 s | row moved 1040 px, 0 of 59 frames still |
 | control: held mid-bar | 0 px |
 | dot press on p20 | glides to show it |

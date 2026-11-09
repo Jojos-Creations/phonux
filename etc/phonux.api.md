@@ -1025,6 +1025,7 @@ export interface PanelsInput {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneWidth: number;
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
+    rowEngine?: 'own' | 'embla';
     workspace: WorkspaceHandle;
 }
 
@@ -2013,6 +2014,7 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     phoneHeight?: number;
     phoneWidth: number;
     rowEngine?: 'own' | 'embla';
+    rowNearSlots?: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
     rowResizeSettled?: boolean;
