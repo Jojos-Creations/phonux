@@ -82,13 +82,56 @@ Measured on the real row with the switch on (`embla-row-proof.ts`, mixed row res
 Not covered yet: a change while the row glides (the jump lands from where the glide is and the glide ends), and opening a panel
 left of the view in the browser (the model test covers it; the proof page has no second template to open).
 
+## Step 7: one strip, far pages unloaded (in progress: one defect open)
+
+`useProvidePanels({ rowEngine: 'embla' })` (pass the same value as the Workspace's `rowEngine`) makes the row one strip: `rowPricing`
+gives an infinite capacity on a strip, so nothing parks for room or for `tuning.maxLivePanels`, and a panel parked for either comes
+back in place (a host's own hide stays). With the switch off nothing changes. On Embla, `PanelRow` draws a placeholder of the same
+width (`data-row-unloaded`) instead of the content of a parkable panel (overflow 'park', the panels that park today) that lies
+`rowNearSlots` or more slots past the window's edge (`Workspace` prop, default 2: a step, an arrow key or a short flick moves one to
+three slots, so those never meet a placeholder). `tuning.maxLivePanels` becomes the most parkable panels loaded at once, nearest
+first, never fewer than the window shows. A loaded one stays until a whole slot further (no flip-flop on the line). `loadedNear` is
+the pure rule; `test/embla-row-strip.test.ts` covers it.
+
+Measured (`embla-row-proof.ts --only strip`, 24 parkable one-slot panels, cap 8, 1800 x 900):
+
+| check | result |
+| --- | --- |
+| slots on the row | 25 of 25, none parked (control: the own row with the same settings shows 9) |
+| wheel stream D12, px per input px | 0.994, 0 stalled frames of 149-152, rest on the grid |
+| panel moves along the strip while panels unload and load (2-3 changes in the run) | 0 px in every frame |
+| parkable panels loaded in any frame | at most 8 (the cap) |
+
+**Open defect:** once a parkable panel has unloaded, every parkable panel's view renders the library's "unregistered view" fallback
+(`TemplatePanelView` finds no handle: `viewContext.handleFor` returns undefined), the near ones included; with nothing unloaded
+(`rowNearSlots` 99) the views survive a glide. So "a near page keeps its state" and "a far page loads again" fail in the proof
+(`strip: p2 one slot from the view lost its state`, `rowNearSlots 0 leaves 0 ... loaded`). Next: find why the handle lookup
+(`workspaceCore` `handleFor`, `observed ?? committed` entries) drops the parkable panels after the first placeholder.
+
+## Step 3: the dot bar on Embla's position
+
+`usePanelDots` on an Embla row (`emblaDots.ts`) reads the strip `PanelRow` publishes and where Embla draws it this frame: one dot per
+panel at its place scaled to dots (a one-slot dot is 22 px, as before), the oval over the panels in view. A store change re-renders
+the bar in a microtask, so the oval is drawn in the frame the strip moved. Dragging the oval writes Embla's position directly
+(`writeEmbla`), from the press, so the oval keeps the place it was grabbed at; release glides to the nearest stop. A pointer held
+past the bar's visible end (its box cut by every clipping ancestor and the viewport) moves the row each frame, 0.1 slot/s per px past
+the start of a 6 px zone, at most 12 slots/s. A dot press glides to show its panel. The old bar is unchanged off Embla.
+
+Measured (`--only dots`, same parking row; bar drawn as the app does, clipped and kept over the oval for the hold):
+
+| check | result |
+| --- | --- |
+| dots | 25 for 25 panels; the oval's ends meet the first and last dot in view at slot 0 and 7 (0 px) |
+| fast oval drag, 6 px a frame, 132 frames | worst oval-to-pointer 0 px, strip 4791 px, rest on the grid |
+| control: Embla's eased drag (`emblaOvalDrag.eased`) | worst 39.4 px, median 35.7: the check fails as it should |
+| pointer held 20 px past a 300 px bar's end for 1 s | row moved 1040 px, 0 of 59 frames still |
+| control: held mid-bar | 0 px |
+| dot press on p20 | glides to show it |
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
-- The dot bar reads the old row scroller, so its oval does not follow an Embla row, and a dot press moves nothing (step 3).
 - Workspace summon, dismiss and step-aside (step 4); maximize and animated width changes (step 5); drag to reorder and its
   edge scroll (step 6).
-- Parking (step 7): an Embla row shows the live panels `useProvidePanels` gives it on one strip; in a parking row the swap that
-  brings parked panels in is driven by the old gesture, which stands aside, so scrolling ends at the last live panel.
 - Anything that asks the old row scroller to move (`scrollOnOpen`, `revealOnScroll`, a host's `stepRow` chord, the settle after a
   hand resize) moves nothing on Embla.
 - Edge-held panels (`edgeHold`) were not tried on Embla: the old drawing pass that holds them needs the old strip.

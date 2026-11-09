@@ -19,6 +19,8 @@ const BAR = q.get('bar') === null ? null : Number(q.get('bar'));
 // Each view's mounts, and a setter for a piece of React state it holds: state survives only while the view stays mounted.
 const mounts: Record<string, number> = {};
 const setters: Record<string, (n: number) => void> = {};
+const counts: Record<string, number> = {};
+const mountedNow = new Set<string>();
 const GAP = 16;
 const PHONE = 390;
 const ROOT = 'root';
@@ -29,9 +31,14 @@ let latest: any;
 function View({ name, k }: { name: string; k: number }) {
   const hue = (k * 47) % 360;
   const [count, setCount] = React.useState(0);
+  counts[name] = count;
   React.useEffect(() => {
     mounts[name] = (mounts[name] ?? 0) + 1;
     setters[name] = setCount;
+    mountedNow.add(name);
+    return () => {
+      mountedNow.delete(name);
+    };
   }, []);
   return (
     <PanelSizeBox>
@@ -91,7 +98,7 @@ function Bar({ p, scroller }: { p: any; scroller: React.RefObject<HTMLDivElement
   offset.current = Math.max(0, offset.current);
   const { style, ...bar } = dots.barProps;
   return (
-    <div data-bar-frame="" style={{ position: 'fixed', bottom: 20, left: `calc(50% - ${frameW / 2}px)`, width: frameW, height: 20, overflow: 'hidden', background: '#222' }}>
+    <div data-bar-frame="" style={{ position: 'fixed', zIndex: 100000, bottom: 20, left: `calc(50% - ${frameW / 2}px)`, width: frameW, height: 20, overflow: 'hidden', background: '#222' }}>
       <div data-bar-track="" {...bar} style={{ ...style, position: 'absolute', top: 0, height: 20, left: -offset.current, width: dots.width }}>
         <div {...dots.ovalProps} data-dot-oval="" style={{ position: 'absolute', top: 0, height: 20, left: dots.oval.left, width: dots.oval.width, border: '1px solid #fff', borderRadius: 10, boxSizing: 'border-box' }} />
         {dots.dots.map((d) => <button key={d.id} type="button" {...dots.dotProps(d.id)} style={{ position: 'absolute', top: 6, height: 8, left: d.left, width: d.width, padding: 0, border: 0, borderRadius: 4, background: '#aaa' }} />)}
@@ -217,10 +224,10 @@ requestAnimationFrame(frame);
   op: (name: string, ...args: unknown[]) => latest[name](...args),
   slotCount: () => document.querySelectorAll('[data-row-slot]').length,
   unloadedIds: () => [...document.querySelectorAll<HTMLElement>('[data-row-unloaded]')].map((el) => el.closest<HTMLElement>('[data-row-slot]')!.dataset.rowId!),
-  loadedIds: () => [...document.querySelectorAll<HTMLElement>('[data-box]')].map((el) => el.dataset.box!).filter((id) => id !== ROOT),
+  loadedIds: () => [...mountedNow],
   mounts: () => ({ ...mounts }),
   setCount: (name: string, n: number) => setters[name]?.(n),
-  count: (name: string) => document.querySelector(`[data-count="${name}"]`)?.textContent ?? null,
+  count: (name: string) => (mountedNow.has(name) ? String(counts[name]) : null),
   statuses: () => latest.entries.map((e: any) => `${e.id}:${e.live ? 'live' : 'parked'}`),
   // Where every panel sits along the strip: its drawn left in the window plus the drawn scroll, which a jump changes and a scroll does not.
   stripLefts: () => {
