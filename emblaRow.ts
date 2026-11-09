@@ -538,9 +538,18 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
         owner = null;
       }, quietRef.current);
       if (owner === null) owner = e.altKey ? 'content' : 'row';
+      // A reorder drag's edge scroll is the one writer while it holds the row, and the own row refused every step under a drag's claim:
+      // the wheel is ignored, and a sideways one is still kept from the content, as the plugin would have.
+      const embla = instances.get(win);
+      if (owner === 'row' && embla !== undefined && heldRows.has(embla)) {
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       if (owner === 'content' || win.closest('[inert]') !== null || maximizedIn(win)) e.stopImmediatePropagation();
     };
-    win.addEventListener('wheel', onWheel, { passive: true });
+    // Not passive, so a wheel ignored under a reorder drag can still be cancelled: the plugin's own listener is not passive either.
+    win.addEventListener('wheel', onWheel, { passive: false });
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box }, [WheelGesturesPlugin({ target: win })]);
     instances.set(win, embla);
     markEmblaBuilt(embla);

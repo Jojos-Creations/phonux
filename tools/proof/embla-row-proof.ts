@@ -68,6 +68,9 @@ const arg = (name: string): string | undefined => {
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
 const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open').split(','));
+// `--cases a,b` runs only the named cases of a section (a case's name is in its `want(...)`); every case runs without it.
+const CASES = arg('cases')?.split(',');
+const want = (name: string): boolean => CASES === undefined || CASES.includes(name);
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -1364,7 +1367,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   };
 
   // 1. Held at the right edge for 1 s with no mouse motion, then held mid-row for 1 s (the control), then dropped.
-  {
+  if (want('reorder.edgeHold')) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
     await nameIds(page);
     const win = await g(page, 'win');
@@ -1448,7 +1451,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   }
 
   // 2. Escape mid-drag, after the edge has scrolled the row: the order, the row and every page return to where they were.
-  {
+  if (want('reorder.cancel')) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
     await nameIds(page);
     const win = await g(page, 'win');
@@ -1478,6 +1481,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   // more than half over): the view stays where it was and p7 lands at the edge. (b) The pointer goes into the band, so the row
   // scrolls while it is held: the release settles on the stop nearest where it was let go, and p7 lands whole where it was dropped.
   for (const into of ['outside', 'band'] as const) {
+    if (!want(`reorder.leftEdge.${into}`)) continue;
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
     await nameIds(page);
     await g(page, 'jumpToSlot', 5);
@@ -1546,7 +1550,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   }
 
   // 4. Keys on the grab strip: ArrowRight moves the page one place and leaves the row where it is; a page moved out of view comes into it.
-  {
+  if (want('reorder.keys')) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
     await nameIds(page);
     const order0: string[] = await g(page, 'order');
@@ -1583,7 +1587,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   }
 
   // 5. The root's rules: p1 dragged a slot and a half left, over the root, lands where the own row lands it.
-  {
+  if (want('reorder.rootRule')) {
     const orders: Record<string, string> = {};
     for (const engine of ['embla', 'own']) {
       // No parking here: the own row parks a page at the cap, and the reference must draw all 25 slots as the Embla row does.
@@ -1601,7 +1605,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   }
 
   // 6. Reduce Motion: the edge hold jumps rest to rest, the page stays under the pointer, the drop lands at once on the grid.
-  {
+  if (want('reorder.reduced')) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY, ENGINE, { reducedMotion: 'reduce' });
     const win = await g(page, 'win');
     await g(page, 'record');
@@ -1631,6 +1635,74 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     if (r.dropMovingFrames > 2) failed.push(`reorder reduced: the dropped page moved along the strip in ${r.dropMovingFrames} frames after the release (want at once)`);
     if (!(r.holdTravelPx >= PITCH) || r.holdMovingFrames > 3 || r.worstDriftPx > 0.5 || r.settleMovingFrames > 2 || !r.restOnGrid || r.orderChanges !== 1 || r.blankFrames > 0) failed.push(`reorder reduced: hold moved ${r.holdTravelPx} px in ${r.holdMovingFrames} frames (want jumps of a slot), drift ${r.worstDriftPx} px, ${r.settleMovingFrames} frames of settle, rest ${r.rest} grid ${r.restOnGrid}, ${r.orderChanges} commits, ${r.blankFrames} blank frames`);
     if (errors.length > 0) failed.push(`reorder reduced: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+
+  // 7. A wheel during a reorder drag: the own row refuses every step while a drag holds it (`glideTo` is false under a claim), so the
+  // wheel is ignored here too. p3 held 200 px right of its press, mid-row, then 40 sideways wheels of 12 px: the row stays where it
+  // is, Embla's own drag never engages, the page stays under the pointer, and the drop lands on the stop nearest the release. The
+  // same stream after the drop must move the row (the control: the wheels did reach the row).
+  if (want('reorder.wheel')) {
+    const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
+    const order0: string[] = await g(page, 'order');
+    await g(page, 'record');
+    const commits0 = await g(page, 'orderChanges');
+    const downs0 = (await g(page, 'emblaEvents')).pointerDown;
+    const at = await press(page, 'p3');
+    await glideMouse(page, at, at.x + 200);
+    await sleep(150);
+    const w0 = await g(page, 'mark');
+    for (let k = 0; k < 40; k += 1) {
+      await page.mouse.wheel(12, 0);
+      await sleep(16);
+    }
+    await sleep(300);
+    const w1 = await g(page, 'mark');
+    const downsHeld = (await g(page, 'emblaEvents')).pointerDown - downs0;
+    await page.mouse.up();
+    await sleep(1500);
+    const d1 = await g(page, 'mark');
+    for (let k = 0; k < 40; k += 1) {
+      await page.mouse.wheel(12, 0);
+      await sleep(16);
+    }
+    await sleep(1500);
+    const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, 'reorder-wheel-frames.json'), JSON.stringify({ w0, w1, d1, offset: at.offset, frames: fr }));
+    const held = fr.slice(0, w1);
+    const wheeling = fr.slice(w0, w1);
+    const released = fr[w1 - 1];
+    const landed = fr[d1 - 1];
+    const max = await g(page, 'max');
+    const pos0 = fr[0].pos;
+    const order1: string[] = await g(page, 'order');
+    const landStrip = landed.drawn.p3.x + landed.pos;
+    const releasedStrip = released.boxX.p3 + released.pos;
+    const nearest = Math.min(max, Math.round(released.pos / PITCH) * PITCH);
+    const r = {
+      wheelFrames: wheeling.length,
+      wheelsSeen: wheeling.reduce((n: number, f: any) => n + (f.wheels ?? 0), 0),
+      rowMaxMoveHeldPx: +Math.max(0, ...held.map((f: any) => Math.abs(f.pos - pos0))).toFixed(2),
+      emblaPressFramesHeld: held.filter((f: any) => f.emblaPress).length,
+      emblaPointerDownsHeld: downsHeld,
+      worstDriftWheelPx: +driftOf(wheeling, 'p3', at.offset).toFixed(2),
+      rowAtRelease: +released.pos.toFixed(1),
+      rowAfterDrop: +landed.pos.toFixed(1),
+      nearestStop: nearest,
+      releasedStripPx: +releasedStrip.toFixed(1),
+      landedStripPx: +landStrip.toFixed(1),
+      orderAsLanded: order1.join(',') === orderWith(order0, 'p3', Math.round(landStrip / PITCH)).join(','),
+      orderChanges: (await g(page, 'orderChanges')) - commits0,
+      controlTravelPx: +Math.max(0, ...fr.slice(d1).map((f: any) => Math.abs(f.pos - landed.pos))).toFixed(1),
+    };
+    res.wheelDuring = r;
+    if (r.wheelFrames < 20) empty.push(`reorder wheelDuring: ${r.wheelFrames} frames over the wheel stream`);
+    if (!(r.controlTravelPx >= 100)) empty.push(`reorder wheelDuring control: the same wheel stream after the drop moved the row at most ${r.controlTravelPx} px, so the wheels never reached it`);
+    if (r.rowMaxMoveHeldPx > 0.5 || r.emblaPressFramesHeld > 0 || r.emblaPointerDownsHeld > 0) failed.push(`reorder wheelDuring: a wheel during the drag moved the row ${r.rowMaxMoveHeldPx} px (want 0, as the own row), Embla's own drag pressed in ${r.emblaPressFramesHeld} frames, ${r.emblaPointerDownsHeld} pointerDown`);
+    if (r.worstDriftWheelPx > 0.5) failed.push(`reorder wheelDuring: the dragged page drifts ${r.worstDriftWheelPx} px from the pointer while the wheel runs`);
+    if (Math.abs(r.rowAfterDrop - nearest) > 0.5 || !onGrid(landed.pos, PITCH, max) || Math.abs(landStrip - releasedStrip) > PITCH / 2 || !r.orderAsLanded || r.orderChanges > 1) failed.push(`reorder wheelDuring drop: released at ${r.rowAtRelease}, rests at ${r.rowAfterDrop} (nearest stop ${nearest}); p3 released at strip ${r.releasedStripPx}, landed ${r.landedStripPx}; order as landed ${r.orderAsLanded}, ${r.orderChanges} commits`);
+    if (errors.length > 0) failed.push(`reorder wheelDuring: page errors ${errors.join(' | ')}`);
     await close();
   }
   out.reorder = res;
