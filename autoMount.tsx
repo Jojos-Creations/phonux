@@ -139,6 +139,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
     phoneWidth,
     containerWidth,
     overflowContainerRef: ref,
+    rowEngine: binding.rowEngine,
   });
   const host: HostInput = {
     panels: hostPanelsOf(provided),
@@ -149,7 +150,7 @@ function AutoBody({ workspace, columnTop, columnBottom }: { workspace: Workspace
   };
   const Wrap = binding.wrap;
   const row = (
-    <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} heightBudget={phone.heightBudget} {...(topPadding !== undefined ? { topPadding } : {})} {...(bottomPadding !== undefined ? { bottomPadding } : {})} {...workspaceProps(provided, workspace)}>
+    <Workspace rowEngine={binding.rowEngine} {...(binding.rowNearSlots !== undefined ? { rowNearSlots: binding.rowNearSlots } : {})} overflowContainerRef={ref} rowRef={rowRef} containerWidth={containerWidth} phoneWidth={phoneWidth} phoneHeight={phone.height} heightBudget={phone.heightBudget} {...(topPadding !== undefined ? { topPadding } : {})} {...(bottomPadding !== undefined ? { bottomPadding } : {})} {...workspaceProps(provided, workspace)}>
       <PanelRow {...rowProps(provided, workspace)} />
     </Workspace>
   );
