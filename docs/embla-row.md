@@ -413,6 +413,38 @@ Mutants: no subscription to the row's notices (marks only after a commit) fails 
 press 781 slot-frames, and p20 refuses focus); the deferral dropped (`whenEmblaFree` runs at once while held) fails 2 (under the held drag the row
 glides off to 8481 px, and after the release rests at 8526 with the page out of view).
 
+## Second audit fixes (after step 8)
+
+An independent audit at 2c8d40b found these; each check below fails on a `git archive 2c8d40b` extract with the new proof copied in,
+passes now, and fails again with one mutant of its fix (each from a `git archive` of its commit). `--cases a,b` runs named cases of a
+section (`reorder.wheel`, `width.shrinkAsidePresented`, `blank.summon`, ...).
+
+- Wheel during a reorder drag (`--cases reorder.wheel`). The wheel-gestures plugin took the wheel while the reorder hold wrote the row, so
+  Embla's own drag ran beside the one writer. The own row refuses every step while a drag holds its claim (`glideTo` is false under a
+  claim), so that is the behaviour kept: the wheel listener (registered before the plugin's, now not passive like the plugin's) stops a
+  wheel while `holdEmbla` holds the row and cancels a sideways one. 24 parkable pages, cap 8, p3 held 200 px right, 40 wheels of 12 px:
+  at 2c8d40b the row moved 480.5 px, Embla's drag pressed in 174-176 frames (1 pointerDown), the page drifted 5.1-6.0 px off the pointer
+  while the wheel ran, and the drop rested at 812 (nearest stop 406). Now 0 px, 0 frames, 0 px drift, rests at 0. Control: the same stream
+  after the drop moves the row (168.5 px peak). Mutant (the hold test dropped): fails 3.
+- shrinkAside on presented frames (`--cases width.shrinkAsidePresented`, CDP screencast on a magenta page). A 400 ms main-thread block
+  mid-shrink settled the cause: p1's right edge kept moving (762 px) while p2 stood still, so the size box's scale ran on the compositor
+  and the slot glides (composite 'add') did not. On an Embla row `PanelSizeBox` now adds its scale to the box's own transform
+  (composite 'add', which Chrome keeps on the main thread) with `transform-origin` on the box's style for the run; the earlier attempt
+  animated the origin additively too, which summed with the base origin. Widest band between two pages in any presented frame: 137 px at
+  2c8d40b (77 px in the audit's run), 16 px now (one gap; the limit is 24); the layout measure stays 0.01 px. Under the same block p1 and
+  p2 now freeze together (20 px). A clip-kind size box (reveal) on Embla runs on Motion's frame loop instead. Mutant (the box back on
+  the compositor): 77 px, fails.
+- Summon band (`--cases blank.summon`, now failing on a band wider than 16 + 8 px; it was recorded, not failed). The page leaving the
+  slot the pinned root glides into stays at its rest through its exit (`setStayingExit`, read by the slot's exit) and is cut back from
+  the root's side by a clip on the root's curve and clock; the gap between root and page closes as the root lands, so root, page and
+  next page never show two gaps at once. Widest band: 220 / 228 px at 2c8d40b (cap 8 / 4, 25-26 of 39 frames), 16 / 16 px now. Reduce
+  Motion: no glide and no cut, both land at once (the summon section's reduced case passes). Mutant (the leaving page runs its own
+  exit): 220 / 216 px, fails. The cut alone (no clip, page held) also reads 16 px: the root then slides over the page instead of beside
+  it; that difference is seen in the screenshots (`summon-left-mid.png`), not by a pixel check.
+
+Not done in this pass (left for the next): dismiss beside a cut 4-slot page landing on the page's left edge (item 4); the reorder proof
+tightening, the reduced-motion checks and the AHEAD_STEPS=0 mutant (item 5); the step-8 API loose ends listed below (item 6).
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
 - Reorder on Embla: a wide (two-slot or wider) page dragged, a drag held at the left edge to the strip's start, a touch drag and a
