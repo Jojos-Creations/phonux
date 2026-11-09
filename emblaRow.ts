@@ -746,7 +746,9 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       const dx = e.deltaX * unit;
       if (run.acted || Math.abs(dx) <= Math.abs(e.deltaY * unit)) return;
       const at = emblaTargetOf(embla);
-      const by = Math.min(Math.max(0, at + dx), emblaMaxOf(embla)) - at;
+      // Never back toward an end the drag has stretched past: that pull ran against the wheel, turned the gesture's direction, and its
+      // rest went on to the stop inside the strip (406 px off the start after a long grind past it).
+      const by = Math.min(Math.max(Math.min(0, at), at + dx), Math.max(emblaMaxOf(embla), at)) - at;
       if (Math.abs(by) > 0.01) wheelMove(embla, run, run.x - by);
     };
     win.addEventListener('wheel', onWheelAfter, { passive: true });

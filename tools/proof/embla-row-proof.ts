@@ -827,6 +827,9 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       rest: +rest.toFixed(1),
       restFromEndPx: +Math.abs(rest - end).toFixed(1),
       drawnPastEndPx: +Math.max(0, ...fr.map((f: any) => (f.pos - end) * c.dir)).toFixed(1),
+      // Embla's target's largest step against the scroll in one frame while the wheel holds the press (Embla's edge resistance takes
+      // up to 26 px a frame off a stretch; a pull back to the end or a jump to the gesture's start is hundreds).
+      pressedTargetBackPx: +Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.emblaPress && fr[k].emblaPress ? (fr[k].tgt - f.tgt) * c.dir : 0))).toFixed(1),
       // Embla's target's largest step back against the scroll in one frame, and where it went.
       targetJump: fr.slice(1).reduce((w: [number, number], f: any, k: number) => ((fr[k].tgt - f.tgt) * c.dir < w[0] ? [+((fr[k].tgt - f.tgt) * c.dir).toFixed(1), +f.tgt.toFixed(1)] : w), [0, startPx] as [number, number]),
     };
@@ -835,6 +838,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (label.startsWith('end') && r.pastEndPx < 600) empty.push(`settle ${label}: only ${r.pastEndPx} px of wheel past the end`);
     if (label.startsWith('end') && r.restFromEndPx > 0.5) failed.push(`settle ${label}: scrolled into the end at ${r.end}, rests at ${r.rest} (${r.restFromEndPx} px from it)`);
     if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved back into the strip against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
+    if (r.pressedTargetBackPx > 50) failed.push(`settle ${label}: while the wheel held the press, Embla's target stepped ${r.pressedTargetBackPx} px against the scroll in one frame`);
     if (c.rootFar === true && order[0] === 'root') empty.push(`settle ${label}: the Workspace is still the first page`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
     await close();
