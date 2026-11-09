@@ -322,12 +322,13 @@ export interface EngineBinding {
   attach(owner: object): void;
   /** The hook that held the workspace unmounted; the panels stay answerable. */
   detach(owner: object): void;
+  /** Tells the workspace the list this render draws, so a view mounting in it can read its own panel before the commit publishes. Idempotent; changes no snapshot. */
+  observe(entries: readonly PanelWindow[], held: { has(engineId: string): boolean }): void;
   /**
-   * Tells the workspace the list this render draws, so a view mounting in it can read its own panel before the commit publishes.
-   * Idempotent; changes no snapshot. `owner` is the object the hook attaches with: while another hook holds the workspace the call
-   * is ignored, so a second hook that renders and then fails to attach never replaces the attached row's list.
+   * Whether a hook other than `owner` (the object a hook attaches with) holds the workspace. Such a hook will fail to attach, so it
+   * must not `observe`: its list would replace the attached row's, and every view that row draws afterwards would find no handle.
    */
-  observe(owner: object, entries: readonly PanelWindow[], held: { has(engineId: string): boolean }): void;
+  heldByOther(owner: object): boolean;
   /** Records a commit and publishes a new snapshot when it changed something. */
   publish(commit: EngineCommit): void;
   /** Subscribes to tuning changes for `useSyncExternalStore`. */
@@ -1247,10 +1248,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       if (status !== 'disposed') status = 'detached';
       refresh();
     },
-    observe: (who, entries, held) => {
-      if (status === 'disposed' || (owner !== undefined && owner !== who)) return;
-      observed = { entries, held };
+    observe: (entries, held) => {
+      if (status !== 'disposed') observed = { entries, held };
     },
+    heldByOther: (who) => owner !== undefined && owner !== who,
     publish: (c) => {
       if (status === 'disposed' || owner === undefined) return;
       committed = { entries: c.entries, held: c.held };

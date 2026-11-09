@@ -513,7 +513,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The attach token, made before the first observe: a hook that renders while another holds the workspace (and then fails to
   // attach) must not replace that row's list, or every view the row draws afterwards finds no handle.
   const attachOwner = useRef({});
-  core.observe(attachOwner.current, panels, heldIds);
+  if (!core.heldByOther(attachOwner.current)) core.observe(panels, heldIds);
 
   // A shown panel the page asked for, whether it was parked or already live out of view, is scrolled to once it is in.
   const activatePanel = (id: string): void => {
