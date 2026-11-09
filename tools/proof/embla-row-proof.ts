@@ -242,13 +242,15 @@ async function stream(name: string, slots: string, D: number, send: (page: Page)
   await close();
   return row;
 }
-// Same speed over narrow, wide and mixed: within 2% of each other, and within the wheel's speed curve (SLOW_SPEED to FAST_SPEED row
-// px per wheel px, emblaWheelFeel.ts).
+// Same speed over narrow, wide and mixed, and within the wheel's speed curve (SLOW_SPEED to FAST_SPEED row px per wheel px,
+// emblaWheelFeel.ts): within 2% of each other at the curve's flat ends, 5% on its ramp, where each run's own wheel timing sets the
+// rate (page.mouse.wheel lands about every 49 ms, two wheels in the rate's 100 ms).
 function speedCheck(label: string, rows: Record<string, any>): void {
   const v = Object.values(rows).map((r) => r.pxPerInputPx as number);
   const spread = (Math.max(...v) - Math.min(...v)) / Math.max(...v);
   (rows as any).spread = +spread.toFixed(4);
-  if (spread > 0.02) failed.push(`${label}: narrow/wide/mixed spread ${(spread * 100).toFixed(1)}% > 2%`);
+  const flat = v.every((x) => Math.abs(x - SLOW_SPEED) <= 0.01 || Math.abs(x - FAST_SPEED) <= 0.01);
+  if (spread > (flat ? 0.02 : 0.05)) failed.push(`${label}: narrow/wide/mixed spread ${(spread * 100).toFixed(1)}% > ${flat ? 2 : 5}%`);
   for (const [k, x] of Object.entries(v)) if (x < SLOW_SPEED - 0.03 || x > FAST_SPEED + 0.03) failed.push(`${label}: ${Object.keys(rows)[Number(k)]} moves ${x} px per input px, outside ${SLOW_SPEED}-${FAST_SPEED}`);
 }
 
@@ -270,10 +272,11 @@ if (ONLY.has('wheel')) {
     speedCheck(`wheel D${D}`, rows);
     wheel[`D${D}`] = rows;
   }
-  // A faster wheel moves the row further per wheel px (the speed curve), on every row.
+  // A faster wheel moves the row no less per wheel px (the speed curve: D6 and D12 both sit at its slow end), and D24, on its ramp,
+  // further, on every row.
   for (const name of Object.keys(ROWS)) {
     const at = (D: number): number => (wheel[`D${D}`] as any)[name].pxPerInputPx;
-    if (!(at(6) < at(12) && at(12) < at(24))) failed.push(`wheel ${name}: px per input px ${at(6)}, ${at(12)}, ${at(24)} at D6, D12, D24 does not rise with the wheel's speed`);
+    if (!(at(12) >= at(6) - 0.01 && at(24) >= at(12) - 0.01 && at(24) > at(6) + 0.02)) failed.push(`wheel ${name}: px per input px ${at(6)}, ${at(12)}, ${at(24)} at D6, D12, D24 does not rise with the wheel's speed`);
   }
   out.wheel = wheel;
 }
