@@ -797,7 +797,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     return r;
   };
   const row = Array(24).fill(1).join(',');
-  {
+  if (want('summon.fromLeft')) {
     // Summon from the left, eight pages left of the root, the view at p14..p17.
     const { page, errors, close } = await open(row);
     if (!(await placeRoot(page, 8))) empty.push('summon: the root could not be placed with pages left of it');
@@ -851,7 +851,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail('left', `page errors ${errors.join(' | ')}`);
     await close();
   }
-  {
+  if (want('summon.fromRight')) {
     // Summon from the right with the view at the start, then a dot press carrying the root out.
     const { page, errors, close } = await open(row, 1800, 900, '&bar=0');
     if (!(await placeRoot(page, 8))) empty.push('summon: the root could not be placed');
@@ -886,7 +886,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail('right', `page errors ${errors.join(' | ')}`);
     await close();
   }
-  {
+  if (want('summon.asideResize')) {
     // Step-aside on a window resize: the root beside a three-slot page; the window narrows from four slots to three.
     const { page, errors, close } = await open('3,1,1,1,1,1,1,1');
     const a = await step(page, 'asideResize', () => page.setViewportSize({ width: 1400, height: 900 }), []);
@@ -911,7 +911,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail('asideResize', `page errors ${errors.join(' | ')}`);
     await close();
   }
-  {
+  if (want('summon.asideSize')) {
     // Step-aside on a size pick: the page beside the root picked four slots wide in a four-slot window; a summon, then a dismiss.
     const { page, errors, close } = await open('2,1,1,1,1,1,1,1');
     const a = await step(page, 'asideSize', async () => g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 4), []);
@@ -929,6 +929,28 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     res.summonAside = s;
     res.dismissAside = d;
     if (errors.length > 0) fail('asideSize', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  if (want('summon.asideCut')) {
+    // The same step-aside, then a step away so the four-slot page is cut by the left edge: a summon and its dismiss give that view back
+    // (the app's "wide returns": the dismiss rested on the page's left edge instead).
+    const { page, errors, close } = await open('2,1,1,1,1,1,1,1');
+    await g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 4);
+    await sleep(1200);
+    await page.keyboard.press('ArrowRight');
+    await sleep(1200);
+    const m = await shown(page);
+    const was = visible(m, (await g(page, 'win')).width).map((id) => `${id}@${Math.round(m[id]!.x)}`).join(' ');
+    if (m.root !== undefined || m.p1 === undefined || Math.abs(m.p1.x + PITCH) > 1) empty.push(`summon asideCut: setup is not the root aside with p1 cut one slot (${was})`);
+    const s = await step(page, 'asideCutSummon', () => g(page, 'summon'), []);
+    const ms = await shown(page);
+    if (ms.root?.x !== 0 || s.rootView !== 'summoned') fail('asideCutSummon', `root at ${ms.root?.x}, ${s.rootView}`);
+    const d = await step(page, 'asideCutDismiss', () => g(page, 'dismiss'), []);
+    const md = await shown(page);
+    const now = visible(md, (await g(page, 'win')).width).map((id) => `${id}@${Math.round(md[id]!.x)}`).join(' ');
+    if (md.root !== undefined || d.rootView !== 'away' || now !== was) fail('asideCutDismiss', `view ${now} (root ${md.root === undefined ? 'off' : md.root.x}, ${d.rootView}); was ${was}`);
+    res.asideCut = { was, summoned: s.visibleAfter, now };
+    if (errors.length > 0) fail('asideCut', `page errors ${errors.join(' | ')}`);
     await close();
   }
   // A summon or a dismiss pressed while the row glides, and while a mouse drag holds it: the view rests where the press asks, from where
@@ -953,7 +975,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
     await close();
   }
-  {
+  if (want('summon.pressDuring')) {
     const { page, errors, close } = await open(row);
     if (!(await placeRoot(page, 8))) empty.push('summon dismissMidGlide: the root could not be placed');
     await g(page, 'jumpToSlot', 14);
@@ -1015,7 +1037,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
     await close();
   }
-  {
+  if (want('summon.reduced')) {
     // Under Reduce Motion the summon, the dismiss, an arrow key and a step-aside land at once (at most two places drawn per page),
     // still keep-still and on the grid (the `step` checks).
     const places = (fr: any[], id: string): number => new Set(fr.map((f: any) => f.named[id]?.x).filter((x: any) => x !== undefined).map((x: number) => Math.round(x))).size;
@@ -1047,7 +1069,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (a.errors.length > 0) fail('reducedAside', `page errors ${a.errors.join(' | ')}`);
     await a.close();
   }
-  {
+  if (want('summon.unrelatedClose')) {
     // A root brought back by a wheel toward it stays when a far page closes: only a window, size or neighbor change steps it aside.
     const { page, errors, close } = await open('3,1,1,1,1,1,1,1');
     await page.setViewportSize({ width: 1400, height: 900 });

@@ -663,9 +663,13 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const now = stripNow();
     if (now === null || stripSummon !== null) return false;
     if (stripAside !== null) {
-      // Drawn again beside the panel that stepped it aside, which moves over by the root's slot.
+      // Drawn again beside the panel that stepped it aside, which moves over by the root's slot. The dismiss steps it aside again and
+      // rests that panel where it is drawn now, so a view that cut it comes back cut, not on its edge.
+      const j = now.layout.ids.indexOf(stripAside.id);
+      const left = j < 0 ? 0 : now.layout.lefts[j]! - now.at;
+      const edge = j < 0 ? null : stripAside.side === 'left' ? { id: stripAside.id, edge: 'left' as const, screen: left } : { id: stripAside.id, edge: 'right' as const, screen: now.windowWidth - left - now.layout.widths[j]! };
       setStripAside(null);
-      setStripSummon({ side: stripAside.side, parks: [], edge: null, aside: stripAside });
+      setStripSummon({ side: stripAside.side, parks: [], edge, aside: stripAside });
       markEmblaRow(now.el, { pin: { id: rootId, edge: stripAside.side, screen: 0 }, reveal: null });
       return true;
     }
@@ -681,7 +685,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     setStripSummon(null);
     if (stripSummon.aside !== null) {
       setStripAside(stripSummon.aside);
-      markEmblaRow(el, { pin: null, reveal: stripSummon.aside.id });
+      markEmblaRow(el, stripSummon.edge !== null ? { pin: stripSummon.edge, reveal: null } : { pin: null, reveal: stripSummon.aside.id });
     } else markEmblaRow(el, { pin: stripSummon.edge, reveal: null });
     return true;
   };
