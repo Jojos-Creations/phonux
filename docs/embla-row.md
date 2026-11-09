@@ -223,21 +223,21 @@ at once and the keep-still rule decides the scroll). What step 5 changed:
 Embla internals: none new.
 
 Measured (`embla-row-proof.ts --only width`, 1800 x 900, root and 12 pages `1,1,2,1,3,1,1,2,1,1,1,1` (17 slots), window of four
-slots; per frame from before the change to its rest). The first five rows fail on b2a749a with the switch on (7 failures, run from a
+slots; per frame from before the change to its rest). The four rows below fail on b2a749a with the switch on (7 failures, run from a
 `git archive b2a749a` extract with this proof copied in) and pass now:
 
 | case | b2a749a | now |
 | --- | --- | --- |
-| shrink the left-edge two-slot page at the strip's end (`1,1,2,1,3,1,1,2,1,1`) | its left edge jumps 406 px in one frame, the page shrinks over its neighbor | left edge eases 406 px, worst frame 30.5, last-3-frame max 1.07 vs median 8.67; p9, p10 move 0 px; p7 stays one gap behind |
-| shrink a two-slot page mid-view at the strip's end | jumps 406 px in one frame | eases, worst frame 30.6; p12 moves 0 px; p10 one gap behind (0 px off) |
+| shrink the left-edge two-slot page at the strip's end (`1,1,2,1,3,1,1,2,1,1`) | its left edge jumps 406 px in one frame, the page shrinks over its neighbor | left edge eases 406 px, worst frame 33.6, last-3-frame max 0.76 vs median 8.6; p9, p10 move 0 px; p7 stays one gap behind |
+| shrink a two-slot page mid-view at the strip's end | jumps 406 px in one frame | eases, worst frame 30.8, last-3-frame max 0.83 vs median 8.81; p12 moves 0 px; p10 one gap behind (0 px off) |
 | p1 4 > 2 slots with the root stepped aside (`2,1,1,1,1,1,1,1`) | root appears under p1, p2 812 px off p1, p1's right edge steps back in 2 frames | root slides in one gap before p1, p2 one gap after (0.01 px), right edge monotonic |
-| maximize p3, 40 wheels + ArrowRight, restore | the row moves 406 px behind it; pages behind move 478.5 px; restore lands elsewhere | row 812 > 812; pages behind 0 px; same view; restore last-3-frame max 1.1 vs median 10.7 |
+| maximize p3, 40 wheels + ArrowRight, restore | the row moves 406 px behind it; pages behind move 478.5 px; restore lands elsewhere | row 812 > 812; pages behind 0 px; same view; restore last-3-frame max 1.0 vs median 11.4 |
 
 Guards that already passed on b2a749a (the behaviour was right; kept so a later change cannot break it): a page growing in view and at
 the window's left edge, narrowing in view, a two-slot page cut by the left edge narrowing (it leaves the view, the pages after it
 slide over one gap behind), a page growing under an ArrowRight glide (rests at 1218, no step back) and under a wheel stream (worst step
-back 0.21 px, as the stream alone), and with the Workspace summoned (root moves 0 px, summon stands). In all: changing edge one way,
-worst frame 30-34 px of 406, last-3-frame max under 1.2 px against a median of 8-9 px, 0 frames cutting a one-slot page standing on
+back 0.24 px, as the stream alone), and with the Workspace summoned (root moves 0 px, summon stands). In all: changing edge one way,
+worst frame 30.6-34.2 px of 406, last-3-frame max under 1.2 px against a median of 7.9-9.3 px, 0 frames cutting a one-slot page standing on
 the grid, every rest on the grid.
 
 Look at the screenshots (`width-*-mid.png`): at the strip's end the pages left of the narrowing page slide right with it, the page on
