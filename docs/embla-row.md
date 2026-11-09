@@ -912,7 +912,8 @@ Mutants:
 
 Gates (2026-11-09): full proof, all sections, at 918ebea: failed only the resumed-burst check then in place, on notch80 and notch300,
 whose frames before the burst were the quiet gap's dip, not a coast (fixed in the check, 2f31ad1; code unchanged since a3e8cac);
-`--only settle` at 2f31ad1 three times: failed [] and empty [] each time. Library suite: 3,291 tests, 3,290 pass, 0 fail, 1 skip,
+`--only settle` at 2f31ad1 three times: failed [] and empty [] each time; full proof, all sections, at 6a06e92: failed [] and
+empty []. Library suite: 3,291 tests, 3,290 pass, 0 fail, 1 skip,
 265 of 265 files (3,286 before; 5 added in test/embla-wheel-feel.test.ts). embla-internals-contract: 2 of 2 pass; it now also checks
 `scrollBody.velocity`. blank-trials `cast glide 3 12`: 0 blank (203 presented frames); `cast hidden 2 12`: fails, as it must (2 of 2
 trials blank).
