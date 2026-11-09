@@ -37,7 +37,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaDrawnOf, emblaMarkOf, emblaOf, emblaScrollOf, emblaWindowOf, keptScroll, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaMarkOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -156,9 +156,10 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
  * the commit's shared start, the clock a size box eases on, so a page and its neighbors stay one gap apart in every frame. On a marked
  * commit a panel coming back onto the strip in view fades in where it lands, except `slideIn`, which comes in over its edge.
  */
-function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, glides: boolean, slide: SlideTuning, slideIn: { id: string; edge: 'left' | 'right' } | null): void {
+function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, glides: boolean, slide: SlideTuning, slideIn: { id: string; edge: 'left' | 'right' } | null, reduced: boolean): void {
   const nodeOf = (id: string): HTMLElement | null => box.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
-  const durationMs = slide.durationSec * 1000;
+  // Under Reduce Motion every slot lands where it goes at once; a leaving one still runs its exit from where it was drawn.
+  const durationMs = reduced ? 0 : slide.durationSec * 1000;
   const glide = (node: HTMLElement | null, frames: Keyframe[]): void => {
     if (node === null || typeof node.animate !== 'function' || durationMs <= 0) return;
     const anim = node.animate(frames, { duration: durationMs, easing: `cubic-bezier(${slide.ease.join(',')})`, composite: 'add', fill: 'backwards' });
@@ -449,9 +450,11 @@ export function PanelRow({
   const lastLayout = React.useRef<StripLayout | null>(null);
   const lastWindow = React.useRef<number | null>(null);
   // What the first commit of this task started from: what was painted, when a later commit in the same task glides.
-  const shownRef = React.useRef<{ layout: StripLayout; scroll: number; task: object } | null>(null);
+  const shownRef = React.useRef<{ layout: StripLayout; drawn: number; task: object } | null>(null);
   const emblaNow = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
   const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
+  // Where the strip is drawn this frame, which a glide's location runs ahead of: slots that move on screen glide from here.
+  const drawnScrollNow = emblaNow === undefined ? 0 : emblaDrawnOf(emblaNow);
   // Only a render that changed the strip or the window keeps the view: any other one (a pulled-past-the-end drag included, which
   // the clamp would snap back) leaves the row where it is.
   // A summon, a dismiss or a step-aside of the root marks the commit that draws it with where the view rests (`markEmblaRow`).
@@ -476,9 +479,11 @@ export function PanelRow({
   // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
   const nearSlots = React.useContext(RowNearContext);
   const loadedRef = React.useRef<ReadonlySet<string> | null>(null);
-  const loadedAt = (scroll: number): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: emblaWindow.width, pitch: phoneWidth + gap, gap, near: nearSlots, limit: workspaceTuning.maxLivePanels, unloadable: (id) => present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current });
-  const loadedNow = onEmbla ? loadedAt(keepTo) : null;
+  // What a glide brings into view in the next frames counts as shown, so it is loaded before it enters the view, whatever the cap.
+  const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
+    loadedNear({ layout: layoutNow, scroll, windowWidth: emblaWindow.width, pitch: phoneWidth + gap, gap, near: nearSlots, limit: workspaceTuning.maxLivePanels, unloadable: (id) => present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
+  // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
+  const loadedNow = onEmbla ? (emblaNow === undefined || marked ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow)) : null;
   loadedRef.current = loadedNow;
   const loadedAtRef = React.useRef(loadedAt);
   loadedAtRef.current = loadedAt;
@@ -489,7 +494,7 @@ export function PanelRow({
       const embla = windowRef.current === null ? undefined : emblaOf(windowRef.current);
       const was = loadedRef.current;
       if (embla === undefined || was === null) return;
-      const next = loadedAtRef.current(emblaDrawnOf(embla));
+      const next = loadedAtRef.current(emblaDrawnOf(embla), emblaAheadOf(embla), emblaTargetOf(embla));
       if (next.size !== was.size || [...next].some((id) => !was.has(id))) reload();
     });
   }, [onEmbla]);
@@ -596,16 +601,20 @@ export function PanelRow({
     const restop = lastStops.current !== null && lastStops.current !== stopsKey;
     // The markers or the window changed in this commit: Embla rebuilds its stops from them, and the row keeps the view (a shift)
     // from where it is drawn, a glide in flight included.
-    if (embla !== undefined && (keeping || restop)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop);
+    if (embla !== undefined) setEmblaReduced(embla, reducedMotion);
+    // A marked commit rests the view where the mark says, also mid-glide: the glide's target is not added to it.
+    if (embla !== undefined && (keeping || restop || marked)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop, marked ? keepTo : null);
     if (embla !== undefined) lastStops.current = stopsKey;
     if (marked) lastMark.current = mark.seq;
     if (embla !== undefined && lastLayout.current !== null && (keeping || marked) && boxRef.current !== null) {
       // Two commits in one task (a width change, then the root it lets back beside the page) paint once: glide from what was painted.
-      const shown = shownRef.current !== null && shownRef.current.task === taskToken() ? shownRef.current : { layout: lastLayout.current, scroll: scrollNow };
+      const shown = shownRef.current !== null && shownRef.current.task === taskToken() ? shownRef.current : { layout: lastLayout.current, drawn: drawnScrollNow };
       const slideIn = marked && mark.pin !== null && !shown.layout.ids.includes(mark.pin.id) ? { id: mark.pin.id, edge: mark.pin.edge } : null;
-      arriveAndLeave(boxRef.current, shown.layout, layoutNow, shown.scroll, keepTo, emblaWindow.width, gap, marked, marked || widthGlide, rowTuning.slide, slideIn);
+      // Drawn after this commit: the mark's rest, or where the strip was drawn moved by the keep's shift.
+      const drawnTo = marked ? keepTo : drawnScrollNow + keepTo - scrollNow;
+      arriveAndLeave(boxRef.current, shown.layout, layoutNow, shown.drawn, drawnTo, emblaWindow.width, gap, marked, marked || widthGlide, rowTuning.slide, slideIn, reducedMotion);
     }
-    if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken())) shownRef.current = { layout: lastLayout.current, scroll: scrollNow, task: taskToken() };
+    if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken())) shownRef.current = { layout: lastLayout.current, drawn: drawnScrollNow, task: taskToken() };
     lastLayout.current = layoutNow;
     lastWindow.current = emblaWindow.width;
     if (onEmbla && windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap });

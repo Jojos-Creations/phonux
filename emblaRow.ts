@@ -148,22 +148,26 @@ export function markEmblaBuilt(embla: EmblaCarouselType): void {
  * wheel gesture in progress (it rebuilds the drag handler and the wheel plugin), so while one holds the row the shift is applied
  * in place and the rebuild waits for its release (`releaseEmbla`). Shifting or keeping a position that is not a stop uses
  * Embla's internal engine, which 8.6 is pinned for; a jump at rest to a stop uses the public `scrollTo`.
+ *
+ * `land` (a marked commit: a summon, a dismiss, a step-aside) is where the view rests, in scroll px of the new strip: the row is put
+ * there at once, a glide in flight ends, and the slots that moved on screen glide from where they were drawn (`arriveAndLeave`). The
+ * glide's own target is not added to it: the mark already names where the view goes.
  * @internal
  */
-export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boolean): void {
+export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boolean, land: number | null = null): void {
   const e = embla.internalEngine();
   if (e.dragHandler.pointerDown()) {
     if (Math.abs(shift) > 0.01) shiftEmbla(embla, shift);
     if (restop) rebuildWaiting.add(embla);
     return;
   }
-  const drawn = emblaDrawnOf(embla) + shift;
+  const drawn = land ?? emblaDrawnOf(embla) + shift;
   const target = -e.target.get() + shift;
-  const gliding = Math.abs(e.target.get() - e.location.get()) > 0.5 || Math.abs(e.location.get() - e.offsetLocation.get()) > 0.5;
+  const gliding = land === null && (Math.abs(e.target.get() - e.location.get()) > 0.5 || Math.abs(e.location.get() - e.offsetLocation.get()) > 0.5);
   if (restop) {
     embla.reInit();
     markEmblaBuilt(embla);
-  } else if (Math.abs(shift) <= 0.01) return;
+  } else if (land === null && Math.abs(shift) <= 0.01) return;
   const max = emblaMaxOf(embla);
   const clamp = (px: number): number => Math.min(Math.max(0, px), max);
   const stop = nearestStop(embla, clamp(gliding ? target : drawn));
@@ -173,8 +177,17 @@ export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boole
     return;
   }
   writeEmbla(embla, clamp(drawn));
-  embla.scrollTo(stop);
+  embla.scrollTo(stop, reducedRows.has(embla));
 }
+
+const reducedRows = new WeakSet<EmblaCarouselType>();
+/** Whether the row `embla` moves runs under Reduce Motion: every glide it starts lands at once instead. @internal */
+export function setEmblaReduced(embla: EmblaCarouselType, on: boolean): void {
+  if (on) reducedRows.add(embla);
+  else reducedRows.delete(embla);
+}
+/** Whether the row `embla` moves runs under Reduce Motion. @internal */
+export const emblaReduced = (embla: EmblaCarouselType): boolean => reducedRows.has(embla);
 
 /** A gesture that held the row let go: runs the rebuild a strip change made wait (see `moveEmbla`). @internal */
 export function releaseEmbla(embla: EmblaCarouselType): void {
@@ -243,7 +256,8 @@ export function emblaRowOptions(): EmblaOptionsType {
 
 /**
  * Which panels of an Embla row keep their content loaded with the view at `scroll`: every panel `unloadable` says no to; every
- * panel the window shows; and, nearest first, the unloadable ones whose edge lies under `near` slots past the window's edge, at
+ * panel the window shows, will show within `ahead` px of travel, or shows at `toward` (where a glide or a jump is going), whatever
+ * `limit` says; and, nearest first, the unloadable ones whose edge lies under `near` slots past the window's edge, at
  * most `limit` loaded unloadable panels in all (the view's own count when it shows more). One loaded in `was` stays loaded until it
  * is a whole slot further, so a row resting on the boundary does not load and unload by turns.
  * @internal
@@ -258,8 +272,17 @@ export function loadedNear(i: {
   limit: number | null;
   unloadable: (id: string) => boolean;
   was: ReadonlySet<string> | null;
+  /** How far the row will move in the next frames, scroll px (negative: toward the start): what that brings into view counts as shown. */
+  ahead?: number;
+  /** Where the row is going, scroll px: what the window shows there counts as shown, so a far glide or a jump lands on loaded pages. */
+  toward?: number | null;
 }): Set<string> {
   const { layout, scroll, windowWidth, pitch, gap, near, limit, unloadable, was } = i;
+  const ahead = i.ahead ?? 0;
+  const lo = scroll + Math.min(0, ahead);
+  const hi = scroll + windowWidth + Math.max(0, ahead);
+  const toward = i.toward ?? null;
+  const overlaps = (left: number, right: number, a: number, b: number): boolean => Math.min(right, b) - Math.max(left, a) > 0.5;
   const loaded = new Set<string>();
   const nearBy: { id: string; away: number }[] = [];
   let shown = 0;
@@ -270,12 +293,12 @@ export function loadedNear(i: {
       loaded.add(id);
       return;
     }
-    if (Math.min(right, scroll + windowWidth) - Math.max(left, scroll) > 0.5) {
+    if (overlaps(left, right, lo, hi) || (toward !== null && overlaps(left, right, toward, toward + windowWidth))) {
       loaded.add(id);
       shown += 1;
       return;
     }
-    const outside = Math.max(scroll - right, left - (scroll + windowWidth), 0);
+    const outside = Math.max(lo - right, left - hi, 0);
     const away = Math.max(0, outside - gap) / pitch;
     if (away < near || (was?.has(id) === true && away < near + 1)) nearBy.push({ id, away });
   });
@@ -343,6 +366,19 @@ export function emblaDrawnOf(embla: EmblaCarouselType): number {
   return -embla.internalEngine().offsetLocation.get();
 }
 
+/** Fixed 60 Hz steps an Embla row looks ahead to load what comes into view: a page mounts a render or two after it is asked for. */
+const AHEAD_STEPS = 8;
+/**
+ * How far the row will move in the next few frames, in scroll px (negative toward the start), at its speed now and never past where
+ * it is going: the panels that brings into view load before they enter it. @internal
+ */
+export function emblaAheadOf(embla: EmblaCarouselType): number {
+  const e = embla.internalEngine();
+  const togo = -e.target.get() - emblaDrawnOf(embla);
+  const speed = Math.abs(e.location.get() - e.previousLocation.get());
+  return Math.sign(togo) * Math.min(Math.abs(togo), speed * AHEAD_STEPS);
+}
+
 /** The index of the stop nearest `px` (scroll px). @internal */
 export function nearestStop(embla: EmblaCarouselType, px: number): number {
   const snaps = embla.internalEngine().scrollSnaps.map((x) => -x);
@@ -400,7 +436,13 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box }, [WheelGesturesPlugin({ target: win })]);
     instances.set(win, embla);
     markEmblaBuilt(embla);
-    embla.on('scroll', notifyEmblaRows).on('settle', notifyEmblaRows).on('reInit', notifyEmblaRows).on('pointerUp', releaseEmbla);
+    embla.on('scroll', notifyEmblaRows).on('select', notifyEmblaRows).on('settle', notifyEmblaRows).on('reInit', notifyEmblaRows).on('pointerUp', (api) => {
+      // Under Reduce Motion a release lands on its stop at once: Embla sets its own settle speed on release, past the scrollTo jump flag.
+      // Embla's body setters are plain closures named use*, not React hooks.
+      const setDuration = api.internalEngine().scrollBody.useDuration;
+      if (reducedRows.has(api)) setDuration(0);
+      releaseEmbla(api);
+    });
     notifyEmblaRows();
     const doc = win.ownerDocument;
     const view = doc.defaultView ?? window;
@@ -410,8 +452,8 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (win.closest('[inert]') !== null || maximizedIn(win)) return;
       e.preventDefault();
       if (stepHooks.get(win)?.(e.key === 'ArrowLeft' ? 'left' : 'right') === true) return;
-      if (e.key === 'ArrowLeft') embla.scrollPrev();
-      else embla.scrollNext();
+      if (e.key === 'ArrowLeft') embla.scrollPrev(reducedRows.has(embla));
+      else embla.scrollNext(reducedRows.has(embla));
     };
     view.addEventListener('keydown', onKey);
     // A panel focused while partly out of the window comes into it: Embla moves only for slides, and its slides are the markers.
@@ -420,7 +462,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (slot == null || !box.contains(slot) || maximizedIn(win)) return;
       const to = revealScroll(Number(slot.dataset.rowSlot) || 0, slot.offsetWidth, emblaScrollOf(embla), box.offsetWidth);
       if (to === null) return;
-      embla.scrollTo(nearestStop(embla, to));
+      embla.scrollTo(nearestStop(embla, to), reducedRows.has(embla));
     };
     win.addEventListener('focusin', onFocus);
     return () => {

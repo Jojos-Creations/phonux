@@ -722,15 +722,24 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   }, [stripRowEl, stripWatch]);
   // A window or a size change that leaves a wide panel beside the root cut, where it cannot fit beside the root and fits alone, steps
   // the root aside so the panel shows whole; a window wide enough for both again brings the root back beside it.
-  const stripSeen = useRef<{ widths: string; window: number } | null>(null);
+  const stripSeen = useRef<{ widths: ReadonlyMap<string, number>; beside: string; window: number } | null>(null);
   useLayoutEffect(() => {
     const now = strip ? stripNow() : null;
     if (now === null) return;
-    // The root coming back or leaving is not a change that steps it aside: only the window and the other panels' widths are.
-    const seen = { widths: now.layout.ids.flatMap((id, k) => (id === rootId ? [] : [`${id}:${now.layout.widths[k]}`])).join(' '), window: now.windowWidth };
+    // Only the window, a panel's own width (a size pick) and which panels stand beside the root step it aside or back: a page opened
+    // or closed elsewhere on the strip is not such a change. The root coming back or leaving is not one either.
+    const others = now.layout.ids.filter((id) => id !== rootId);
+    const k = now.layout.ids.indexOf(rootId);
+    const j = stripAside === null ? -1 : now.layout.ids.indexOf(stripAside.id);
+    const at = (n: number): string => now.layout.ids[n] ?? '';
+    // Stepped aside, the root's place is beside its page, on its side: the same two neighbors it has back on the strip.
+    const beside = k >= 0 ? `${at(k - 1)}|${at(k + 1)}` : stripAside === null || j < 0 ? '' : stripAside.side === 'left' ? `${at(j - 1)}|${at(j)}` : `${at(j)}|${at(j + 1)}`;
+    const seen = { widths: new Map(others.map((id) => [id, now.layout.widths[now.layout.ids.indexOf(id)]!] as const)), beside, window: now.windowWidth };
     const before = stripSeen.current;
     stripSeen.current = seen;
-    if (before === null || (before.widths === seen.widths && before.window === seen.window) || stripSummon !== null) return;
+    const resized = before !== null && [...seen.widths].some(([id, w]) => before.widths.has(id) && Math.abs(before.widths.get(id)! - w) > 0.5);
+    const asideGone = stripAside !== null && !seen.widths.has(stripAside.id);
+    if (before === null || (!resized && !asideGone && before.window === seen.window && before.beside === seen.beside) || stripSummon !== null) return;
     if (stripAside !== null) {
       const k = now.layout.ids.indexOf(stripAside.id);
       const root = panels.find((p) => p.id === rootId);
