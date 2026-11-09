@@ -1,7 +1,7 @@
 /**
  * The Embla row (`Workspace rowEngine="embla"`) measured in headless Chromium, on the real Workspace and PanelRow:
  *
- *   node --import tsx tools/proof/embla-row-proof.ts [--engine embla|own] [--out <dir>] [--only wheel,feed,drag,keys,resize]
+ *   node --import tsx tools/proof/embla-row-proof.ts [--engine embla|own] [--out <dir>] [--only wheel,feed,drag,keys,resize,width]
  *
  * wheel  a trackpad-style stream (page.mouse.wheel, one event per ~16 ms, 2.5 s) at three speeds over narrow, wide and mixed rows:
  *        row px per input px while input flows, frames that stood still while it moved, the rest on the slot grid.
@@ -29,6 +29,13 @@
  *        slot and the pages in view stay put in every frame; a dismiss restores the view; a step toward it keeps the summon; a scroll
  *        and a dot press carrying it out end the summon and return its pages out of view. The step-aside: a window narrowed under a
  *        wide page beside the root, and a size pick, show the page whole; a step back and a wider window bring the root back.
+ *
+ * width  a row of 17 slots in a window of four: a page's width changes in view, at the window's left edge, cut by it, at the strip's
+ *        end (where the view cannot keep its left edge and the right end holds instead), under an arrow-key glide and a wheel stream,
+ *        with the Workspace summoned and stepped aside; per frame, pages that must stay move 0 px, the changing page's moving edge
+ *        moves one way with no frame over a quarter of its travel and no end snap (largest of its last 3 frame steps against the
+ *        median), its neighbors stay one gap from it, and no one-slot page is cut while the row stands on the grid. Maximize: a page
+ *        grown over the row, a wheel stream and an arrow key, then the restore: nothing behind moves, the view is the one it left.
  *
  * Every check is in the JSON it prints, with `failed` listing what broke. Exits 1 when a check failed and 2 when a run recorded no
  * frames or no motion, so a run that proved nothing never reads as a pass. Screenshots go to --out; look at them.
@@ -951,7 +958,7 @@ if (ONLY.has('width') && ENGINE === 'embla') {
   // With the Workspace stepped aside (p1 picked four slots wide in a window of four), p1 narrows to two: its left edge holds and
   // the pages after it follow; the root does not jump in over it.
   await run('shrinkAside', 0, async (page, id) => g(page, 'op', 'setSlots', await id('p1'), 2), {
-    still: [], page: 'p1', edge: 'right', followers: ['p2'], row: '2,1,1,1,1,1,1,1',
+    still: [], page: 'p1', edge: 'right', followers: ['p2', 'root'], row: '2,1,1,1,1,1,1,1',
     before: async (page) => {
       await g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 4);
       await sleep(1200);

@@ -439,7 +439,9 @@ export function PanelRow({
   // view still: the scroll moves with the panel at the window's left edge, and every slot snaps to its new rest in the same frame.
   const onEmbla = React.useContext(RowEngineContext) === 'embla';
   // Under Reduce Motion the size box snaps, so the slots a width change moves snap with it.
-  const reducedMotion = useReducedMotionConfig() === true || useReducedMotion() === true;
+  const configReduced = useReducedMotionConfig() === true;
+  const systemReduced = useReducedMotion() === true;
+  const reducedMotion = configReduced || systemReduced;
   const windowRef = React.useRef<HTMLDivElement>(null);
   const stripPx = reservedWidth + gapSpan;
   const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);

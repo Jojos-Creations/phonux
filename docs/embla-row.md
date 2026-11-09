@@ -198,9 +198,61 @@ Look at the screenshots (`summon-left-mid.png`, `dismiss-right-mid.png` mid-tran
 left summon drew the pages leaving between the root and the view over the view for a frame (their exits were left at their old strip
 place under the jumped scroll); every leaving slot now keeps its screen place.
 
+## Step 5: width changes and maximize
+
+A page's width change on Embla runs as on the old row: its size box eases on the slide (`PanelSizeBox`), the slots after it glide, and
+Embla hears of it once, in the commit that starts it (the markers are drawn at their final places, so `moveEmbla` rebuilds the stops
+at once and the keep-still rule decides the scroll). What step 5 changed:
+
+- At the strip's end a narrower page shortens the strip under the view, so the keep (clamped to the new end) jumps the scroll. The
+  slots snap as any keep does, and those the jump moved on screen then glide there from where they were drawn, on the slide's curve
+  and the commit's shared start (`sharedStartTime`), the clock the size box eases on: the right end holds, the page's left edge and
+  the pages left of it ease right one gap apart. Only for a change in the same window (a window resize keeps its snap) and not under
+  Reduce Motion (the size box snaps there too).
+- A page narrowed so the root fits beside it again brings a stepped-aside root back in a second commit in the same task (the
+  provider's layout effect). Nothing of the first commit is painted, so the marked commit glides from what was painted (`taskToken`
+  tells commits of one task apart), and the root, new on the strip and the mark's pin, slides in over its edge instead of fading in.
+  `arriveAndLeave` now uses the slide's curve and shared start for every glide (it used CSS `ease` before).
+- Maximize lifts the panel to the top layer and never changes the row's layout, so Embla has nothing to hear. But the panel stays in
+  the row's DOM, so its wheels bubbled to the wheel plugin and moved the row behind it, and the restore then shrank into a slot
+  somewhere else. While a panel of the row is lifted (`maximizedIn`: a panel root with the popover attribute, from the grow to the
+  end of the shrink) the row takes no wheel, arrow key, drag or focus reveal.
+- Panels do not shrink when unfocused on Embla (owner ruling); nothing here reintroduces it.
+
+Embla internals: none new.
+
+Measured (`embla-row-proof.ts --only width`, 1800 x 900, root and 12 pages `1,1,2,1,3,1,1,2,1,1,1,1` (17 slots), window of four
+slots; per frame from before the change to its rest). The first five rows fail on b2a749a with the switch on (7 failures, run from a
+`git archive b2a749a` extract with this proof copied in) and pass now:
+
+| case | b2a749a | now |
+| --- | --- | --- |
+| shrink the left-edge two-slot page at the strip's end (`1,1,2,1,3,1,1,2,1,1`) | its left edge jumps 406 px in one frame, the page shrinks over its neighbor | left edge eases 406 px, worst frame 30.5, last-3-frame max 1.07 vs median 8.67; p9, p10 move 0 px; p7 stays one gap behind |
+| shrink a two-slot page mid-view at the strip's end | jumps 406 px in one frame | eases, worst frame 30.6; p12 moves 0 px; p10 one gap behind (0 px off) |
+| p1 4 > 2 slots with the root stepped aside (`2,1,1,1,1,1,1,1`) | root appears under p1, p2 812 px off p1, p1's right edge steps back in 2 frames | root slides in one gap before p1, p2 one gap after (0.01 px), right edge monotonic |
+| maximize p3, 40 wheels + ArrowRight, restore | the row moves 406 px behind it; pages behind move 478.5 px; restore lands elsewhere | row 812 > 812; pages behind 0 px; same view; restore last-3-frame max 1.1 vs median 10.7 |
+
+Guards that already passed on b2a749a (the behaviour was right; kept so a later change cannot break it): a page growing in view and at
+the window's left edge, narrowing in view, a two-slot page cut by the left edge narrowing (it leaves the view, the pages after it
+slide over one gap behind), a page growing under an ArrowRight glide (rests at 1218, no step back) and under a wheel stream (worst step
+back 0.21 px, as the stream alone), and with the Workspace summoned (root moves 0 px, summon stands). In all: changing edge one way,
+worst frame 30-34 px of 406, last-3-frame max under 1.2 px against a median of 8-9 px, 0 frames cutting a one-slot page standing on
+the grid, every rest on the grid.
+
+Look at the screenshots (`width-*-mid.png`): at the strip's end the pages left of the narrowing page slide right with it, the page on
+the right stays, no blank. One open observation: in `width-shrinkAside-mid.png` p2 is drawn about 29 px further from p1 than one gap,
+while the per-frame measure (the main thread's layout, every frame) shows 0.01 px; the size box's scale runs on the compositor and the
+slot glides (`composite: 'add'` translates) do not, so a captured frame can show the scale ahead. Not seen at the strip's end; not
+checked on a real display.
+
+Unit tests for step 4's pure helpers (`test/embla-row-summon.test.ts`, 11 tests, two of them properties): `emblaSummonPlan`,
+`emblaAsideFor`, `markedScroll`. Mutants: dropping the edge-slot page from a summon's parks fails 3; letting a page wider than the
+window step the root aside fails 1; flipping the sign of a right pin's screen offset fails the pin property.
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
-- Maximize and animated width changes (step 5); drag to reorder and its edge scroll (step 6).
+- Drag to reorder and its edge scroll (step 6). Width changes: a hand resize (`usePanelResizing`, a held width) and a window resize
+  during a size glide were not tried on Embla; maximize was tried with a wheel and a key, not with a window resize while grown.
 - Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, and a window one slot wide were not tried; a
   real trackpad flick carrying the root out was not tried (the proof uses a glide and a dot press).
 - Anything that asks the old row scroller to move (`scrollOnOpen`, `revealOnScroll`, a host's `stepRow` chord, the settle after a
