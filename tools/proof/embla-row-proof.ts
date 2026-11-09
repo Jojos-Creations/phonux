@@ -1821,14 +1821,18 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     }
     const wheelDowns = (await g(page, 'emblaEvents')).pointerDown - downs0;
     const at = await press(page, 'p3');
+    // A frame recorded before the press may be read before Embla drew that frame: the references are read 50 ms after it.
+    await sleep(50);
     const h0 = await g(page, 'mark');
     await glideMouse(page, at, at.x + 120, 6);
+    // The dragged box follows a pointer move a frame late, so the drift is read once the pointer stands still.
+    const hs = await g(page, 'mark');
     await sleep(900);
     const h1 = await g(page, 'mark');
     await page.mouse.up();
     await sleep(1500);
     const fr = await g(page, 'stop');
-    writeFileSync(join(OUT, 'reorder-wheelBefore-frames.json'), JSON.stringify({ h0, h1, offset: at.offset, frames: fr }));
+    writeFileSync(join(OUT, 'reorder-wheelBefore-frames.json'), JSON.stringify({ h0, hs, h1, offset: at.offset, frames: fr }));
     const held = fr.slice(h0, h1);
     const posAt = fr[h0 - 1]?.pos ?? held[0].pos;
     const r = {
@@ -1837,7 +1841,8 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       heldFrames: held.length,
       rowMoveHeldPx: +Math.max(0, ...held.map((f: any) => Math.abs(f.pos - posAt))).toFixed(2),
       emblaPressFramesHeld: held.filter((f: any) => f.emblaPress).length,
-      worstDriftPx: +driftOf(held.filter((f: any) => f.grabbing === 'p3'), 'p3', at.offset).toFixed(2),
+      // Off the grab point read in the first frame recorded after the press, not the box read before it: the row was still moving then.
+      worstDriftPx: +driftOf(fr.slice(hs + 2, h1).filter((f: any) => f.grabbing === 'p3'), 'p3', fr[h0 - 1].pointerX - fr[h0 - 1].winLeft - fr[h0 - 1].boxX.p3).toFixed(2),
       rest: +fr[fr.length - 1].pos.toFixed(1),
       restOnGrid: onGrid(fr[fr.length - 1].pos, PITCH, await g(page, 'max')),
     };
@@ -1848,6 +1853,46 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     if (errors.length > 0) failed.push(`reorder wheelBefore: page errors ${errors.join(' | ')}`);
     await close();
   }
+  if (want('reorder.wheelClick')) {
+    // A press and release with no drag during a wheel gesture's tail: the row stops where it is drawn at the press and the release
+    // settles it on a stop (no reorder hold took it, so nothing else would).
+    const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
+    const at0 = await g(page, 'grabRect', 'p3');
+    await page.mouse.move(at0.x, at0.y);
+    await g(page, 'record');
+    const commits0 = await g(page, 'orderChanges');
+    for (let k = 0; k < 12; k += 1) {
+      await page.mouse.wheel(14, 0);
+      await sleep(16);
+    }
+    await page.mouse.down();
+    await sleep(50);
+    const p0 = await g(page, 'mark');
+    await sleep(600);
+    const p1 = await g(page, 'mark');
+    await page.mouse.up();
+    await sleep(1500);
+    const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, 'reorder-wheelClick-frames.json'), JSON.stringify({ p0, p1, frames: fr }));
+    const pressed = fr.slice(p0, p1);
+    const posAt = fr[p0 - 1].pos;
+    const r = {
+      wheelTravelPx: +(posAt - fr[0].pos).toFixed(1),
+      pressedFrames: pressed.length,
+      rowMovePressedPx: +Math.max(0, ...pressed.map((f: any) => Math.abs(f.pos - posAt))).toFixed(2),
+      rest: +fr[fr.length - 1].pos.toFixed(1),
+      restOnGrid: onGrid(fr[fr.length - 1].pos, PITCH, await g(page, 'max')),
+      orderChanges: (await g(page, 'orderChanges')) - commits0,
+    };
+    res.wheelClick = r;
+    if (Math.abs(r.wheelTravelPx) < 20) empty.push(`reorder wheelClick: the wheel moved the row ${r.wheelTravelPx} px, so no gesture was running at the press`);
+    if (r.pressedFrames < 4) empty.push(`reorder wheelClick: ${r.pressedFrames} pressed frames`);
+    if (r.rowMovePressedPx > 0.5 || !r.restOnGrid || r.orderChanges !== 0) failed.push(`reorder wheelClick: the row moved ${r.rowMovePressedPx} px under the press; rest ${r.rest} on the grid ${r.restOnGrid}; ${r.orderChanges} order commits`);
+    if (errors.length > 0) failed.push(`reorder wheelClick: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+
   if (want('reorder.wheel')) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
     await nameIds(page);
