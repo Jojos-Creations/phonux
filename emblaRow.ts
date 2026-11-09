@@ -573,9 +573,19 @@ function endWheelRun(embla: EmblaCarouselType): void {
 }
 const liveRun = (embla: EmblaCarouselType): WheelRun | undefined =>
   wheelPressed.has(embla) && embla.internalEngine().dragHandler.pointerDown() ? wheelRuns.get(embla) : undefined;
-/** Moves a wheel gesture's press to `x` (Embla's drag reads clientX) and keeps the row's wheel body on it. */
-function wheelMove(embla: EmblaCarouselType, run: WheelRun, x: number): void {
-  const m = run.x - x;
+/**
+ * Moves a wheel gesture's press to `x` (Embla's drag reads clientX) and keeps the row's wheel body on it. The press stops at the row's
+ * ends: a wheel past an end moves nothing (no overscroll to spring back from), and the part past the end is not carried in the
+ * plugin's offset, so a wheel turned back moves the row at once.
+ */
+function wheelMove(embla: EmblaCarouselType, run: WheelRun, to: number): void {
+  const at = emblaTargetOf(embla);
+  const asked = run.x - to;
+  // Never further past an end than the press already is (a settle glide can leave it a px past): a clamp that pulled it in would
+  // move the row against the wheel.
+  const m = Math.min(Math.max(Math.min(0, at), at + asked), Math.max(emblaMaxOf(embla), at)) - at;
+  run.offset += asked - m;
+  const x = run.x - m;
   run.x = x;
   sendMouse(embla, 'mousemove', x);
   // Embla's body setters are plain closures named use*, not React hooks.
@@ -677,7 +687,10 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // Registered before the plugin's own listener on the same node, so stopping it here keeps the gesture from the row only.
     let owner: 'row' | 'content' | null = null;
     let quiet: ReturnType<typeof setTimeout> | null = null;
+    // The sideways direction of the wheel the plugin is handling now (0 for a vertical one), null between wheels.
+    let wheelSign: number | null = null;
     const onWheel = (e: WheelEvent): void => {
+      wheelSign = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? Math.sign(e.deltaX) : 0;
       const run = wheelRuns.get(instances.get(win)!);
       if (run !== undefined) run.acted = false;
       if (quiet !== null) clearTimeout(quiet);
@@ -723,12 +736,29 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       e.stopImmediatePropagation();
       if (e.type !== 'mousemove') return;
       run.acted = true;
+      // At an end the plugin damps its own pointer back against the wheel (its rubber band), which would walk the row back off the
+      // end: a move against the wheel that made it is dropped.
+      const asked = run.x - (e.clientX + run.offset);
+      if (wheelSign !== null && Math.abs(asked) >= 0.01 && Math.sign(asked) !== wheelSign) {
+        run.offset += asked;
+        return;
+      }
       wheelMove(embla, run, e.clientX + run.offset);
     };
+    // A person's pointer moving while a wheel gesture holds Embla's press (the plugin blocks it only while its own gesture runs, not
+    // through a finger's pause or the hold after the last wheel) would reach Embla's drag, which reads it against the plugin's pointer
+    // the whole gesture's travel away: the row jumped back to where the gesture began. Registered before Embla adds its own document
+    // listener at each press, so it is stopped before it.
+    const page = win.ownerDocument;
+    const onPersonMove = (e: MouseEvent): void => {
+      if (e.isTrusted && liveRun(embla) !== undefined) e.stopImmediatePropagation();
+    };
+    page.addEventListener('mousemove', onPersonMove);
     for (const type of ['mousedown', 'mousemove', 'mouseup']) win.addEventListener(type, onPluginMouse as EventListener, true);
     // After the plugin's own wheel listener: every wheel of a gesture restarts the idle wait, and one the plugin passed nothing for
     // (a momentum tail after it let go) moves the row by its delta, short of the row's ends.
     const onWheelAfter = (e: WheelEvent): void => {
+      wheelSign = null;
       const run = liveRun(embla);
       if (run === undefined) return;
       if (run.idle !== null) clearTimeout(run.idle);
@@ -832,6 +862,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     win.addEventListener('focusin', onFocus);
     return () => {
       win.removeEventListener('wheel', onWheelAfter);
+      page.removeEventListener('mousemove', onPersonMove);
       for (const type of ['mousedown', 'mousemove', 'mouseup']) win.removeEventListener(type, onPluginMouse as EventListener, true);
       endWheelRun(embla);
       win.removeEventListener('pointerdown', onPress, true);
