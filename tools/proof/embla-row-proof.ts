@@ -37,6 +37,11 @@
  *        median), its neighbors stay one gap from it, and no one-slot page is cut while the row stands on the grid. Maximize: a page
  *        grown over the row, a wheel stream and an arrow key, then the restore: nothing behind moves, the view is the one it left.
  *
+ * blank  a parking row on a magenta page at maxLivePanels 8 and at 4 (what the window fits): a far dot press, a far jump, a wheel fling
+ *        and a summon, every frame the compositor presents (screencast): no page in the window paints nothing (a magenta band at least
+ *        100 px wide), and no unloaded placeholder is drawn in the window (the DOM, every animation frame). Control: the same runs with
+ *        every page's content hidden must show blank frames, or the measure cannot see a blank page and proves nothing.
+ *
  * Every check is in the JSON it prints, with `failed` listing what broke. Exits 1 when a check failed and 2 when a run recorded no
  * frames or no motion, so a run that proved nothing never reads as a pass. Screenshots go to --out; look at them.
  */
@@ -54,7 +59,7 @@ const arg = (name: string): string | undefined => {
 };
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank').split(','));
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -93,8 +98,8 @@ const failed: string[] = [];
 const empty: string[] = [];
 const out: Record<string, unknown> = { engine: ENGINE, failed, empty };
 
-async function open(slots: string, width = 1800, height = 900, extra = '', engine: string = ENGINE): Promise<{ page: Page; errors: string[]; close: () => Promise<void> }> {
-  const ctx = await browser.newContext({ viewport: { width, height } });
+async function open(slots: string, width = 1800, height = 900, extra = '', engine: string = ENGINE, ctxOpts: Record<string, unknown> = {}): Promise<{ page: Page; errors: string[]; close: () => Promise<void> }> {
+  const ctx = await browser.newContext({ viewport: { width, height }, ...ctxOpts });
   const page: Page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e: Error) => errors.push(e.message));
@@ -675,6 +680,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
   };
   // Runs `act`, records every frame until the row settles, and checks that `stay` never moved on screen, that no one-slot panel is cut
   // at rest and that the rest is on the grid.
+  let lastStep: { before: Record<string, { x: number; w: number }>; after: Record<string, { x: number; w: number }>; fr: any[]; winW: number } | null = null;
   const step = async (page: Page, label: string, act: () => Promise<unknown>, stay: string[]): Promise<any> => {
     const before = await shown(page);
     await g(page, 'record');
@@ -690,12 +696,35 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     const missing = stay.filter((id) => after[id] === undefined || before[id] === undefined);
     const cut = fr.length > 0 ? cutNarrow({ ...fr[fr.length - 1], panels: fr[fr.length - 1].named }, 390) : [];
     const rootXs = fr.map((f: any) => f.named.root?.x).filter((x: any) => x !== undefined);
+    lastStep = { before, after, fr, winW: win.width };
     const r = { returned: ret, frames: fr.length, visibleBefore: visible(before, win.width), visibleAfter: visible(after, win.width), stayWorstPx: +worst.toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, PITCH, max), cutAtRest: cut, rootView: await g(page, 'rootView'), slots: await g(page, 'slotCount'), rootX: after.root?.x ?? null, rootFramesMoving: new Set(rootXs.map((x: number) => Math.round(x))).size };
     if (fr.length === 0) empty.push(`summon ${label}: no frames`);
     if (missing.length > 0) fail(label, `panels meant to stay are not drawn: ${missing}`);
     if (worst > 0.5) fail(label, `a page in view moved ${worst.toFixed(1)} px`);
     if (cut.length > 0) fail(label, `one-slot page cut at rest: ${cut}`);
     if (!r.restOnGrid) fail(label, `rest ${r.rest} off the grid`);
+    return r;
+  };
+  // The pages a summon takes off the strip run their exit from where they were drawn (the audit saw p10, p11 drawn over p16, p17 for a
+  // frame): one that was out of the window never comes into it, one in it starts its exit from its place.
+  const leaving = (label: string): Record<string, unknown> => {
+    if (lastStep === null) return {};
+    const { before, after, fr, winW } = lastStep;
+    const ids = Object.keys(before).filter((id) => after[id] === undefined);
+    let worstOverlap = 0;
+    let worstStart = 0;
+    let drawnFrames = 0;
+    for (const id of ids) {
+      const b = before[id]!;
+      const seen = fr.filter((f: any) => f.named[id] !== undefined);
+      drawnFrames += seen.length;
+      if (b.x + b.w <= 0.5 || b.x >= winW - 0.5) for (const f of seen) worstOverlap = Math.max(worstOverlap, Math.min(f.named[id].x + f.named[id].w, winW) - Math.max(f.named[id].x, 0));
+      else if (seen.length > 0) worstStart = Math.max(worstStart, Math.abs(seen[0].named[id].x - b.x));
+    }
+    const r = { leaving: ids, drawnFrames, worstOverlapPx: +worstOverlap.toFixed(1), worstStartPx: +worstStart.toFixed(1) };
+    if (ids.length === 0 || drawnFrames === 0) empty.push(`summon ${label} leaving: no page left the strip in a recorded frame, so the check proves nothing`);
+    if (worstOverlap > 1) fail(label, `a page leaving from out of view was drawn ${r.worstOverlapPx} px into the window`);
+    if (worstStart > PITCH / 4) fail(label, `a page leaving from the view started its exit ${r.worstStartPx} px from where it was drawn`);
     return r;
   };
   const row = Array(24).fill(1).join(',');
@@ -719,6 +748,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (s1.rootView !== 'summoned' || s1.rootX !== 0) fail('fromLeft', `root ${s1.rootView} at x ${s1.rootX}, not summoned at 0`);
     if (s1.visibleAfter.join() !== 'root,p15,p16,p17') fail('fromLeft', `view ${s1.visibleAfter}, not root,p15,p16,p17`);
     if (s1.rootFramesMoving < 3) fail('fromLeft', `the root did not glide in (${s1.rootFramesMoving} places drawn)`);
+    s1.leaving = leaving('fromLeft');
     const d1 = await step(page, 'dismissLeft', () => g(page, 'dismiss'), ['p15', 'p16', 'p17']);
     if (d1.visibleAfter.join() !== 'p14,p15,p16,p17' || d1.rootView !== 'away' || d1.slots !== 25) fail('dismissLeft', `view ${d1.visibleAfter}, root ${d1.rootView}, ${d1.slots} slots; not as before the summon`);
     if ((await g(page, 'order')).join() !== ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'root', ...Array.from({ length: 16 }, (_, k) => `p${k + 9}`)].join()) fail('dismissLeft', 'the list order changed');
@@ -764,6 +794,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (savedRight.length > 0) fail('fromRight', `the summon parked ${savedRight.length} panels in the list, which is saved`);
     if (s2.rootView !== 'summoned' || s2.rootX !== 3 * PITCH || s2.visibleAfter.join() !== 'p1,p2,p3,root') fail('fromRight', `root ${s2.rootView} at ${s2.rootX}, view ${s2.visibleAfter}`);
     if (s2.rootFramesMoving < 3) fail('fromRight', `the root did not glide in (${s2.rootFramesMoving} places drawn)`);
+    s2.leaving = leaving('fromRight');
     const d2 = await step(page, 'dismissRight', async () => {
       const r = await g(page, 'dismiss');
       await sleep(90);
@@ -829,6 +860,141 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     res.summonAside = s;
     res.dismissAside = d;
     if (errors.length > 0) fail('asideSize', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  // A summon or a dismiss pressed while the row glides, and while a mouse drag holds it: the view rests where the press asks, from where
+  // the row is going (the audit: a summon mid-glide rested at slot 21 with the root never shown, or put the root at the wrong edge).
+  for (const [label, to, expectView] of [['midGlideAway', 18, 'root,p19,p20,p21'], ['midGlideToward', 10, 'root,p11,p12,p13']] as const) {
+    const { page, errors, close } = await open(row);
+    if (!(await placeRoot(page, 8))) empty.push(`summon ${label}: the root could not be placed`);
+    await g(page, 'jumpToSlot', 14);
+    await sleep(500);
+    await g(page, 'glideToSlot', to);
+    await sleep(70);
+    const mid = await g(page, 'pos');
+    const r = await step(page, label, async () => {
+      const ret = await g(page, 'summon');
+      await sleep(800);
+      return ret;
+    }, []);
+    r.midPos = +mid.toFixed(1);
+    res[label] = r;
+    if (Math.abs(mid - 14 * PITCH) < 20 || Math.abs(mid - to * PITCH) < 20) empty.push(`summon ${label}: the press came at ${mid}, not mid-glide`);
+    if (r.returned !== true || r.rootView !== 'summoned' || r.rootX !== 0 || r.visibleAfter.join() !== expectView) fail(label, `returned ${r.returned}, root ${r.rootView} at ${r.rootX}, view ${r.visibleAfter}; not summoned at 0 with ${expectView}`);
+    if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  {
+    const { page, errors, close } = await open(row);
+    if (!(await placeRoot(page, 8))) empty.push('summon dismissMidGlide: the root could not be placed');
+    await g(page, 'jumpToSlot', 14);
+    await sleep(500);
+    await g(page, 'summon');
+    await sleep(1000);
+    await g(page, 'glideToSlot', 6);
+    await sleep(70);
+    const mid = await g(page, 'pos');
+    const r = await step(page, 'dismissMidGlide', async () => {
+      const ret = await g(page, 'dismiss');
+      await sleep(800);
+      return ret;
+    }, []);
+    r.midPos = +mid.toFixed(1);
+    res.dismissMidGlide = r;
+    if (Math.abs(mid - 8 * PITCH) < 20 || Math.abs(mid - 6 * PITCH) < 20) empty.push(`summon dismissMidGlide: the press came at ${mid}, not mid-glide`);
+    if (r.returned !== true || r.rootView !== 'away' || r.visibleAfter.join() !== 'p14,p15,p16,p17' || r.slots !== 25) fail('dismissMidGlide', `returned ${r.returned}, root ${r.rootView}, view ${r.visibleAfter}, ${r.slots} slots; not p14..p17 as before the summon`);
+    if (errors.length > 0) fail('dismissMidGlide', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  for (const label of ['summonDrag', 'dismissDrag'] as const) {
+    const { page, errors, close } = await open(row, 1800, 900, '&bar=0');
+    if (!(await placeRoot(page, 8))) empty.push(`summon ${label}: the root could not be placed`);
+    await g(page, 'jumpToSlot', 14);
+    await sleep(500);
+    if (label === 'dismissDrag') {
+      await g(page, 'summon');
+      await sleep(1000);
+    }
+    const win = await g(page, 'win');
+    // A press on the gap between the second and third slot: the row's own surface, where a mouse drag starts.
+    const x0 = win.left + 2 * PITCH - 8;
+    const dir = label === 'summonDrag' ? 1 : -1;
+    await page.mouse.move(x0, 450);
+    await page.mouse.down();
+    for (let k = 1; k <= 6; k += 1) {
+      await page.mouse.move(x0 + dir * k * 10, 450);
+      await sleep(16);
+    }
+    const held = await g(page, 'pos');
+    const ret = await g(page, label === 'summonDrag' ? 'summon' : 'dismiss');
+    await sleep(100);
+    for (let k = 7; k <= 9; k += 1) {
+      await page.mouse.move(x0 + dir * k * 10, 450);
+      await sleep(16);
+    }
+    await page.mouse.up();
+    await sleep(1500);
+    const m = await shown(page);
+    const rest = await g(page, 'pos');
+    const r = { held: +held.toFixed(1), returned: ret, rootView: await g(page, 'rootView'), view: visible(m, win.width), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, PITCH, await g(page, 'max')), slots: await g(page, 'slotCount') };
+    res[label] = r;
+    if (Math.abs(held - 14 * PITCH) < 20 && label === 'summonDrag') empty.push(`summon ${label}: the drag moved the row only to ${held}`);
+    // The drag moved the row 60 px toward the root first, so p13 is cut at the left edge: it stays and moves over (a cut page is not
+    // in the edge slot), as at rest.
+    const want = label === 'summonDrag' ? 'root,p13,p14,p15' : 'p14,p15,p16,p17';
+    if (r.returned !== true || r.rootView !== (label === 'summonDrag' ? 'summoned' : 'away') || r.view.join() !== want || !r.restOnGrid) fail(label, `returned ${r.returned}, root ${r.rootView}, view ${r.view}, rest ${r.rest}; not ${want} on the grid`);
+    if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  {
+    // Under Reduce Motion the summon, the dismiss, an arrow key and a step-aside land at once (at most two places drawn per page),
+    // still keep-still and on the grid (the `step` checks).
+    const places = (fr: any[], id: string): number => new Set(fr.map((f: any) => f.named[id]?.x).filter((x: any) => x !== undefined).map((x: number) => Math.round(x))).size;
+    const { page, errors, close } = await open(row, 1800, 900, '&bar=0', ENGINE, { reducedMotion: 'reduce' });
+    if (!(await placeRoot(page, 8))) empty.push('summon reduced: the root could not be placed');
+    await g(page, 'jumpToSlot', 14);
+    await sleep(500);
+    const s = await step(page, 'reducedSummon', () => g(page, 'summon'), ['p15', 'p16', 'p17']);
+    s.rootPlaces = places(lastStep!.fr, 'root');
+    const d = await step(page, 'reducedDismiss', () => g(page, 'dismiss'), ['p15', 'p16', 'p17']);
+    d.rootPlaces = places(lastStep!.fr, 'root');
+    await page.mouse.click(5, 5);
+    const k = await step(page, 'reducedArrow', () => page.keyboard.press('ArrowRight'), []);
+    k.p16Places = places(lastStep!.fr, 'p16');
+    if (s.rootView !== 'summoned' || s.rootX !== 0 || d.rootView !== 'away' || d.visibleAfter.join() !== 'p14,p15,p16,p17') fail('reduced', `summon ${s.rootView} at ${s.rootX}, dismiss ${d.rootView} view ${d.visibleAfter}`);
+    if (s.rootPlaces > 2 || d.rootPlaces > 2) fail('reduced', `the root glided under Reduce Motion (${s.rootPlaces} places on the summon, ${d.rootPlaces} on the dismiss)`);
+    if (k.p16Places > 2 || Math.abs(k.rest - 15 * PITCH) > 0.5) fail('reduced', `an arrow key glided under Reduce Motion (p16 at ${k.p16Places} places), rest ${k.rest}`);
+    if (s.frames < 10 || k.frames < 10) empty.push('summon reduced: too few frames recorded');
+    res.reduced = { summon: s, dismiss: d, arrow: k };
+    if (errors.length > 0) fail('reduced', `page errors ${errors.join(' | ')}`);
+    await close();
+    const a = await open('3,1,1,1,1,1,1,1', 1800, 900, '', ENGINE, { reducedMotion: 'reduce' });
+    const ar = await step(a.page, 'reducedAside', () => a.page.setViewportSize({ width: 1400, height: 900 }), []);
+    ar.p1Places = places(lastStep!.fr, 'p1');
+    const ma = await shown(a.page);
+    if (ma.root !== undefined || ma.p1?.x !== 0) empty.push('summon reducedAside: the root did not step aside, so this proved nothing');
+    if (ar.p1Places > 2) fail('reducedAside', `the step-aside glided under Reduce Motion (p1 at ${ar.p1Places} places)`);
+    res.reducedAside = ar;
+    if (a.errors.length > 0) fail('reducedAside', `page errors ${a.errors.join(' | ')}`);
+    await a.close();
+  }
+  {
+    // A root brought back by a wheel toward it stays when a far page closes: only a window, size or neighbor change steps it aside.
+    const { page, errors, close } = await open('3,1,1,1,1,1,1,1');
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await sleep(1000);
+    await page.mouse.move(700, 400);
+    for (let k = 0; k < 30; k += 1) {
+      await page.mouse.wheel(-12, 0);
+      await sleep(16);
+    }
+    await sleep(1500);
+    const back = await shown(page);
+    if (back.root?.x !== 0) empty.push(`summon unrelatedClose: the wheel did not bring the root back (root at ${back.root?.x}), so this proved nothing`);
+    const r = await step(page, 'unrelatedClose', async () => g(page, 'op', 'close', await g(page, 'idOf', 'p8')), ['root', 'p1']);
+    res.unrelatedClose = r;
+    if (r.rootView !== 'shown' || r.rootX !== 0) fail('unrelatedClose', `root ${r.rootView} at ${r.rootX}: a far page closing stepped the root aside again`);
+    if (errors.length > 0) fail('unrelatedClose', `page errors ${errors.join(' | ')}`);
     await close();
   }
   out.summon = res;
@@ -1019,6 +1185,114 @@ if (ONLY.has('width') && ENGINE === 'embla') {
     await close();
   }
   out.width = res;
+}
+
+// Blank pages in view on a parking row (the audit: at maxLivePanels equal to the window's fit, a far dot press drew an unloaded
+// placeholder in the window in 4 of 91 frames). Pixels of every presented frame, and the DOM of every animation frame.
+if (ONLY.has('blank') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const decoder = await (await browser.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+  await decoder.goto('about:blank');
+  // The widest band of window columns, in CSS px, where at least 90% of the sampled rows are page magenta.
+  const widestBlank = (png: string, viewW: number, box: { left: number; width: number; top: number; bottom: number }): Promise<number> =>
+    decoder.evaluate(async ([b64, vw, b]: [string, number, { left: number; width: number; top: number; bottom: number }]) => {
+      const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+      const c = new OffscreenCanvas(bm.width, bm.height);
+      const x = c.getContext('2d')!;
+      x.drawImage(bm, 0, 0);
+      const d = x.getImageData(0, 0, bm.width, bm.height).data;
+      const k = bm.width / vw;
+      let run = 0;
+      let best = 0;
+      for (let cx = b.left + 2; cx < b.left + b.width - 2; cx += 4) {
+        let mag = 0;
+        let n = 0;
+        for (let cy = b.top + 30; cy < b.bottom - 30; cy += 20) {
+          const i = (Math.round(cy * k) * bm.width + Math.round(cx * k)) * 4;
+          n += 1;
+          if (d[i]! > 240 && d[i + 1]! < 15 && d[i + 2]! > 240) mag += 1;
+        }
+        run = n > 0 && mag / n >= 0.9 ? run + 4 : 0;
+        best = Math.max(best, run);
+      }
+      return best;
+    }, [png, viewW, box] as [string, number, { left: number; width: number; top: number; bottom: number }]);
+  const acts: Record<string, (page: Page) => Promise<void>> = {
+    dotFar: async (page) => {
+      await page.click(`[data-dot="${await g(page, 'idOf', 'p20')}"]`);
+      await sleep(1500);
+    },
+    jumpFar: async (page) => {
+      await g(page, 'jumpToSlot', 18);
+      await sleep(700);
+      await g(page, 'jumpToSlot', 2);
+      await sleep(700);
+    },
+    wheelFling: async (page) => {
+      await page.mouse.move(900, 400);
+      for (let k = 0; k < 20; k += 1) {
+        await page.mouse.wheel(60, 0);
+        await sleep(16);
+      }
+      await sleep(1500);
+    },
+    summon: async (page) => {
+      await g(page, 'summon');
+      await sleep(1200);
+    },
+  };
+  let controlSeen = 0;
+  for (const cap of [8, 4]) {
+    for (const [name, act] of [...Object.entries(acts), ['dotFar2', acts.dotFar!], ['dotFar3', acts.dotFar!]] as [string, (page: Page) => Promise<void>][]) {
+      for (const cond of ['row', 'hidden'] as const) {
+        if (cond === 'hidden' && cap === 4) continue;
+        const { page, errors, close } = await open(Array(24).fill(1).join(','), 1800, 900, `&park=1&cap=${cap}&bar=0&bg=1`);
+        if (name === 'summon') {
+          for (let k = 0; k < 8; k += 1) {
+            await g(page, 'op', 'move', await g(page, 'idOf', 'root'), 'right');
+            await sleep(80);
+          }
+          await g(page, 'jumpToSlot', 14);
+          await sleep(900);
+        }
+        if (cond === 'hidden') await page.addStyleTag({ content: '[data-box]{visibility:hidden !important}' });
+        const win = await g(page, 'win');
+        const slot = await page.evaluate(() => { const r = document.querySelector('[data-row-slot]')!.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+        const box = { left: win.left, width: win.width, top: slot.top, bottom: slot.bottom };
+        const cdp = await page.context().newCDPSession(page);
+        const shots: string[] = [];
+        cdp.on('Page.screencastFrame', (f: { data: string; sessionId: number }) => {
+          shots.push(f.data);
+          void cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
+        });
+        await g(page, 'record');
+        await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 });
+        await act(page);
+        await cdp.send('Page.stopScreencast');
+        const fr = await g(page, 'stop');
+        const widths: number[] = [];
+        for (const png of shots) widths.push(await widestBlank(png, 1800, box));
+        const blankShots = widths.filter((w) => w >= 100).length;
+        const domBlank = fr.filter((f: any) => f.blankIn.length > 0);
+        const moved = new Set(fr.map((f: any) => Math.round(f.pos))).size;
+        const r = { shots: shots.length, blankShots, widestBlankPx: Math.max(0, ...widths), frames: fr.length, domBlankFrames: domBlank.length, domBlankIds: [...new Set(domBlank.flatMap((f: any) => f.blankIn))].slice(0, 8), positions: moved, unloadedAtEnd: fr.length > 0 ? fr[fr.length - 1].unloaded : 0 };
+        res[`${name}-cap${cap}-${cond}`] = r;
+        if (shots.length < 10 || fr.length < 10 || moved < 2) empty.push(`blank ${name} cap ${cap} ${cond}: ${shots.length} presented frames, ${fr.length} animation frames, ${moved} row positions`);
+        if (cond === 'hidden') {
+          if (blankShots > 0) controlSeen += 1;
+          else empty.push(`blank control ${name}: every page's content hidden and no presented frame read blank, so the measure cannot see a blank page`);
+        } else {
+          if (blankShots > 0) failed.push(`blank ${name} cap ${cap}: ${blankShots} of ${shots.length} presented frames show a page in the window painting nothing (widest ${r.widestBlankPx} px)`);
+          if (domBlank.length > 0) failed.push(`blank ${name} cap ${cap}: an unloaded placeholder was drawn in the window in ${domBlank.length} of ${fr.length} frames (${r.domBlankIds})`);
+        }
+        if (errors.length > 0) failed.push(`blank ${name} cap ${cap}: page errors ${errors.join(' | ')}`);
+        if (name === 'dotFar' && cond === 'row') await page.screenshot({ path: join(OUT, `blank-dotFar-cap${cap}.png`) });
+        await close();
+      }
+    }
+  }
+  res.controlsThatSawBlank = controlSeen;
+  out.blank = res;
 }
 
 await browser.close();

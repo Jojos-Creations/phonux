@@ -30,6 +30,8 @@ const PARK = q.get('park') === '1';
 const CAP = q.get('cap') === null ? null : Number(q.get('cap'));
 const NEAR = q.get('near') === null ? undefined : Number(q.get('near'));
 const BAR = q.get('bar') === null ? null : Number(q.get('bar'));
+// bg=1: a magenta page, so a slot that paints nothing (an unloaded placeholder in view) shows as magenta in a captured frame.
+if (q.get('bg') === '1') document.body.style.background = '#ff00ff';
 // Each view's mounts, and a setter for a piece of React state it holds: state survives only while the view stays mounted.
 const mounts: Record<string, number> = {};
 const setters: Record<string, (n: number) => void> = {};
@@ -190,7 +192,13 @@ const frame = (t: number): void => {
     }
     const lifted = document.querySelector<HTMLElement>(':popover-open');
     const liftedRect = lifted === null ? null : lifted.getBoundingClientRect();
-    frames.push({ t, named, drawn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
+    // Unloaded placeholders the window shows this frame (any part of them): a blank page in view.
+    const blankIn: string[] = [];
+    for (const el of document.querySelectorAll<HTMLElement>('[data-row-unloaded]')) {
+      const r = el.getBoundingClientRect();
+      if (Math.min(r.right, win.left + win.width) - Math.max(r.left, win.left) > 1) blankIn.push(el.closest<HTMLElement>('[data-row-slot]')!.dataset.rowId!);
+    }
+    frames.push({ t, named, drawn, blankIn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
     wheels = 0;
     pd = 0;
     pm = 0;
@@ -208,6 +216,8 @@ requestAnimationFrame(frame);
   ready: () => latest !== undefined && Number.isFinite(latest.rowNumbers?.windowWidth) && document.querySelectorAll('[data-row-slot]').length === ids.length + 1 && (ENGINE === 'own' || emblaOf(container()) !== undefined),
   pos,
   logical,
+  // Where Embla is going, scroll px.
+  target: () => { const e = emblaOf(container()); return e === undefined ? null : -e.internalEngine().target.get(); },
   win: windowRect,
   max: () => Math.max(0, latest.rowNumbers.stripWidth - windowRect().width),
   stripWidth: () => latest.rowNumbers.stripWidth,
