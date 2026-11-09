@@ -4,6 +4,10 @@ Owner ruling, 2026-11-08: rebuild the row on Embla Carousel now (rc.7 waits); fa
 far web pages unloaded behind same-size placeholders (step 7). The plan is `~/git/phonux-rc7-pack/embla-plan/PLAN.md` (eight
 steps). This file records what each step delivered and what is left.
 
+> **Step 8d (2026-11-09, owner: "We can retire the old row."):** the old row ('own') is deleted and Embla is the only row. The
+> `rowEngine` switch described in the steps below no longer exists (`Workspace`, `useProvidePanels`, `WorkspaceOptions`); the
+> sections keep their history as written. See CHANGELOG, Unreleased, "Removed (breaking)".
+
 ## Step 1: an Embla row behind a switch
 
 `<Workspace rowEngine="embla">` runs the row on `embla-carousel` 8.6.0, with `wheel-gestures` 2.3.0 reading the wheel (both pinned
