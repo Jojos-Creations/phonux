@@ -109,12 +109,7 @@ export type WorkspaceOptions = WorkspaceLive & {
    * notice to the host, which reads `PanelsAPI.recentlyClosed`. Fixed at creation. Ignored when `mount` is `false`.
    */
   undoToast?: boolean;
-  /**
-   * What the auto mount moves the row with: its `Workspace`'s `rowEngine`, and the same value to its `useProvidePanels`. Default
-   * 'own'. Fixed at creation.
-   */
-  rowEngine?: 'own' | 'embla';
-  /** With `rowEngine: 'embla'`: the auto mount's `Workspace` `rowNearSlots`. Unset: that prop's default. Fixed at creation. */
+  /** The auto mount's `Workspace` `rowNearSlots`. Unset: that prop's default. Fixed at creation. */
   rowNearSlots?: number;
 };
 
@@ -291,8 +286,7 @@ export interface EngineBinding {
   readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
   /** Whether the auto mount draws its undo-close toast (see `WorkspaceOptions.undoToast`). */
   readonly undoToast: boolean;
-  /** The auto mount's row engine and near-slot count (see `WorkspaceOptions.rowEngine`). */
-  readonly rowEngine: 'own' | 'embla';
+  /** The auto mount's near-slot count (see `WorkspaceOptions.rowNearSlots`). */
   readonly rowNearSlots: number | undefined;
   /** The theme function the auto mount draws with, if the app gave one. */
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
@@ -1196,7 +1190,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     live,
     wrap: o.wrap,
     undoToast: o.undoToast !== false,
-    rowEngine: o.rowEngine ?? 'own',
     rowNearSlots: o.rowNearSlots,
     theme: o.theme,
     warnHandMounted: () => {

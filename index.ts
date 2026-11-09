@@ -106,7 +106,7 @@ export { WorkspacePanel, WorkspaceTrash } from './WorkspacePanel.js';
 export type { WorkspacePanelProps, WorkspaceTrashProps } from './WorkspacePanel.js';
 export type { WorkspacePanelEntry, WorkspaceTileCounts, WorkspaceTileSize } from './workspacePanelModel.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
-export { feedRowWheel } from './panels/useRowScrollGesture.js';
+export { feedRowWheel } from './feedRowWheel.js';
 export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';
 export { reorderStepsForOffset } from './panelWindow.js';
