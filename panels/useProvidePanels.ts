@@ -39,6 +39,7 @@ import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import { isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
 import type { RootView } from '../panelManager.js';
+import { emblaAsideFor, emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonPlan, emblaTargetOf, markEmblaRow, onEmblaStep, subscribeEmblaRows, wholeInView } from '../emblaRow.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
@@ -246,6 +247,10 @@ function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<Worksp
 }
 
 /** A scroll the row owes after a commit; one is pending at a time and the last recorded wins. */
+/** A root summoned on a strip: the side it came in from, the panels it took off the strip, the panel at that edge before (a dismiss rests the view on it again), and the step-aside it ended. */
+type StripSummon = { side: 'left' | 'right'; parks: readonly string[]; edge: { id: string; edge: 'left' | 'right'; screen: number } | null; aside: StripAside | null };
+/** A root stepped aside on a strip for panel `id`, `side` being the root's side of it; `at` is where the row rested then (scroll px). */
+type StripAside = { id: string; side: 'left' | 'right'; at: number | null };
 /** A root brought into the view: the side it stands on, the panels it parked, the scroll to go back to, null when the row draws it only for the summon, and which panels were live when it came. */
 type RootSummon = { side: 'left' | 'right'; returns: readonly string[]; from: number | null; wasLive: ReadonlyMap<string, boolean> };
 
@@ -372,9 +377,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const rootAsideIn = (row: readonly PanelWindow[]): boolean => rootStepsAside({ entries: row, rootId, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap });
   // A root that was summoned stands in the row whatever the row would otherwise do with it.
   const [summoned, setSummoned] = useState<RootSummon | null>(null);
-  const rootAside = summoned === null && rootAsideIn(panels);
-  const drawnPanels = rootAside ? panels.map((p) => (p.id === rootId ? drawnAside(p) : p)) : panels;
-  const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside ? 1 : 0), wholePanels: stopsOnGrid, rest };
+  // On a strip (Embla) the summon and the step-aside are what the row draws, never the list: a summon takes the panels between the
+  // root and the view, and the one in that edge's slot, off the strip; a step-aside takes the root off it. Neither is saved.
+  const [stripSummon, setStripSummon] = useState<StripSummon | null>(null);
+  const [stripAside, setStripAside] = useState<StripAside | null>(null);
+  const rootAside = !strip && summoned === null && rootAsideIn(panels);
+  const offStrip = new Set<string>([...(stripSummon?.parks ?? []), ...(stripAside !== null ? [rootId] : [])]);
+  const drawnPanels = rootAside || offStrip.size > 0 ? panels.map((p) => (p.id === rootId ? (rootAside || offStrip.has(p.id) ? drawnAside(p) : p) : offStrip.has(p.id) && p.live ? drawnAside(p) : p)) : panels;
+  const rowInput = { entries: drawnPanels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount - (rootAside || stripAside !== null ? 1 : 0), wholePanels: stopsOnGrid, rest };
   const drawnNumbersRef = useRef<RowNumbers | undefined>(undefined);
   // The direction of a step that swaps panels, until the commit that draws the swap.
   const swapStepRef = useRef<'left' | 'right' | null>(null);
@@ -620,11 +630,129 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return span.left >= grid.lo - 1 && span.right <= grid.hi + 1;
   };
 
+  // The root on a strip (Embla). Everything is read off the strip the row drew last and where Embla is heading.
+  const stripNow = (): { el: HTMLElement; layout: { ids: readonly string[]; lefts: readonly number[]; widths: readonly number[] }; windowWidth: number; at: number } | null => {
+    const el = i.overflowContainerRef.current;
+    const embla = el === null ? undefined : emblaOf(el);
+    const s = el === null ? undefined : emblaStripOf(el);
+    if (el === null || embla === undefined || s === undefined) return null;
+    return { el, layout: s.layout, windowWidth: s.windowWidth, at: emblaTargetOf(embla) };
+  };
+  const stripRootView = (): RootView => {
+    if (stripSummon !== null) return 'summoned';
+    if (stripAside !== null) return 'away';
+    const now = stripNow();
+    const k = now === null ? -1 : now.layout.ids.indexOf(rootId);
+    return now === null || k < 0 || wholeInView(now.layout, k, now.at, now.windowWidth) ? 'shown' : 'away';
+  };
+  const stripSummonRoot = (): boolean => {
+    const now = stripNow();
+    if (now === null || stripSummon !== null) return false;
+    if (stripAside !== null) {
+      // Drawn again beside the panel that stepped it aside, which moves over by the root's slot.
+      setStripAside(null);
+      setStripSummon({ side: stripAside.side, parks: [], edge: null, aside: stripAside });
+      markEmblaRow(now.el, { pin: { id: rootId, edge: stripAside.side, screen: 0 }, reveal: null });
+      return true;
+    }
+    const plan = emblaSummonPlan(now.layout, now.at, now.windowWidth, i.phoneWidth, rootId);
+    if (plan === null) return false;
+    setStripSummon({ side: plan.side, parks: plan.parks, edge: plan.edge, aside: null });
+    markEmblaRow(now.el, { pin: { id: rootId, edge: plan.side, screen: 0 }, reveal: null });
+    return true;
+  };
+  const stripDismissRoot = (): boolean => {
+    const el = i.overflowContainerRef.current;
+    if (stripSummon === null || el === null) return false;
+    setStripSummon(null);
+    if (stripSummon.aside !== null) {
+      setStripAside(stripSummon.aside);
+      markEmblaRow(el, { pin: null, reveal: stripSummon.aside.id });
+    } else markEmblaRow(el, { pin: stripSummon.edge, reveal: null });
+    return true;
+  };
+  // A summon ends when the row carries the root out of the view (a scroll, a dot): what it took off the strip comes back beside the
+  // root and the view stays where it went. A step-aside ends when the row moves toward the root, or a step key asks for it at the end.
+  const stripRef = useRef({ summon: stripSummon, aside: stripAside, offStrip });
+  stripRef.current = { summon: stripSummon, aside: stripAside, offStrip };
+  const stripRowEl = strip ? i.overflowContainerRef.current : null;
+  const stripWatch = stripSummon !== null || stripAside !== null;
+  useEffect(() => {
+    const el = stripRowEl;
+    if (el === null || !stripWatch) return undefined;
+    const check = (): void => {
+      const { summon, aside, offStrip: off } = stripRef.current;
+      const embla = emblaOf(el);
+      const s = emblaStripOf(el);
+      // Read only a strip the row has drawn with this state: off the strip is off it, the root on it unless stepped aside.
+      if (embla === undefined || s === undefined || s.layout.ids.some((id) => off.has(id)) || (aside === null) !== s.layout.ids.includes(rootId)) return;
+      const at = emblaTargetOf(embla);
+      const drawn = emblaDrawnOf(embla);
+      if (summon !== null) {
+        const k = s.layout.ids.indexOf(rootId);
+        // Gone from the view entirely, so the panels coming back beside it are out of view too and the view keeps still.
+        const out = (px: number): boolean => s.layout.lefts[k]! + s.layout.widths[k]! <= px + 0.5 || s.layout.lefts[k]! >= px + s.windowWidth - 0.5;
+        if (k >= 0 && out(drawn)) setStripSummon(null);
+        return;
+      }
+      if (aside === null) return;
+      if (aside.at === null) {
+        stripRef.current.aside = { ...aside, at };
+        setStripAside({ ...aside, at });
+        return;
+      }
+      const toward = aside.side === 'left' ? Math.min(at, drawn) < aside.at - 1 : Math.max(at, drawn) > aside.at + 1;
+      if (toward) setStripAside(null);
+    };
+    const offStep = onEmblaStep(el, (direction) => {
+      const { summon, aside } = stripRef.current;
+      if (summon === null && aside !== null && direction === aside.side) {
+        setStripAside(null);
+        markEmblaRow(el, { pin: { id: rootId, edge: aside.side, screen: 0 }, reveal: null });
+        return true;
+      }
+      return false;
+    });
+    const off = subscribeEmblaRows(check);
+    check();
+    return () => {
+      off();
+      offStep();
+    };
+  }, [stripRowEl, stripWatch]);
+  // A window or a size change that leaves a wide panel beside the root cut, where it cannot fit beside the root and fits alone, steps
+  // the root aside so the panel shows whole; a window wide enough for both again brings the root back beside it.
+  const stripSeen = useRef<{ widths: string; window: number } | null>(null);
+  useLayoutEffect(() => {
+    const now = strip ? stripNow() : null;
+    if (now === null) return;
+    // The root coming back or leaving is not a change that steps it aside: only the window and the other panels' widths are.
+    const seen = { widths: now.layout.ids.flatMap((id, k) => (id === rootId ? [] : [`${id}:${now.layout.widths[k]}`])).join(' '), window: now.windowWidth };
+    const before = stripSeen.current;
+    stripSeen.current = seen;
+    if (before === null || (before.widths === seen.widths && before.window === seen.window) || stripSummon !== null) return;
+    if (stripAside !== null) {
+      const k = now.layout.ids.indexOf(stripAside.id);
+      const root = panels.find((p) => p.id === rootId);
+      const rootWidth = root === undefined ? i.phoneWidth : panelWidthOf(root, i.phoneWidth, maxLiveWidth, tuning.rowGap);
+      if (k < 0 || rootWidth + tuning.rowGap + now.layout.widths[k]! <= now.windowWidth + 0.5) {
+        setStripAside(null);
+        markEmblaRow(now.el, k < 0 ? { pin: null, reveal: null } : { pin: { id: rootId, edge: stripAside.side, screen: 0 }, reveal: null });
+      }
+      return;
+    }
+    const aside = emblaAsideFor(now.layout, now.at, now.windowWidth, tuning.rowGap, rootId);
+    if (aside === null) return;
+    setStripAside({ ...aside, at: null });
+    markEmblaRow(now.el, { pin: null, reveal: aside.id });
+  });
+
   /**
    * Where the root stands now: in the view, summoned there, or out of it. The scroll it is heading for counts, so a press during a glide answers for where the row will rest.
    * A held root is always in view.
    */
   const rootView = (): RootView => {
+    if (strip) return stripRootView();
     if (summoned !== null) return 'summoned';
     if (rootAside) return 'away';
     const el = i.overflowContainerRef.current;
@@ -638,6 +766,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
    * A wide panel in that slot does not park: the row slides it over by one slot, so it runs off the far edge. False when there is nothing to do.
    */
   const summonRoot = (): boolean => {
+    if (strip) return stripSummonRoot();
     const el = i.overflowContainerRef.current;
     if (el === null || rootView() !== 'away') return false;
     const scroller = rowScrollerFor(el);
@@ -675,6 +804,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   /** Sends a summoned root back out: what it parked returns where it stood, and the row is as it was. False when no summon stands. */
   const dismissRoot = (): boolean => {
+    if (strip) return stripDismissRoot();
     if (summoned === null) return false;
     const el = i.overflowContainerRef.current;
     setSummoned(null);

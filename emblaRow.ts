@@ -401,6 +401,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || arrowKeyBelongsElsewhere(e, doc)) return;
       if (win.closest('[inert]') !== null) return;
       e.preventDefault();
+      if (stepHooks.get(win)?.(e.key === 'ArrowLeft' ? 'left' : 'right') === true) return;
       if (e.key === 'ArrowLeft') embla.scrollPrev();
       else embla.scrollNext();
     };
@@ -424,4 +425,112 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       notifyEmblaRows();
     };
   }, [enabled, windowRef, boxRef]);
+}
+
+/** Where the row is heading, in scroll px: the stop a glide or a drag is going to, or where it rests. @internal */
+export function emblaTargetOf(embla: EmblaCarouselType): number {
+  return -embla.internalEngine().target.get();
+}
+
+/**
+ * What a summon, a dismiss or a step-aside of the root asks of the Embla row in the commit that draws it. `pin` rests the view with
+ * panel `id`'s left edge `screen` px right of the window's left ('left'), or its right edge `screen` px left of the window's right
+ * ('right'); `reveal` moves the view the least that shows that panel whole. A panel the change moves on screen glides there from
+ * where it was, from one slot outside the window at most, so the root arrives and leaves as a page does. @internal
+ */
+export interface EmblaRowMark {
+  pin: { id: string; edge: 'left' | 'right'; screen: number } | null;
+  reveal: string | null;
+  seq: number;
+}
+const marks = new WeakMap<Element, EmblaRowMark>();
+let markSeq = 0;
+const windowOf = (el: Element): Element | null => el.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`) ?? el.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
+/** Asks the Embla row whose window or container is `el` to rest by `mark` in its next commit. @internal */
+export function markEmblaRow(el: Element, mark: Omit<EmblaRowMark, 'seq'>): void {
+  const win = windowOf(el);
+  if (win !== null) marks.set(win, { ...mark, seq: ++markSeq });
+}
+/** The last mark set on the Embla row rooted on `win`. @internal */
+export const emblaMarkOf = (win: Element): EmblaRowMark | undefined => marks.get(win);
+
+/** The scroll a mark asks for on a strip laid out as `layout` in a window `windowWidth` wide, from `kept` (the keep-still answer); null when it names no panel there. @internal */
+export function markedScroll(mark: EmblaRowMark, layout: StripLayout, windowWidth: number, kept: number, max: number): number | null {
+  const clamp = (px: number): number => Math.min(Math.max(0, px), max);
+  if (mark.pin !== null) {
+    const k = layout.ids.indexOf(mark.pin.id);
+    if (k < 0) return null;
+    return clamp(mark.pin.edge === 'left' ? layout.lefts[k]! - mark.pin.screen : layout.lefts[k]! + layout.widths[k]! - windowWidth + mark.pin.screen);
+  }
+  if (mark.reveal !== null) {
+    const k = layout.ids.indexOf(mark.reveal);
+    if (k < 0) return null;
+    return clamp(revealScroll(layout.lefts[k]!, layout.widths[k]!, kept, windowWidth) ?? kept);
+  }
+  return null;
+}
+
+const stepHooks = new WeakMap<Element, (direction: 'left' | 'right') => boolean>();
+/** Lets the Embla row whose container is `el` hear a step key before it moves; the hook returns true when it took the step. @internal */
+export function onEmblaStep(el: Element, hook: (direction: 'left' | 'right') => boolean): () => void {
+  const win = windowOf(el);
+  if (win === null) return () => undefined;
+  stepHooks.set(win, hook);
+  return () => {
+    if (stepHooks.get(win) === hook) stepHooks.delete(win);
+  };
+}
+
+/** Whether panel `k` of `layout` stands whole in a window `windowWidth` wide at `scroll`. @internal */
+export function wholeInView(layout: StripLayout, k: number, scroll: number, windowWidth: number): boolean {
+  return layout.lefts[k]! >= scroll - 0.5 && layout.lefts[k]! + layout.widths[k]! <= scroll + windowWidth + 0.5;
+}
+
+/**
+ * A summon of root `rootId` on an Embla row resting at `scroll`: the side it comes in from (the side it lies off), the panels that
+ * step out (every panel between it and the window, and the one in that edge's slot when it fits the slot; a wider one stays and
+ * moves over by the root's slot), and the panel at that edge before, with its place, so a dismiss rests the view as it was.
+ * Null when the root is in the view or not on the strip.
+ * @internal
+ */
+export function emblaSummonPlan(layout: StripLayout, scroll: number, windowWidth: number, phoneWidth: number, rootId: string): { side: 'left' | 'right'; parks: string[]; edge: { id: string; edge: 'left' | 'right'; screen: number } | null } | null {
+  const k = layout.ids.indexOf(rootId);
+  if (k < 0 || wholeInView(layout, k, scroll, windowWidth)) return null;
+  const side = layout.lefts[k]! < scroll ? 'left' : 'right';
+  const step = side === 'left' ? 1 : -1;
+  const parks: string[] = [];
+  let edge: { id: string; edge: 'left' | 'right'; screen: number } | null = null;
+  for (let j = k + step; j >= 0 && j < layout.ids.length; j += step) {
+    const left = layout.lefts[j]! - scroll;
+    const right = left + layout.widths[j]!;
+    const inView = right > 0.5 && left < windowWidth - 0.5;
+    if (!inView) {
+      parks.push(layout.ids[j]!);
+      continue;
+    }
+    edge = side === 'left' ? { id: layout.ids[j]!, edge: 'left', screen: left } : { id: layout.ids[j]!, edge: 'right', screen: windowWidth - right };
+    const inSlot = side === 'left' ? left >= -0.5 && right <= phoneWidth + 0.5 : right <= windowWidth + 0.5 && left >= windowWidth - phoneWidth - 0.5;
+    if (inSlot) parks.push(layout.ids[j]!);
+    break;
+  }
+  return { side, parks, edge };
+}
+
+/**
+ * The panel the root steps aside for on an Embla row: the root stands whole in the view at `scroll`, and its neighbor is cut by the
+ * window, does not fit it beside the root and fits it alone. `side` is the root's side of that panel. Null when none.
+ * @internal
+ */
+export function emblaAsideFor(layout: StripLayout, scroll: number, windowWidth: number, gap: number, rootId: string): { id: string; side: 'left' | 'right' } | null {
+  const k = layout.ids.indexOf(rootId);
+  if (k < 0 || !wholeInView(layout, k, scroll, windowWidth)) return null;
+  for (const j of [k + 1, k - 1]) {
+    if (j < 0 || j >= layout.ids.length) continue;
+    const w = layout.widths[j]!;
+    const left = layout.lefts[j]! - scroll;
+    const shown = Math.min(left + w, windowWidth) - Math.max(left, 0) > 0.5;
+    if (!shown || wholeInView(layout, j, scroll, windowWidth)) continue;
+    if (layout.widths[k]! + gap + w > windowWidth + 0.5 && w <= windowWidth + 0.5) return { id: layout.ids[j]!, side: j > k ? 'left' : 'right' };
+  }
+  return null;
 }

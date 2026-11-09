@@ -166,14 +166,17 @@ const frame = (t: number): void => {
   if (recording) {
     const win = windowRect();
     const panels: Record<string, { x: number; w: number }> = {};
+    const named: Record<string, { x: number; w: number }> = {};
     for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
       const r = el.getBoundingClientRect();
       panels[el.dataset.rowId!] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
+      const name = el.querySelector<HTMLElement>('[data-box]')?.dataset.box;
+      if (name !== undefined) named[name] = panels[el.dataset.rowId!]!;
     }
     const oval = document.querySelector<HTMLElement>('[data-dot-oval]');
     const track = document.querySelector<HTMLElement>('[data-bar-track]');
     const bar = oval === null || track === null ? {} : { ovalLeft: oval.getBoundingClientRect().left - track.getBoundingClientRect().left, ovalScreen: oval.getBoundingClientRect().left, ovalW: oval.getBoundingClientRect().width };
-    frames.push({ t, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
+    frames.push({ t, named, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
     wheels = 0;
     pd = 0;
     pm = 0;
@@ -190,6 +193,7 @@ requestAnimationFrame(frame);
   GAP,
   ready: () => latest !== undefined && Number.isFinite(latest.rowNumbers?.windowWidth) && document.querySelectorAll('[data-row-slot]').length === ids.length + 1 && (ENGINE === 'own' || emblaOf(container()) !== undefined),
   pos,
+  logical,
   win: windowRect,
   max: () => Math.max(0, latest.rowNumbers.stripWidth - windowRect().width),
   stripWidth: () => latest.rowNumbers.stripWidth,
@@ -262,6 +266,18 @@ requestAnimationFrame(frame);
   },
   dotRect: (id: string) => { const b = document.querySelector<HTMLElement>(`[data-dot="${id}"]`)!.getBoundingClientRect(); return { left: b.left, width: b.width, top: b.top }; },
   easedOval: (on: boolean) => { (globalThis as any).__ovalMove = on ? easeEmbla : writeEmbla; },
+  // The window bar's Workspace button: summon, dismiss, and where the root stands.
+  summon: () => ws.panels.summonRoot(),
+  dismiss: () => ws.panels.dismissRoot(),
+  rootView: () => ws.panels.rootView(),
+  // Panels by their template's name (p1.., root): the list's order, a name's engine id, and every slot drawn now with its left on
+  // screen (window px) and width.
+  order: () => latest.entries.map((e: any) => (e.id === ws.rootId ? ROOT : e.view)),
+  idOf: (name: string) => (name === ROOT ? ws.rootId : latest.entries.find((e: any) => e.view === name)?.id),
+  shown: () => {
+    const win = windowRect();
+    return [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => { const r = el.getBoundingClientRect(); return { id: el.querySelector<HTMLElement>('[data-box]')?.dataset.box ?? el.dataset.rowId!, x: +(r.left - win.left).toFixed(1), w: +r.width.toFixed(1) }; }).sort((a, b) => a.x - b.x);
+  },
   record: () => { frames.length = 0; recording = true; },
   stop: () => { recording = false; return frames.slice(); },
 };

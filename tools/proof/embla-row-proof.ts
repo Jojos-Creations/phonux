@@ -25,6 +25,10 @@
  * dots   the dot bar on the same parking row: one dot per panel, the oval over the panels in view; a fast oval drag keeps the oval
  *        within 2 px of the pointer in every frame (control: Embla's eased drag trails it); a dot press shows its panel; the pointer
  *        held past a clipped bar's end keeps the row moving every frame (control: held mid-bar, it stays).
+ * summon the root on a row of 25 slots, eight pages left of it: summoned from the left and from the right it comes into that edge's
+ *        slot and the pages in view stay put in every frame; a dismiss restores the view; a step toward it keeps the summon; a scroll
+ *        and a dot press carrying it out end the summon and return its pages out of view. The step-aside: a window narrowed under a
+ *        wide page beside the root, and a size pick, show the page whole; a step back and a wider window bring the root back.
  *
  * Every check is in the JSON it prints, with `failed` listing what broke. Exits 1 when a check failed and 2 when a run recorded no
  * frames or no motion, so a run that proved nothing never reads as a pass. Screenshots go to --out; look at them.
@@ -43,7 +47,7 @@ const arg = (name: string): string | undefined => {
 };
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon').split(','));
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -644,6 +648,176 @@ if (ONLY.has('dots') && ENGINE === 'embla') {
   if (h.framesStillBeforeEnd > 0) failed.push(`dots hold: ${h.framesStillBeforeEnd} of ${h.framesBeforeEnd} frames stood still while held past the end`);
   if (Math.abs(hc.movedPx) > 0.5) empty.push(`dots hold control: held mid-bar the row moved ${hc.movedPx} px, so the hold check cannot tell holding at the end from holding anywhere`);
   out.dots = res;
+}
+
+// The root (the Workspace panel) on a row with more pages than fit: summon from the left and from the right with pages left of it,
+// dismiss, a step toward it, a scroll and a dot press carrying it out, and the step-aside on a window resize and on a size pick.
+if (ONLY.has('summon') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const PITCH = 406;
+  const fail = (label: string, why: string): void => void failed.push(`summon ${label}: ${why}`);
+  const shown = async (page: Page): Promise<Record<string, { x: number; w: number }>> => Object.fromEntries((await g(page, 'shown')).map((x: any) => [x.id, { x: x.x, w: x.w }]));
+  const visible = (m: Record<string, { x: number; w: number }>, winW: number): string[] => Object.entries(m).filter(([, v]) => v.x > -v.w + 1 && v.x < winW - 1).sort((a, b) => a[1].x - b[1].x).map(([id]) => id);
+  const placeRoot = async (page: Page, n: number): Promise<boolean> => {
+    for (let k = 0; k < n; k += 1) {
+      await g(page, 'op', 'move', await g(page, 'idOf', 'root'), 'right');
+      await sleep(80);
+    }
+    await sleep(600);
+    return (await g(page, 'order'))[n] === 'root';
+  };
+  // Runs `act`, records every frame until the row settles, and checks that `stay` never moved on screen, that no one-slot panel is cut
+  // at rest and that the rest is on the grid.
+  const step = async (page: Page, label: string, act: () => Promise<unknown>, stay: string[]): Promise<any> => {
+    const before = await shown(page);
+    await g(page, 'record');
+    const ret = await act();
+    await sleep(1000);
+    const fr = await g(page, 'stop');
+    const after = await shown(page);
+    const win = await g(page, 'win');
+    const max = await g(page, 'max');
+    const rest = await g(page, 'pos');
+    let worst = 0;
+    for (const id of stay) for (const f of fr) if (f.named[id] !== undefined && before[id] !== undefined) worst = Math.max(worst, Math.abs(f.named[id].x - before[id].x));
+    const missing = stay.filter((id) => after[id] === undefined || before[id] === undefined);
+    const cut = fr.length > 0 ? cutNarrow({ ...fr[fr.length - 1], panels: fr[fr.length - 1].named }, 390) : [];
+    const rootXs = fr.map((f: any) => f.named.root?.x).filter((x: any) => x !== undefined);
+    const r = { returned: ret, frames: fr.length, visibleBefore: visible(before, win.width), visibleAfter: visible(after, win.width), stayWorstPx: +worst.toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, PITCH, max), cutAtRest: cut, rootView: await g(page, 'rootView'), slots: await g(page, 'slotCount'), rootX: after.root?.x ?? null, rootFramesMoving: new Set(rootXs.map((x: number) => Math.round(x))).size };
+    if (fr.length === 0) empty.push(`summon ${label}: no frames`);
+    if (missing.length > 0) fail(label, `panels meant to stay are not drawn: ${missing}`);
+    if (worst > 0.5) fail(label, `a page in view moved ${worst.toFixed(1)} px`);
+    if (cut.length > 0) fail(label, `one-slot page cut at rest: ${cut}`);
+    if (!r.restOnGrid) fail(label, `rest ${r.rest} off the grid`);
+    return r;
+  };
+  const row = Array(24).fill(1).join(',');
+  {
+    // Summon from the left, eight pages left of the root, the view at p14..p17.
+    const { page, errors, close } = await open(row);
+    if (!(await placeRoot(page, 8))) empty.push('summon: the root could not be placed with pages left of it');
+    await g(page, 'jumpToSlot', 14);
+    await sleep(500);
+    const awayBefore = await g(page, 'rootView');
+    const s1 = await step(page, 'fromLeft', async () => {
+      const r = await g(page, 'summon');
+      await sleep(90);
+      await page.screenshot({ path: join(OUT, 'summon-left-mid.png') });
+      return r;
+    }, ['p15', 'p16', 'p17']);
+    await page.screenshot({ path: join(OUT, 'summon-left.png') });
+    if (awayBefore !== 'away') empty.push(`summon fromLeft: the root was ${awayBefore} before, so the check proves nothing`);
+    if (s1.rootView !== 'summoned' || s1.rootX !== 0) fail('fromLeft', `root ${s1.rootView} at x ${s1.rootX}, not summoned at 0`);
+    if (s1.visibleAfter.join() !== 'root,p15,p16,p17') fail('fromLeft', `view ${s1.visibleAfter}, not root,p15,p16,p17`);
+    if (s1.rootFramesMoving < 3) fail('fromLeft', `the root did not glide in (${s1.rootFramesMoving} places drawn)`);
+    const d1 = await step(page, 'dismissLeft', () => g(page, 'dismiss'), ['p15', 'p16', 'p17']);
+    if (d1.visibleAfter.join() !== 'p14,p15,p16,p17' || d1.rootView !== 'away' || d1.slots !== 25) fail('dismissLeft', `view ${d1.visibleAfter}, root ${d1.rootView}, ${d1.slots} slots; not as before the summon`);
+    if ((await g(page, 'order')).join() !== ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'root', ...Array.from({ length: 16 }, (_, k) => `p${k + 9}`)].join()) fail('dismissLeft', 'the list order changed');
+    await g(page, 'summon');
+    await sleep(900);
+    const t1 = await step(page, 'stepToward', () => page.keyboard.press('ArrowLeft'), []);
+    if (t1.rootView !== 'summoned' || Math.abs(t1.rootX - PITCH) > 1 || t1.visibleAfter.join() !== 'p8,root,p15,p16') fail('stepToward', `root ${t1.rootView} at ${t1.rootX}, view ${t1.visibleAfter}: the summon did not stand`);
+    // A scroll carrying the root out to the left: the pages it took off come back beside it, out of view, and the view stays.
+    await g(page, 'record');
+    await g(page, 'glideToSlot', 13);
+    await sleep(2500);
+    const fr = await g(page, 'stop');
+    const win = await g(page, 'win');
+    const after = await shown(page);
+    const leftAfter = visible(after, win.width);
+    const target = leftAfter[0];
+    // The row only glides: once the root has gone, no page in view jumps between two frames by more than the glide's largest step before it.
+    const xs = fr.map((f: any) => f.named[target]?.x).filter((x: any) => x !== undefined);
+    const steps = xs.slice(1).map((x: number, k: number) => Math.abs(x - xs[k]));
+    const rest = await g(page, 'pos');
+    const sc = { logical: await g(page, 'logical'), view: leftAfter, rootView: await g(page, 'rootView'), slots: await g(page, 'slotCount'), worstFramePx: +Math.max(0, ...steps).toFixed(1), rest, restOnGrid: onGrid(rest, PITCH, await g(page, 'max')) };
+    res.scrollOut = sc;
+    if (sc.rootView !== 'away' || sc.slots !== 25) fail('scrollOut', `root ${sc.rootView}, ${sc.slots} slots: the summon did not end and return its pages`);
+    // Slot 13 of the summoned strip (p1..p8, root, p15..) is p19's.
+    if (leftAfter.join() !== 'p19,p20,p21,p22') fail('scrollOut', `view ${leftAfter}, not p19..p22 where the scroll went`);
+    if (sc.worstFramePx > PITCH) fail('scrollOut', `a page in view jumped ${sc.worstFramePx} px in one frame`);
+    if (!sc.restOnGrid) fail('scrollOut', `rest ${rest} off the grid`);
+    res.fromLeft = s1;
+    res.dismissLeft = d1;
+    res.stepToward = t1;
+    if (errors.length > 0) fail('left', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  {
+    // Summon from the right with the view at the start, then a dot press carrying the root out.
+    const { page, errors, close } = await open(row, 1800, 900, '&bar=0');
+    if (!(await placeRoot(page, 8))) empty.push('summon: the root could not be placed');
+    await g(page, 'jumpToSlot', 0);
+    await sleep(500);
+    const s2 = await step(page, 'fromRight', () => g(page, 'summon'), ['p1', 'p2', 'p3']);
+    await page.screenshot({ path: join(OUT, 'summon-right.png') });
+    if (s2.rootView !== 'summoned' || s2.rootX !== 3 * PITCH || s2.visibleAfter.join() !== 'p1,p2,p3,root') fail('fromRight', `root ${s2.rootView} at ${s2.rootX}, view ${s2.visibleAfter}`);
+    if (s2.rootFramesMoving < 3) fail('fromRight', `the root did not glide in (${s2.rootFramesMoving} places drawn)`);
+    const d2 = await step(page, 'dismissRight', async () => {
+      const r = await g(page, 'dismiss');
+      await sleep(90);
+      await page.screenshot({ path: join(OUT, 'dismiss-right-mid.png') });
+      return r;
+    }, ['p1', 'p2', 'p3']);
+    if (d2.visibleAfter.join() !== 'p1,p2,p3,p4' || d2.rootView !== 'away' || d2.slots !== 25) fail('dismissRight', `view ${d2.visibleAfter}, root ${d2.rootView}, ${d2.slots} slots`);
+    await g(page, 'summon');
+    await sleep(900);
+    await page.click(`[data-dot="${await g(page, 'idOf', 'p20')}"]`);
+    await sleep(1500);
+    const win = await g(page, 'win');
+    const m = await shown(page);
+    const dot = { view: visible(m, win.width), rootView: await g(page, 'rootView'), slots: await g(page, 'slotCount'), p20: m.p20 };
+    res.dotOut = dot;
+    if (dot.rootView !== 'away' || dot.slots !== 25) fail('dotOut', `root ${dot.rootView}, ${dot.slots} slots: the summon did not end`);
+    if (dot.p20 === undefined || dot.p20.x < -0.5 || dot.p20.x + dot.p20.w > win.width + 0.5) fail('dotOut', `p20 not in view after its dot (${JSON.stringify(dot.p20)})`);
+    res.fromRight = s2;
+    res.dismissRight = d2;
+    if (errors.length > 0) fail('right', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  {
+    // Step-aside on a window resize: the root beside a three-slot page; the window narrows from four slots to three.
+    const { page, errors, close } = await open('3,1,1,1,1,1,1,1');
+    const a = await step(page, 'asideResize', () => page.setViewportSize({ width: 1400, height: 900 }), []);
+    await page.screenshot({ path: join(OUT, 'aside-resize.png') });
+    const m = await shown(page);
+    if (m.root !== undefined || m.p1?.x !== 0 || a.rootView !== 'away') fail('asideResize', `root ${m.root === undefined ? 'off the strip' : `at ${m.root.x}`}, p1 at ${m.p1?.x}, ${a.rootView}: the wide page is not whole`);
+    const back = await step(page, 'stepBack', () => page.keyboard.press('ArrowLeft'), []);
+    const mb = await shown(page);
+    if (mb.root?.x !== 0 || back.rootView !== 'shown') fail('stepBack', `root at ${mb.root?.x}, ${back.rootView}: stepping back did not return it`);
+    await page.setViewportSize({ width: 1800, height: 900 });
+    await sleep(900);
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await sleep(900);
+    const w = await step(page, 'widenBack', () => page.setViewportSize({ width: 1800, height: 900 }), []);
+    const mw = await shown(page);
+    if (mw.root?.x !== 0 || mw.p1?.x !== PITCH) fail('widenBack', `root at ${mw.root?.x}, p1 at ${mw.p1?.x}: widening did not bring the root back beside it`);
+    res.asideResize = a;
+    res.stepBack = back;
+    res.widenBack = w;
+    if (errors.length > 0) fail('asideResize', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  {
+    // Step-aside on a size pick: the page beside the root picked four slots wide in a four-slot window; a summon, then a dismiss.
+    const { page, errors, close } = await open('2,1,1,1,1,1,1,1');
+    const a = await step(page, 'asideSize', async () => g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 4), []);
+    await page.screenshot({ path: join(OUT, 'aside-size.png') });
+    const m = await shown(page);
+    if (m.root !== undefined || m.p1?.x !== 0 || m.p1?.w !== 4 * PITCH - 16) fail('asideSize', `root ${m.root === undefined ? 'off the strip' : `at ${m.root.x}`}, p1 at ${m.p1?.x} ${m.p1?.w} wide: the wide page is not whole`);
+    const s = await step(page, 'summonAside', () => g(page, 'summon'), []);
+    const ms = await shown(page);
+    if (ms.root?.x !== 0 || s.rootView !== 'summoned' || ms.p1?.x !== PITCH) fail('summonAside', `root at ${ms.root?.x}, ${s.rootView}, p1 at ${ms.p1?.x}`);
+    const d = await step(page, 'dismissAside', () => g(page, 'dismiss'), []);
+    const md = await shown(page);
+    if (md.root !== undefined || md.p1?.x !== 0 || d.rootView !== 'away') fail('dismissAside', `root ${md.root === undefined ? 'off' : md.root.x}, p1 at ${md.p1?.x}, ${d.rootView}: the dismiss did not step it aside again`);
+    res.asideSize = a;
+    res.summonAside = s;
+    res.dismissAside = d;
+    if (errors.length > 0) fail('asideSize', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  out.summon = res;
 }
 
 await browser.close();

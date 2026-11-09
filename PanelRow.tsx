@@ -35,7 +35,7 @@ import { restTranslate } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaDrawnOf, emblaOf, emblaScrollOf, emblaWindowOf, keptScroll, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaDrawnOf, emblaMarkOf, emblaOf, emblaScrollOf, emblaWindowOf, keptScroll, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -145,6 +145,50 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
   const slot = React.useContext(PanelSlotContext);
   return (offsetX) => reorderStepsForOffset(offsetX, slot?.neighborWidths ?? NO_NEIGHBORS, (slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning ?? OUTSIDE_ROW_TUNING).hopFraction);
 };
+
+/**
+ * After a jump of an Embla row from `from` to `to` (scroll px) across a change of its strip from `before` to `after`, keeps what the
+ * change did not move where it was on screen: a slot leaving in this commit runs its exit from where it was drawn, in view or out of it. On a marked commit
+ * (a summon, a dismiss, a step-aside), a slot the change moved on screen glides there from where it was, starting or ending one slot
+ * outside the window at most, so the root arrives and leaves as a page does and a wide page slides over.
+ */
+function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, durationSec: number): void {
+  const nodeOf = (id: string): HTMLElement | null => box.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
+  const animate = (node: HTMLElement | null, frames: Keyframe[], options: KeyframeAnimationOptions): void => {
+    if (node !== null && typeof node.animate === 'function') node.animate(frames, { ...options, composite: 'add' });
+  };
+  const jump = to - from;
+  before.ids.forEach((id, k) => {
+    const j = after.ids.indexOf(id);
+    const w = before.widths[k]!;
+    const was = before.lefts[k]! - from;
+    if (j < 0) {
+      if (Math.abs(jump) > 0.5) animate(nodeOf(id), [{ translate: `${jump}px 0px` }, { translate: `${jump}px 0px` }], { duration: 10000, fill: 'forwards' });
+      return;
+    }
+    if (!marked) return;
+    const now = after.lefts[j]! - to;
+    if (Math.abs(now - was) <= 0.5) return;
+    const shownBefore = was + w > 0.5 && was < windowWidth - 0.5;
+    const shownAfter = now + after.widths[j]! > 0.5 && now < windowWidth - 0.5;
+    if (!shownBefore && !shownAfter) return;
+    const outside = (x: number, width: number): number => (x + width <= 0.5 ? -(width + gap) : x >= windowWidth - 0.5 ? windowWidth + gap : x);
+    const start = outside(was, w);
+    const end = outside(now, after.widths[j]!);
+    animate(nodeOf(id), [{ translate: `${start - now}px 0px` }, { translate: `${end - now}px 0px` }], { duration: durationSec * 1000, easing: EASE });
+  });
+  // A panel coming back onto the strip in view (a dismiss) fades in where it lands; the root leaves over the edge it came by.
+  if (!marked) return;
+  after.ids.forEach((id, j) => {
+    if (before.ids.includes(id)) return;
+    const w = after.widths[j]!;
+    const now = after.lefts[j]! - to;
+    if (!(now + w > 0.5 && now < windowWidth - 0.5)) return;
+    const node = nodeOf(id);
+    if (node !== null && typeof node.animate === 'function') node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: durationSec * 1000, easing: EASE });
+  });
+}
+const EASE = 'cubic-bezier(0.25, 0.1, 0.25, 1)';
 
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its template's view.
@@ -395,8 +439,14 @@ export function PanelRow({
   const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
   // Only a render that changed the strip or the window keeps the view: any other one (a pulled-past-the-end drag included, which
   // the clamp would snap back) leaves the row where it is.
-  const changed = lastLayout.current !== null && (lastWindow.current !== emblaWindow.width || !sameLayout(lastLayout.current, layoutNow));
-  const keepTo = emblaNow === undefined || !changed ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, Math.max(0, stripPx - emblaWindow.width));
+  // A summon, a dismiss or a step-aside of the root marks the commit that draws it with where the view rests (`markEmblaRow`).
+  const mark = emblaNow === undefined ? undefined : emblaMarkOf(windowRef.current!);
+  const lastMark = React.useRef(0);
+  const marked = mark !== undefined && mark.seq !== lastMark.current && lastLayout.current !== null;
+  const changed = lastLayout.current !== null && (marked || lastWindow.current !== emblaWindow.width || !sameLayout(lastLayout.current, layoutNow));
+  const stripMax = Math.max(0, stripPx - emblaWindow.width);
+  const keptNow = emblaNow === undefined || !changed ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
+  const keepTo = marked ? (markedScroll(mark, layoutNow, emblaWindow.width, keptNow, stripMax) ?? keptNow) : keptNow;
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
   // What Embla builds its stops from: the markers and the window box. A change rebuilds them in the commit that draws it.
   const markers = onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap) : [];
@@ -486,7 +536,7 @@ export function PanelRow({
           enterDirection={held ? 'fade' : enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index), workspaceTuning.defaultEnterFrom)}
           exitDirection={held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id) || swapExitIds.has(p.id), exitRightIds.has(p.id))}
           zIndex={dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
-          tracking={slotTracking || keeping || rowNumbers?.anchor !== undefined}
+          tracking={slotTracking || keeping || marked || rowNumbers?.anchor !== undefined}
           gap={gap}
           slide={own.slide}
           rowScroll={rowScroll}
@@ -528,6 +578,10 @@ export function PanelRow({
     // from where it is drawn, a glide in flight included.
     if (embla !== undefined && (keeping || restop)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop);
     if (embla !== undefined) lastStops.current = stopsKey;
+    if (marked) lastMark.current = mark.seq;
+    if (embla !== undefined && lastLayout.current !== null && (keeping || marked) && boxRef.current !== null) {
+      arriveAndLeave(boxRef.current, lastLayout.current, layoutNow, scrollNow, keepTo, emblaWindow.width, gap, marked, rowTuning.slide.durationSec);
+    }
     lastLayout.current = layoutNow;
     lastWindow.current = emblaWindow.width;
     if (onEmbla && windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap });
