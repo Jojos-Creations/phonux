@@ -1665,6 +1665,8 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   const SLOTS24 = Array(24).fill(1).join(',');
   // 24 parkable one-slot pages after the root (25 slots), a window of four, cap 8: pages far from the view are unloaded placeholders.
   const QUERY = '&park=1&cap=8&grab=1';
+  // The worst frame of a preview hop measured 30.8-33.8 px (an eased 406 px glide); about twice that is the limit for one frame.
+  const HOP_FRAME_PX = 70;
   // An unloaded page is recorded under its engine id (it has no content to carry its name): `named` maps the ids back, per row opened.
   let idNames: Record<string, string> = {};
   const nameIds = async (page: Page): Promise<void> => {
@@ -1745,12 +1747,14 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const expected = orderWith(order0, 'p2', Math.round(landStrip / PITCH));
     // The pages the drag may move: every page whose slot the dragged page's box passed over (a preview hop moves it one slot, and it
     // glides back if the pointer leaves it again), and the pages between its start and its landing. Any other page moves 0 px.
-    const grabbed = fr.filter((f: any) => f.grabbing === 'p2' && f.boxX.p2 !== undefined);
+    // Held frames only: the frame recorded at the release can still read p2 as grabbed with its box already at the landing.
+    const grabbed = fr.slice(0, m1).filter((f: any) => f.grabbing === 'p2' && f.boxX.p2 !== undefined);
     const boxW = fr[0].drawn.p2.w;
     const sweptLo = Math.min(...grabbed.map((f: any) => f.boxX.p2 + f.pos));
     const sweptHi = Math.max(...grabbed.map((f: any) => f.boxX.p2 + f.pos)) + boxW;
     const rest0 = stripXs(fr[0]);
-    const passedOver = Object.keys(rest0).filter((n) => n !== 'p2' && Math.min(sweptHi, rest0[n]! + widthOf(fr[0], n)) - Math.max(sweptLo, rest0[n]!) > 0);
+    // A page counts as passed over only when the box covered more than half of it (a preview hop needs that much).
+    const passedOver = Object.keys(rest0).filter((n) => n !== 'p2' && Math.min(sweptHi, rest0[n]! + widthOf(fr[0], n)) - Math.max(sweptLo, rest0[n]!) > widthOf(fr[0], n) / 2);
     const involved = new Set([...order0.slice(Math.min(order0.indexOf('p2'), order1.indexOf('p2')), Math.max(order0.indexOf('p2'), order1.indexOf('p2')) + 1), ...passedOver]);
     const jumps = stripJumps(fr);
     const uninvolved = Object.entries(jumps).filter(([n]) => !involved.has(n));
@@ -1783,7 +1787,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     if (r.midControl.travelPx !== 0) empty.push(`reorder edgeHold control: held mid-row the row moved ${r.midControl.travelPx} px, so travel at the edge says nothing`);
     if (!(r.hold.travelPx >= 400) || r.hold.stillFrames > 1) failed.push(`reorder edgeHold: held at the edge with no mouse motion the row moved ${r.hold.travelPx} px in 1 s (${r.hold.stillFrames} still frames of ${r.hold.frames})`);
     if (!(r.hold.travelPx >= 400) || r.hold.worstDriftPx > 0.5 || r.midControl.worstDriftPx > 0.5) failed.push(`reorder edgeHold: the dragged page drifts from the pointer by ${r.hold.worstDriftPx} px while the row scrolls ${r.hold.travelPx} px under it (${r.midControl.worstDriftPx} px mid-row)`);
-    if (!(r.hold.travelPx >= 400) || r.uninvolvedMaxMovePx > 0.5 || r.crossed < 2 || r.crossedMaxFramePx > PITCH / 4) failed.push(`reorder edgeHold: pages not crossed moved ${r.uninvolvedMaxMovePx} px along the strip; ${r.crossed} crossed pages, worst frame ${r.crossedMaxFramePx} px`);
+    if (!(r.hold.travelPx >= 400) || r.uninvolvedMaxMovePx > 0.5 || r.crossed < 2 || r.crossedMaxFramePx > HOP_FRAME_PX) failed.push(`reorder edgeHold: pages not crossed moved ${r.uninvolvedMaxMovePx} px along the strip; ${r.crossed} crossed pages, worst frame ${r.crossedMaxFramePx} px`);
     if (!(r.hold.travelPx >= 400) || r.blankFrames > 0) failed.push(`reorder edgeHold: ${r.blankFrames} frames show an unloaded placeholder in the window (${r.blankIds}) over ${r.hold.travelPx} px of edge scroll`);
     if (r.emblaPressFrames > 0 || r.emblaPointerDowns > 0) failed.push(`reorder edgeHold: Embla's own drag fired during the reorder (${r.emblaPressFrames} frames pressed, ${r.emblaPointerDowns} pointerDown)`);
     if (!(r.hold.travelPx >= 400) || !r.restOnGrid || Math.abs(landStrip - releasedStrip) > PITCH / 2 || !r.orderAsLanded || r.orderChanges !== 1) failed.push(`reorder edgeHold drop: rest ${r.rest} (grid ${r.restOnGrid}), released at ${r.releasedStripPx} landed at ${r.landedStripPx}, order as landed ${r.orderAsLanded}, ${r.orderChanges} order commits`);
@@ -1855,8 +1859,11 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const sweptLo = Math.min(...grabbed.map((f: any) => f.boxX.p7 + f.pos));
     const sweptHi = Math.max(...grabbed.map((f: any) => f.boxX.p7 + f.pos)) + boxW;
     const rest0 = stripXs(fr[0]);
-    const passedOver = new Set(Object.keys(rest0).filter((n) => Math.min(sweptHi, rest0[n]! + widthOf(fr[0], n)) - Math.max(sweptLo, rest0[n]!) > 0));
-    const others = Object.entries(stripJumps(fr)).filter(([n]) => n !== 'p7' && !passedOver.has(n));
+    const passedOver = new Set(Object.keys(rest0).filter((n) => n !== 'p7' && Math.min(sweptHi, rest0[n]! + widthOf(fr[0], n)) - Math.max(sweptLo, rest0[n]!) > widthOf(fr[0], n) / 2));
+    const jumpsAll = stripJumps(fr);
+    const others = Object.entries(jumpsAll).filter(([n]) => n !== 'p7' && !passedOver.has(n));
+    const passedJumps = Object.entries(jumpsAll).filter(([n]) => passedOver.has(n));
+    const releasedStrip = released.boxX.p7 + released.pos;
     const landStrip = last.drawn.p7.x + last.pos;
     const nearest = Math.min(max, Math.round(released.pos / PITCH) * PITCH);
     const order1: string[] = await g(page, 'order');
@@ -1873,6 +1880,8 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       p7LandStripPx: +landStrip.toFixed(1),
       passedOver: [...passedOver].join(','),
       othersMaxMovePx: Math.max(0, ...others.map(([, v]) => v)),
+      passedMaxFramePx: Math.max(0, ...passedJumps.map(([, v]) => v)),
+      releasedStripPx: +releasedStrip.toFixed(1),
       othersWorst: others.sort((x, y) => y[1] - x[1]).slice(0, 3).map(([n, v]) => `${n}:${v}`).join(','),
       order: order1.slice(4, 10).join(','),
       orderAsExpected: order1.join(',') === orderWith(order0, 'p7', into === 'outside' ? 5 : Math.round(landStrip / PITCH)).join(','),
@@ -1880,6 +1889,9 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     };
     res[`leftEdgeDrop_${into}`] = r;
     if (grabbed.length < 10) empty.push(`reorder leftEdgeDrop ${into}: ${grabbed.length} frames with p7 grabbed`);
+    // Pages the held box passed over hop on the slide's glide: no frame moves one further than about twice the measured hop step.
+    if (r.passedMaxFramePx > HOP_FRAME_PX) failed.push(`reorder leftEdgeDrop ${into}: a page passed over moved ${r.passedMaxFramePx} px in one frame (passed over ${r.passedOver}); limit ${HOP_FRAME_PX}`);
+    if (into === 'band' && Math.abs(landStrip - releasedStrip) > PITCH / 2) failed.push(`reorder leftEdgeDrop band: p7 was let go at strip ${r.releasedStripPx} and lands at ${r.p7LandStripPx}, more than half a slot away`);
     if (into === 'outside') {
       if (r.pointerInWindowPx <= 48 || r.rowMaxMoveHeldPx > 0.5 || r.rowMaxMoveAfterDropPx > 0.5 || Math.abs(r.p7ScreenX) > 0.5 || r.othersMaxMovePx > 0.5 || !r.orderAsExpected || r.orderChanges !== 1)
         failed.push(`reorder leftEdgeDrop outside: pointer ${r.pointerInWindowPx} px into the window; the row moved ${r.rowMaxMoveHeldPx} px held and ${r.rowMaxMoveAfterDropPx} px after the drop (${pos0} > ${r.rowAfter}), p7 rests at ${r.p7ScreenX} (want 0), pages not passed over moved ${r.othersMaxMovePx} px (${r.othersWorst}), order ${r.orderAsExpected}, ${r.orderChanges} commits`);
