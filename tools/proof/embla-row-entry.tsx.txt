@@ -81,7 +81,15 @@ const windowRect = (): { left: number; width: number } => {
   const width = Math.min(n.stripWidth, fit * (PHONE + GAP) - GAP);
   return { left: c.left + GAP + n.rowMarginLeft, width };
 };
+// What is drawn: the Embla box's transform as the browser computes it this frame. Embla's own `location` moves in fixed 60 Hz steps
+// and the drawn translate interpolates between the last two, so `location` can stand still in a frame that is drawn moving.
 const pos = (): number => {
+  const win = document.querySelector<HTMLElement>('[data-row-embla-window]');
+  const box = win?.firstElementChild as HTMLElement | null | undefined;
+  if (box == null) return rowScrollerFor(container()).scrollLeft();
+  return -new DOMMatrixReadOnly(getComputedStyle(box).transform).m41;
+};
+const logical = (): number => {
   const e = emblaOf(container());
   return e !== undefined ? emblaScrollOf(e) : rowScrollerFor(container()).scrollLeft();
 };
@@ -90,6 +98,13 @@ let recording = false;
 let pointerX = 0;
 // Wheel events since the last frame: a frame no wheel reached cannot move a row that follows its input exactly.
 let wheels = 0;
+// The wheel-gestures plugin drives Embla with untrusted mouse events: a down starts its drag, each move moves it, an up releases it.
+// Counted per frame, so a frame a wheel reached that did not move the row says whether the plugin passed it on.
+let pd = 0;
+let pm = 0;
+let pu = 0;
+for (const [type, bump] of [['mousedown', () => (pd += 1)], ['mousemove', () => (pm += 1)], ['mouseup', () => (pu += 1)]] as const)
+  window.addEventListener(type, (e) => { if (!e.isTrusted) bump(); }, true);
 window.addEventListener('wheel', () => (wheels += 1), { capture: true, passive: true });
 window.addEventListener('pointermove', (e) => (pointerX = e.clientX), true);
 const frame = (t: number): void => {
@@ -100,8 +115,11 @@ const frame = (t: number): void => {
       const r = el.getBoundingClientRect();
       panels[el.dataset.rowId!] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
     }
-    frames.push({ t, pos: pos(), winW: win.width, winLeft: win.left, pointerX, wheels, panels });
+    frames.push({ t, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels });
     wheels = 0;
+    pd = 0;
+    pm = 0;
+    pu = 0;
   }
   requestAnimationFrame(frame);
 };
@@ -145,6 +163,21 @@ requestAnimationFrame(frame);
     };
     requestAnimationFrame(tick);
   }),
+  // Hands in one wheel per animation frame from `deltas`; null skips a frame, as a real stream has gaps.
+  feedShape: (deltas: (number | null)[]) => new Promise((done) => {
+    const from = document.querySelector('[data-box="p2"]')!;
+    let k = 0;
+    let input = 0;
+    const tick = (): void => {
+      if (k >= deltas.length) return done(input);
+      const d = deltas[k++];
+      if (d !== null) { feedRowWheel(from, { deltaX: d }); input += Math.abs(d); }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }),
+  // A panel verb on the provided panels (close, setSlots, move), as a host's button would call it.
+  op: (name: string, ...args: unknown[]) => latest[name](...args),
   record: () => { frames.length = 0; recording = true; },
   stop: () => { recording = false; return frames.slice(); },
 };

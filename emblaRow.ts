@@ -89,6 +89,52 @@ export function revealScroll(left: number, width: number, scroll: number, window
   return left + width - windowWidth;
 }
 
+/** Where each panel sits along the strip: ids in row order, each one's left and width in strip px. @internal */
+export interface StripLayout {
+  ids: readonly string[];
+  lefts: readonly number[];
+  widths: readonly number[];
+}
+
+/**
+ * The scroll that keeps the view still across a change of the strip from `before` to `after` (a panel opened, closed, moved or
+ * resized, or clamped by a narrower window). The anchor is the first panel, in strip order, that reaches past the window's left
+ * edge at `scroll` and is still in the strip: the scroll moves by as much as that panel moved, so it, and everything after it
+ * that did not change, stays where it is on screen. Clamped to `[0, max]`, the strip's new end.
+ * @internal
+ */
+export function keptScroll(before: StripLayout, after: StripLayout, scroll: number, max: number): number {
+  const order = before.ids.map((_, k) => k).sort((a, b) => before.lefts[a]! - before.lefts[b]!);
+  for (const k of order) {
+    if (before.lefts[k]! + before.widths[k]! <= scroll + 0.5) continue;
+    const j = after.ids.indexOf(before.ids[k]!);
+    if (j < 0) continue;
+    return Math.min(Math.max(0, scroll + after.lefts[j]! - before.lefts[k]!), max);
+  }
+  return Math.min(Math.max(0, scroll), max);
+}
+
+/**
+ * Moves the row to `px` at once and draws it in this frame: Embla's own jump lands on the next animation frame, which would show
+ * one frame of the new layout at the old position. Uses Embla's internal engine, which 8.6 is pinned for.
+ * @internal
+ */
+export function jumpEmbla(embla: EmblaCarouselType, px: number): void {
+  const e = embla.internalEngine();
+  const snaps = e.scrollSnaps.map((x) => -x);
+  let best = 0;
+  for (let k = 1; k < snaps.length; k += 1) if (Math.abs(snaps[k]! - px) < Math.abs(snaps[best]! - px)) best = k;
+  embla.scrollTo(best, true);
+  const to = -px;
+  e.scrollBody.useDuration(0).useFriction(0);
+  e.target.set(to);
+  e.location.set(to);
+  e.previousLocation.set(to);
+  e.offsetLocation.set(to);
+  e.translate.to(to);
+  e.scrollBody.useBaseDuration().useBaseFriction();
+}
+
 /**
  * Whether a press may start a drag of the row. A wheel gesture arrives as Embla's own untrusted mouse events and always may.
  * A mouse press only on the row's own surface, outside every panel, so a panel's text, controls and header grab keep the mouse.

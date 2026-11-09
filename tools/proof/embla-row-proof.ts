@@ -10,6 +10,8 @@
  * drag   a mouse drag on the row's own surface (the gap between two panels): the row follows the pointer 1:1, then rests on the grid;
  *        a drag that starts on a panel moves nothing.
  * keys   ArrowRight three times, ArrowLeft once: three slots, then two.
+ * change  with the row resting at slot 5: a panel left of the view resized 3 > 2 > 3 slots, moved past the view, and closed:
+ *        the panel at the window's left edge stays put in every frame and no one-slot panel is cut.
  * resize the window 1800 > 1400 > 2300 > 1800 > 1000 at rest: the panel at the window's left edge stays there, no one-slot panel is
  *        cut in any frame, and each rest is on the grid.
  *
@@ -30,7 +32,7 @@ const arg = (name: string): string | undefined => {
 };
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,resize').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,resize').split(','));
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -223,6 +225,44 @@ if (ONLY.has('keys')) {
   }
   out.keys = { rests: seen, want: [1, 2, 3, 2].map((k) => k * pitch) };
   if (seen.join() !== [1, 2, 3, 2].map((k) => k * pitch).join()) failed.push(`keys: rests ${seen}`);
+  await close();
+}
+
+if (ONLY.has('change')) {
+  const { page, errors, close } = await open(ROWS.mixed);
+  const { pitch, phone } = await page.evaluate(() => ({ pitch: (window as any).__g.PITCH, phone: (window as any).__g.PHONE }));
+  await g(page, 'jumpToSlot', 5);
+  await sleep(500);
+  // Row order: the Workspace panel, then 1,3,1,2,... slots; at slot 5 the window starts at the fourth panel.
+  const ids: string[] = await g(page, 'ids');
+  const cases: unknown[] = [];
+  for (const [label, name, args] of [
+    ['narrow the 3-slot panel left of the view to 2', 'setSlots', [ids[2], 2]],
+    ['widen it back to 3', 'setSlots', [ids[2], 3]],
+    ['move the panel left of the view 3 places right, past the window', 'move', [ids[1], 3]],
+    ['close a panel left of the view', 'close', [ids[2]]],
+  ] as const) {
+    const left = await g(page, 'leftPanel');
+    const posBefore = await g(page, 'pos');
+    await g(page, 'record');
+    await g(page, 'op', name, ...args);
+    await sleep(900);
+    const fr = await g(page, 'stop');
+    const last = fr[fr.length - 1];
+    const max = await g(page, 'max');
+    const worstX = Math.max(...fr.map((f: any) => Math.abs(f.panels[left]?.x ?? Number.NaN)));
+    const cutFrames = fr.filter((f: any) => cutNarrow(f, phone).length > 0).length;
+    const c = { label, leftPanel: left, posBefore: +posBefore.toFixed(1), posAfter: +last.pos.toFixed(1), keptPanelWorstX: +worstX.toFixed(1), framesWithNarrowCut: cutFrames, restOnGrid: onGrid(last.pos, pitch, max), frames: fr.length };
+    cases.push(c);
+    if (fr.length === 0) empty.push(`change ${label}: no frames`);
+    if (Math.abs(last.pos - posBefore) < 0.5) empty.push(`change ${label}: the row never had to move, so this proved nothing`);
+    if (!(worstX <= 0.5)) failed.push(`change ${label}: the left-edge panel moved (worst ${worstX} px)`);
+    if (cutFrames > 0) failed.push(`change ${label}: ${cutFrames} frames cut a one-slot panel`);
+    if (!c.restOnGrid) failed.push(`change ${label}: rest ${c.posAfter} off the grid`);
+  }
+  out.change = { cases, errors };
+  if (errors.length > 0) failed.push(`change: page errors ${errors.join(' | ')}`);
+  await page.screenshot({ path: join(OUT, `${ENGINE}-change.png`) });
   await close();
 }
 

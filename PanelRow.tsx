@@ -35,7 +35,7 @@ import { restTranslate } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, emblaWindowOf, slotMarkerLefts, useEmblaRow } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, emblaOf, emblaScrollOf, emblaWindowOf, jumpEmbla, keptScroll, slotMarkerLefts, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -382,6 +382,18 @@ export function PanelRow({
   const dropPartsNow = drop === null || dropEntry === undefined ? undefined : dropParts(drop, dropRowOf(dropEntry));
   if (dropPartsNow !== undefined) for (const [id, by] of dropPartsNow.shifts) shiftById.set(id, by);
   const gapSpan = dropPartsNow?.gap == null ? 0 : dropPartsNow.gap.width + gap;
+  // On Embla, a change left of the view (a panel opened, closed, moved or resized there, or clamped by a narrower window) keeps the
+  // view still: the scroll moves with the panel at the window's left edge, and every slot snaps to its new rest in the same frame.
+  const onEmbla = React.useContext(RowEngineContext) === 'embla';
+  const windowRef = React.useRef<HTMLDivElement>(null);
+  const stripPx = reservedWidth + gapSpan;
+  const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);
+  const layoutNow: StripLayout = { ids: present.map((p) => p.id), lefts: leftOffsets, widths };
+  const lastLayout = React.useRef<StripLayout | null>(null);
+  const emblaNow = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
+  const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
+  const keepTo = emblaNow === undefined || lastLayout.current === null ? scrollNow : keptScroll(lastLayout.current, layoutNow, scrollNow, Math.max(0, stripPx - emblaWindow.width));
+  const keeping = Math.abs(keepTo - scrollNow) > 0.5;
   // The held and stuck entries slotFor draws this render, for the row's one drawing pass, which runs after the render is done.
   const holds: HoldSpec[] = [];
   // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
@@ -445,7 +457,7 @@ export function PanelRow({
           enterDirection={held ? 'fade' : enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index), workspaceTuning.defaultEnterFrom)}
           exitDirection={held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id) || swapExitIds.has(p.id), exitRightIds.has(p.id))}
           zIndex={dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
-          tracking={slotTracking || rowNumbers?.anchor !== undefined}
+          tracking={slotTracking || keeping || rowNumbers?.anchor !== undefined}
           gap={gap}
           slide={own.slide}
           rowScroll={rowScroll}
@@ -475,11 +487,16 @@ export function PanelRow({
   };
   useRowDraw(boxRef, rowNumbers, gap, holds);
   // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
-  const onEmbla = React.useContext(RowEngineContext) === 'embla';
-  const stripPx = reservedWidth + gapSpan;
-  const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);
-  const windowRef = React.useRef<HTMLDivElement>(null);
   useEmblaRow(windowRef, boxRef, onEmbla, workspaceTuning.gestureQuietMs);
+  React.useLayoutEffect(() => {
+    const embla = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
+    if (embla !== undefined && keeping) {
+      // The markers changed in this commit: Embla rebuilds its stops from them before the jump lands on one.
+      embla.reInit();
+      jumpEmbla(embla, keepTo);
+    }
+    lastLayout.current = layoutNow;
+  });
   const box = (
     <>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
