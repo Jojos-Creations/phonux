@@ -465,7 +465,9 @@ export function PanelRow({
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
   // A change of the strip in the same window that moves the view (a page in view narrowed at the strip's end) jumps the scroll and
   // snaps the slots as any keep does; the slots it moved on screen then glide there with the size box, so nothing in view jumps.
-  const widthGlide = keeping && !marked && lastWindow.current === emblaWindow.width && ready && !landing && !reducedMotion;
+  // Only a width change: the same panels in the same order (an open, close or move keeps its snap, as a window resize does).
+  const sameOrder = lastLayout.current !== null && lastLayout.current.ids.join(' ') === layoutNow.ids.join(' ');
+  const widthGlide = keeping && !marked && sameOrder && lastWindow.current === emblaWindow.width && ready && !landing && !reducedMotion;
   // What Embla builds its stops from: the markers and the window box. A change rebuilds them in the commit that draws it.
   const markers = onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap) : [];
   const stopsKey = `${markers.length}|${emblaWindow.width}|${phoneWidth}|${gap}`;

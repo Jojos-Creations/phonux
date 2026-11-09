@@ -207,8 +207,9 @@ at once and the keep-still rule decides the scroll). What step 5 changed:
 - At the strip's end a narrower page shortens the strip under the view, so the keep (clamped to the new end) jumps the scroll. The
   slots snap as any keep does, and those the jump moved on screen then glide there from where they were drawn, on the slide's curve
   and the commit's shared start (`sharedStartTime`), the clock the size box eases on: the right end holds, the page's left edge and
-  the pages left of it ease right one gap apart. Only for a change in the same window (a window resize keeps its snap) and not under
-  Reduce Motion (the size box snaps there too).
+  the pages left of it ease right one gap apart. Only for a width change: the same panels in the same order, in the same window (an
+  open, close or move keeps its snap, as a window resize does; gliding a move past the window cut one-slot pages in 26 frames of the
+  `change` section), and not under Reduce Motion (the size box snaps there too).
 - A page narrowed so the root fits beside it again brings a stepped-aside root back in a second commit in the same task (the
   provider's layout effect). Nothing of the first commit is painted, so the marked commit glides from what was painted (`taskToken`
   tells commits of one task apart), and the root, new on the strip and the mark's pin, slides in over its edge instead of fading in.
