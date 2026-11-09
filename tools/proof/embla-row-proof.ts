@@ -1806,6 +1806,48 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   // wheel is ignored here too. p3 held 200 px right of its press, mid-row, then 40 sideways wheels of 12 px: the row stays where it
   // is, Embla's own drag never engages, the page stays under the pointer, and the drop lands on the stop nearest the release. The
   // same stream after the drop must move the row (the control: the wheels did reach the row).
+  if (want('reorder.wheelBefore')) {
+    // A wheel gesture already running when the hold starts: the wheel stream stops at the press, and its tail (Embla's release of the
+    // wheel's drag and any glide after it) must not move the row under the held page. Held mid-row, out of the edge bands.
+    const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
+    await nameIds(page);
+    const at0 = await g(page, 'grabRect', 'p3');
+    await page.mouse.move(at0.x, at0.y);
+    await g(page, 'record');
+    const downs0 = (await g(page, 'emblaEvents')).pointerDown;
+    for (let k = 0; k < 12; k += 1) {
+      await page.mouse.wheel(14, 0);
+      await sleep(16);
+    }
+    const wheelDowns = (await g(page, 'emblaEvents')).pointerDown - downs0;
+    const at = await press(page, 'p3');
+    const h0 = await g(page, 'mark');
+    await glideMouse(page, at, at.x + 120, 6);
+    await sleep(900);
+    const h1 = await g(page, 'mark');
+    await page.mouse.up();
+    await sleep(1500);
+    const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, 'reorder-wheelBefore-frames.json'), JSON.stringify({ h0, h1, offset: at.offset, frames: fr }));
+    const held = fr.slice(h0, h1);
+    const posAt = fr[h0 - 1]?.pos ?? held[0].pos;
+    const r = {
+      wheelPointerDowns: wheelDowns,
+      wheelTravelPx: +(posAt - fr[0].pos).toFixed(1),
+      heldFrames: held.length,
+      rowMoveHeldPx: +Math.max(0, ...held.map((f: any) => Math.abs(f.pos - posAt))).toFixed(2),
+      emblaPressFramesHeld: held.filter((f: any) => f.emblaPress).length,
+      worstDriftPx: +driftOf(held.filter((f: any) => f.grabbing === 'p3'), 'p3', at.offset).toFixed(2),
+      rest: +fr[fr.length - 1].pos.toFixed(1),
+      restOnGrid: onGrid(fr[fr.length - 1].pos, PITCH, await g(page, 'max')),
+    };
+    res.wheelBefore = r;
+    if (r.wheelPointerDowns < 1 || Math.abs(r.wheelTravelPx) < 20) empty.push(`reorder wheelBefore: the wheel moved the row ${r.wheelTravelPx} px (${r.wheelPointerDowns} gestures), so no gesture was running at the press`);
+    if (r.heldFrames < 30) empty.push(`reorder wheelBefore: ${r.heldFrames} held frames`);
+    if (r.rowMoveHeldPx > 0.5 || r.emblaPressFramesHeld > 0 || r.worstDriftPx > 0.5 || !r.restOnGrid) failed.push(`reorder wheelBefore: under the hold the row moved ${r.rowMoveHeldPx} px, Embla's drag pressed in ${r.emblaPressFramesHeld} frames, the page drifted ${r.worstDriftPx} px off the pointer; rest ${r.rest} on the grid ${r.restOnGrid}`);
+    if (errors.length > 0) failed.push(`reorder wheelBefore: page errors ${errors.join(' | ')}`);
+    await close();
+  }
   if (want('reorder.wheel')) {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY);
     await nameIds(page);

@@ -442,8 +442,32 @@ section (`reorder.wheel`, `width.shrinkAsidePresented`, `blank.summon`, ...).
   exit): 220 / 216 px, fails. The cut alone (no clip, page held) also reads 16 px: the root then slides over the page instead of beside
   it; that difference is seen in the screenshots (`summon-left-mid.png`), not by a pixel check.
 
-Not done in this pass (left for the next): dismiss beside a cut 4-slot page landing on the page's left edge (item 4); the reorder proof
-tightening, the reduced-motion checks and the AHEAD_STEPS=0 mutant (item 5); the step-8 API loose ends listed below (item 6).
+## Third pass (after the second audit)
+
+Each check below fails on a `git archive 8e85487` extract with the new proof or test copied in (or on the unchanged files at the tip
+before the fix, where `git diff 8e85487` of the fixed file was empty), passes now, and fails with one mutant of its fix (from a
+`git archive` of the fix's commit).
+
+- Dismiss beside a cut wide page (`--cases summon.asideCut`). The root stood aside for a four-slot page; a step right cut that page one
+  slot at the left edge; a summon then a dismiss rested on the page's left edge (p1@0, was p1@-406; the app's "wide returns"). A summon
+  from a step-aside now records where the page was drawn, and the dismiss rests it there. Mutant (the dismiss reveals the page again):
+  fails. The summon section's cases are named now (`summon.fromLeft`, `summon.asideSize`, ...).
+- `useRowFrameBand` measured only the old row's strip, so on Embla it never observed anything and never reported (the app's
+  `--row-above`/`--row-below`). It takes the Embla window when there is no strip (`test/row-frame-band.test.ts`: 'none' on 8e85487).
+  Mutant (strip only): fails 1.
+- No page past the cap before the window is measured (`--cases strip.firstCommit`; the page's `late=1` draws the row unmeasured first,
+  as the app does). Unmeasured, the window is the whole strip wide, so all 24 parkable views mounted at cap 8 and at cap 4 (the app:
+  8 of 5 on a restore). The loader now takes the cap's nearest pages until the window is known: 8 and 4 mounts. Mutant (window
+  always known): fails 4.
+- Bare-arrow edge focus (`--cases keys.edgeFocus`). The Workspace's handler returned at once on Embla; a bare arrow with the panel in
+  use out of view stepped the row (405 px) and focused nothing. It runs on Embla now, and `focusEdgePanel` reads the view as the
+  Embla window: the row stays, Right focuses the leftmost page in view (p11), Left the rightmost (p12). `EMBLA_WINDOW_ATTRIBUTE` moved
+  to `rowDom.ts`. Mutant (the Embla early return back): fails 2.
+
+Not done in this pass: item 5 (reorder proof tightening, reduced-motion checks, the AHEAD_STEPS=0 mutant, the summon clip pixel
+check); item 6 (the step-8 API loose ends listed below); item 7 has a proof case (`reorder.wheelBefore`, a wheel gesture running when
+the hold starts) that was not run; the app's ArrowRight after a window-bar click (workspace-summon "a step away returns the row",
+"stepping left reaches Workspace", "one step carries it out") still fails and was not diagnosed.
 
 ## Not done yet (still on the old row, or not working on Embla yet)
 
