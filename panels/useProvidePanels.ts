@@ -39,7 +39,7 @@ import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import { isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
 import type { RootView } from '../panelManager.js';
-import { emblaAsideFor, emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonPlan, emblaTargetOf, markEmblaRow, onEmblaStep, subscribeEmblaRows, wholeInView } from '../emblaRow.js';
+import { emblaAsideFor, emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonPlan, emblaTargetOf, markEmblaRow, onEmblaStep, showOnEmbla, subscribeEmblaRows, wholeInView } from '../emblaRow.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
@@ -1252,6 +1252,14 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     let align: ScrollAlign | null = 'into-view';
     if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
     if (align === null) return;
+    // On a strip (Embla) the row the old scroller would move is Embla's: it glides to the stop that shows the panel, from where it is
+    // heading, and waits for a gesture holding the row to let go.
+    const emblaRow = strip ? emblaOf(el) : undefined;
+    if (emblaRow !== undefined) {
+      // The strip this commit drew may not carry the panel yet: wait a commit, as for a panel not yet in the row.
+      if (!showOnEmbla(emblaRow, request.id, align) && request.misses + 1 < REQUEST_WAIT_COMMITS) pendingScroll.set({ ...request, misses: request.misses + 1 });
+      return;
+    }
     const scroller = rowScrollerFor(el);
     // Where a glide in flight is heading, not where it passes: the panel is brought into view of the row as it will rest.
     const from = scroller.glideTarget() ?? scroller.scrollLeft();

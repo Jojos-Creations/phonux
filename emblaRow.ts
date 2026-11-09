@@ -367,6 +367,11 @@ export function emblaDrawnOf(embla: EmblaCarouselType): number {
   return -embla.internalEngine().offsetLocation.get();
 }
 
+/** Frames a row's slots stand still before the inert marks stop being read every frame (a slot glide starts within a frame or two). */
+const AWAY_IDLE_FRAMES = 20;
+/** How long after a commit or a move the marks are read every frame however still the slots stand: a slot glide can start late. */
+const AWAY_HOLD_MS = 1500;
+
 /** Fixed 60 Hz steps an Embla row looks ahead to load what comes into view: a page mounts a render or two after it is asked for. */
 const AHEAD_STEPS = 8;
 /**
@@ -408,6 +413,80 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
 }
 
 
+/**
+ * Marks each slot of the row rooted on `win` that is drawn wholly outside the window `inert`, and clears it as soon as any part is
+ * drawn inside: a page the window does not show takes no focus, key, pointer or find-in-page, and a host's styles can key on it (a
+ * focus halo resting one gap past the edge). Read off each slot's drawn box, so a glide, a wheel, a drag, a slot's own glide and a
+ * reorder shift all count where they are drawn this frame, never where Embla's location runs ahead. Answers a weighted sum of the drawn
+ * lefts, so a caller can tell a frame that moved from one that did not.
+ * @internal
+ */
+export function markAwaySlots(win: Element): number {
+  const view = win.getBoundingClientRect();
+  let sum = 0;
+  let k = 0;
+  for (const slot of win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)) {
+    const r = slot.getBoundingClientRect();
+    k += 1;
+    sum += k * r.left + r.width;
+    const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
+    if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
+  }
+  return sum;
+}
+
+const awayKicks = new WeakMap<Element, () => void>();
+/** Keeps the inert marks of the row rooted on `win` current over the next frames: a commit that starts slot glides calls it. @internal */
+export function kickEmblaAway(win: Element): void {
+  awayKicks.get(win)?.();
+}
+
+const freeWaiting = new WeakMap<EmblaCarouselType, (() => void)[]>();
+/** Whether a press, a wheel gesture or a reorder drag's edge scroll holds the row `embla` moves. @internal */
+export function emblaHeld(embla: EmblaCarouselType): boolean {
+  return embla.internalEngine().dragHandler.pointerDown() || heldRows.has(embla);
+}
+/** Runs `run` now, or, while a gesture holds the row, once it lets go (in the order asked). @internal */
+export function whenEmblaFree(embla: EmblaCarouselType, run: () => void): void {
+  if (!emblaHeld(embla)) {
+    run();
+    return;
+  }
+  freeWaiting.set(embla, [...(freeWaiting.get(embla) ?? []), run]);
+}
+function runFreeWaiting(embla: EmblaCarouselType): void {
+  const waiting = freeWaiting.get(embla);
+  if (waiting === undefined || emblaHeld(embla)) return;
+  freeWaiting.delete(embla);
+  for (const run of waiting) run();
+}
+
+/** Where the row goes to show a panel at `left` `width` wide (strip px) at `align`, from `from`, clamped to `[0, max]`. @internal */
+export function emblaShowScroll(left: number, width: number, from: number, windowWidth: number, align: 'into-view' | 'start' | 'center', max: number): number {
+  const raw = align === 'start' ? left : align === 'center' ? left + width / 2 - windowWidth / 2 : (revealScroll(left, width, from, windowWidth) ?? from);
+  return Math.min(Math.max(0, raw), max);
+}
+
+/**
+ * Brings panel `id` of the row `embla` moves into view at `align`, from where the row is heading: a glide to the nearest stop (a jump
+ * under Reduce Motion), and none when it is there already. While a gesture holds the row it waits for the release, and then reads the
+ * strip as drawn at that time. False when the strip has no such panel now.
+ * @internal
+ */
+export function showOnEmbla(embla: EmblaCarouselType, id: string, align: 'into-view' | 'start' | 'center'): boolean {
+  if (strips.get(embla.rootNode())?.layout.ids.includes(id) !== true) return false;
+  whenEmblaFree(embla, () => {
+    const strip = strips.get(embla.rootNode());
+    const k = strip === undefined ? -1 : strip.layout.ids.indexOf(id);
+    if (strip === undefined || k < 0) return;
+    const from = emblaTargetOf(embla);
+    const stop = nearestStop(embla, emblaShowScroll(strip.layout.lefts[k]!, strip.layout.widths[k]!, from, strip.windowWidth, align, emblaMaxOf(embla)));
+    if (Math.abs(stopPx(embla, stop) - from) <= 0.5) return;
+    embla.scrollTo(stop, reducedRows.has(embla));
+  });
+  return true;
+}
+
 const heldRows = new WeakSet<EmblaCarouselType>();
 /**
  * The one writer a reorder drag's edge scroll holds on an Embla row: `write` puts the row at a scroll px clamped to `[0, the bound]`
@@ -431,6 +510,7 @@ export function holdEmbla(embla: EmblaCarouselType): { write(left: number): numb
     },
     release() {
       heldRows.delete(embla);
+      runFreeWaiting(embla);
     },
   };
 }
@@ -470,7 +550,32 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       const setDuration = api.internalEngine().scrollBody.useDuration;
       if (reducedRows.has(api)) setDuration(0);
       releaseEmbla(api);
+      runFreeWaiting(api);
     });
+    // The inert marks follow every drawn frame: Embla's own draws and writes notify, and a frame loop runs while slots still move
+    // on their own (a slot glide, a reorder shift) until they have stood still for a while.
+    let awayFrame = 0;
+    let awayIdle = 0;
+    let awayLast = Number.NaN;
+    let awayUntil = 0;
+    const awayTick = (): void => {
+      awayFrame = 0;
+      const sum = markAwaySlots(win);
+      awayIdle = Math.abs(sum - awayLast) > 0.01 ? 0 : awayIdle + 1;
+      awayLast = sum;
+      if (awayIdle < AWAY_IDLE_FRAMES || performance.now() < awayUntil) awayFrame = requestAnimationFrame(awayTick);
+    };
+    const kickAway = (): void => {
+      awayIdle = 0;
+      awayUntil = performance.now() + AWAY_HOLD_MS;
+      if (awayFrame === 0) awayFrame = requestAnimationFrame(awayTick);
+    };
+    const onRowsChange = (): void => {
+      markAwaySlots(win);
+      kickAway();
+    };
+    awayKicks.set(win, onRowsChange);
+    const unsubscribeAway = subscribeEmblaRows(onRowsChange);
     notifyEmblaRows();
     const doc = win.ownerDocument;
     const view = doc.defaultView ?? window;
@@ -499,6 +604,9 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     };
     win.addEventListener('focusin', onFocus);
     return () => {
+      unsubscribeAway();
+      cancelAnimationFrame(awayFrame);
+      awayKicks.delete(win);
       unregisterKeys();
       win.removeEventListener('focusin', onFocus);
       if (quiet !== null) clearTimeout(quiet);

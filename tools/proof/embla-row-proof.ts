@@ -42,6 +42,14 @@
  *        100 px wide), and no unloaded placeholder is drawn in the window (the DOM, every animation frame). Control: the same runs with
  *        every page's content hidden must show blank frames, or the measure cannot see a blank page and proves nothing.
  *
+ * inert  a row of 25 one-slot pages in a window of four: every slot drawn wholly outside the window is `inert` and every slot with
+ *        any part inside it is not, in every presented frame (read after the frame is drawn) at rest, through a glide, a wheel stream,
+ *        a mouse drag, a summon and its dismiss, a page moved out of view by its grab strip, and a far dot press; an inert page takes
+ *        no focus; a page brought in by a dot press takes focus; a wide page cut by the edge comes in whole when it is focused.
+ * open   a page opened at the strip's end with the Workspace in view: the row glides (no frame jumps a slot) to show it whole, on the
+ *        grid, and carries the Workspace out; under Reduce Motion it lands at once; opened while a mouse drag holds the row, the row
+ *        stays under the pointer until the release and then shows the page; opened mid-glide, it rests showing it on the grid.
+ *
  * Every check is in the JSON it prints, with `failed` listing what broke. Exits 1 when a check failed and 2 when a run recorded no
  * frames or no motion, so a run that proved nothing never reads as a pass. Screenshots go to --out; look at them.
  */
@@ -59,7 +67,7 @@ const arg = (name: string): string | undefined => {
 };
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open').split(','));
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -1626,6 +1634,276 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     await close();
   }
   out.reorder = res;
+}
+
+// Per presented frame (read in a task after the frame's callbacks, so the marks and the boxes are the ones that frame drew): each slot's
+// drawn place in the window, whether it is inert, the drawn scroll and the focused slot.
+// tsx names the functions a callback declares (`__name`), which the page does not have: a string evaluate gives it one first.
+const shimNames = (page: Page): Promise<void> => page.evaluate('window.__name = window.__name || ((f) => f)');
+const startTrace = async (page: Page): Promise<void> => (await shimNames(page), page.evaluate(() => {
+  const w = window as any;
+  w.__trace = [];
+  w.__tracing = true;
+  const read = (): void => {
+    const win = document.querySelector('[data-row-embla-window]')!.getBoundingClientRect();
+    const slots = [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { id: el.dataset.rowId!, x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2), inert: el.hasAttribute('inert') };
+    });
+    w.__trace.push({ t: performance.now(), winW: win.width, pos: w.__g.pos(), slots, focused: document.activeElement?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId ?? null });
+  };
+  const tick = (): void => {
+    if (!w.__tracing) return;
+    setTimeout(read, 0);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}));
+const stopTrace = (page: Page): Promise<any[]> => page.evaluate(() => new Promise((done) => {
+  const w = window as any;
+  w.__tracing = false;
+  setTimeout(() => done(w.__trace), 60);
+}));
+// Inert must be exactly "drawn wholly outside the window". A slot within 1 px of an edge is not judged (a sub-pixel box there could be
+// read either way). `crossings` counts slots that were out and then partly in, or the reverse, so a run that crossed no edge proves nothing.
+function judgeInert(frames: any[]): { frames: number; wrong: number; awaySeen: number; crossings: number; firstWrong: string[] } {
+  let wrong = 0;
+  let awaySeen = 0;
+  let crossings = 0;
+  const firstWrong: string[] = [];
+  const was = new Map<string, boolean>();
+  frames.forEach((f, k) => {
+    for (const sl of f.slots) {
+      if (sl.w <= 0.5) continue;
+      const away = sl.x + sl.w <= 0.5 || sl.x >= f.winW - 0.5;
+      const edge = Math.abs(sl.x + sl.w) < 1 || Math.abs(sl.x - f.winW) < 1;
+      if (was.has(sl.id) && was.get(sl.id) !== away) crossings += 1;
+      was.set(sl.id, away);
+      if (edge) continue;
+      if (away) awaySeen += 1;
+      if (sl.inert !== away) {
+        wrong += 1;
+        if (firstWrong.length < 4) firstWrong.push(`frame ${k}: ${sl.id} at ${sl.x}..${+(sl.x + sl.w).toFixed(1)} of ${f.winW} inert ${sl.inert}`);
+      }
+    }
+  });
+  return { frames: frames.length, wrong, awaySeen, crossings, firstWrong };
+}
+
+if (ONLY.has('inert') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const { page, errors, close } = await open(Array(24).fill(1).join(','), 1800, 900, '&grab=1&bar=0');
+  const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+  const judge = async (label: string, act: () => Promise<void>, settleMs = 1600, needCross = true): Promise<any> => {
+    await startTrace(page);
+    await act();
+    await sleep(settleMs);
+    const fr = await stopTrace(page);
+    const j = judgeInert(fr);
+    res[label] = j;
+    if (j.frames < 5) empty.push(`inert ${label}: ${j.frames} frames`);
+    if (j.awaySeen === 0) empty.push(`inert ${label}: no slot was drawn outside the window, so the check proves nothing`);
+    if (needCross && j.crossings === 0) empty.push(`inert ${label}: no slot crossed the window's edge, so the per-frame check proves nothing`);
+    if (j.wrong > 0) failed.push(`inert ${label}: ${j.wrong} slot-frames inert where they should not be or the reverse (${j.firstWrong.join('; ')})`);
+    return fr;
+  };
+  await judge('rest', async () => undefined, 300, false);
+  await judge('glide', async () => g(page, 'glideToSlot', 6));
+  await page.mouse.move(900, 450);
+  await judge('wheel', async () => {
+    for (let k = 0; k < 40; k += 1) {
+      await page.mouse.wheel(14, 0);
+      await sleep(16);
+    }
+  });
+  await g(page, 'jumpToSlot', 2);
+  await sleep(400);
+  await judge('drag', async () => {
+    const gapX = await page.evaluate(() => {
+      const r = [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.getBoundingClientRect()).filter((b) => b.left > 100).sort((a, b) => a.left - b.left);
+      return (r[0]!.right + r[1]!.left) / 2;
+    });
+    await page.mouse.move(gapX, 450);
+    await page.mouse.down();
+    for (let k = 1; k <= 30; k += 1) {
+      await page.mouse.move(gapX - 20 * k, 450);
+      await sleep(16);
+    }
+    await page.mouse.up();
+  });
+  // The summon brings the root in over the left edge while the page in that slot leaves; the dismiss takes it back out.
+  await g(page, 'jumpToSlot', 10);
+  await sleep(500);
+  await judge('summon', async () => g(page, 'summon'));
+  await judge('dismiss', async () => g(page, 'dismiss'));
+  // A page moved out of view by its grab strip: ArrowRight on the page at the window's right edge; the row glides to show it.
+  await g(page, 'jumpToSlot', 0);
+  await sleep(500);
+  const rightEdge = await page.evaluate(() => {
+    const win = document.querySelector('[data-row-embla-window]')!.getBoundingClientRect();
+    const el = [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].find((e) => Math.abs(e.getBoundingClientRect().right - win.right) < 2);
+    return el?.querySelector<HTMLElement>('[data-grab]')?.dataset.grab ?? null;
+  });
+  if (rightEdge === null) empty.push('inert reorder: no grab strip on the right-edge page');
+  else {
+    await page.focus(`[data-grab="${rightEdge}"]`);
+    await judge('reorder', async () => page.keyboard.press('ArrowRight'));
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  }
+  // A far dot press glides p20 in: it is not inert where it is drawn in the window, and takes focus when it is focused.
+  await g(page, 'jumpToSlot', 0);
+  await sleep(500);
+  const p20 = await g(page, 'idOf', 'p20');
+  const dot = await g(page, 'dotRect', p20);
+  const pressFrames = await judge('dotPress', async () => page.mouse.click(dot.left + dot.width / 2, dot.top + 4));
+  const shownAt = pressFrames.findIndex((f: any) => { const sl = f.slots.find((x: any) => x.id === p20); return sl !== undefined && sl.x < f.winW - 1; });
+  const focusIn = await page.evaluate((id: string) => {
+    const box = document.querySelector<HTMLElement>(`[data-row-slot][data-row-id="${id}"] [data-box]`)!;
+    box.focus();
+    return document.activeElement?.closest<HTMLElement>('[data-row-slot]')?.dataset.rowId === id;
+  }, p20);
+  res.dotPressFocus = { p20EntersAtFrame: shownAt, focusTaken: focusIn };
+  if (shownAt < 0) failed.push('inert dotPress: p20 never came into the window');
+  if (!focusIn) failed.push('inert dotPress: p20, brought into view by its dot, did not take focus');
+  // A page wholly outside takes no focus.
+  const awayFocus = await page.evaluate(() => {
+    const el = document.querySelector<HTMLElement>('[data-row-slot][inert] [data-box]');
+    if (el === null) return null;
+    el.focus();
+    return document.activeElement === el;
+  });
+  res.awayFocus = awayFocus;
+  if (awayFocus === null) empty.push('inert focus: no inert slot to try');
+  else if (awayFocus) failed.push('inert focus: a page wholly outside the window took focus');
+  if (errors.length > 0) failed.push(`inert: page errors ${errors.join(' | ')}`);
+  await close();
+  // Focus reveal: on the mixed row at slot 0 the three-slot p2 is cut by the right edge; focused, it comes in whole, on the grid.
+  {
+    const m = await open(ROWS.mixed);
+    const p2 = await g(m.page, 'idOf', 'p2');
+    const before = await g(m.page, 'pos');
+    const inertBefore = (await g(m.page, 'inertIds')).includes(p2);
+    await m.page.evaluate((id: string) => document.querySelector<HTMLElement>(`[data-row-slot][data-row-id="${id}"] [data-box]`)!.focus(), p2);
+    await sleep(1800);
+    const after = await g(m.page, 'pos');
+    const win = await g(m.page, 'win');
+    const lefts = await g(m.page, 'stripLefts');
+    const k = (await g(m.page, 'ids')).indexOf(p2);
+    const w = (await g(m.page, 'widths'))[k];
+    res.focusReveal = { before, after, inertBefore, p2Left: lefts[p2] ?? null, width: w };
+    if (inertBefore) failed.push('inert focusReveal: p2, partly in the window, was inert');
+    if (Math.abs(after - before) < 0.5) failed.push(`inert focusReveal: focusing the cut p2 left the row at ${after}`);
+    if (!onGrid(after, PITCH, await g(m.page, 'max'))) failed.push(`inert focusReveal: rest ${after} off the grid`);
+    if (m.errors.length > 0) failed.push(`inert focusReveal: page errors ${m.errors.join(' | ')}`);
+    void win;
+    await m.close();
+  }
+  out.inert = res;
+}
+
+if (ONLY.has('open') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const NARROW = Array(24).fill(1).join(',');
+  // Where the opened page is drawn in the window, the root, and the drawn scroll.
+  const shown = async (page: Page): Promise<any> => (await shimNames(page), page.evaluate(() => {
+    const w = window as any;
+    const win = document.querySelector('[data-row-embla-window]')!.getBoundingClientRect();
+    const rect = (id: string | undefined): { x: number; r: number } | null => {
+      const el = id === undefined ? null : document.querySelector<HTMLElement>(`[data-row-slot][data-row-id="${id}"]`);
+      if (el === null) return null;
+      const b = el.getBoundingClientRect();
+      return { x: +(b.left - win.left).toFixed(1), r: +(b.right - win.left).toFixed(1) };
+    };
+    const x = w.__g.extraIds().at(-1);
+    return { pos: +w.__g.pos().toFixed(1), winW: win.width, x: rect(x), root: rect(w.__g.idOf('root')), rootView: w.__g.rootView(), max: w.__g.max() };
+  }));
+  const whole = (r: { x: number; r: number } | null, winW: number): boolean => r !== null && r.x >= -0.5 && r.r <= winW + 0.5;
+  const outside = (r: { x: number; r: number } | null, winW: number): boolean => r === null || r.r <= 0.5 || r.x >= winW - 0.5;
+  const steps = (fr: any[]): { moved: number; worstStep: number; movingFrames: number } => {
+    let worst = 0;
+    let moving = 0;
+    for (let k = 1; k < fr.length; k += 1) {
+      const d = Math.abs(fr[k].pos - fr[k - 1].pos);
+      worst = Math.max(worst, d);
+      if (d > 0.01) moving += 1;
+    }
+    return { moved: fr.length === 0 ? 0 : +(fr.at(-1).pos - fr[0].pos).toFixed(1), worstStep: +worst.toFixed(1), movingFrames: moving };
+  };
+  {
+    const { page, errors, close } = await open(NARROW);
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    const before = await shown(page);
+    await startTrace(page);
+    await g(page, 'openExtra');
+    await sleep(2200);
+    const fr = await stopTrace(page);
+    const after = await shown(page);
+    const st = steps(fr);
+    res.atRest = { before, after, ...st };
+    if (!whole(before.root, before.winW)) empty.push('open atRest: the Workspace was not in view before, so carrying it out proves nothing');
+    if (!whole(after.x, after.winW)) failed.push(`open atRest: the opened page is not whole in view (${JSON.stringify(after.x)}, row at ${after.pos})`);
+    if (!outside(after.root, after.winW)) failed.push(`open atRest: the Workspace is still in view (${JSON.stringify(after.root)})`);
+    if (!onGrid(after.pos, PITCH, after.max)) failed.push(`open atRest: rest ${after.pos} off the grid`);
+    // A glide, not a jump: many frames, none carrying a quarter of the way (a far page makes the steps long).
+    if (st.movingFrames < 8 || st.worstStep > 0.25 * Math.abs(st.moved)) failed.push(`open atRest: ${st.movingFrames} moving frames, worst ${st.worstStep} px of ${st.moved} (a jump, not a glide)`);
+    if (errors.length > 0) failed.push(`open atRest: page errors ${errors.join(' | ')}`);
+    // Opened mid-glide toward the start: the row rests showing the new page, on the grid.
+    await g(page, 'jumpToSlot', 8);
+    await sleep(500);
+    await g(page, 'glideToSlot', 3);
+    await sleep(80);
+    await g(page, 'openExtra');
+    await sleep(2200);
+    const mid = await shown(page);
+    res.midGlide = mid;
+    if (!whole(mid.x, mid.winW) || !onGrid(mid.pos, PITCH, mid.max)) failed.push(`open midGlide: rest ${mid.pos}, the opened page at ${JSON.stringify(mid.x)} (want whole, on the grid)`);
+    await close();
+  }
+  {
+    // Opened while a mouse drag holds the row: it stays under the pointer until the release, then shows the page.
+    const { page, errors, close } = await open(NARROW);
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    const gapX = await page.evaluate(() => {
+      const r = [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.getBoundingClientRect()).filter((b) => b.left > 100).sort((a, b) => a.left - b.left);
+      return (r[0]!.right + r[1]!.left) / 2;
+    });
+    await page.mouse.move(gapX, 450);
+    await page.mouse.down();
+    for (let k = 1; k <= 10; k += 1) {
+      await page.mouse.move(gapX - 15 * k, 450);
+      await sleep(16);
+    }
+    const held0 = await g(page, 'pos');
+    await g(page, 'openExtra');
+    await sleep(700);
+    const held1 = await g(page, 'pos');
+    await page.mouse.up();
+    await sleep(2200);
+    const after = await shown(page);
+    res.underDrag = { held0, held1, after };
+    if (!(held0 > 50)) empty.push(`open underDrag: the drag moved the row only ${held0} px, so holding proves nothing`);
+    // The pointer is 150 px from where it pressed: the row stays there (Embla's drag spring may still be catching up at held0).
+    if (Math.abs(held1 - 150) > 5) failed.push(`open underDrag: the row is at ${held1} under a drag held 150 px from its press (it was at ${held0})`);
+    if (!whole(after.x, after.winW) || !onGrid(after.pos, PITCH, after.max)) failed.push(`open underDrag: after the release the row rests at ${after.pos}, the opened page at ${JSON.stringify(after.x)} (want whole, on the grid)`);
+    if (errors.length > 0) failed.push(`open underDrag: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  {
+    const { page, errors, close } = await open(NARROW, 1800, 900, '', ENGINE, { reducedMotion: 'reduce' });
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    await startTrace(page);
+    await g(page, 'openExtra');
+    await sleep(1500);
+    const fr = await stopTrace(page);
+    const after = await shown(page);
+    const st = steps(fr);
+    res.reduced = { after, ...st };
+    if (!whole(after.x, after.winW) || !onGrid(after.pos, PITCH, after.max)) failed.push(`open reduced: rest ${after.pos}, the opened page at ${JSON.stringify(after.x)} (want whole, on the grid)`);
+    if (st.movingFrames > 2) failed.push(`open reduced: the row moved in ${st.movingFrames} frames (want at once)`);
+    if (errors.length > 0) failed.push(`open reduced: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  out.open = res;
 }
 
 await browser.close();

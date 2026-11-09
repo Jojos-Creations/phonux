@@ -79,6 +79,9 @@ function View({ name, k }: { name: string; k: number }) {
   );
   return GRAB ? <DragToClose {...drag} closeOnRelease={false}>{(grab) => page(grab)}</DragToClose> : page();
 }
+function ExtraView() {
+  return <div data-box="x" tabIndex={-1} style={{ height: '100%', background: '#a52', color: '#fff', font: '24px sans-serif', padding: 12 }}>x</div>;
+}
 function RootView() {
   return <div data-box={ROOT} style={{ height: '100%', background: '#243', color: '#fff', font: '24px sans-serif', padding: 12 }}>{ROOT}</div>;
 }
@@ -87,7 +90,8 @@ function RootView() {
 const ws = createWorkspace({
   mount: false,
   root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}) } as any }),
-  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })),
+  // `x`: a page opened later, any number of times (`__g.openExtra()`), one slot wide, drawn as the others are.
+  templates: [...ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })), definePanel({ id: 'x', view: ExtraView as any, settings: { title: 'x', multiple: true } as any })],
   tuning: { rowGesture: 'step', rowGap: GAP, ...(CAP === null ? {} : { maxLivePanels: CAP }) } as any,
 });
 for (const id of ids) ws.addPanel(id);
@@ -310,6 +314,9 @@ requestAnimationFrame(frame);
   dotRect: (id: string) => { const b = document.querySelector<HTMLElement>(`[data-dot="${id}"]`)!.getBoundingClientRect(); return { left: b.left, width: b.width, top: b.top }; },
   easedOval: (on: boolean) => { (globalThis as any).__ovalMove = on ? easeEmbla : writeEmbla; },
   // The window bar's Workspace button: summon, dismiss, and where the root stands.
+  openExtra: () => ws.addPanel('x'),
+  extraIds: () => latest.entries.filter((e: any) => e.view === 'x').map((e: any) => e.id),
+  inertIds: () => [...document.querySelectorAll<HTMLElement>('[data-row-slot][inert]')].map((el) => el.dataset.rowId!),
   summon: () => ws.panels.summonRoot(),
   dismiss: () => ws.panels.dismissRoot(),
   rootView: () => ws.panels.rootView(),
