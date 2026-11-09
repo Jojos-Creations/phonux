@@ -250,6 +250,41 @@ Unit tests for step 4's pure helpers (`test/embla-row-summon.test.ts`, 11 tests,
 `emblaAsideFor`, `markedScroll`. Mutants: dropping the edge-slot page from a summon's parks fails 3; letting a page wider than the
 window step the root aside fails 1; flipping the sign of a right pin's screen offset fails the pin property.
 
+## Audit fixes after step 5
+
+An independent audit at b2a749a found these; each reproduced again at e71796f and each proof check below fails there (run from a
+`git archive e71796f` extract with the new proof copied in) and passes now.
+
+- Summon or dismiss pressed mid-glide. `moveEmbla` added the mark's fixed rest to the glide's remaining target (`target + (keepTo -
+  location)`). A marked commit now lands the view where the mark says (`moveEmbla(..., land)`); the glide in flight ends and every slot
+  that moved on screen glides from where it was drawn (Embla's drawn position, not its location, which runs up to a frame ahead).
+  24 one-slot pages, root at index 8, from slot 14: `glideToSlot(18)` then summon 70 ms in rested at slot 21, root never shown
+  ('away'); now root at 0, view root,p19,p20,p21, 'summoned'. Toward the root (`glideToSlot(10)`): root at the right edge (1218),
+  view p6,p7,p8,root; now root at 0, view root,p11,p12,p13. Dismiss mid-glide (`glideToSlot(6)` from the summon): rested at slot 13,
+  view p13..p16; now p14..p17 as before the summon. Summon and dismiss during a mouse-down drag were already right (the in-place
+  shift): summon gives root,p13,p14,p15 (the drag had cut p13, which stays and moves over), dismiss p14..p17; kept as guards.
+- Reduce Motion. `arriveAndLeave` glided and faded regardless, and Embla's own glides ignored it. Now the slot glides and fades take
+  no time, arrow keys, the focus reveal and `moveEmbla` jump (`scrollTo(i, true)`), and a drag or wheel release settles at once
+  (`scrollBody.useDuration(0)` on `pointerUp`, already pinned). Root drawn at 35 places on a summon and 36 on a dismiss, p16 at 45 on
+  an arrow key, p1 at 35 on a step-aside; now at most 2 each, still keep-still and on the grid. The dot bar already honoured it.
+- Step-aside re-check. The provider re-ran the step-aside on any change of the other panels' ids or widths, so closing a far page
+  (p8 of `3,1,1,1,1,1,1,1` at 1400 px, the root back at 0 after a wheel toward it) stepped the root aside again and the view jumped
+  406 px. It now re-runs only for a window change, a panel's own width change, a change of the root's two neighbours, or the page
+  it stepped aside for closing.
+- Blank pages at a low cap. The loader read Embla's location, which mid-glide runs ahead of the drawn strip, so the page still drawn at
+  the trailing edge was unloaded while in view (cap 4 = the window's fit, p20's dot: 4 of 92 frames). It now reads the drawn
+  position, counts what the next 8 fixed steps of travel bring into view and the window where the glide is going as shown (loaded
+  whatever `maxLivePanels` says), and Embla's `select` also notifies the loader. Probe after: 0 frames at cap 8, cap 4 and near 0.
+- The leaving-slot rule from step 4 had no check: `summon fromLeft` and `fromRight` now require a page leaving from out of view never
+  to be drawn in the window, and one leaving from the view to start its exit from its place (0 px now).
+- `--only blank` (new): see the table below.
+
+Step-5 leftover, measured: in presented frames (CDP screencast, magenta page) of `shrinkAside`, the gap between p1's drawn right edge
+and p2 grows to 78 px (16 at rest) while the per-frame layout says 16.0 px throughout. It is real: p2's glide is a main-thread
+(`composite: 'add'`) translate and p1's size box scale runs on the compositor, frames ahead. Not fixed: forcing the size box onto the
+main thread with `composite: 'add'` broke it (the DOM gap reached 422 px); the fix needs the slot glides compositable or the size box
+and its neighbours on one clock. Open.
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
 - Drag to reorder and its edge scroll (step 6). Width changes: a hand resize (`usePanelResizing`, a held width) and a window resize

@@ -116,3 +116,16 @@ test('rowPricing on a strip: nothing parks for room or the cap', () => {
   // Control: the same row off the strip parks down to the cap.
   assert.equal(settleKeeping(env, row, []).filter((p) => p.live).length, 4);
 });
+
+test('loadedNear: what the next frames of a glide bring into view, and the window where it goes, load whatever the cap', () => {
+  const l = layoutOf(Array(24).fill(1));
+  const base = { layout: l, windowWidth: W4, pitch: PITCH, gap: GAP, near: 0, limit: 4, unloadable: () => true, was: null };
+  // At cap 4 with four in view, a row moving right 300 px in the next frames loads p6 before it enters (p6's left is 6 * PITCH).
+  const ahead = loadedNear({ ...base, scroll: 2 * PITCH, ahead: 300 });
+  assert.ok(ahead.has('p6'), 'the page entering on the right loads ahead of the view');
+  assert.ok(!loadedNear({ ...base, scroll: 2 * PITCH }).has('p6'), 'control: not without the lookahead');
+  assert.ok(loadedNear({ ...base, scroll: 2 * PITCH, ahead: -300 }).has('p1'), 'moving left, the page on the left loads');
+  // A far glide's destination loads at the start, past the cap: the view's four and the destination's four.
+  const toward = loadedNear({ ...base, scroll: 0, toward: 18 * PITCH });
+  assert.deepEqual([...toward].sort(), ['p0', 'p1', 'p18', 'p19', 'p2', 'p20', 'p21', 'p3']);
+});
