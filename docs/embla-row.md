@@ -633,13 +633,20 @@ frame moves the strip more than half a slot, the window has no run wider than a 
 
 | case | result |
 | --- | --- |
-| fromLeft: root at place 2, view p14..p17 | root moved to place 13 (next to p14), 1 order commit, glides in: view root,p14,p15,p16 at 5278, root drawn at ~38 places, 0 px off the strip shift, widest hole 16 px |
+| fromLeft: root at place 2, view p14..p17 | root moved to place 13 (next to p14), 1 order commit, glides in: view root,p14,p15,p16 at 5278, root drawn at 39 places coming in, fastest frame 118 px, 0 px off the strip shift, widest hole 16 px |
 | fromRight: root at place 20, view p3..p6 | root moved to place 6 (after p6), 1 commit, view p4,p5,p6,root at 1218 |
 | stays: glide to 20, back to 13, scrollTo(root) from 20 | order unchanged, 0 commits, root at 0 back at slot 13 |
 | inView: root in view | summon false, dismiss false, row moved 0 px, 0 commits |
 | reduced (Reduce Motion) | lands at once (root at <= 2 places), same order and view, 1 commit |
 | midGlide: pressed 90 ms into a glide 14 > 18 | root next to the drawn view (place 14), the glide turns and lands root,p15,p16,p17 at 5684; fastest frame 60 px, 0 px off the shift |
 | midWheel: pressed during a 300 px wheel | the hold ends, root at 13, glides back to root,p14,p15,p16 at 5278; fastest frame 124 px |
+
+Full proof (all sections): failed [], empty []. `summon.reducedRelease` (the intermittent focus check) is kept unchanged: it is
+not a summon case (a drag release, a wheel release and a focus reveal under Reduce Motion); it passed in this run. Mutant (the
+reorder skipped, so the summon is only a glide to the root where it lies): fromLeft and fromRight fail 8 checks (the strip moved
+1415 / 1778 px in a frame, order unchanged, 0 commits, view root,p3,p4,p5 / p18,p19,p20,root). Library suite: 3286 tests, 3284 pass,
+1 skip, 1 fail (`content that arrives after the timeout still comes in`, panel-loader; 10/10 alone, three runs) against 3292/3291/1:
+11 tests removed, 5 added.
 
 Blank (`--only blank`): the summon run is held to the same rule as every other run (no presented frame with a magenta band of 100 px
 or more) and to a band no wider than a gap and 8 px. Inert: the summon run as before; the dismiss run is gone.
