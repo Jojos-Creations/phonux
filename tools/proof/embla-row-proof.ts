@@ -1640,7 +1640,9 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
 // drawn place in the window, whether it is inert, the drawn scroll and the focused slot.
 // tsx names the functions a callback declares (`__name`), which the page does not have: a string evaluate gives it one first.
 const shimNames = (page: Page): Promise<void> => page.evaluate('window.__name = window.__name || ((f) => f)');
-const startTrace = async (page: Page): Promise<void> => (await shimNames(page), page.evaluate(() => {
+const startTrace = async (page: Page): Promise<void> => {
+  await shimNames(page);
+  return page.evaluate(() => {
   const w = window as any;
   w.__trace = [];
   w.__tracing = true;
@@ -1658,7 +1660,8 @@ const startTrace = async (page: Page): Promise<void> => (await shimNames(page), 
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
-}));
+  });
+};
 const stopTrace = (page: Page): Promise<any[]> => page.evaluate(() => new Promise((done) => {
   const w = window as any;
   w.__tracing = false;
@@ -1805,7 +1808,9 @@ if (ONLY.has('open') && ENGINE === 'embla') {
   const res: Record<string, unknown> = {};
   const NARROW = Array(24).fill(1).join(',');
   // Where the opened page is drawn in the window, the root, and the drawn scroll.
-  const shown = async (page: Page): Promise<any> => (await shimNames(page), page.evaluate(() => {
+  const shown = async (page: Page): Promise<any> => {
+    await shimNames(page);
+    return page.evaluate(() => {
     const w = window as any;
     const win = document.querySelector('[data-row-embla-window]')!.getBoundingClientRect();
     const rect = (id: string | undefined): { x: number; r: number } | null => {
@@ -1816,7 +1821,8 @@ if (ONLY.has('open') && ENGINE === 'embla') {
     };
     const x = w.__g.extraIds().at(-1);
     return { pos: +w.__g.pos().toFixed(1), winW: win.width, x: rect(x), root: rect(w.__g.idOf('root')), rootView: w.__g.rootView(), max: w.__g.max() };
-  }));
+    });
+  };
   const whole = (r: { x: number; r: number } | null, winW: number): boolean => r !== null && r.x >= -0.5 && r.r <= winW + 0.5;
   const outside = (r: { x: number; r: number } | null, winW: number): boolean => r === null || r.r <= 0.5 || r.x >= winW - 0.5;
   const steps = (fr: any[]): { moved: number; worstStep: number; movingFrames: number } => {

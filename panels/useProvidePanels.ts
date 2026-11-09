@@ -449,6 +449,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const entry = panels.find((p) => p.id === id);
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
+    // On a strip "in view" is read off the strip Embla draws now: the old scroller has no strip and reads 0, which took a panel far
+    // left of the view for one in it and scrolled the row to it.
+    if (strip) {
+      const embla = emblaOf(el);
+      const drawn = emblaStripOf(el);
+      const j = drawn === undefined ? -1 : drawn.layout.ids.indexOf(id);
+      if (embla === undefined || drawn === undefined || j < 0) return;
+      const at = emblaDrawnOf(embla);
+      const l = drawn.layout.lefts[j]!;
+      if (l + drawn.layout.widths[j]! > at + 0.5 && l < at + drawn.windowWidth - 0.5) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
+      return;
+    }
     const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
     const inView = left < rowScrollerFor(el).scrollLeft() + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > rowScrollerFor(el).scrollLeft() + tuning.rowGap;
     if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
