@@ -387,6 +387,10 @@ Two library gaps the app hit when it switched to the Embla row.
   move, and carrying the Workspace out of view is that glide. While a press, a wheel gesture or a reorder hold holds the row
   (`emblaHeld`), the scroll waits for the release (`whenEmblaFree`: Embla's `pointerUp`, `holdEmbla`'s release) and then reads the
   strip as it is drawn then. A request whose panel the published strip does not carry yet waits one commit, as before.
+- `followPanel` (`scrollOnMove: 'follow'` after a move, a place or a resize) judged "in view" against the old scroller, which reads 0
+  on Embla; once scroll requests moved the Embla row, a page resized far left of the view scrolled the row to it (the `change`
+  section's left-edge page moved 810 px). On a strip it now reads the drawn strip, and a width change (resize, `setSlots`, a reset)
+  does not follow at all: step 5's rule keeps the pages beside a growing page still (`width growInView` moved them 406 px otherwise).
 
 Embla internals: none new (`dragHandler.pointerDown()`, `target`, `scrollSnaps` are already pinned).
 
