@@ -87,6 +87,45 @@ function enterX(b: PanelSettings, p: Props = {}, over: Partial<PanelWindow> = {}
 // B rests at 2 * 406 = 812 in [root, A, B]; entering from the right starts one span beyond, from the left one span before.
 const REST = 2 * SPAN;
 
+test('enterFrom: left and right constants beat the engine mark and the anchor formula', () => {
+  const rightMark = { sides: new Map([['b', 'right' as const]]) };
+  const leftMark = { sides: new Map([['b', 'left' as const]]) };
+  assert.equal(enterX({ enterFrom: 'left' }, rightMark), REST - SPAN, 'left beats a right mark');
+  assert.equal(enterX({ enterFrom: 'right' }, leftMark), REST + SPAN, 'right beats a left mark');
+  const viaAnchor = { entering: new Set(['b']) };
+  const anchoredLeft = { anchor: { panel: ROOT, position: 'left' as const, priority: 0 } };
+  assert.equal(enterX({ enterFrom: 'right' }, viaAnchor, anchoredLeft), REST + SPAN, 'right beats the anchor formula, which reads the root as left');
+  assert.equal(enterX({ enterFrom: 'left' }, viaAnchor, { anchor: { panel: 'b', position: 'right', priority: 0 } }), REST - SPAN, 'left beats a formula that finds no anchor entry');
+  assert.equal(enterX({ enterFrom: 'left' }), REST - SPAN, 'and with no mark at all');
+});
+
+test("enterFrom auto keeps today's precedence: a mark first, then the anchor formula for an entry entering via an anchor, then the right", () => {
+  assert.equal(enterX({}), REST + SPAN, 'nothing: the right');
+  assert.equal(enterX({}, { entering: new Set(['b']) }), REST - SPAN, 'entering via the root, which sits at index 0: the formula says left');
+  assert.equal(enterX({}, { entering: new Set(['b']), sides: new Map([['b', 'right']]) }), REST + SPAN, 'a mark beats the formula');
+  assert.equal(enterX({}, { sides: new Map([['b', 'left']]) }), REST - SPAN, 'a mark alone');
+});
+
+test('enterFrom anchor equals the legacy anchoredEnter true: the same slot start in a PanelRow mount, with and without a mark', () => {
+  const legacy = (id: string): PanelWindow => ({
+    id, url: `https://${id}.example`, title: id, live: true, view: 'motion-view', collapsible: true, listed: true,
+    anchor: { panel: ROOT, position: 'right', priority: 5 }, anchoredEnter: true,
+  });
+  const mountLegacy = (p: Props): number => {
+    const base = [rootEntry(), made('a')];
+    const workspace = settledWorkspace(base);
+    const mounted = mount(row(base, {}, workspace));
+    mounted.rerender(row([...base, legacy('b')], p, workspace));
+    const x = xOf(mounted.container, 'b');
+    mounted.unmount();
+    return x;
+  };
+  assert.equal(enterX({ enterFrom: 'anchor' }), mountLegacy({}));
+  assert.equal(enterX({ enterFrom: 'anchor' }), REST - SPAN, 'both read the root at index 0 as left');
+  assert.equal(enterX({ enterFrom: 'anchor' }, { sides: new Map([['b', 'right']]) }), mountLegacy({ sides: new Map([['b', 'right']]) }), 'a mark beats the formula for both');
+  assert.equal(enterX({ enterFrom: 'anchor' }), enterX({}, { entering: new Set(['b']) }), 'and anchor is auto-entering-via-anchor made permanent');
+});
+
 test('enterDirectionOf is a pure function of the setting, the 0.1.0 flag, the mark, the entry route and the formula', () => {
   const formula = (side: 'left' | 'right') => () => side;
   assert.equal(enterDirectionOf('left', false, 'right', true, formula('right')), 'left');
@@ -111,6 +150,15 @@ async function exitOf(b: PanelSettings, p: Props = {}): Promise<{ x: number; y: 
   return out;
 }
 
+test('exit direction: auto follows exitRightIds, and closingIds exits down without sliding sideways', async () => {
+  const right = new Set(['b']);
+  assert.ok((await exitOf({}, {})).x < REST, 'no mark: left');
+  assert.ok((await exitOf({}, { exitRight: right })).x > REST, 'an exit-right mark: right');
+  const closing = await exitOf({}, { closing: right, exitRight: right });
+  assert.ok(closing.y > 0, 'closingIds exits down whatever the exit-right mark says');
+  assert.equal(closing.x, REST, 'and does not slide sideways');
+});
+
 test('layer: a raised slot at the row\'s end has z-index 100 and a base slot 1, and a hand-built entry reads its own layer field', () => {
   const zOf = (b: PanelWindow): string => {
     const mounted = mount(row([rootEntry(), b]));
@@ -124,6 +172,22 @@ test('layer: a raised slot at the row\'s end has z-index 100 and a base slot 1, 
   assert.equal(zOf({ id: 'b', url: 'x', title: 'b', live: true, view: 'motion-view', collapsible: true, listed: true }), '1');
 });
 
+test('a slot animates: three frames into its exit it is still sliding, and a new slot is still on its way after two frames', async () => {
+  const base = [rootEntry(), made('a'), made('b')];
+  const leavingWorkspace = settledWorkspace(base);
+  const leaving = mount(row(base, {}, leavingWorkspace));
+  leaving.rerender(row([rootEntry(), made('a')], {}, leavingWorkspace));
+  await advanceFrames(48);
+  assert.notEqual(slotOf(leaving.container, 'b'), null, 'the slot is still sliding out');
+  leaving.unmount();
+  const enteringWorkspace = settledWorkspace(base.slice(0, 2));
+  const entering = mount(row(base.slice(0, 2), {}, enteringWorkspace));
+  entering.rerender(row(base, {}, enteringWorkspace));
+  await advanceFrames(32);
+  assert.notEqual(xOf(entering.container, 'b'), REST);
+  entering.unmount();
+});
+
 test('differential layer: the resolved layer decides the slot stacking', () => {
   differential('layer', (run) => {
     for (const value of ['base', 'raised'] as const) {
@@ -134,6 +198,12 @@ test('differential layer: the resolved layer decides the slot stacking', () => {
         return z;
       });
     }
+  });
+});
+
+test('differential enterFrom: the resolved setting decides which side a new slot starts from', () => {
+  differential('enterFrom', (run) => {
+    for (const value of ['left', 'right'] as const) run(value, () => enterX({ enterFrom: value }));
   });
 });
 
@@ -158,3 +228,7 @@ test('panelRowSlotMotion: the default transition is the shared one by reference,
   assert.equal(down.transition?.duration !== 0, true);
 });
 
+test('every motion name this file owns has a completed differential', () => {
+  assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
+  assert.deepEqual(differentialsCovered(), [...OWNED].sort());
+});

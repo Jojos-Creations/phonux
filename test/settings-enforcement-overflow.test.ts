@@ -159,6 +159,70 @@ test('S11: 500 seeded sequences of create, activate, resize, close, undo, drag, 
   assert.deepEqual(failures, []);
 });
 
+test('S11 control: the same sequences over park panels do park for room, so the check can fail', () => {
+  let failed = 0;
+  for (let seed = 1; seed <= 40; seed += 1) if (sequence(seed, { overflow: 'park' }, 14).wrong.length > 0) failed += 1;
+  assert.ok(failed > 0, 'a park row parks a panel that was neither hidden nor closed in at least one sequence');
+});
+
+// ---------------------------------------------------------------------------
+// The differential
+// ---------------------------------------------------------------------------
+
+test('overflow differential: three creates at container 1000 park two panels under park and none under scroll', () => {
+  differential('overflow', (run) => {
+    for (const value of ['scroll', 'park'] as const) {
+      run(value, () => {
+        const p = provide({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: { overflow: value } });
+        for (let i = 0; i < 3; i += 1) act(() => p.now().create());
+        const parked = p.parked();
+        cleanup();
+        return parked.length;
+      });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Park mode as the narrowed role
+// ---------------------------------------------------------------------------
+
+test('park capacity subtracts the reserved widths: a scroll root beside park panels leaves room for one at 1000 and two at 1500', () => {
+  const layout = (reservedWidths: readonly number[]) => computeRowLayout({ containerWidth: 1000, phoneWidth: 390, gap: 16, fixedItemCount: reservedWidths.length, liveWidths: [], reservedWidths }).maxLiveThatFit;
+  assert.equal(layout([390]), 1, '(968 - 390) / 406 = 1');
+  assert.equal(layout([390, 390]), 0, '(968 - 796) / 406 = 0, which the manager floors at 1');
+  const at = (containerWidth: number): Provided => {
+    const p = provide({ initialEntries: [scrollRoot()], containerWidth, workspaceDefaults: { overflow: 'park' } });
+    for (let i = 0; i < 3; i += 1) act(() => p.now().create());
+    return p;
+  };
+  const narrow = at(1000);
+  assert.equal(narrow.live().length, 2, 'the root and the newest park panel');
+  assert.equal(narrow.parked().length, 2);
+  cleanup();
+  const wide = at(1500);
+  assert.equal(wide.live().length, 3, '(1468 - 390) / 406 = 2 park panels beside the root');
+  assert.deepEqual(wide.parked(), [wide.ids()[1]!], 'the one parked is the oldest, never the opened one');
+});
+
+test('a scroll panel beside the park panels takes its width out of the budget, and the floor keeps one park panel live', () => {
+  const p = provide({ initialEntries: [scrollRoot(), made('s')], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
+  for (let i = 0; i < 2; i += 1) act(() => p.now().create());
+  const [, , first, second] = p.ids();
+  assert.deepEqual(p.live(), [ROOT, 's', second], 'reserved 390 + 390 leaves 172, room for none, so the floor of one stands');
+  assert.deepEqual(p.parked(), [first]);
+});
+
+test('at 1500 a scroll panel beside the root leaves room for one park panel, where the root alone leaves room for two', () => {
+  const beside = provide({ initialEntries: [scrollRoot(), made('s')], containerWidth: 1500, workspaceDefaults: { overflow: 'park' } });
+  for (let i = 0; i < 3; i += 1) act(() => beside.now().create());
+  assert.equal(beside.live().length, 3, 'root, s and one park panel: (1468 - 796) / 406 = 1');
+  cleanup();
+  const alone = provide({ initialEntries: [scrollRoot()], containerWidth: 1500, workspaceDefaults: { overflow: 'park' } });
+  for (let i = 0; i < 3; i += 1) act(() => alone.now().create());
+  assert.equal(alone.live().length, 3, 'root and two park panels: (1468 - 390) / 406 = 2');
+});
+
 test('with no park panel to park, a crowded row overflows and scrolls: no refusal and no park', () => {
   const p = provide({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'scroll' } });
   for (let i = 0; i < 6; i += 1) act(() => p.now().create());
@@ -166,6 +230,15 @@ test('with no park panel to park, a crowded row overflows and scrolls: no refusa
   assert.deepEqual(p.parked(), []);
   assert.equal(p.now().rowScroll, true);
   assert.ok(p.now().rowNumbers.stripWidth > p.now().rowNumbers.windowWidth, 'the strip is wider than the window');
+});
+
+test('a park panel opened into a crowded scroll row stays live, and a scroll panel opened after it does not park it', () => {
+  const p = provide({ initialEntries: [scrollRoot(), made('s1'), made('s2')], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
+  act(() => p.now().create());
+  act(() => p.now().create({ title: 'second' }));
+  const [, , , first, second] = p.ids();
+  assert.deepEqual(p.parked(), [first], 'the oldest other park panel goes, never the one opened');
+  assert.ok(p.live().includes(second!));
 });
 
 test('a template asking overflow park on a parkable:false panel is a settings-conflict, the reverse is not', () => {
@@ -205,6 +278,14 @@ test('workspaceDefaults {}: a created entry carries its settings, scrolls, and t
   assert.equal(entry.title, 'Tab');
   assert.deepEqual([entry.settings.listed, entry.settings.layer], [false, 'raised']);
   assert.equal(p.now().rowScroll, true);
+});
+
+test("workspaceDefaults {overflow: 'park'}: the created entries park at capacity as 0.1.0 does", () => {
+  const p = provide({ initialEntries: [legacyRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
+  for (let i = 0; i < 3; i += 1) act(() => p.now().create());
+  assert.equal(p.now().entries[1]!.settings?.overflow, 'park');
+  assert.deepEqual(p.live(), [ROOT, p.ids()[3]]);
+  assert.equal(p.now().rowScroll, false);
 });
 
 test('workspaceDefaults on a restore: entries keep their saved live, anchor, slots, size and listed, and a permanent column stays a live fixed column', async () => {
@@ -251,3 +332,6 @@ test("the four PanelsAPI comments that promised parking say it applies to a pane
   }
 });
 
+test('every overflow name this file owns has a completed differential', () => {
+  assert.deepEqual(differentialsCovered(), OWNED);
+});

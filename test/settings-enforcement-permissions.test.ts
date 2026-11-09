@@ -382,6 +382,20 @@ test('the undo window restarts from each close: a second default close 1 s in en
 const parkingRow = (layer: PanelSettings, spy: Spy): ReturnType<typeof provide> =>
   provide([rootEntry(), made('a', { overflow: 'park', ...layer }), made('b', { overflow: 'park', ...layer }), made('c', { overflow: 'park', ...layer })], { capture: spy, containerWidth: 1300 });
 
+test('snapshot control: the row above really parks a panel, so the park scenario below can be positive', () => {
+  const spy = spyCapture();
+  const p = parkingRow({}, spy);
+  assert.deepEqual(p.now().entries.filter((e) => !e.live).map((e) => e.id), ['a']);
+});
+
+test('a park and a close each take a picture', () => {
+  const spy = spyCapture();
+  const p = parkingRow({}, spy);
+  assert.deepEqual(spy.captured, ['a']);
+  act(() => p.now().close('b'));
+  assert.deepEqual(spy.captured, ['a', 'b']);
+});
+
 test('a close the gate refuses takes no picture', () => {
   const spy = spyCapture();
   const p = provide([rootEntry(), made('a')], { capture: spy });
