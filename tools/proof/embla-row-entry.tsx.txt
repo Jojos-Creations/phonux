@@ -226,7 +226,10 @@ const frame = (t: number): void => {
     // Each page's content as drawn this frame, inside its drag box: what a reorder drag carries under the pointer.
     const boxX: Record<string, number> = {};
     for (const el of document.querySelectorAll<HTMLElement>('[data-box]')) boxX[el.dataset.box!] = +(el.getBoundingClientRect().left - win.left).toFixed(2);
-    frames.push({ t, boxX, emblaPress: emb === undefined ? false : emb.internalEngine().dragHandler.pointerDown(), grabbing: grabbing?.dataset.box ?? null, named, drawn, blankIn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
+    // Every slot by its row id (its content's name is gone while it is unloaded): left in the window, width, unloaded.
+    const byId: Record<string, [number, number, number]> = {};
+    for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) { const b = el.getBoundingClientRect(); byId[el.dataset.rowId!] = [+(b.left - win.left).toFixed(1), +b.width.toFixed(1), el.querySelector('[data-row-unloaded]') === null ? 0 : 1]; }
+    frames.push({ t, byId, boxX, emblaPress: emb === undefined ? false : emb.internalEngine().dragHandler.pointerDown(), grabbing: grabbing?.dataset.box ?? null, named, drawn, blankIn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
     wheels = 0;
     pd = 0;
     pm = 0;
@@ -262,6 +265,8 @@ requestAnimationFrame(frame);
     return best;
   },
   jumpToSlot: (s: number) => emblaOf(container())?.scrollTo(s, true),
+  // Puts the row at a scroll px off any stop, drawn at once (the oval drag's write).
+  writeAt: (px: number) => { const e = emblaOf(container()); if (e !== undefined) writeEmbla(e, px); },
   glideToSlot: (s: number) => emblaOf(container())?.scrollTo(s),
   // A wheel handed in from embedded content, as a webview's script does: deltas only, from an element inside a panel.
   feed: (init: any) => feedRowWheel(document.querySelector('[data-box="p2"]')!, init),

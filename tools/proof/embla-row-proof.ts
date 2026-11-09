@@ -1198,6 +1198,79 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (a.errors.length > 0) fail('reducedAside', `page errors ${a.errors.join(' | ')}`);
     await a.close();
   }
+  if (want('summon.reducedRelease')) {
+    // Reduce Motion on the row's own moves (Embla's, not the slots'): a mouse drag's release, a wheel gesture's release with a strip
+    // change waiting for it (`moveEmbla`'s rebuild after the release) and a focus reveal each land at once. Read as the frames the row
+    // moves after the input ends: a glide takes 20 or more. Each run without Reduce Motion first is the control that the input glides.
+    const moving = (fr: any[]): number => fr.slice(1).filter((f: any, k: number) => Math.abs(f.pos - fr[k].pos) > 0.01).length;
+    const rr: any = {};
+    for (const reduce of [false, true]) {
+      const key = reduce ? 'reduced' : 'control';
+      const { page, errors, close } = await open(Array(24).fill(1).join(','), 1800, 900, '&bar=0', ENGINE, reduce ? { reducedMotion: 'reduce' } : {});
+      await g(page, 'jumpToSlot', 2);
+      await sleep(400);
+      // A mouse drag on the gap after the first panel drawn past x 100, 300 px left, released mid-slot.
+      const gapX = await page.evaluate(() => {
+        const r = [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => el.getBoundingClientRect()).filter((b) => b.left > 100).sort((a, b) => a.left - b.left);
+        return (r[0]!.right + r[1]!.left) / 2;
+      });
+      await page.mouse.move(gapX, 450);
+      await page.mouse.down();
+      for (let k = 1; k <= 15; k += 1) {
+        await page.mouse.move(gapX - 20 * k, 450);
+        await sleep(16);
+      }
+      await sleep(200);
+      await g(page, 'record');
+      await page.mouse.up();
+      await sleep(1200);
+      const dragFr = await g(page, 'stop');
+      // A wheel stream, the last page closed 300 ms in: the rebuild waits for the gesture's release.
+      await g(page, 'jumpToSlot', 6);
+      await sleep(400);
+      await page.mouse.move(900, 450);
+      for (let k = 0; k < 10; k += 1) {
+        await page.mouse.wheel(17, 0);
+        await sleep(16);
+        if (k === 6) await g(page, 'op', 'close', await g(page, 'idOf', 'p24'));
+      }
+      await g(page, 'record');
+      await sleep(1500);
+      const wheelFr = await g(page, 'stop');
+      // A focus reveal: the three-slot-wide reveal is not on a one-slot row, so a page cut by a row off the grid: written 200 px past
+      // a stop, then the page cut at the right edge focused.
+      await g(page, 'jumpToSlot', 3);
+      await sleep(300);
+      await page.evaluate(() => (window as any).__g.writeAt((window as any).__g.pos() + 200));
+      await sleep(200);
+      const cut = await page.evaluate(() => {
+        const win = document.querySelector('[data-row-embla-window]')!.getBoundingClientRect();
+        const el = [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].find((x) => { const b = x.getBoundingClientRect(); return b.left < win.right - 1 && b.right > win.right + 1; });
+        return el?.querySelector<HTMLElement>('[data-box]')?.dataset.box ?? null;
+      });
+      await g(page, 'record');
+      if (cut !== null) await page.focus(`[data-box="${cut}"]`);
+      await sleep(1200);
+      const focusFr = await g(page, 'stop');
+      const max = await g(page, 'max');
+      rr[key] = {
+        drag: { moved: +(dragFr.at(-1).pos - dragFr[0].pos).toFixed(1), movingFrames: moving(dragFr), rest: dragFr.at(-1).pos, grid: onGrid(dragFr.at(-1).pos, PITCH, max) },
+        // From the gesture's release (the plugin's mouseup): before it the row follows the wheel's drag.
+        wheel: { moved: +(wheelFr.at(-1).pos - wheelFr[0].pos).toFixed(1), releaseFrame: wheelFr.findIndex((f: any) => f.pu > 0), movingFrames: moving(wheelFr.slice(Math.max(0, wheelFr.findIndex((f: any) => f.pu > 0)))), rest: wheelFr.at(-1).pos, grid: onGrid(wheelFr.at(-1).pos, PITCH, max) },
+        focus: { cut, moved: +(focusFr.at(-1).pos - focusFr[0].pos).toFixed(1), movingFrames: moving(focusFr), rest: focusFr.at(-1).pos, grid: onGrid(focusFr.at(-1).pos, PITCH, max) },
+      };
+      if (errors.length > 0) fail('reducedRelease', `page errors ${errors.join(' | ')}`);
+      await close();
+    }
+    res.reducedRelease = rr;
+    for (const what of ['drag', 'wheel', 'focus']) {
+      const c = rr.control[what];
+      const r = rr.reduced[what];
+      if (what === 'wheel' && (c.releaseFrame < 0 || r.releaseFrame < 0)) empty.push(`summon reducedRelease wheel: no release recorded (${c.releaseFrame}, ${r.releaseFrame})`);
+      if (c.movingFrames < 10 || Math.abs(c.moved) < 20) empty.push(`summon reducedRelease ${what}: the control moved ${c.moved} px in ${c.movingFrames} frames, so no glide was there to cut`);
+      if (r.movingFrames > 2 || !r.grid || Math.abs(r.moved) < 20) fail('reducedRelease', `${what} under Reduce Motion: moved ${r.moved} px in ${r.movingFrames} frames (want at most 2), rest ${r.rest} on the grid ${r.grid}`);
+    }
+  }
   if (want('summon.unrelatedClose')) {
     // A root brought back by a wheel toward it stays when a far page closes: only a window, size or neighbor change steps it aside.
     const { page, errors, close } = await open('3,1,1,1,1,1,1,1');
@@ -1489,6 +1562,41 @@ if (ONLY.has('blank') && ENGINE === 'embla') {
       await sleep(1200);
     },
   };
+  if (want('blank.lead')) {
+    // The loader's look-ahead: a page the glide carries into the window is loaded some frames before it enters (a web view gets
+    // that long to draw), not only in the frame it enters. Far dot press at cap 4 (the window's fit, so nothing past the window is
+    // loaded for being near): every page entering mid-glide must have been loaded 2 or more frames before its first frame in view.
+    const { page, errors, close } = await open(Array(24).fill(1).join(','), 1800, 900, '&park=1&cap=4&bar=0');
+    await g(page, 'record');
+    await acts.dotFar!(page);
+    const fr = await g(page, 'stop');
+    const inView = (v: [number, number, number] | undefined, w: number): boolean => v !== undefined && v[1] > 0.5 && v[0] < w - 0.5 && v[0] + v[1] > 0.5;
+    const leads: Record<string, number> = {};
+    for (let k = 1; k < fr.length; k += 1) {
+      for (const [id, v] of Object.entries(fr[k].byId as Record<string, [number, number, number]>)) {
+        if (!inView(v, fr[k].winW) || inView(fr[k - 1].byId[id], fr[k - 1].winW) || id in leads) continue;
+        let j = k - 1;
+        while (j >= 0 && fr[j].byId[id] !== undefined && fr[j].byId[id][2] === 0) j -= 1;
+        // Loaded since the record began: a page near the start, not one the look-ahead had to reach.
+        if (j < 0) continue;
+        leads[id] = k - j - 1;
+      }
+    }
+    const worst = Object.entries(leads).sort((a, b) => a[1] - b[1]);
+    res.lead = { entered: Object.keys(leads).length, worst: worst.slice(0, 4).map(([id, n]) => `${id}:${n}`).join(','), leads, frames: fr.length };
+    if (Object.keys(leads).length < 5) empty.push(`blank lead: ${Object.keys(leads).length} pages entered the window unloaded before, so the look-ahead was not needed`);
+    else {
+      // The glide starts slow, so the first page or two to enter have little lead; at speed every page has some.
+      const ns = Object.values(leads).sort((a, b) => a - b);
+      const zeros = ns.filter((n) => n === 0).length;
+      const median = ns[Math.floor(ns.length / 2)]!;
+      res.lead.zeros = zeros;
+      res.lead.median = median;
+      if (zeros > 2 || median < 2) failed.push(`blank lead: ${zeros} of ${ns.length} pages entered the window in the frame they loaded, median lead ${median} frames (${res.lead.worst}); want at most 2 and a median of 2 or more`);
+    }
+    if (errors.length > 0) failed.push(`blank lead: page errors ${errors.join(' | ')}`);
+    await close();
+  }
   let controlSeen = 0;
   for (const cap of [8, 4]) {
     // The defect showed in one or two frames of a glide, so the far dot press runs three times at the cap that fits the window.
