@@ -10,7 +10,7 @@
 import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
 import type { AwayStore } from './panelAway.js';
-import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
+import { WheelGestures } from 'wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
 import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
@@ -147,14 +147,14 @@ export function markEmblaBuilt(embla: EmblaCarouselType): void {
  * Applies a change of the strip to the row: moves it by `shift` px (the keep-still rule's answer, 0 for a change right of the
  * view) and, when `restop`, rebuilds Embla's stops from the markers drawn now. The row stays where it is drawn, plus the shift:
  * a glide in flight goes on to the stop nearest where it was going, and a rest stays a rest. Embla's `reInit` drops a press or
- * wheel gesture in progress (it rebuilds the drag handler and the wheel plugin), so while one holds the row the shift is applied
- * in place and the rebuild waits for its release (`releaseEmbla`). Shifting or keeping a position that is not a stop uses
+ * wheel gesture in progress (it rebuilds the drag handler, and goes back to the selected stop), so while one holds the row the
+ * shift is applied in place and the rebuild waits for its release (`releaseEmbla`). Shifting or keeping a position that is not a stop uses
  * Embla's internal engine, which 8.6 is pinned for; a jump at rest to a stop uses the public `scrollTo`.
  * @internal
  */
 export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boolean): void {
   const e = embla.internalEngine();
-  if (e.dragHandler.pointerDown()) {
+  if (e.dragHandler.pointerDown() || wheelRuns.has(embla)) {
     if (Math.abs(shift) > 0.01) shiftEmbla(embla, shift);
     if (restop) rebuildWaiting.add(embla);
     return;
@@ -217,13 +217,11 @@ export function emblaMaxOf(embla: EmblaCarouselType): number {
 const stopPx = (embla: EmblaCarouselType, k: number): number => -(embla.internalEngine().scrollSnaps[k] ?? 0);
 
 /**
- * Whether a press may start a drag of the row. A wheel gesture arrives as Embla's own untrusted mouse events and always may.
- * A mouse press only on the row's own surface, outside every panel, so a panel's text, controls and header grab keep the mouse.
+ * Whether a press may start a drag of the row. A mouse press only on the row's own surface, outside every panel, so a panel's text, controls and header grab keep the mouse.
  * A touch anywhere but on a control, an editable field or a frame, as the old row's finger swipe.
  * @internal
  */
-export function pressStartsRowDrag(event: Pick<Event, 'isTrusted' | 'target' | 'type'>): boolean {
-  if (!event.isTrusted) return true;
+export function pressStartsRowDrag(event: Pick<Event, 'target' | 'type'>): boolean {
   const target = event.target as Element | null;
   if (target === null || typeof target.closest !== 'function') return false;
   if (event.type === 'mousedown') return target.closest(`[${ROW_SLOT_ATTRIBUTE}]`) === null;
@@ -246,12 +244,7 @@ export function emblaRowOptions(): EmblaOptionsType {
     slides: `:scope > [${EMBLA_SLOT_ATTRIBUTE}]`,
     skipSnaps: true,
     dragThreshold: 4,
-    watchDrag: (api, event) => {
-      if (maximizedIn(api.rootNode()) || !pressStartsRowDrag(event)) return false;
-      if (event.isTrusted) wheelPressed.delete(api);
-      else wheelPressed.add(api);
-      return true;
-    },
+    watchDrag: (api, event) => !maximizedIn(api.rootNode()) && pressStartsRowDrag(event),
     // The row rebuilds Embla itself (`moveEmbla`) when the markers or the window change: Embla's own watchers would rebuild on every
     // slot and drop-gap change in the box, back to the selected stop, dropping a gesture in progress.
     watchSlides: false,
@@ -461,7 +454,7 @@ export function kickEmblaAway(win: Element): void {
 const freeWaiting = new WeakMap<EmblaCarouselType, (() => void)[]>();
 /** Whether a press, a wheel gesture or a reorder drag's edge scroll holds the row `embla` moves. @internal */
 export function emblaHeld(embla: EmblaCarouselType): boolean {
-  return embla.internalEngine().dragHandler.pointerDown() || heldRows.has(embla);
+  return embla.internalEngine().dragHandler.pointerDown() || heldRows.has(embla) || wheelRuns.has(embla);
 }
 /** Runs `run` now, or, while a gesture holds the row, once it lets go (in the order asked). @internal */
 export function whenEmblaFree(embla: EmblaCarouselType, run: () => void): void {
@@ -518,27 +511,6 @@ export function emblaWouldShow(embla: EmblaCarouselType, id: string, align: 'int
 }
 
 const heldRows = new WeakSet<EmblaCarouselType>();
-/** Rows whose drag Embla holds for a wheel gesture: the plugin presses with an untrusted mousedown. */
-const wheelPressed = new WeakSet<EmblaCarouselType>();
-/**
- * Ends the press a wheel gesture holds on the row and leaves the row where it is drawn. The plugin lets go only when the gesture's
- * tail ends, hundreds of ms later, and that release glides the row to a stop: under a page a person grabbed in between. True when
- * there was one to end.
- */
-function endEmblaPress(embla: EmblaCarouselType): boolean {
-  if (!wheelPressed.has(embla) || !embla.internalEngine().dragHandler.pointerDown()) return false;
-  wheelPressed.delete(embla);
-  endWheelRun(embla);
-  const at = emblaDrawnOf(embla);
-  sendMouse(embla, 'mouseup', 0);
-  writeEmbla(embla, at);
-  return true;
-}
-
-/** Ends a wheel gesture's hold on the row `embla` where the row is drawn, as a key step does: a summon pressed mid-wheel. @internal */
-export function endEmblaWheel(embla: EmblaCarouselType): void {
-  endEmblaPress(embla);
-}
 
 /**
  * How long a wheel gesture holds the row after its last wheel before it settles: Chromium's own wheel transaction (a wheel this soon
@@ -548,52 +520,65 @@ const WHEEL_IDLE_MS = 500;
 /** Wheel travel against a gesture's direction that turns it: a momentum tail's last events can flicker a px the other way. */
 const WHEEL_AGAINST_PX = 8;
 /**
- * Embla's body while a wheel drives the row. Its drag body (friction 0.3, duration 0.75) is an underdamped spring that runs past
- * each notch and comes back 1-2 px; this one is critically damped (friction f, duration just above f / (1 + f - 2 sqrt f)), so the
- * row trails the wheel as closely and never moves against it.
+ * Embla's body while a wheel drives the row: critically damped (friction f, duration just above f / (1 + f - 2 sqrt f)), so the row
+ * trails the wheel closely and never runs past it. Embla's drag body (friction 0.3, duration 0.75) is an underdamped spring that ran
+ * past each notch and came back 1-2 px.
  */
 const WHEEL_FRICTION = 0.1;
 const WHEEL_DURATION = 0.22;
-/** A wheel gesture that holds the row: the x Embla last read, the plugin's own x offset from it, and the direction of travel. */
+/**
+ * A wheel gesture driving the row: its direction of travel (scroll px sign), travel against it, its idle wait, and the wheel's target
+ * kept across a release Embla runs with no press of its own.
+ */
 interface WheelRun {
-  x: number;
-  offset: number;
   dir: number;
   against: number;
-  acted: boolean;
   idle: ReturnType<typeof setTimeout> | null;
+  keep: number | null;
 }
+/**
+ * The wheel gesture on each row. A wheel moves Embla's target directly, with no press: Embla's drag listens on the document only
+ * from a press, so no input but the wheel reaches the row during a gesture (a press of Embla's held open through the gesture let a
+ * person's pointer move or release in, read against the wheel's synthetic pointer: the row jumped back to where the gesture began).
+ */
 const wheelRuns = new WeakMap<EmblaCarouselType, WheelRun>();
-/** What Embla's drag listens for on the document from a mouse press (`DragHandler.addDragEvents`): a person's are stopped during a wheel hold. */
-const PERSON_INPUT = ['mousemove', 'mouseup', 'touchmove', 'touchend'] as const;
-/** The mouse events the row sends Embla itself, which its own filter lets through. */
-const ownEvents = new WeakSet<Event>();
-/** The stop a wheel gesture's release settles on, set just before the release: ahead in the direction of travel. */
-const settleAhead = new WeakMap<EmblaCarouselType, number>();
-function sendMouse(embla: EmblaCarouselType, type: 'mousemove' | 'mouseup', x: number): void {
-  const e = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, screenX: x });
-  ownEvents.add(e);
-  embla.containerNode().dispatchEvent(e);
-}
-function endWheelRun(embla: EmblaCarouselType): void {
+function endWheelRun(embla: EmblaCarouselType): WheelRun | undefined {
   const run = wheelRuns.get(embla);
   if (run?.idle != null) clearTimeout(run.idle);
   wheelRuns.delete(embla);
+  return run;
 }
-const liveRun = (embla: EmblaCarouselType): WheelRun | undefined =>
-  wheelPressed.has(embla) && embla.internalEngine().dragHandler.pointerDown() ? wheelRuns.get(embla) : undefined;
-/** Moves a wheel gesture's press to `x` (Embla's drag reads clientX) and keeps the row's wheel body on it. */
-function wheelMove(embla: EmblaCarouselType, run: WheelRun, x: number): void {
-  const m = run.x - x;
-  run.x = x;
-  sendMouse(embla, 'mousemove', x);
+function setWheelBody(embla: EmblaCarouselType): void {
   // Embla's body setters are plain closures named use*, not React hooks.
   const body = embla.internalEngine().scrollBody;
   const setFriction = body.useFriction;
   const setDuration = body.useDuration;
   setFriction(WHEEL_FRICTION);
   setDuration(WHEEL_DURATION);
+}
+/**
+ * One wheel of a gesture on the row `embla` moves: `by` scroll px (sideways, already normalized). The first one starts the gesture
+ * where the row is drawn (a glide in flight stops there, as a press stopped it). The target stops flat at the row's ends (owner
+ * ruling 2026-11-09, "just stop"): no stretch past them and no spring back. Every wheel restarts the idle wait.
+ */
+function wheelBy(embla: EmblaCarouselType, by: number): void {
+  const e = embla.internalEngine();
+  let run = wheelRuns.get(embla);
+  if (run === undefined) {
+    writeEmbla(embla, emblaDrawnOf(embla));
+    // An instant step with the target on the location zeroes the glide's speed, so the wheel body starts from rest.
+    e.scrollBody.seek();
+    run = { dir: 0, against: 0, idle: null, keep: null };
+    wheelRuns.set(embla, run);
+  }
+  if (run.idle !== null) clearTimeout(run.idle);
+  run.idle = setTimeout(() => settleWheelRun(embla), WHEEL_IDLE_MS);
+  setWheelBody(embla);
+  const from = emblaTargetOf(embla);
+  const m = Math.min(Math.max(0, from + by), emblaMaxOf(embla)) - from;
   if (Math.abs(m) < 0.01) return;
+  e.target.set(-(from + m));
+  e.animation.start();
   if (run.dir === 0 || Math.sign(m) === run.dir) {
     run.dir = Math.sign(m);
     run.against = 0;
@@ -605,6 +590,20 @@ function wheelMove(embla: EmblaCarouselType, run: WheelRun, x: number): void {
     run.against = 0;
   }
 }
+/**
+ * Ends the wheel gesture on the row and leaves the row where it is drawn: a key step, a press, a dot, a focus reveal, a summon or a
+ * reorder drag takes the row from there. True when there was one to end.
+ * @internal
+ */
+export function endEmblaWheel(embla: EmblaCarouselType): boolean {
+  if (endWheelRun(embla) === undefined) return false;
+  const at = emblaDrawnOf(embla);
+  releaseEmbla(embla);
+  writeEmbla(embla, at);
+  runFreeWaiting(embla);
+  return true;
+}
+
 /**
  * The stop a wheel gesture moving `dir` rests on from `from` (scroll px): the first one not behind it, so the row never moves back
  * against the scroll; the nearest for no direction.
@@ -619,18 +618,17 @@ export function stopAhead(stops: readonly number[], from: number, dir: number): 
   const ahead = dir > 0 ? order.find((k) => stops[k]! >= from - 0.5) : [...order].reverse().find((k) => stops[k]! <= from + 0.5);
   return ahead ?? (dir > 0 ? order[order.length - 1]! : order[0]!);
 }
-/** Ends a wheel gesture that has been idle `WHEEL_IDLE_MS`: releases the press and settles on the stop ahead of the travel. */
+/** Ends a wheel gesture that has been idle `WHEEL_IDLE_MS`: settles on the stop ahead of the travel, then runs what waited for it. */
 function settleWheelRun(embla: EmblaCarouselType): void {
-  const run = liveRun(embla);
+  const run = endWheelRun(embla);
   if (run === undefined) return;
-  endWheelRun(embla);
-  wheelPressed.delete(embla);
   const target = emblaTargetOf(embla);
   const drawn = emblaDrawnOf(embla);
   const from = run.dir > 0 ? Math.max(target, drawn) : run.dir < 0 ? Math.min(target, drawn) : target;
   const stops = embla.internalEngine().scrollSnaps.map((x) => -x);
-  settleAhead.set(embla, stopAhead(stops, Math.min(Math.max(0, from), emblaMaxOf(embla)), run.dir));
-  sendMouse(embla, 'mouseup', run.x);
+  embla.scrollTo(stopAhead(stops, Math.min(Math.max(0, from), emblaMaxOf(embla)), run.dir), reducedRows.has(embla));
+  releaseEmbla(embla);
+  runFreeWaiting(embla);
 }
 /**
  * The one writer a reorder drag's edge scroll holds on an Embla row: `write` puts the row at a scroll px clamped to `[0, the bound]`
@@ -639,7 +637,7 @@ function settleWheelRun(embla: EmblaCarouselType): void {
 export function holdEmbla(embla: EmblaCarouselType): { write(left: number): number; setMaxScroll(max: number): void; release(): void } | null {
   if (heldRows.has(embla)) return null;
   heldRows.add(embla);
-  endEmblaPress(embla);
+  endEmblaWheel(embla);
   let max = 0;
   return {
     write(left) {
@@ -662,8 +660,8 @@ export function holdEmbla(embla: EmblaCarouselType): { write(left: number): numb
 
 /**
  * Runs Embla on `windowRef` (the root) with `boxRef` (its container, the box the slots and markers sit in). Wheel and trackpad
- * come through Embla's wheel-gestures plugin, so a wheel handed in from embedded content (`feedRowWheel`) moves the row as a
- * wheel over the row does; Option held at a gesture's first event leaves the whole gesture to the content. Bare arrow keys step
+ * move Embla's target directly (`wheelBy`), read through wheel-gestures; a wheel handed in from embedded content (`feedRowWheel`)
+ * bubbles to the same listener and moves the row as a wheel over the row does; Option held at a gesture's first event leaves the whole gesture to the content. Bare arrow keys step
  * one slot. `enabled` false tears it down.
  * @internal
  */
@@ -683,97 +681,53 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     const win = windowRef.current;
     const box = boxRef.current;
     if (!enabled || win === null || box === null) return undefined;
-    // Registered before the plugin's own listener on the same node, so stopping it here keeps the gesture from the row only.
     let owner: 'row' | 'content' | null = null;
     let quiet: ReturnType<typeof setTimeout> | null = null;
+    // wheel-gestures (the normalizer under Embla's wheel plugin) reads each wheel: pixels from lines and pages, a cap on one event's
+    // size, a trackpad's momentum, and it cancels a sideways wheel (`preventWheelAction: 'x'`), so `feedRowWheel` reads it as taken.
+    const wheels = WheelGestures({ preventWheelAction: 'x', reverseSign: false });
     const onWheel = (e: WheelEvent): void => {
-      const run = wheelRuns.get(instances.get(win)!);
-      if (run !== undefined) run.acted = false;
       if (quiet !== null) clearTimeout(quiet);
       quiet = setTimeout(() => {
         owner = null;
       }, quietRef.current);
       if (owner === null) owner = e.altKey ? 'content' : 'row';
+      if (owner === 'content' || win.closest('[inert]') !== null || maximizedIn(win)) return;
       // A reorder drag's edge scroll is the one writer while it holds the row, and the own row refused every step under a drag's claim:
-      // the wheel is ignored, and a sideways one is still kept from the content, as the plugin would have.
-      const embla = instances.get(win);
-      if (owner === 'row' && embla !== undefined && heldRows.has(embla)) {
+      // the wheel is ignored, and a sideways one is still kept from the content.
+      if (heldRows.has(embla)) {
         if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
-        e.stopImmediatePropagation();
         return;
       }
-      if (owner === 'content' || win.closest('[inert]') !== null || maximizedIn(win)) e.stopImmediatePropagation();
+      wheels.feedWheel(e);
     };
-    // Not passive, so a wheel ignored under a reorder drag can still be cancelled: the plugin's own listener is not passive either.
+    // A gesture starts on a sideways wheel that is not a momentum tail (as the plugin started one), and not under a person's drag of
+    // the row; from then on every wheel moves the row by its sideways delta until the wheel has been idle WHEEL_IDLE_MS.
+    const offWheels = wheels.on('wheel', (s) => {
+      if (s.isEnding || embla.internalEngine().dragHandler.pointerDown()) return;
+      const [dx, dy] = s.axisDelta;
+      if (!wheelRuns.has(embla) && (s.isMomentum || Math.abs(dx) <= Math.abs(dy))) return;
+      wheelBy(embla, dx);
+    });
     win.addEventListener('wheel', onWheel, { passive: false });
-    const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box }, [WheelGesturesPlugin({ target: win })]);
+    const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box });
     instances.set(win, embla);
     markEmblaBuilt(embla);
-    // A wheel gesture is one press of Embla's drag from its first wheel until the wheel has been idle WHEEL_IDLE_MS. The plugin ends
-    // its gesture at a shorter pause (a finger lifted to reposition) and at a trackpad's momentum, and Embla's release then glides to
-    // the stop nearest a flick's guess, behind the travel as often as not, which a resumed wheel reverses again. So the plugin's
-    // release is held back, its next press continues this one from where Embla last read it, a momentum tail it drops moves the row
-    // as a wheel does, and the release at idle rests on the stop ahead of the travel.
-    const onPluginMouse = (e: MouseEvent): void => {
-      if (e.isTrusted || ownEvents.has(e)) return;
-      const run = liveRun(embla);
-      if (e.type === 'mousedown') {
-        if (run === undefined) {
-          endWheelRun(embla);
-          wheelRuns.set(embla, { x: e.clientX, offset: 0, dir: 0, against: 0, acted: true, idle: null });
-          return;
-        }
-        e.stopImmediatePropagation();
-        run.acted = true;
-        run.offset = run.x - e.clientX;
-        return;
-      }
-      if (run === undefined) return;
-      e.stopImmediatePropagation();
-      if (e.type !== 'mousemove') return;
-      run.acted = true;
-      wheelMove(embla, run, e.clientX + run.offset);
+    // Embla's root runs its release on a contextmenu or a touchcancel even with no press of its own (the context-menu key, a
+    // right-click): during a wheel gesture that release set the target to the stop nearest it, behind the travel as often as not. The
+    // wheel's target is kept here, before Embla's listener, and put back on its release, so the gesture goes on.
+    const onStrayRelease = (): void => {
+      const run = wheelRuns.get(embla);
+      if (run !== undefined && !embla.internalEngine().dragHandler.pointerDown()) run.keep = embla.internalEngine().target.get();
     };
-    // While a wheel gesture holds Embla's press, no input but the wheel reaches it. Embla's drag listens on the document, from each
-    // press, for mousemove, mouseup, touchmove and touchend; the plugin blocks a person's trusted ones only while its own gesture runs,
-    // not through a finger's pause or the hold after the last wheel. A trusted move was read against the plugin's pointer, the whole
-    // gesture's travel away: the row jumped back to where the gesture began. A trusted release (a button held on a panel since before
-    // the wheel) was Embla's own release, to the nearest stop, against the scroll. A trusted press inside the row still ends the hold
-    // first (`onPress`). Registered at mount, before the listeners Embla adds at each press, so each is stopped before Embla's.
-    const page = win.ownerDocument;
-    const onPersonInput = (e: Event): void => {
-      if (e.isTrusted && liveRun(embla) !== undefined) e.stopImmediatePropagation();
-    };
-    for (const type of PERSON_INPUT) page.addEventListener(type, onPersonInput);
-    for (const type of ['mousedown', 'mousemove', 'mouseup']) win.addEventListener(type, onPluginMouse as EventListener, true);
-    // After the plugin's own wheel listener: every wheel of a gesture restarts the idle wait, and one the plugin passed nothing for
-    // (a momentum tail after it let go) moves the row by its delta, short of the row's ends.
-    const onWheelAfter = (e: WheelEvent): void => {
-      const run = liveRun(embla);
-      if (run === undefined) return;
-      if (run.idle !== null) clearTimeout(run.idle);
-      run.idle = setTimeout(() => settleWheelRun(embla), WHEEL_IDLE_MS);
-      const unit = e.deltaMode === 1 ? 18 : e.deltaMode === 2 ? (win.ownerDocument.defaultView ?? window).innerWidth : 1;
-      const dx = e.deltaX * unit;
-      if (run.acted || Math.abs(dx) <= Math.abs(e.deltaY * unit)) return;
-      const at = emblaTargetOf(embla);
-      // Never back toward an end the drag has stretched past: that pull ran against the wheel, turned the gesture's direction, and its
-      // rest went on to the stop inside the strip (406 px off the start after a long grind past it).
-      const by = Math.min(Math.max(Math.min(0, at), at + dx), Math.max(emblaMaxOf(embla), at)) - at;
-      if (Math.abs(by) > 0.01) wheelMove(embla, run, run.x - by);
-    };
-    win.addEventListener('wheel', onWheelAfter, { passive: true });
-    // A rebuild re-adds the plugin's listener, so this one goes back behind it.
-    embla.on('reInit', () => {
-      win.removeEventListener('wheel', onWheelAfter);
-      win.addEventListener('wheel', onWheelAfter, { passive: true });
-    });
+    for (const type of ['contextmenu', 'touchcancel']) win.addEventListener(type, onStrayRelease, true);
     embla.on('scroll', notifyEmblaRows).on('select', notifyEmblaRows).on('settle', notifyEmblaRows).on('reInit', notifyEmblaRows).on('pointerUp', (api) => {
-      // A wheel gesture's release rests ahead of its travel, never on a stop behind it (Embla's own release picks the nearest).
-      const ahead = settleAhead.get(api);
-      if (ahead !== undefined) {
-        settleAhead.delete(api);
-        api.scrollTo(ahead, reducedRows.has(api));
+      const run = wheelRuns.get(api);
+      if (run !== undefined && run.keep !== null) {
+        api.internalEngine().target.set(run.keep);
+        run.keep = null;
+        setWheelBody(api);
+        return;
       }
       // Under Reduce Motion a release lands on its stop at once: Embla sets its own settle speed on release, past the scrollTo jump flag.
       // Embla's body setters are plain closures named use*, not React hooks.
@@ -818,7 +772,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     };
     const step = (direction: 'left' | 'right'): void => {
       // A key during a wheel gesture's hold ends it where it is drawn, as a press does, and steps from there.
-      endEmblaPress(embla);
+      endEmblaWheel(embla);
       // From the stop nearest where the row is heading, not Embla's selected index, which a direct write (a keep's
       // jump) leaves stale: scrollNext from a stale index can name the stop the row already rests on.
       const snaps = embla.scrollSnapList().length;
@@ -835,12 +789,14 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (slot == null || !box.contains(slot) || maximizedIn(win)) return;
       const to = revealScroll(Number(slot.dataset.rowSlot) || 0, slot.offsetWidth, emblaScrollOf(embla), box.offsetWidth);
       if (to === null) return;
+      endEmblaWheel(embla);
       embla.scrollTo(nearestStop(embla, to), reducedRows.has(embla));
     };
-    // A person's press during a wheel gesture's tail stops the row where it is drawn, as a press stops a native scroll's momentum, and
-    // its release settles the row on a stop unless a reorder drag took the row meanwhile (its own release settles it).
+    // A person's press during a wheel gesture stops the row where it is drawn, as a press stops a native scroll's momentum, and hands
+    // it to whatever the press starts: Embla's own drag of the row (its release settles it), a reorder drag, or nothing, when the
+    // release settles the row on the nearest stop. A right or middle press leaves the gesture going (its contextmenu is kept above).
     const onPress = (e: PointerEvent): void => {
-      if (!e.isTrusted || !endEmblaPress(embla)) return;
+      if (!e.isTrusted || e.button !== 0 || !endEmblaWheel(embla)) return;
       const settle = (): void => {
         view.removeEventListener('pointerup', settle, true);
         view.removeEventListener('pointercancel', settle, true);
@@ -852,9 +808,8 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     win.addEventListener('pointerdown', onPress, true);
     win.addEventListener('focusin', onFocus);
     return () => {
-      win.removeEventListener('wheel', onWheelAfter);
-      for (const type of PERSON_INPUT) page.removeEventListener(type, onPersonInput);
-      for (const type of ['mousedown', 'mousemove', 'mouseup']) win.removeEventListener(type, onPluginMouse as EventListener, true);
+      offWheels();
+      for (const type of ['contextmenu', 'touchcancel']) win.removeEventListener(type, onStrayRelease, true);
       endWheelRun(embla);
       win.removeEventListener('pointerdown', onPress, true);
       unsubscribeAway();

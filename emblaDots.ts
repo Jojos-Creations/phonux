@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
-import { emblaDrawnOf, emblaOf, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
+import { emblaDrawnOf, emblaOf, endEmblaWheel, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
@@ -148,6 +148,7 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
   };
 
   const startOvalDrag = (): { drag(dx: number): void; end(): void } | null => {
+    endEmblaWheel(embla);
     if (embla.internalEngine().dragHandler.pointerDown()) return null;
     const start = clamp(emblaDrawnOf(embla));
     let open = true;
@@ -179,6 +180,8 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
     const width = strip.layout.widths[k]!;
     const at = emblaDrawnOf(embla);
     if (left >= at - 0.5 && left + width <= at + strip.windowWidth + 0.5) return;
+    // A dot pressed during a wheel gesture takes the row from where it is drawn, as a key step does.
+    endEmblaWheel(embla);
     embla.scrollTo(nearestStop(embla, clamp(left + width / 2 - strip.windowWidth / 2)), reduced);
   };
 
@@ -198,6 +201,7 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
       if (p === null) return;
       if (!p.moved && p.onOval && Math.abs(e.clientX - p.x) > DRAG_THRESHOLD_PX) {
         if (embla.internalEngine().dragHandler.pointerDown()) return;
+        endEmblaWheel(embla);
         p.moved = true;
         setDragging(true);
         // From the press, not from here: the oval keeps the place under the pointer it was grabbed at.

@@ -1,6 +1,6 @@
 /**
  * The Embla internals the row relies on (emblaRow.ts: writeEmbla, moveEmbla's shift and rebuild, nearestStop, the drawn
- * position): `internalEngine()` is outside Embla's semver, so 8.6 is pinned and this test fails when an upgrade changes any of them.
+ * position, the wheel's target and body in wheelBy): `internalEngine()` is outside Embla's semver, so 8.6 is pinned and this test fails when an upgrade changes any of them.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,7 +44,7 @@ test('embla internals: the engine members the row reads and writes are there, wi
       assert.equal(v.get(), -12, `${name} keeps what it is set to`);
     }
     assert.equal(typeof e.translate.to, 'function', 'translate.to');
-    for (const name of ['useDuration', 'useBaseDuration', 'useBaseFriction'] as const) assert.equal(typeof e.scrollBody[name], 'function', `scrollBody.${name}`);
+    for (const name of ['useDuration', 'useFriction', 'useBaseDuration', 'useBaseFriction', 'seek'] as const) assert.equal(typeof e.scrollBody[name], 'function', `scrollBody.${name}`);
     assert.ok(Array.isArray(e.scrollSnaps), 'scrollSnaps is an array');
     assert.equal(typeof e.dragHandler.pointerDown, 'function', 'dragHandler.pointerDown');
     assert.equal(e.dragHandler.pointerDown(), false, 'no press: pointerDown is false');

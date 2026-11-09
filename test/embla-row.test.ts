@@ -73,10 +73,9 @@ test('revealScroll: a panel cut on either side comes in by the least move, and o
   assert.equal(revealScroll(2 * PITCH, 5 * PITCH - GAP, 0, W), 2 * PITCH, 'wider than the window: its own left edge');
 });
 
-test('pressStartsRowDrag: a wheel gesture always, a mouse press only off the panels, a touch anywhere but a control', () => {
+test('pressStartsRowDrag: a mouse press only off the panels, a touch anywhere but a control', () => {
   const doc = new JSDOM('<div id="box"><div data-row-slot="0"><p id="text">x</p><button id="btn">b</button></div></div>').window.document;
-  const at = (id: string, type: string, isTrusted = true) => ({ isTrusted, type, target: doc.getElementById(id) });
-  assert.equal(pressStartsRowDrag(at('text', 'mousedown', false)), true, 'the wheel plugin dispatches untrusted mouse events');
+  const at = (id: string, type: string) => ({ type, target: doc.getElementById(id) });
   assert.equal(pressStartsRowDrag(at('box', 'mousedown')), true);
   assert.equal(pressStartsRowDrag(at('text', 'mousedown')), false);
   assert.equal(pressStartsRowDrag(at('text', 'touchstart')), true);

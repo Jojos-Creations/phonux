@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, usePanelDots, Panel, PanelFrame, PanelSizeBox, feedRowWheel, DragToClose, usePanelDragProps, usePanelPresence } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
-import { emblaOf, emblaScrollOf, writeEmbla } from 'LIB/emblaRow.js';
+import { emblaHeld, emblaOf, emblaScrollOf, writeEmbla } from 'LIB/emblaRow.js';
 import { usePanelMaximize } from 'LIB/panelMaximize.js';
 
 // The oval drag's write, routed here by the proof's build. The control eases the row toward the pointer as Embla's own drag does:
@@ -182,14 +182,18 @@ let recording = false;
 let pointerX = 0;
 // Wheel events since the last frame: a frame no wheel reached cannot move a row that follows its input exactly.
 let wheels = 0;
-// The wheel-gestures plugin drives Embla with untrusted mouse events: a down starts its drag, each move moves it, an up releases it.
-// Counted per frame, so a frame a wheel reached that did not move the row says whether the plugin passed it on.
+// Untrusted mouse events, counted per frame: the wheel plugin drove Embla with them (a down pressed its drag, moves moved it, an up
+// released it). The row's wheel moves Embla's target directly now, so none are sent.
 let pd = 0;
 let pm = 0;
 let pu = 0;
 for (const [type, bump] of [['mousedown', () => (pd += 1)], ['mousemove', () => (pm += 1)], ['mouseup', () => (pu += 1)]] as const)
   window.addEventListener(type, (e) => { if (!e.isTrusted) bump(); }, true);
 window.addEventListener('wheel', () => (wheels += 1), { capture: true, passive: true });
+// A person's trusted input other than the wheel, counted by type, so a case that sends it can tell it arrived.
+const personInput: Record<string, number> = {};
+for (const type of ['mousemove', 'mousedown', 'mouseup', 'contextmenu', 'touchstart', 'touchmove', 'touchend'])
+  window.addEventListener(type, (e) => { if (e.isTrusted) personInput[type] = (personInput[type] ?? 0) + 1; }, true);
 window.addEventListener('pointermove', (e) => (pointerX = e.clientX), true);
 const frame = (t: number): void => {
   if (recording) {
@@ -229,7 +233,7 @@ const frame = (t: number): void => {
     // Every slot by its row id (its content's name is gone while it is unloaded): left in the window, width, unloaded.
     const byId: Record<string, [number, number, number]> = {};
     for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) { const b = el.getBoundingClientRect(); byId[el.dataset.rowId!] = [+(b.left - win.left).toFixed(1), +b.width.toFixed(1), el.querySelector('[data-row-unloaded]') === null ? 0 : 1]; }
-    frames.push({ t, byId, boxX, emblaPress: emb === undefined ? false : emb.internalEngine().dragHandler.pointerDown(), loc: emb === undefined ? null : -emb.internalEngine().location.get(), tgt: emb === undefined ? null : -emb.internalEngine().target.get(), grabbing: grabbing?.dataset.box ?? null, named, drawn, blankIn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
+    frames.push({ t, byId, boxX, emblaPress: emb === undefined ? false : emb.internalEngine().dragHandler.pointerDown(), held: emb === undefined ? false : emblaHeld(emb), loc: emb === undefined ? null : -emb.internalEngine().location.get(), tgt: emb === undefined ? null : -emb.internalEngine().target.get(), grabbing: grabbing?.dataset.box ?? null, named, drawn, blankIn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
     wheels = 0;
     pd = 0;
     pm = 0;
@@ -380,10 +384,22 @@ requestAnimationFrame(frame);
   boxLeft: (name: string) => document.querySelector<HTMLElement>(`[data-box="${name}"]`)?.getBoundingClientRect().left ?? null,
   // Embla's own press and pointer-down events while a reorder runs: none may fire.
   emblaEvents: () => emblaEvents,
+  personInput: () => ({ ...personInput }),
+  // A point on the page outside the row's window and the dot bar, for a press or a touch away from the row.
+  outside: () => {
+    const win = document.querySelector('[data-row-embla-window]')!;
+    for (const [x, y] of [[4, 4], [innerWidth - 4, 4], [4, innerHeight - 4], [innerWidth - 4, innerHeight - 4]] as const) {
+      const el = document.elementFromPoint(x, y);
+      if (el !== null && !win.contains(el) && el.closest('[data-bar-track],[data-dot],button,a,input') === null) return { x, y };
+    }
+    return null;
+  },
   orderChanges: () => orderChanges,
   // How many frames are recorded so far: a phase of one recording starts here.
   mark: () => frames.length,
   record: () => { frames.length = 0; recording = true; },
   stop: () => { recording = false; return frames.slice(); },
+  // The last frame recorded, while the recording goes on.
+  last: () => frames.at(-1),
 };
 createRoot(document.getElementById('root')!).render(<App />);

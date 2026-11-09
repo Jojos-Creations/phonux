@@ -21,8 +21,10 @@
  *        move against the scroll, no reversal, each burst 1:1, the rest on the grid and not behind the scroll, settled within 1.8 s.
  *        The ends (settle.end*, settle.midHand): from mid-strip on a row of 25, notch bursts into the start or the end and on past it,
  *        by real (trusted) wheels with the hand's 1 px pointer moves or handed in; per frame the drawn row, Embla's location and
- *        target: the row rests at the end it was scrolled into and never moves back into the strip against the scroll (the stretch
- *        past an end and its spring back are reported, not failed: the step-aside's way back reads it).
+ *        target: the row rests at the end it was scrolled into, stops flat there (owner ruling 2026-11-09: no stretch past it, no
+ *        spring back) and never moves back into the strip against the scroll. The family (settle.fam*): each trusted input a person
+ *        makes during and right after a wheel burst (a mouse move of 0 px, a release, a press and a right-click away from the row, a
+ *        right-click on it, a touch away from it) moves the row back 0 px and leaves it resting ahead of the scroll.
  * resize the window 1800 > 1400 > 2300 > 1800 > 1000 at rest: the panel at the window's left edge stays there, no one-slot panel is
  *        cut in any frame, and each rest is on the grid.
  * strip  a parking row (24 parkable panels, maxLivePanels 8): every panel has its slot (the own row, the control, parks some); a wheel
@@ -701,8 +703,14 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
   // `pauses` in turn between bursts: under 500 ms the whole scroll is one held gesture; 600 ms settles it between bursts.
   const ONE = [80, 300, 150, 450];
   const SOME = [80, 300, 150, 600];
-  // `up`: the hand's action is a bare mouse button release (a button held on a panel since before the wheel), not a 1 px move.
-  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean; up?: boolean };
+  // `act`: the hand's action, a 1 px move unless said: 'move0' a move with no travel, 'up' a bare mouse button release (a button held
+  // on a panel since before the wheel), 'downOut' a click away from the row, 'menuIn' / 'menuOut' a right-click on the row (a panel)
+  // or away from it, 'touchOut' a touch moving away from the row. `late`: one more 700 ms after the last notch, while the row settles.
+  type Act = 'move1' | 'move0' | 'up' | 'downOut' | 'menuIn' | 'menuOut' | 'touchOut';
+  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean; act?: Act; late?: boolean };
+  // The trusted event each action must be seen to deliver, or the case proves nothing.
+  const ACT_EVENT: Record<Act, string> = { move1: 'mousemove', move0: 'mousemove', up: 'mouseup', downOut: 'mousedown', menuIn: 'contextmenu', menuOut: 'contextmenu', touchOut: 'touchmove' };
+  const FAMILY = (act: Act): EndCase => ({ dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, act, late: true });
   const CASES_END: [string, EndCase][] = [
     ['endLeftFeed', { dir: -1, from: 8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
     ['endRightFeed', { dir: 1, from: -8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
@@ -713,7 +721,14 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     // Ground on past the end long enough for the plugin's own rubber band (it damps its pointer back, then ends its gesture).
     ['endLeftLong', { dir: -1, from: 2, bursts: 30, pauses: [0], mouse: true, inPauses: false }],
     ['midHand', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true }],
-    ['midUp', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, up: true }],
+    ['midUp', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, act: 'up' }],
+    ['famMove0', FAMILY('move0')],
+    ['famMove1', FAMILY('move1')],
+    ['famUp', FAMILY('up')],
+    ['famDownOut', FAMILY('downOut')],
+    ['famMenuIn', FAMILY('menuIn')],
+    ['famMenuOut', FAMILY('menuOut')],
+    ['famTouchOut', FAMILY('touchOut')],
   ];
   for (const [label, c] of CASES_END) {
     if (!want(`settle.${label}`)) continue;
@@ -751,7 +766,12 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       at += pause;
     }
     if (c.mouse) handMoves.push(at + 200);
+    if (c.late === true) handMoves.push(at + 700);
     const input = wheels.length * NOTCH;
+    const act: Act = c.act ?? 'move1';
+    const out: { x: number; y: number } | null = await g(page, 'outside');
+    if ((act === 'downOut' || act === 'menuOut' || act === 'touchOut') && out === null) empty.push(`settle ${label}: no point away from the row to press`);
+    const input0: Record<string, number> = await g(page, 'personInput');
     if (c.mouse) {
       // Trusted input through the DevTools protocol, each on its own node timer (an awaited page.mouse call takes a frame or more).
       const cdp = await page.context().newCDPSession(page);
@@ -760,20 +780,36 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
         let left = wheels.length + handMoves.length;
         const fire = (ms: number, f: () => Promise<unknown>): void => void setTimeout(() => { sends.push(f()); if (--left === 0) done(); }, ms);
         for (const [ms, dx] of wheels) fire(ms, () => cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: hand.x, y: hand.y, deltaX: dx, deltaY: 0 }));
+        const mouse = (type: string, p: { x: number; y: number }, button = 'left'): Promise<unknown> => cdp.send('Input.dispatchMouseEvent', { type, x: p.x, y: p.y, button, clickCount: 1 });
+        const click = async (p: { x: number; y: number }, button: string): Promise<void> => {
+          await mouse('mousePressed', p, button);
+          await mouse('mouseReleased', p, button);
+        };
+        const o = out ?? { x: 4, y: 4 };
+        const touch = async (): Promise<void> => {
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: o.x, y: o.y }] });
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: o.x + 30, y: o.y }] });
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        };
         for (const ms of handMoves) fire(ms, () => {
-          if (c.up === true) return cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: hand.x, y: hand.y, button: 'left', clickCount: 1 });
-          hand.x += 1;
-          return cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hand.x, y: hand.y });
+          if (act === 'up') return mouse('mouseReleased', hand);
+          if (act === 'downOut') return click(o, 'left');
+          if (act === 'menuIn') return click(hand, 'right');
+          if (act === 'menuOut') return click(o, 'right');
+          if (act === 'touchOut') return touch();
+          if (act === 'move1') hand.x += 1;
+          return mouse('mouseMoved', hand, 'none');
         });
       });
       await Promise.all(sends);
     } else await g(page, 'feedTimed', wheels);
     await sleep(2500);
     const fr = await g(page, 'stop');
-    writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ order, max, startPx, end, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), loc: f.loc === null ? null : +f.loc.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
-    // A frame moving back against the scroll that lands inside the strip. Embla's drag stretches the row past an end and springs it
-    // back to the end (the step-aside reads that stretch toward the root as the way back), so a move back that ends at the end or
-    // past it is the stretch, reported as `pastEndPx`, and not counted.
+    const input1: Record<string, number> = await g(page, 'personInput');
+    const delivered = (input1[ACT_EVENT[act]] ?? 0) - (input0[ACT_EVENT[act]] ?? 0);
+    writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ order, max, startPx, end, delivered, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), loc: f.loc === null ? null : +f.loc.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
+    // A frame moving back against the scroll that lands inside the strip. The wheel stops flat at an end, so a frame drawn past it
+    // fails on its own (`drawnPastEndPx`).
     const inside = (p: number): boolean => (end - p) * c.dir > 0.5;
     const moves = fr.slice(1).map((f: any, k: number) => (inside(f.pos) ? (f.pos - fr[k].pos) * c.dir : 0));
     const back = moves.filter((m: number) => m < -0.5);
@@ -798,9 +834,12 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       rest: +rest.toFixed(1),
       restFromEndPx: +Math.abs(rest - end).toFixed(1),
       drawnPastEndPx: +Math.max(0, ...fr.map((f: any) => (f.pos - end) * c.dir)).toFixed(1),
-      // Embla's target's largest step against the scroll in one frame while the wheel holds the press (Embla's edge resistance takes
-      // up to 26 px a frame off a stretch; a pull back to the end or a jump to the gesture's start is hundreds).
-      pressedTargetBackPx: +Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.emblaPress && fr[k].emblaPress ? (fr[k].tgt - f.tgt) * c.dir : 0))).toFixed(1),
+      // Embla's target's largest step against the scroll in one frame while the wheel gesture holds the row (a pull back to the end or a
+      // jump to the gesture's start is hundreds).
+      heldTargetBackPx: +Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.held && fr[k].held ? (fr[k].tgt - f.tgt) * c.dir : 0))).toFixed(1),
+      heldFrames: fr.filter((f: any) => f.held).length,
+      act,
+      delivered,
       // Embla's target's largest step back against the scroll in one frame, and where it went.
       targetJump: fr.slice(1).reduce((w: [number, number], f: any, k: number) => ((fr[k].tgt - f.tgt) * c.dir < w[0] ? [+((fr[k].tgt - f.tgt) * c.dir).toFixed(1), +f.tgt.toFixed(1)] : w), [0, startPx] as [number, number]),
     };
@@ -809,7 +848,11 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (label.startsWith('end') && r.pastEndPx < 600) empty.push(`settle ${label}: only ${r.pastEndPx} px of wheel past the end`);
     if (label.startsWith('end') && r.restFromEndPx > 0.5) failed.push(`settle ${label}: scrolled into the end at ${r.end}, rests at ${r.rest} (${r.restFromEndPx} px from it)`);
     if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved back into the strip against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
-    if (r.pressedTargetBackPx > 50) failed.push(`settle ${label}: while the wheel held the press, Embla's target stepped ${r.pressedTargetBackPx} px against the scroll in one frame`);
+    if (r.heldTargetBackPx > 50) failed.push(`settle ${label}: while the wheel held the row, Embla's target stepped ${r.heldTargetBackPx} px against the scroll in one frame`);
+    if (r.heldFrames < 10) empty.push(`settle ${label}: the wheel held the row in ${r.heldFrames} frames`);
+    if (r.drawnPastEndPx > 0.5) failed.push(`settle ${label}: drawn ${r.drawnPastEndPx} px past the end (the wheel stops flat there)`);
+    if (c.mouse && handMoves.length > 0 && delivered < 1) empty.push(`settle ${label}: no trusted ${ACT_EVENT[act]} arrived, so the case proves nothing`);
+    if (c.late === true && rest * c.dir < Math.max(...fr.map((f: any) => f.pos * c.dir)) - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, behind where the scroll carried the row`);
     if (c.rootFar === true && order[0] === 'root') empty.push(`settle ${label}: the Workspace is still the first page`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
     await close();
@@ -1274,7 +1317,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
         await page.mouse.wheel(30, 0);
         await sleep(16);
       }
-      held = await page.evaluate(() => (window as any).__g.stop().at(-1)?.emblaPress === true || false);
+      held = await page.evaluate(() => (window as any).__g.stop().at(-1)?.held === true || false);
       await g(page, 'record');
       return g(page, 'summon');
     }, { oneWay: false, settleMs: 2200 });
@@ -1316,6 +1359,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     // change waiting for it (`moveEmbla`'s rebuild after the release) and a focus reveal each land at once. Read as the frames the row
     // moves after the input ends: a glide takes 20 or more. Each run without Reduce Motion first is the control that the input glides.
     const moving = (fr: any[]): number => fr.slice(1).filter((f: any, k: number) => Math.abs(f.pos - fr[k].pos) > 0.01).length;
+    const releaseOf = (fr: any[]): number => fr.findIndex((f: any, k: number) => k > 0 && fr[k - 1].held && !f.held);
     const rr: any = {};
     for (const reduce of [false, true]) {
       const key = reduce ? 'reduced' : 'control';
@@ -1368,8 +1412,8 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
       const max = await g(page, 'max');
       rr[key] = {
         drag: { moved: +(dragFr.at(-1).pos - dragFr[0].pos).toFixed(1), movingFrames: moving(dragFr), rest: dragFr.at(-1).pos, grid: onGrid(dragFr.at(-1).pos, PITCH, max) },
-        // From the gesture's release (the plugin's mouseup): before it the row follows the wheel's drag.
-        wheel: { moved: +(wheelFr.at(-1).pos - wheelFr[0].pos).toFixed(1), releaseFrame: wheelFr.findIndex((f: any) => f.pu > 0), movingFrames: moving(wheelFr.slice(Math.max(0, wheelFr.findIndex((f: any) => f.pu > 0)))), rest: wheelFr.at(-1).pos, grid: onGrid(wheelFr.at(-1).pos, PITCH, max) },
+        // From the gesture's release (the first frame after one the wheel held that it does not): before it the row follows the wheel.
+        wheel: { moved: +(wheelFr.at(-1).pos - wheelFr[0].pos).toFixed(1), releaseFrame: releaseOf(wheelFr), movingFrames: moving(wheelFr.slice(Math.max(0, releaseOf(wheelFr)))), rest: wheelFr.at(-1).pos, grid: onGrid(wheelFr.at(-1).pos, PITCH, max) },
         focus: { cut, moved: +(focusFr.at(-1).pos - focusFr[0].pos).toFixed(1), movingFrames: moving(focusFr), rest: focusFr.at(-1).pos, grid: onGrid(focusFr.at(-1).pos, PITCH, max) },
       };
       if (errors.length > 0) fail('reducedRelease', `page errors ${errors.join(' | ')}`);
@@ -2087,12 +2131,11 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const at0 = await g(page, 'grabRect', 'p3');
     await page.mouse.move(at0.x, at0.y);
     await g(page, 'record');
-    const downs0 = (await g(page, 'emblaEvents')).pointerDown;
     for (let k = 0; k < 12; k += 1) {
       await page.mouse.wheel(14, 0);
       await sleep(16);
     }
-    const wheelDowns = (await g(page, 'emblaEvents')).pointerDown - downs0;
+    const wheelHeld = await page.evaluate(() => (window as any).__g.last()?.held === true || false);
     const at = await press(page, 'p3');
     // A frame recorded before the press may be read before Embla drew that frame: the references are read 50 ms after it.
     await sleep(50);
@@ -2109,7 +2152,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const held = fr.slice(h0, h1);
     const posAt = fr[h0 - 1]?.pos ?? held[0].pos;
     const r = {
-      wheelPointerDowns: wheelDowns,
+      wheelHeldAtPress: wheelHeld,
       wheelTravelPx: +(posAt - fr[0].pos).toFixed(1),
       heldFrames: held.length,
       rowMoveHeldPx: +Math.max(0, ...held.map((f: any) => Math.abs(f.pos - posAt))).toFixed(2),
@@ -2120,7 +2163,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       restOnGrid: onGrid(fr[fr.length - 1].pos, PITCH, await g(page, 'max')),
     };
     res.wheelBefore = r;
-    if (r.wheelPointerDowns < 1 || Math.abs(r.wheelTravelPx) < 20) empty.push(`reorder wheelBefore: the wheel moved the row ${r.wheelTravelPx} px (${r.wheelPointerDowns} gestures), so no gesture was running at the press`);
+    if (!r.wheelHeldAtPress || Math.abs(r.wheelTravelPx) < 20) empty.push(`reorder wheelBefore: the wheel moved the row ${r.wheelTravelPx} px (held at the press: ${r.wheelHeldAtPress}), so no gesture was running at the press`);
     if (r.heldFrames < 30) empty.push(`reorder wheelBefore: ${r.heldFrames} held frames`);
     if (r.rowMoveHeldPx > 0.5 || r.emblaPressFramesHeld > 0 || r.worstDriftPx > 0.5 || !r.restOnGrid) failed.push(`reorder wheelBefore: under the hold the row moved ${r.rowMoveHeldPx} px, Embla's drag pressed in ${r.emblaPressFramesHeld} frames, the page drifted ${r.worstDriftPx} px off the pointer; rest ${r.rest} on the grid ${r.restOnGrid}`);
     if (errors.length > 0) failed.push(`reorder wheelBefore: page errors ${errors.join(' | ')}`);
