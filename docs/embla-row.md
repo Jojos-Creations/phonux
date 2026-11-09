@@ -365,6 +365,50 @@ Look at the screenshots: `reorder-hold-mid.png` and `reorder-leftEdge-band-mid.p
 row edge-scrolls between stops, as any scroll in motion does; at rest nothing is cut (`reorder-leftEdge-outside-mid.png`,
 `reorder-hold-rest.png`). The dragged page is clipped by the window's edge while it is held there (it is not lifted out of the row).
 
+## Step 8: pages out of the window are inert; an opened page comes into view
+
+Two library gaps the app hit when it switched to the Embla row.
+
+- Inert. On the old row a slot off the grid got `inert` (and no pointer events) from the drawing pass (`rowDraw.ts`). The Embla row
+  never set it, so a focused page resting out of view kept its focus, and the app's halo (keyed on `[data-row-slot][inert]`) lit the
+  gap past the window. `markAwaySlots` (emblaRow.ts) marks every slot drawn wholly outside the window `inert` and clears it as soon
+  as any part is drawn inside. It reads each slot's drawn box, so Embla's drawn position (not its location, which runs up to a frame
+  ahead), a slot's own glide (a summon, a dismiss, a width change) and a reorder shift all count where they are drawn. It runs on
+  every Embla row notice (each drawn frame of a glide, drag or wheel, every direct write and shift) and, after each commit and each
+  notice, in a frame loop that lasts 1.5 s and until the slots have stood still for 20 frames. An inert page takes no focus, key or
+  pointer; Tab already skipped inert panels (`panelRowTabOrder.ts`). A page focused while partly in the window is not inert, so the
+  focus reveal still brings it in whole; a page a dot press glides in is cleared on the first frame any part of it is drawn inside,
+  and takes focus at rest. A focused page that a scroll carries wholly out loses focus, as it did on the old row.
+- An opened page. `useProvidePanels` ran a scroll request (an open, a show, a host's `panel.scrollTo()`) through the old row's
+  scroller, which on Embla has no strip, so nothing moved and a page opened at the strip's end stayed out of view. On a strip it now
+  calls `showOnEmbla`: from where the row is heading (`target`), the stop nearest the panel's `scrollOnOpen` place ('into-view' the
+  least move, 'start', 'center'), a glide by Embla's `scrollTo` (a jump under Reduce Motion), nothing when it is there. The keep-still
+  rule ran first in the commit that drew the page (the pages already there do not move until the glide), so the glide is the only
+  move, and carrying the Workspace out of view is that glide. While a press, a wheel gesture or a reorder hold holds the row
+  (`emblaHeld`), the scroll waits for the release (`whenEmblaFree`: Embla's `pointerUp`, `holdEmbla`'s release) and then reads the
+  strip as it is drawn then. A request whose panel the published strip does not carry yet waits one commit, as before.
+
+Embla internals: none new (`dragHandler.pointerDown()`, `target`, `scrollSnaps` are already pinned).
+
+Measured (`embla-row-proof.ts --only inert,open`, 1800 x 900, the root and 24 one-slot pages, window of four; each frame read in a
+task after it was drawn). Negative control: the same proof copied into a `git archive e2515fc` extract: 14 failures (every inert case
+and every open case); passes now.
+
+| check | e2515fc | now |
+| --- | --- | --- |
+| slot-frames whose inert is not "drawn wholly outside" (rest; glide to slot 6; wheel 40 x 14 px; mouse drag 600 px; summon; dismiss; grab-strip ArrowRight out of view; dot press p20) | 378 / 1972 / 4370 / 3217 / 1375 / 1972 / 2031 / 1984 | 0 in every case (18-213 frames each, 1-35 edge crossings) |
+| focus on an inert page | (no page was inert) | refused |
+| p20 after its dot press: focus | taken | taken; it is drawn inside from frame 22 |
+| focus on the three-slot p2 cut by the right edge | | glides 0 > 406, whole, on the grid |
+| open at the strip's end, root in view at 0 | row stays at 0, page at 10150, root in view | glides to 8932 in 102 frames (worst 615 px of 8689), page whole at 1218, root away |
+| open 80 ms into a glide to slot 3 | rests 1218, page out of view | rests 9338 (the end), page whole |
+| open under a mouse drag held 150 px | after release rests at 0 | row stays at 150 under the pointer, then rests 8932 with the page whole |
+| open under Reduce Motion | rests 0 | at once (0 moving frames recorded), page whole |
+
+Mutants: no subscription to the row's notices (marks only after a commit) fails 6 (glide 12, wheel 4, drag 457, reorder 796, dot
+press 781 slot-frames, and p20 refuses focus); the deferral dropped (`whenEmblaFree` runs at once while held) fails 2 (under the held drag the row
+glides off to 8481 px, and after the release rests at 8526 with the page out of view).
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
 - Reorder on Embla: a wide (two-slot or wider) page dragged, a drag held at the left edge to the strip's start, a touch drag and a
@@ -372,8 +416,9 @@ row edge-scrolls between stops, as any scroll in motion does; at rest nothing is
   during a size glide were not tried on Embla; maximize was tried with a wheel and a key, not with a window resize while grown.
 - Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, and a window one slot wide were not tried; a
   real trackpad flick carrying the root out was not tried (the proof uses a glide and a dot press).
-- Anything that asks the old row scroller to move (`scrollOnOpen`, `revealOnScroll`, a host's `stepRow` chord, the settle after a
-  hand resize) moves nothing on Embla.
+- `revealOnScroll` and the settle after a hand resize move nothing on Embla (`scrollOnOpen` and a host's `scrollTo` do since step 8;
+  `panel.scrollTo()`'s answer still asks the old scroller whether it would move). The old row's `scrolledAway` presence is not set on
+  Embla (only `inert` is).
 - Edge-held panels (`edgeHold`) were not tried on Embla: the old drawing pass that holds them needs the old strip.
 - Shift + vertical wheel is not read as sideways; a finger drag was not measured (headless has no touch stream); a real
   trackpad and Safari were not tried.
