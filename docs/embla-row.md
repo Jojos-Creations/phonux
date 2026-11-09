@@ -473,6 +473,15 @@ Items 5, 6 and 7, left from this pass, are in the fourth pass below.
   dismisses it (the own row's "a step away returns the row"). App proof on the 76059ee build: 1787 checks, 0 failed. Library case
   since: `summon.arrowAway` (fourth pass, below).
 
+## The summon's cut, on presented frames
+
+- `--cases summon.clip`: the page leaving the slot a summoned root glides into is cut back from the root's side (PanelRow's
+  `arriveAndLeave` clip-path), so the root slides in beside it. Over that slot, on every frame the compositor presents, each column
+  reads as the root's fill, page background or page: the root must be seen partly in (25 of 40 frames from each edge at f725aa1), and
+  early in the glide background must lie between it and the page. With the clip-path removed it fails from both edges: from the left
+  the page hid the root in all 40 frames (it came in under the page), and from the right the root met the page with no background in
+  6 of 6 early frames (it slid over it).
+
 ## Fourth pass (items 5, 6, 7 and 11)
 
 Each check fails on a `git archive` extract of the commit before its fix with the new proof copied in, passes now, and fails with one
