@@ -126,13 +126,11 @@ export function jumpEmbla(embla: EmblaCarouselType, px: number): void {
   for (let k = 1; k < snaps.length; k += 1) if (Math.abs(snaps[k]! - px) < Math.abs(snaps[best]! - px)) best = k;
   embla.scrollTo(best, true);
   const to = -px;
-  e.scrollBody.useDuration(0).useFriction(0);
   e.target.set(to);
   e.location.set(to);
   e.previousLocation.set(to);
   e.offsetLocation.set(to);
   e.translate.to(to);
-  e.scrollBody.useBaseDuration().useBaseFriction();
 }
 
 /**
