@@ -805,6 +805,12 @@ right-click: 166 px target steps, and a rest at 4,872, a page past the scroll. E
 check saw it; the rest-ahead check was added for that and committed with the mutant's numbers. famMenuOut passes under the mutant,
 as it should: a right-click away from the row never reaches Embla's root.
 
+Gates: full proof (all sections), failed [] and empty []. Library suite: 3,286 tests, 3,285 pass, 0 fail, 1 skip, 264 of 264 files.
+The count is unchanged: one unit test was rewritten and none were added. embla-internals-contract: 2 of 2 pass; it now also checks
+`useFriction` and `seek`. blank-trials `cast glide 3 12`: 0 blank (201 presented frames). `cast hidden 2 12`: fails, as it must, with
+2 of 2 trials blank. `tsc -p tsconfig.json` has one error, in test/compat-0.1.0.typecheck.ts (`closedByPerson`). That error is the
+same at 34db111.
+
 Cases changed because they asserted press mechanics, not outcomes:
 
 - settle end cases: `pressedTargetBackPx`, which read Embla's press, is now `heldTargetBackPx`, which reads the row's held flag. They
