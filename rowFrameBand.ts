@@ -3,6 +3,7 @@
  */
 import * as React from 'react';
 import { ROW_STRIP_ATTRIBUTE } from './rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE } from './emblaRow.js';
 
 /** How long the frames must hold still before the band stops following them: past a resize's settle wait and the glide after it. */
 const FOLLOW_STILL_MS = 1000;
@@ -29,7 +30,8 @@ export function useRowFrameBand(page: React.RefObject<HTMLElement | null>, scrol
   report.current = onBand;
   React.useEffect(() => {
     const container = scroller.current;
-    const strip = container?.querySelector<HTMLElement>(`[${ROW_STRIP_ATTRIBUTE}]`);
+    // The Embla row draws no strip; its window holds the frames.
+    const strip = container?.querySelector<HTMLElement>(`[${ROW_STRIP_ATTRIBUTE}], [${EMBLA_WINDOW_ATTRIBUTE}]`);
     if (!container || !strip) return undefined;
     let last = '';
     let stillSince = 0;
