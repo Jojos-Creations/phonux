@@ -617,6 +617,38 @@ if (ONLY.has('strip') && ENGINE === 'embla') {
   if (w.drift.unloadChanges === 0) empty.push('strip wheel: no panel loaded or unloaded during the stream, so the no-jump check proves nothing');
   if (w.drift.worstPx > 0.5) failed.push(`strip wheel: a panel moved ${w.drift.worstPx} px along the strip while panels loaded and unloaded`);
   if (w.drift.maxLoaded > 8) failed.push(`strip wheel: ${w.drift.maxLoaded} parkable panels loaded in one frame, more than the cap 8`);
+  if (want('strip.firstCommit')) {
+    // From the first commit, before the window is measured: no more parkable pages load than the cap (the app's restore loaded all
+    // eight web pages for one commit, at a window drawn the whole strip wide). Every DOM change is read, not a frame.
+    for (const cap of [8, 4]) {
+      const ctx = await browser.newContext({ viewport: { width: 1800, height: 900 } });
+      // A string, not a function: tsx wraps named inner functions in a helper the page does not have.
+      await ctx.addInitScript(`(() => {
+        window.__peakLoaded = 0; window.__peakSlots = 0;
+        const read = () => {
+          const all = [...document.querySelectorAll('[data-row-slot]')];
+          const loaded = all.filter((el) => !el.hasAttribute('data-row-unloaded') && el.querySelector('[data-row-unloaded]') === null).length;
+          window.__peakSlots = Math.max(window.__peakSlots, all.length);
+          window.__peakLoaded = Math.max(window.__peakLoaded, loaded - 1);
+        };
+        window.__peakObserver = new MutationObserver(read);
+        window.__peakObserver.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-row-unloaded'] });
+      })()`);
+      const page: Page = await ctx.newPage();
+      await page.goto(`http://localhost:${port}/?engine=embla&slots=${narrow}&park=1&cap=${cap}&late=1`);
+      await page.waitForFunction(() => (window as any).__g?.ready(), undefined, { timeout: 15000 });
+      await sleep(800);
+      const mounts: Record<string, number> = await g(page, 'mounts');
+      const parkMounts = Object.entries(mounts).filter(([n]) => n !== 'root').reduce((t, [, c]) => t + c, 0);
+      const peak = { loaded: (await page.evaluate(() => (window as any).__peakLoaded)) as number, slots: (await page.evaluate(() => (window as any).__peakSlots)) as number, unloadedNow: (await page.evaluate(() => document.querySelectorAll('[data-row-unloaded]').length)) as number, mountsTotal: parkMounts, loadedNow: ((await g(page, 'loadedIds')) as string[]).filter((n) => n !== 'root').length };
+      res[`firstCommitCap${cap}`] = peak;
+      if (peak.slots < 25 || peak.unloadedNow === 0) empty.push(`strip firstCommit cap ${cap}: ${peak.slots} slots, ${peak.unloadedNow} unloaded at rest, so the peak proves nothing`);
+      // A view mounted in a commit nobody saw (one the layout effect's measure replaced before paint) still counts: it loaded.
+      if (peak.mountsTotal > cap) failed.push(`strip firstCommit: cap ${cap}, ${peak.mountsTotal} parkable views mounted on the way to ${peak.loadedNow} loaded at rest`);
+      if (peak.loaded > cap) failed.push(`strip firstCommit: cap ${cap}, but ${peak.loaded} parkable pages were loaded at once (before the window was measured)`);
+      await ctx.close();
+    }
+  }
   out.strip = res;
 }
 

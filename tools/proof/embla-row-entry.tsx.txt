@@ -103,9 +103,13 @@ function App() {
   React.useLayoutEffect(() => {
     const el = ref.current!;
     const ro = new ResizeObserver(() => setW(el.clientWidth));
-    ro.observe(el);
-    setW(el.clientWidth);
-    return () => ro.disconnect();
+    // `late=1`: the row is drawn unmeasured for a while first, as a host that measures after its first paint draws it.
+    const late = q.get('late') === '1' ? setTimeout(() => ro.observe(el), 300) : (ro.observe(el), undefined);
+    if (late === undefined) setW(el.clientWidth);
+    return () => {
+      clearTimeout(late);
+      ro.disconnect();
+    };
   }, []);
   const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref, rowEngine: ENGINE } as any);
   latest = p;

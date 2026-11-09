@@ -520,8 +520,10 @@ export function PanelRow({
   const nearSlots = React.useContext(RowNearContext);
   const loadedRef = React.useRef<ReadonlySet<string> | null>(null);
   // What a glide brings into view in the next frames counts as shown, so it is loaded before it enters the view, whatever the cap.
+  // Before the window is measured it is drawn the whole strip wide: load only the cap's nearest then, not every page for one commit.
+  const windowKnown = Number.isFinite(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY);
   const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: emblaWindow.width, pitch: phoneWidth + gap, gap, near: nearSlots, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
+    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
   // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
   const loadedNow = onEmbla ? (emblaNow === undefined || marked ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow)) : null;
   loadedRef.current = loadedNow;
