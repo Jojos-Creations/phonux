@@ -362,19 +362,6 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
   notifyEmblaRows();
 }
 
-/** The proof's negative control: `true` makes the oval drag ease the row toward the pointer as Embla's own drag does. @internal */
-export const emblaOvalDrag = { eased: false };
-
-/** Moves the row toward `px` the way Embla's own drag does: the target moves, and the body eases the strip after it. @internal */
-export function easeEmbla(embla: EmblaCarouselType, px: number): void {
-  const e = embla.internalEngine();
-  const baseDuration = e.scrollBody.useBaseDuration;
-  const baseFriction = e.scrollBody.useBaseFriction;
-  baseDuration();
-  baseFriction();
-  e.target.set(-px);
-  e.animation.start();
-}
 
 /**
  * Runs Embla on `windowRef` (the root) with `boxRef` (its container, the box the slots and markers sit in). Wheel and trackpad

@@ -54,7 +54,20 @@ const browser = launched;
 const { build } = await import('esbuild');
 const dir = mkdtempSync(join(tmpdir(), 'embla-row-'));
 writeFileSync(join(dir, 'entry.tsx'), readFileSync(join(ROOT, 'tools/proof/embla-row-entry.tsx.txt'), 'utf8'));
-await build({ entryPoints: [join(dir, 'entry.tsx')], bundle: true, outfile: join(dir, 'out.js'), jsx: 'automatic', format: 'esm', define: { 'process.env.NODE_ENV': '"development"' }, alias: { LIB: ROOT }, nodePaths: [join(ROOT, 'node_modules')], logLevel: 'silent' });
+// The dots drag control (Embla's eased drag trailing the pointer) is the page's, not the library's: the bundle routes the oval
+// drag's one write through a page hook, and the build fails if that line is not found, so the control cannot silently not apply.
+const OVAL_WRITE = 'const move = (px: number): void => writeEmbla(embla, px);';
+const ovalHook = {
+  name: 'oval-hook',
+  setup(b: any): void {
+    b.onLoad({ filter: /emblaDots\.ts$/ }, (a: { path: string }) => {
+      const src = readFileSync(a.path, 'utf8');
+      if (!src.includes(OVAL_WRITE)) throw new Error(`embla-row-proof: emblaDots.ts no longer has "${OVAL_WRITE}", so the eased-drag control cannot be applied`);
+      return { contents: src.replace(OVAL_WRITE, 'const move = (px: number): void => (globalThis as any).__ovalMove(embla, px);'), loader: 'ts' };
+    });
+  },
+};
+await build({ entryPoints: [join(dir, 'entry.tsx')], bundle: true, outfile: join(dir, 'out.js'), jsx: 'automatic', format: 'esm', define: { 'process.env.NODE_ENV': '"development"' }, alias: { LIB: ROOT }, nodePaths: [join(ROOT, 'node_modules')], plugins: [ovalHook], logLevel: 'silent' });
 const html = '<!doctype html><html><body style="margin:0;background:#111"><div id="root"></div><script type="module" src="out.js"></script></body></html>';
 const server = createServer((req, res) => {
   const js = req.url?.startsWith('/out.js') === true;

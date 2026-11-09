@@ -1,5 +1,5 @@
 /**
- * The Embla internals the row relies on (emblaRow.ts: writeEmbla, moveEmbla's shift and rebuild, easeEmbla, nearestStop, the drawn
+ * The Embla internals the row relies on (emblaRow.ts: writeEmbla, moveEmbla's shift and rebuild, nearestStop, the drawn
  * position): `internalEngine()` is outside Embla's semver, so 8.6 is pinned and this test fails when an upgrade changes any of them.
  */
 import { test } from 'node:test';

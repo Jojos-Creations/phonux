@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
-import { easeEmbla, emblaDrawnOf, emblaOf, emblaOvalDrag, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
+import { emblaDrawnOf, emblaOf, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
@@ -129,10 +129,8 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
   const bar = emblaBarOf(strip, emblaDrawnOf(embla), hollowOf);
 
   const clamp = (px: number): number => Math.min(Math.max(px, 0), bar.max);
-  const move = (px: number): void => {
-    if (emblaOvalDrag.eased) easeEmbla(embla, px);
-    else writeEmbla(embla, px);
-  };
+  // The oval drag's one write. The proof page swaps this line for an eased move (its negative control), so keep it on one line.
+  const move = (px: number): void => writeEmbla(embla, px);
   const targetOf = (d: OvalDrag): number => clamp(d.base + (d.x - d.x0) / bar.scale);
   // Each frame while the oval is dragged: a pointer held at the bar's visible end moves the row on by time, at a speed set by how far past.
   const tick = (now: number): void => {

@@ -7,7 +7,20 @@ import { createRoot } from 'react-dom/client';
 import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, usePanelDots, Panel, PanelFrame, PanelSizeBox, feedRowWheel } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
-import { emblaOf, emblaScrollOf, emblaOvalDrag } from 'LIB/emblaRow.js';
+import { emblaOf, emblaScrollOf, writeEmbla } from 'LIB/emblaRow.js';
+
+// The oval drag's write, routed here by the proof's build. The control eases the row toward the pointer as Embla's own drag does:
+// the target moves and the body eases the strip after it.
+const easeEmbla = (embla: any, px: number): void => {
+  const e = embla.internalEngine();
+  const baseDuration = e.scrollBody.useBaseDuration;
+  const baseFriction = e.scrollBody.useBaseFriction;
+  baseDuration();
+  baseFriction();
+  e.target.set(-px);
+  e.animation.start();
+};
+(globalThis as any).__ovalMove = writeEmbla;
 
 const q = new URLSearchParams(location.search);
 const SLOTS = (q.get('slots') ?? '1,1,1,1,1,1').split(',').map(Number);
@@ -248,7 +261,7 @@ requestAnimationFrame(frame);
     return { track: r(t), frame: r(f), oval: r(o), dots: document.querySelectorAll('[data-dot]').length };
   },
   dotRect: (id: string) => { const b = document.querySelector<HTMLElement>(`[data-dot="${id}"]`)!.getBoundingClientRect(); return { left: b.left, width: b.width, top: b.top }; },
-  easedOval: (on: boolean) => { emblaOvalDrag.eased = on; },
+  easedOval: (on: boolean) => { (globalThis as any).__ovalMove = on ? easeEmbla : writeEmbla; },
   record: () => { frames.length = 0; recording = true; },
   stop: () => { recording = false; return frames.slice(); },
 };
