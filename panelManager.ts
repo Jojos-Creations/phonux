@@ -85,7 +85,11 @@ export const accepted = (changed: boolean): PanelResult => ({ ok: true, changed 
 /** A refusal; the caller has touched nothing. @internal */
 export const refused = (code: PanelRefusal, message: string): PanelResult => ({ ok: false, code, message });
 
-/** Where the root panel stands: `'shown'` in the view, `'summoned'` brought there by `summonRoot`, `'away'` out of it. @public */
+/**
+ * Where the root panel stands: `'shown'` in the view, `'summoned'` brought there by `summonRoot`, `'away'` out of it. On a row with
+ * `rowEngine="embla"` a summoned root is an ordinary page, so it reads `'shown'` or `'away'`, never `'summoned'`.
+ * @public
+ */
 export type RootView = 'shown' | 'summoned' | 'away';
 
 /**
@@ -129,9 +133,16 @@ export interface PanelManager {
   /**
    * Brings the root panel, out of the view, to the view's edge on the side it lies: the panels in that edge's slot park, and return when the root goes.
    * A wide panel in that slot moves over instead, and runs off the far edge. False when the root is already in view.
+   *
+   * With `rowEngine="embla"` the root is an ordinary page: the summon moves it in the page order to the slot just outside the view on
+   * the side it lies on (the left when on neither), as a person's move that the saved order keeps, and the row then glides it in as it
+   * glides to any page. Nothing parks, nothing is undone later, and it stays where it landed. False when it is already wholly in view.
    */
   summonRoot(): boolean;
-  /** Sends a summoned root back out and returns what it parked. False when no summon stands; a step of the row away from the root does the same. */
+  /**
+   * Sends a summoned root back out and returns what it parked. False when no summon stands; a step of the row away from the root does the same.
+   * With `rowEngine="embla"` there is nothing to undo: it does nothing and returns false.
+   */
   dismissRoot(): boolean;
   /**
    * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).
