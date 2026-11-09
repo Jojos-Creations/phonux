@@ -326,15 +326,17 @@ Escape and announcements, as before) with its edge loop pointed at Embla.
 - The dragged panel is never unloaded (`loadedNear`'s `unloadable` skips it), however far the edge scroll carries it.
 
 Embla internals: none new (`holdEmbla` writes through `writeEmbla`, already pinned).
+`test/embla-row-reorder.test.ts` (2 tests): one hold at a time, writes clamped to the strip and drawn at once, nothing written after
+release; dropping either guard fails one.
 
 Measured (`embla-row-proof.ts --only reorder`, 1800 x 900, the root and 24 parkable one-slot pages, window of four, cap 8, the proof
 page's `grab=1` mode):
 
 | check | result |
 | --- | --- |
-| p2 held 6 px inside the right edge for 1 s, no mouse motion | row moved 917-946 px, 0 still frames of 71-73; p2's content 0.01 px from the pointer |
+| p2 held 6 px inside the right edge for 1 s, no mouse motion | row moved 917-958 px, 0 still frames of 71-74 (four runs); p2's content 0.01 px from the pointer |
 | control: held mid-row 1 s | row 0 px |
-| pages the dragged box never passed over, along the strip, any frame | 0 px (p9..p24, root, p1); passed over p3..p8, each an eased 406 px hop, worst frame 30.8-33.8 px |
+| pages the dragged box never passed over, along the strip, any frame | 0 px (p9..p24, root, p1); passed over p3..p8, each an eased 406 px hop, worst frame 30.8-33.8 px (the release and its settle included) |
 | placeholders drawn in the window over the hold | 0 frames; Embla's own drag 0 pointerDowns |
 | drop | rests 1218 on the grid, p2 lands at the slot it was let go over, 1 order commit |
 | Escape after 497-501 px of edge scroll | row back at 0, every page 0 px off its place, order unchanged, 0 commits |
