@@ -4,6 +4,18 @@
  */
 
 let stamp: number | undefined;
+let token: object | undefined;
+
+/** An object that stays the same for every caller in this task and is new in the next one: commits it marks painted together. @internal */
+export function taskToken(): object {
+  if (token === undefined) {
+    token = {};
+    queueMicrotask(() => {
+      token = undefined;
+    });
+  }
+  return token;
+}
 
 /** The start time, in `performance.now()` units, shared by every animation created in this task. @internal */
 export function sharedStartTime(): number {

@@ -8,6 +8,7 @@ import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, usePro
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
 import { emblaOf, emblaScrollOf, writeEmbla } from 'LIB/emblaRow.js';
+import { usePanelMaximize } from 'LIB/panelMaximize.js';
 
 // The oval drag's write, routed here by the proof's build. The control eases the row toward the pointer as Embla's own drag does:
 // the target moves and the body eases the strip after it.
@@ -40,11 +41,14 @@ const ROOT = 'root';
 const NONE = new Set<string>();
 const ids = SLOTS.map((_, k) => `p${k + 1}`);
 let latest: any;
+const maxers: Record<string, { toggle(): boolean; phase: string }> = {};
 
 function View({ name, k }: { name: string; k: number }) {
   const hue = (k * 47) % 360;
   const [count, setCount] = React.useState(0);
   counts[name] = count;
+  const anchor = React.useRef<HTMLDivElement>(null);
+  maxers[name] = usePanelMaximize(anchor) as any;
   React.useEffect(() => {
     mounts[name] = (mounts[name] ?? 0) + 1;
     setters[name] = setCount;
@@ -57,7 +61,7 @@ function View({ name, k }: { name: string; k: number }) {
     <PanelSizeBox>
       <Panel title={name} sx={{ height: '100%' }}>
         <PanelFrame>
-          <div data-box={name} style={{ height: '100%', background: `linear-gradient(135deg,hsl(${hue} 55% 40%),hsl(${(hue + 60) % 360} 55% 22%))`, color: '#fff', font: '24px sans-serif', padding: 12, boxSizing: 'border-box' }}>
+          <div ref={anchor} tabIndex={-1} data-box={name} style={{ height: '100%', background: `linear-gradient(135deg,hsl(${hue} 55% 40%),hsl(${(hue + 60) % 360} 55% 22%))`, color: '#fff', font: '24px sans-serif', padding: 12, boxSizing: 'border-box' }}>
             {name} ({SLOTS[k]} slot{SLOTS[k] > 1 ? 's' : ''}) <span data-count={name}>{count}</span>
           </div>
         </PanelFrame>
@@ -176,7 +180,17 @@ const frame = (t: number): void => {
     const oval = document.querySelector<HTMLElement>('[data-dot-oval]');
     const track = document.querySelector<HTMLElement>('[data-bar-track]');
     const bar = oval === null || track === null ? {} : { ovalLeft: oval.getBoundingClientRect().left - track.getBoundingClientRect().left, ovalScreen: oval.getBoundingClientRect().left, ovalW: oval.getBoundingClientRect().width };
-    frames.push({ t, named, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
+    // Each page as drawn this frame: its size box under the scale a resize eases (the root has none: its box).
+    const drawn: Record<string, { x: number; w: number }> = {};
+    for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+      const name = el.querySelector<HTMLElement>('[data-box]')?.dataset.box ?? el.dataset.rowId!;
+      const sized = el.querySelector<HTMLElement>('[data-panel-size-box]') ?? el.querySelector<HTMLElement>('[data-row-unloaded]') ?? el.querySelector<HTMLElement>('[data-box]') ?? el;
+      const r = sized.getBoundingClientRect();
+      drawn[name] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
+    }
+    const lifted = document.querySelector<HTMLElement>(':popover-open');
+    const liftedRect = lifted === null ? null : lifted.getBoundingClientRect();
+    frames.push({ t, named, drawn, lifted: liftedRect === null ? null : { x: +liftedRect.left.toFixed(1), y: +liftedRect.top.toFixed(1), w: +liftedRect.width.toFixed(1), h: +liftedRect.height.toFixed(1) }, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
     wheels = 0;
     pd = 0;
     pm = 0;
@@ -280,6 +294,9 @@ requestAnimationFrame(frame);
     const win = windowRect();
     return [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => { const r = el.getBoundingClientRect(); return { id: el.querySelector<HTMLElement>('[data-box]')?.dataset.box ?? el.dataset.rowId!, x: +(r.left - win.left).toFixed(1), w: +r.width.toFixed(1) }; }).sort((a, b) => a.x - b.x);
   },
+  // The maximize of the page named `name` (usePanelMaximize on its content): grow, or shrink when grown; and where it stands.
+  toggleMax: (name: string) => maxers[name]!.toggle(),
+  maxPhase: (name: string) => maxers[name]!.phase,
   record: () => { frames.length = 0; recording = true; },
   stop: () => { recording = false; return frames.slice(); },
 };

@@ -11,7 +11,7 @@ import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { ROW_SLOT_ATTRIBUTE } from './rowDom.js';
+import { PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** On the container of a row that runs on Embla. The old row's own wheel, touch and key listeners stand aside for it. @internal */
 export const ROW_ENGINE_ATTRIBUTE = 'data-row-engine';
@@ -213,6 +213,14 @@ export function pressStartsRowDrag(event: Pick<Event, 'isTrusted' | 'target' | '
   return target.closest('button,a[href],input,select,textarea,[contenteditable=""],[contenteditable="true"],[role="slider"],iframe,frame,embed,object') === null;
 }
 
+/**
+ * Whether a panel of the row rooted on `win` is lifted to fill the window (growing, grown or shrinking back): it covers the row, so
+ * wheels, keys, drags and focus leave the row where it is and the panel shrinks back into the slot it grew from. @internal
+ */
+export function maximizedIn(win: Element): boolean {
+  return win.querySelector(`[${PANEL_ROOT_ATTRIBUTE}][popover]`) !== null;
+}
+
 /** The options the row runs Embla with: one stop per slot marker, a flick may pass several. @internal */
 export function emblaRowOptions(): EmblaOptionsType {
   return {
@@ -221,7 +229,7 @@ export function emblaRowOptions(): EmblaOptionsType {
     slides: `:scope > [${EMBLA_SLOT_ATTRIBUTE}]`,
     skipSnaps: true,
     dragThreshold: 4,
-    watchDrag: (_api, event) => pressStartsRowDrag(event),
+    watchDrag: (api, event) => !maximizedIn(api.rootNode()) && pressStartsRowDrag(event),
     // The row rebuilds Embla itself (`moveEmbla`) when the markers or the window change: Embla's own watchers would rebuild on every
     // slot and drop-gap change in the box, back to the selected stop, dropping a gesture in progress.
     watchSlides: false,
@@ -386,7 +394,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
         owner = null;
       }, quietRef.current);
       if (owner === null) owner = e.altKey ? 'content' : 'row';
-      if (owner === 'content' || win.closest('[inert]') !== null) e.stopImmediatePropagation();
+      if (owner === 'content' || win.closest('[inert]') !== null || maximizedIn(win)) e.stopImmediatePropagation();
     };
     win.addEventListener('wheel', onWheel, { passive: true });
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box }, [WheelGesturesPlugin({ target: win })]);
@@ -399,7 +407,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || arrowKeyBelongsElsewhere(e, doc)) return;
-      if (win.closest('[inert]') !== null) return;
+      if (win.closest('[inert]') !== null || maximizedIn(win)) return;
       e.preventDefault();
       if (stepHooks.get(win)?.(e.key === 'ArrowLeft' ? 'left' : 'right') === true) return;
       if (e.key === 'ArrowLeft') embla.scrollPrev();
@@ -409,7 +417,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // A panel focused while partly out of the window comes into it: Embla moves only for slides, and its slides are the markers.
     const onFocus = (e: FocusEvent): void => {
       const slot = (e.target as Element | null)?.closest<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`);
-      if (slot == null || !box.contains(slot)) return;
+      if (slot == null || !box.contains(slot) || maximizedIn(win)) return;
       const to = revealScroll(Number(slot.dataset.rowSlot) || 0, slot.offsetWidth, emblaScrollOf(embla), box.offsetWidth);
       if (to === null) return;
       embla.scrollTo(nearestStop(embla, to));

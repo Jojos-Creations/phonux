@@ -5,7 +5,7 @@
  */
 
 import * as React from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import Box from '@mui/material/Box';
 import { AutoMountContext } from './autoMountContext.js';
 import { useHost } from './hostApi.js';
@@ -32,6 +32,8 @@ import { ROW_LAYER_Z } from './rowConstants.js';
 import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
 import { useRowDraw, type HoldSpec } from './rowDraw.js';
 import { restTranslate } from './slotMover.js';
+import { sharedStartTime, taskToken } from './rowClock.js';
+import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
@@ -148,14 +150,19 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
 
 /**
  * After a jump of an Embla row from `from` to `to` (scroll px) across a change of its strip from `before` to `after`, keeps what the
- * change did not move where it was on screen: a slot leaving in this commit runs its exit from where it was drawn, in view or out of it. On a marked commit
- * (a summon, a dismiss, a step-aside), a slot the change moved on screen glides there from where it was, starting or ending one slot
- * outside the window at most, so the root arrives and leaves as a page does and a wide page slides over.
+ * change did not move where it was on screen: a slot leaving in this commit runs its exit from where it was drawn, in view or out of it.
+ * On a marked commit (a summon, a dismiss, a step-aside) or a width change the view could not keep still (`glides`), a slot the change
+ * moved on screen glides there from where it was, starting or ending one slot outside the window at most, on the slide's curve and
+ * the commit's shared start, the clock a size box eases on, so a page and its neighbors stay one gap apart in every frame. On a marked
+ * commit a panel coming back onto the strip in view fades in where it lands, except `slideIn`, which comes in over its edge.
  */
-function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, durationSec: number): void {
+function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, glides: boolean, slide: SlideTuning, slideIn: { id: string; edge: 'left' | 'right' } | null): void {
   const nodeOf = (id: string): HTMLElement | null => box.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
-  const animate = (node: HTMLElement | null, frames: Keyframe[], options: KeyframeAnimationOptions): void => {
-    if (node !== null && typeof node.animate === 'function') node.animate(frames, { ...options, composite: 'add' });
+  const durationMs = slide.durationSec * 1000;
+  const glide = (node: HTMLElement | null, frames: Keyframe[]): void => {
+    if (node === null || typeof node.animate !== 'function' || durationMs <= 0) return;
+    const anim = node.animate(frames, { duration: durationMs, easing: `cubic-bezier(${slide.ease.join(',')})`, composite: 'add', fill: 'backwards' });
+    anim.startTime = sharedStartTime();
   };
   const jump = to - from;
   before.ids.forEach((id, k) => {
@@ -163,21 +170,19 @@ function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayou
     const w = before.widths[k]!;
     const was = before.lefts[k]! - from;
     if (j < 0) {
-      if (Math.abs(jump) > 0.5) animate(nodeOf(id), [{ translate: `${jump}px 0px` }, { translate: `${jump}px 0px` }], { duration: 10000, fill: 'forwards' });
+      const node = nodeOf(id);
+      if (Math.abs(jump) > 0.5 && node !== null && typeof node.animate === 'function') node.animate([{ translate: `${jump}px 0px` }, { translate: `${jump}px 0px` }], { duration: 10000, fill: 'forwards', composite: 'add' });
       return;
     }
-    if (!marked) return;
+    if (!glides) return;
     const now = after.lefts[j]! - to;
     if (Math.abs(now - was) <= 0.5) return;
     const shownBefore = was + w > 0.5 && was < windowWidth - 0.5;
     const shownAfter = now + after.widths[j]! > 0.5 && now < windowWidth - 0.5;
     if (!shownBefore && !shownAfter) return;
     const outside = (x: number, width: number): number => (x + width <= 0.5 ? -(width + gap) : x >= windowWidth - 0.5 ? windowWidth + gap : x);
-    const start = outside(was, w);
-    const end = outside(now, after.widths[j]!);
-    animate(nodeOf(id), [{ translate: `${start - now}px 0px` }, { translate: `${end - now}px 0px` }], { duration: durationSec * 1000, easing: EASE });
+    glide(nodeOf(id), [{ translate: `${outside(was, w) - now}px 0px` }, { translate: `${outside(now, after.widths[j]!) - now}px 0px` }]);
   });
-  // A panel coming back onto the strip in view (a dismiss) fades in where it lands; the root leaves over the edge it came by.
   if (!marked) return;
   after.ids.forEach((id, j) => {
     if (before.ids.includes(id)) return;
@@ -185,10 +190,14 @@ function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayou
     const now = after.lefts[j]! - to;
     if (!(now + w > 0.5 && now < windowWidth - 0.5)) return;
     const node = nodeOf(id);
-    if (node !== null && typeof node.animate === 'function') node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: durationSec * 1000, easing: EASE });
+    if (slideIn?.id === id) {
+      const start = slideIn.edge === 'left' ? -(w + gap) : windowWidth + gap;
+      glide(node, [{ translate: `${start - now}px 0px` }, { translate: '0px 0px' }]);
+      return;
+    }
+    if (node !== null && typeof node.animate === 'function') node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: durationMs, easing: `cubic-bezier(${slide.ease.join(',')})` });
   });
 }
-const EASE = 'cubic-bezier(0.25, 0.1, 0.25, 1)';
 
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its template's view.
@@ -429,12 +438,16 @@ export function PanelRow({
   // On Embla, a change left of the view (a panel opened, closed, moved or resized there, or clamped by a narrower window) keeps the
   // view still: the scroll moves with the panel at the window's left edge, and every slot snaps to its new rest in the same frame.
   const onEmbla = React.useContext(RowEngineContext) === 'embla';
+  // Under Reduce Motion the size box snaps, so the slots a width change moves snap with it.
+  const reducedMotion = useReducedMotionConfig() === true || useReducedMotion() === true;
   const windowRef = React.useRef<HTMLDivElement>(null);
   const stripPx = reservedWidth + gapSpan;
   const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);
   const layoutNow: StripLayout = { ids: present.map((p) => p.id), lefts: leftOffsets, widths };
   const lastLayout = React.useRef<StripLayout | null>(null);
   const lastWindow = React.useRef<number | null>(null);
+  // What the first commit of this task started from: what was painted, when a later commit in the same task glides.
+  const shownRef = React.useRef<{ layout: StripLayout; scroll: number; task: object } | null>(null);
   const emblaNow = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
   const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
   // Only a render that changed the strip or the window keeps the view: any other one (a pulled-past-the-end drag included, which
@@ -448,6 +461,9 @@ export function PanelRow({
   const keptNow = emblaNow === undefined || !changed ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
   const keepTo = marked ? (markedScroll(mark, layoutNow, emblaWindow.width, keptNow, stripMax) ?? keptNow) : keptNow;
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
+  // A change of the strip in the same window that moves the view (a page in view narrowed at the strip's end) jumps the scroll and
+  // snaps the slots as any keep does; the slots it moved on screen then glide there with the size box, so nothing in view jumps.
+  const widthGlide = keeping && !marked && lastWindow.current === emblaWindow.width && ready && !landing && !reducedMotion;
   // What Embla builds its stops from: the markers and the window box. A change rebuilds them in the commit that draws it.
   const markers = onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap) : [];
   const stopsKey = `${markers.length}|${emblaWindow.width}|${phoneWidth}|${gap}`;
@@ -580,8 +596,12 @@ export function PanelRow({
     if (embla !== undefined) lastStops.current = stopsKey;
     if (marked) lastMark.current = mark.seq;
     if (embla !== undefined && lastLayout.current !== null && (keeping || marked) && boxRef.current !== null) {
-      arriveAndLeave(boxRef.current, lastLayout.current, layoutNow, scrollNow, keepTo, emblaWindow.width, gap, marked, rowTuning.slide.durationSec);
+      // Two commits in one task (a width change, then the root it lets back beside the page) paint once: glide from what was painted.
+      const shown = shownRef.current !== null && shownRef.current.task === taskToken() ? shownRef.current : { layout: lastLayout.current, scroll: scrollNow };
+      const slideIn = marked && mark.pin !== null && !shown.layout.ids.includes(mark.pin.id) ? { id: mark.pin.id, edge: mark.pin.edge } : null;
+      arriveAndLeave(boxRef.current, shown.layout, layoutNow, shown.scroll, keepTo, emblaWindow.width, gap, marked, marked || widthGlide, rowTuning.slide, slideIn);
     }
+    if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken())) shownRef.current = { layout: lastLayout.current, scroll: scrollNow, task: taskToken() };
     lastLayout.current = layoutNow;
     lastWindow.current = emblaWindow.width;
     if (onEmbla && windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap });

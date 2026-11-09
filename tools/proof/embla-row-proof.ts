@@ -47,7 +47,7 @@ const arg = (name: string): string | undefined => {
 };
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width').split(','));
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -825,6 +825,191 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     await close();
   }
   out.summon = res;
+}
+
+// Width changes and maximize on a row with more pages than fit (step 5): a page's width eases on the slide and Embla hears of it once.
+if (ONLY.has('width') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const ROW = '1,1,2,1,3,1,1,2,1,1,1,1';
+  const fail = (label: string, why: string): void => void failed.push(`width ${label}: ${why}`);
+  const visibleAt = (f: any): string[] => Object.entries(f.drawn as Record<string, { x: number; w: number }>).filter(([, v]) => v.x > -v.w + 1 && v.x < f.winW - 1).sort((a, b) => a[1].x - b[1].x).map(([id]) => id);
+  // One width change, measured per frame: `still` are pages that must not move on screen, `page` the one changing, `edge` the edge of it
+  // that moves; pages after it in view must stay one gap from its drawn right edge (no blank, no overlap).
+  const measure = (label: string, fr: any[], o: { still: string[]; page: string; edge: 'left' | 'right' | null; followers: string[]; pitch: number; max: number; restAt?: number }): Record<string, unknown> => {
+    const first = fr[0];
+    const last = fr[fr.length - 1];
+    const worstStill = Math.max(0, ...o.still.flatMap((id) => fr.map((f: any) => Math.abs((f.drawn[id]?.x ?? Number.NaN) - first.drawn[id].x))));
+    // The changing page's drawn width when the row itself moves (a glide or a wheel under the change), else the edge of it that moves.
+    const edgeOf = (f: any): number => (o.edge === null ? f.drawn[o.page].w : o.edge === 'left' ? f.drawn[o.page].x : f.drawn[o.page].x + f.drawn[o.page].w);
+    const edges = fr.map(edgeOf);
+    const steps = edges.slice(1).map((e: number, k: number) => e - edges[k]!);
+    const dir = Math.sign(edges[edges.length - 1]! - edges[0]!);
+    const backSteps = steps.filter((d: number) => d * dir < -0.5).length;
+    const moving = steps.map(Math.abs).filter((d: number) => d > 0.05);
+    const k1 = steps.length - 1 - [...steps].reverse().findIndex((d: number) => Math.abs(d) > 0.05);
+    const tail = steps.slice(Math.max(0, k1 - 2), k1 + 1).map(Math.abs);
+    const median = moving.length === 0 ? 0 : [...moving].sort((a, b) => a - b)[Math.floor(moving.length / 2)]!;
+    const endJump = tail.length === 0 ? 0 : Math.max(...tail);
+    // A follower right of the page keeps one gap from its drawn right edge, one left of it from its drawn left edge.
+    const gapOf = (f: any, id: string): number => (f.drawn[id].x > f.drawn[o.page].x ? f.drawn[id].x - (f.drawn[o.page].x + f.drawn[o.page].w) : f.drawn[o.page].x - (f.drawn[id].x + f.drawn[id].w)) - 16;
+    const worstGap = Math.max(0, ...o.followers.flatMap((id) => fr.map((f: any) => Math.abs(gapOf(f, id)))));
+    // A one-slot page cut by the window while the row stands on the grid and the page stands still (one gliding across the edge is
+    // the glide itself; a wheel or a glide between rests cuts pages by nature), or at the rest.
+    const cut = fr.filter((f: any, k: number) => {
+      if (k < fr.length - 1 && !onGrid(f.pos, o.pitch, o.max)) return false;
+      const still = Object.fromEntries(Object.entries(f.drawn as Record<string, { x: number; w: number }>).filter(([id, v]) => k === fr.length - 1 || (k > 0 && Math.abs(v.x - (fr[k - 1].drawn[id]?.x ?? Number.NaN)) <= 0.5)));
+      return cutNarrow({ panels: still, winW: f.winW }, 390).length > 0;
+    }).length;
+    const r = { frames: fr.length, posBefore: +first.pos.toFixed(1), posAfter: +last.pos.toFixed(1), restOnGrid: onGrid(last.pos, o.pitch, o.max), worstStillPx: +worstStill.toFixed(2), edgeTravel: +(edges[edges.length - 1]! - edges[0]!).toFixed(1), edgeBackSteps: backSteps, edgeKind: o.edge ?? 'width', edgeMedianStep: +median.toFixed(2), edgeEndJump: +endJump.toFixed(2), worstFollowerGapPx: +worstGap.toFixed(2), framesWithNarrowCut: cut, viewBefore: visibleAt(first).join(','), viewAfter: visibleAt(last).join(','), ...(process.env.DUMP ? { series: fr.map((f: any) => [Math.round(f.t), +f.pos.toFixed(1), ...Object.entries(f.drawn).filter(([, v]: any) => v.x > -v.w && v.x < f.winW).map(([i, v]: any) => `${i}:${v.x}/${v.w}`)].join(' ')) } : {}) };
+    // Under a glide or a wheel the row moves one way only: a frame stepping back is the row thrown back.
+    const posSteps = fr.slice(1).map((f: any, k: number) => f.pos - fr[k].pos);
+    const posDir = Math.sign(last.pos - first.pos);
+    const posBack = o.edge === null ? Math.min(0, ...posSteps.map((d: number) => d * posDir)) : 0;
+    Object.assign(r, { posWorstBack: +posBack.toFixed(2) });
+    if (posBack < -1) fail(label, `the row stepped back ${posBack.toFixed(1)} px under the change`);
+    if (o.restAt !== undefined && Math.abs(last.pos - o.restAt) > 0.5) fail(label, `rests at ${last.pos.toFixed(1)}, not ${o.restAt}`);
+    if (fr.length < 20) empty.push(`width ${label}: ${fr.length} frames`);
+    if (Math.abs(r.edgeTravel) < 100) empty.push(`width ${label}: the page's ${o.edge ?? 'width'} moved ${r.edgeTravel} px, so this proved nothing`);
+    if (worstStill > 0.5) fail(label, `a page in view that is not changing moved ${worstStill.toFixed(1)} px`);
+    if (backSteps > 0) fail(label, `the changing page's ${o.edge ?? 'width'} stepped back in ${backSteps} frames`);
+    const worstStep = Math.max(0, ...steps.map(Math.abs));
+    Object.assign(r, { edgeWorstStep: +worstStep.toFixed(2) });
+    if (worstStep > Math.abs(r.edgeTravel) / 4) fail(label, `the changing page's ${o.edge ?? 'width'} jumped ${worstStep.toFixed(1)} px in one frame of ${Math.abs(r.edgeTravel)}`);
+    if (endJump > Math.max(3 * median, 4)) fail(label, `the changing page snapped at the end: ${endJump.toFixed(1)} px in one of its last 3 frames, median ${median.toFixed(1)}`);
+    if (worstGap > 1) fail(label, `a page after it left a blank or overlapped it by ${worstGap.toFixed(1)} px`);
+    if (cut > 0) fail(label, `${cut} frames cut a one-slot page`);
+    if (!r.restOnGrid) fail(label, `rest ${r.posAfter} off the grid`);
+    return r;
+  };
+  const run = async (label: string, slot: number, act: (page: Page, id: (n: string) => Promise<string>) => Promise<void>, o: Omit<Parameters<typeof measure>[2], 'pitch' | 'max'> & { row?: string; before?: (page: Page) => Promise<void> }): Promise<void> => {
+    const { page, errors, close } = await open(o.row ?? ROW);
+    if (o.before !== undefined) await o.before(page);
+    else {
+      await g(page, 'jumpToSlot', slot);
+      await sleep(500);
+    }
+    await g(page, 'record');
+    await nextFrame(page);
+    await nextFrame(page);
+    await act(page, (n) => g(page, 'idOf', n));
+    await sleep(250);
+    await page.screenshot({ path: join(OUT, `width-${label}-mid.png`) });
+    await sleep(1000);
+    const fr = await g(page, 'stop');
+    res[label] = measure(label, fr, { ...o, pitch: 406, max: await g(page, 'max') });
+    await page.screenshot({ path: join(OUT, `width-${label}-rest.png`) });
+    if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
+    await close();
+  };
+  // Strip: root, p1 (1), p2 (1), p3 (2), p4 (1), p5 (3), p6 (1), p7 (1), p8 (2), p9..p12 (1); a window of four slots.
+  // At slot 2 the view is p2, p3, p4.
+  await run('growInView', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p4'), 2), { still: ['p2', 'p3'], page: 'p4', edge: 'right', followers: [] });
+  await run('shrinkInView', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p3'), 1), { still: ['p2'], page: 'p3', edge: 'right', followers: ['p4'] });
+  await run('growLeftEdge', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p2'), 2), { still: [], page: 'p2', edge: 'right', followers: ['p3'] });
+  // At the strip's end (17 slots, rest 13: p9..p12) the strip cannot keep the left edge: a shrink in view holds the right end, the
+  // page's left edge eases right and the pages left of it with it. Rest 12 shows p8 (2), p9, p10.
+  // A two-slot page cut by the window's left edge (rest 12: half of p8, p9, p10, p11) narrows: its left edge holds, so it leaves
+  // the view and the pages after it slide over, one gap behind its right edge.
+  await run('shrinkCutLeftEdge', 12, async (page, id) => g(page, 'op', 'setSlots', await id('p8'), 1), { still: [], page: 'p8', edge: 'right', followers: ['p9'] });
+  // Rows ending in the view's pages, resting at the strip's end: a narrower page there shortens the strip under the view, so the
+  // view cannot keep its left edge. The right end holds: pages right of the page stay, its left edge eases right, pages left of it
+  // follow one gap behind. End rest of '1,1,2,1,3,1,1,2,1,1' is 11 (p8 (2), p9, p10); of '...,1,2,1' it is 12 (p10, p11 (2), p12).
+  await run('shrinkLeftEdgeAtEnd', 11, async (page, id) => g(page, 'op', 'setSlots', await id('p8'), 1), { still: ['p9', 'p10'], page: 'p8', edge: 'left', followers: ['p7'], row: '1,1,2,1,3,1,1,2,1,1' });
+  await run('shrinkMiddleAtEnd', 13, async (page, id) => g(page, 'op', 'setSlots', await id('p11'), 1), { still: ['p12'], page: 'p11', edge: 'left', followers: ['p10'], row: '1,1,2,1,3,1,1,1,1,1,2,1' });
+  // Mid-glide: ArrowRight from rest 2 glides to 3; 150 ms in, a page in view grows. The glide goes on to the grid, nothing in view is thrown back.
+  await run('growMidGlide', 2, async (page, id) => {
+    await page.mouse.click(5, 5);
+    await page.keyboard.press('ArrowRight');
+    await sleep(150);
+    await g(page, 'op', 'setSlots', await id('p4'), 2);
+  }, { still: [], page: 'p4', edge: null, followers: ['p5'], restAt: 3 * 406 });
+  // Mid-wheel: a steady wheel stream from rest 0; 0.6 s in, a page in view grows. The gesture goes on and nothing throws the row back.
+  await run('growMidWheel', 0, async (page, id) => {
+    await page.mouse.move(900, 400);
+    const t0 = Date.now();
+    let acted = false;
+    while (Date.now() - t0 < 1400) {
+      await page.mouse.wheel(12, 0);
+      if (!acted && Date.now() - t0 > 600) {
+        acted = true;
+        await g(page, 'op', 'setSlots', await id('p3'), 3);
+      }
+      await sleep(16);
+    }
+  }, { still: [], page: 'p3', edge: null, followers: ['p4'] });
+  // With the Workspace summoned (rest 9: p6, p7, p8 (2); the summon puts the root in p6's slot), a page in view grows: the root and
+  // the page before it stay, the summon stands.
+  await run('growSummoned', 9, async (page, id) => g(page, 'op', 'setSlots', await id('p7'), 2), {
+    still: ['root'], page: 'p7', edge: 'right', followers: ['p8'],
+    before: async (page) => {
+      await g(page, 'jumpToSlot', 9);
+      await sleep(500);
+      await g(page, 'summon');
+      await sleep(1200);
+    },
+  });
+  // With the Workspace stepped aside (p1 picked four slots wide in a window of four), p1 narrows to two: its left edge holds and
+  // the pages after it follow; the root does not jump in over it.
+  await run('shrinkAside', 0, async (page, id) => g(page, 'op', 'setSlots', await id('p1'), 2), {
+    still: [], page: 'p1', edge: 'right', followers: ['p2'], row: '2,1,1,1,1,1,1,1',
+    before: async (page) => {
+      await g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 4);
+      await sleep(1200);
+    },
+  });
+  // Maximize p3 in view (rest 2: p2, p3 (2), p4), a wheel stream and an arrow key while it fills the window, then restore: nothing
+  // behind it moves, the restore lands in its slot with no snap, and the view is the one it left.
+  {
+    const { page, errors, close } = await open(ROW);
+    await g(page, 'jumpToSlot', 2);
+    await sleep(500);
+    const before = { pos: await g(page, 'pos'), shown: await g(page, 'shown') };
+    await g(page, 'record');
+    await nextFrame(page);
+    const grew = await g(page, 'toggleMax', 'p3');
+    await sleep(200);
+    await page.screenshot({ path: join(OUT, 'width-maximize-mid.png') });
+    await sleep(700);
+    const phaseGrown = await g(page, 'maxPhase', 'p3');
+    await page.mouse.move(900, 400);
+    for (let k = 0; k < 40; k += 1) {
+      await page.mouse.wheel(12, 0);
+      await sleep(16);
+    }
+    await page.keyboard.press('ArrowRight');
+    await sleep(900);
+    const posMaximized = await g(page, 'pos');
+    await g(page, 'toggleMax', 'p3');
+    await sleep(200);
+    await page.screenshot({ path: join(OUT, 'width-restore-mid.png') });
+    await sleep(1000);
+    const fr = await g(page, 'stop');
+    const after = { pos: await g(page, 'pos'), shown: await g(page, 'shown'), phase: await g(page, 'maxPhase', 'p3') };
+    await page.screenshot({ path: join(OUT, 'width-restore-rest.png') });
+    // The lifted panel's right edge on screen, frame by frame, and then its slot's: one series from grown to home.
+    const k0 = fr.findIndex((f: any) => f.lifted === null && fr.indexOf(f) > 0 && fr[fr.indexOf(f) - 1].lifted !== null);
+    const shrink = fr.slice(fr.findIndex((f: any, k: number) => k > 0 && f.lifted !== null && fr[k - 1].lifted !== null && f.lifted.w < fr[k - 1].lifted.w - 0.5) - 1);
+    const rightOf = (f: any): number => (f.lifted !== null ? f.lifted.x + f.lifted.w - f.winLeft : f.drawn.p3.x + f.drawn.p3.w);
+    const edges = shrink.map(rightOf);
+    const steps = edges.slice(1).map((e: number, k: number) => e - edges[k]!);
+    const moving = steps.map(Math.abs).filter((d: number) => d > 0.05);
+    const median = moving.length === 0 ? 0 : [...moving].sort((a, b) => a - b)[Math.floor(moving.length / 2)]!;
+    const k1 = steps.length - 1 - [...steps].reverse().findIndex((d: number) => Math.abs(d) > 0.05);
+    const endJump = Math.max(0, ...steps.slice(Math.max(0, k1 - 2), k1 + 1).map(Math.abs));
+    const behind = ['p2', 'p4'].flatMap((id) => fr.map((f: any) => Math.abs(f.drawn[id].x - fr[0].drawn[id].x)));
+    const worstBehind = Math.max(0, ...behind);
+    const r = { grew, phaseGrown, posBefore: before.pos, posMaximized: +posMaximized.toFixed(1), posAfter: +after.pos.toFixed(1), phaseAfter: after.phase, sameView: JSON.stringify(before.shown) === JSON.stringify(after.shown), worstBehindPx: +worstBehind.toFixed(2), shrinkFrames: edges.length, edgeMedianStep: +median.toFixed(2), edgeEndJump: +endJump.toFixed(2), landedAt: k0 };
+    res.maximize = r;
+    if (!grew || phaseGrown !== 'maximized') empty.push(`width maximize: p3 never filled the window (${grew}, ${phaseGrown})`);
+    if (edges.length < 10) empty.push(`width maximize: ${edges.length} frames of the restore`);
+    if (worstBehind > 0.5) fail('maximize', `a page behind the maximized one moved ${worstBehind.toFixed(1)} px`);
+    if (Math.abs(posMaximized - before.pos) > 0.5) fail('maximize', `a wheel or a key moved the row behind the maximized page (${before.pos} > ${posMaximized.toFixed(1)})`);
+    if (!r.sameView || Math.abs(after.pos - before.pos) > 0.5 || after.phase !== 'home') fail('maximize', `the restore did not return to the view it left (${before.pos} > ${after.pos.toFixed(1)}, ${after.phase})`);
+    if (endJump > Math.max(3 * median, 4)) fail('maximize', `the restore snapped at the end: ${endJump.toFixed(1)} px in one of its last 3 frames, median ${median.toFixed(1)}`);
+    if (errors.length > 0) fail('maximize', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  out.width = res;
 }
 
 await browser.close();
