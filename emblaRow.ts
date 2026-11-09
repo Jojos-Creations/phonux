@@ -11,6 +11,7 @@ import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
+import { registerRowKeys } from './rowStep.js';
 import { PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** On the container of a row that runs on Embla. The old row's own wheel, touch and key listeners stand aside for it. @internal */
@@ -478,11 +479,16 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || arrowKeyBelongsElsewhere(e, doc)) return;
       if (win.closest('[inert]') !== null || maximizedIn(win)) return;
       e.preventDefault();
-      if (stepHooks.get(win)?.(e.key === 'ArrowLeft' ? 'left' : 'right') === true) return;
-      if (e.key === 'ArrowLeft') embla.scrollPrev(reducedRows.has(embla));
+      step(e.key === 'ArrowLeft' ? 'left' : 'right');
+    };
+    const step = (direction: 'left' | 'right'): void => {
+      if (stepHooks.get(win)?.(direction) === true) return;
+      if (direction === 'left') embla.scrollPrev(reducedRows.has(embla));
       else embla.scrollNext(reducedRows.has(embla));
     };
     view.addEventListener('keydown', onKey);
+    // A host's own chord (`stepRow`) steps this row as a bare arrow does, and not while a panel of it is lifted.
+    const unregisterKeys = registerRowKeys(win, { step: (direction) => (win.closest('[inert]') !== null || maximizedIn(win) ? undefined : step(direction)) });
     // A panel focused while partly out of the window comes into it: Embla moves only for slides, and its slides are the markers.
     const onFocus = (e: FocusEvent): void => {
       const slot = (e.target as Element | null)?.closest<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`);
@@ -493,6 +499,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     };
     win.addEventListener('focusin', onFocus);
     return () => {
+      unregisterKeys();
       win.removeEventListener('focusin', onFocus);
       if (quiet !== null) clearTimeout(quiet);
       view.removeEventListener('keydown', onKey);

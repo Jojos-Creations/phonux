@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import './support/embla-globals.js';
 import * as React from 'react';
-import { createWorkspace, definePanel } from '../index.js';
+import { createWorkspace, definePanel, stepRow } from '../index.js';
+import { EMBLA_WINDOW_ATTRIBUTE, emblaOf } from '../emblaRow.js';
 import { rigCleanup, slots, track, until } from './support/auto-rig.js';
 
 afterEach(() => rigCleanup());
@@ -18,6 +19,15 @@ test("rowEngine 'embla' makes the auto-mounted row an Embla row", async () => {
   assert.equal(document.querySelectorAll('[data-row-engine="embla"]').length, 1);
 });
 
+test("a host's stepRow chord reaches an Embla row", async () => {
+  const ws = track(createWorkspace({ templates: [plain], rowEngine: 'embla' }));
+  ws.addPanel('plain');
+  await until('the panel', () => slots(document.body).length === 1);
+  const embla = emblaOf(document.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`)!)!;
+  const steps: string[] = [];
+  embla.scrollNext = () => void steps.push('next');
+  embla.scrollPrev = () => void steps.push('prev');
+  const event = new window.KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true });
   assert.equal(stepRow(event, 'right'), true);
   assert.equal(stepRow(event, 'left'), true);
   assert.deepEqual(steps, ['next', 'prev'], 'Embla moved the row');
