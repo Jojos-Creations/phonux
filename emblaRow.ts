@@ -597,8 +597,12 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     };
     const step = (direction: 'left' | 'right'): void => {
       if (stepHooks.get(win)?.(direction) === true) return;
-      if (direction === 'left') embla.scrollPrev(reducedRows.has(embla));
-      else embla.scrollNext(reducedRows.has(embla));
+      // From the stop nearest where the row is heading, not Embla's selected index, which a direct write (a summon's or a keep's
+      // jump) leaves stale: scrollNext from a stale index can name the stop the row already rests on.
+      const snaps = embla.scrollSnapList().length;
+      const at = nearestStop(embla, emblaTargetOf(embla));
+      const to = Math.min(Math.max(0, at + (direction === 'left' ? -1 : 1)), snaps - 1);
+      if (to !== at) embla.scrollTo(to, reducedRows.has(embla));
     };
     view.addEventListener('keydown', onKey);
     // A host's own chord (`stepRow`) steps this row as a bare arrow does, and not while a panel of it is lifted.

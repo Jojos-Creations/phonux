@@ -689,6 +689,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     } else markEmblaRow(el, { pin: stripSummon.edge, reveal: null });
     return true;
   };
+  const stripDismissRef = useRef(stripDismissRoot);
+  stripDismissRef.current = stripDismissRoot;
   // A summon ends when the row carries the root out of the view (a scroll, a dot): what it took off the strip comes back beside the
   // root and the view stays where it went. A step-aside ends when the row moves toward the root, or a step key asks for it at the end.
   const stripRef = useRef({ summon: stripSummon, aside: stripAside, offStrip });
@@ -724,6 +726,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     };
     const offStep = onEmblaStep(el, (direction) => {
       const { summon, aside } = stripRef.current;
+      // A step away from a summoned root returns the row, as on the own row.
+      if (summon !== null && summon.aside === null && direction !== summon.side) return stripDismissRef.current();
       if (summon === null && aside !== null && direction === aside.side) {
         setStripAside(null);
         markEmblaRow(el, { pin: { id: rootId, edge: aside.side, screen: 0 }, reveal: null });
