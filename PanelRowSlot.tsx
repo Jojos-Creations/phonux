@@ -12,6 +12,7 @@ import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { LandingContext, useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { EMBLA_WINDOW_ATTRIBUTE } from './emblaRow.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
 /**
@@ -581,7 +582,10 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
     setGlide({ from: start, to });
     const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
     const startMs = sharedStartTime();
-    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, transition, startMs, () => {
+    // On an Embla row the strip and every slot glide move on the main thread, so the size box eases there too, on the same clock: run
+    // by the compositor it drew frames ahead of its neighbors' glides, and a painted frame showed a gap opening beside it.
+    const mainThread = node.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`) !== null;
+    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, transition, startMs, mainThread, () => {
       run.current = undefined;
       setGlide(null);
     });
@@ -649,18 +653,27 @@ function runSizeGlide(
   to: BoxSize,
   transition: { duration: number; ease: [number, number, number, number] },
   startTime: number,
+  mainThread: boolean,
   onLand: () => void,
 ): SizeRun {
   const property = kind === 'clip' ? 'clipPath' : 'transform';
   const heightEases = typeof from.height === 'number' && typeof to.height === 'number' && from.height !== to.height;
   const first = sizeFrame(kind, from, to, heightEases);
   const last = sizeFrame(kind, to, to, heightEases);
-  if (typeof node.animate === 'function') {
+  if (typeof node.animate === 'function' && !(mainThread && kind === 'clip')) {
     // A Web Animation, not a style written each frame: it leaves no style behind when it ends or is cancelled.
     // `startTime` can be ahead of the timeline, whose clock only moves per frame; without the backwards fill that frame shows the landing size.
-    const animation = node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards' });
+    // Kept on the main thread, the scale is added to the box's own (none) transform, which Chrome does not composite; its origin is the
+    // box's style for the run, since an added origin would sum with the base one.
+    if (mainThread) node.style.transformOrigin = '0 0';
+    const animation = mainThread
+      ? node.animate({ transform: [first, last] }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards', composite: 'add' })
+      : node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards' });
     animation.startTime = startTime;
-    animation.onfinish = onLand;
+    animation.onfinish = () => {
+      if (mainThread) node.style.transformOrigin = '';
+      onLand();
+    };
     return {
       from,
       to,
@@ -668,10 +681,11 @@ function runSizeGlide(
       stop: () => {
         animation.onfinish = null;
         animation.cancel();
+        if (mainThread) node.style.transformOrigin = '';
       },
     };
   }
-  // No Web Animations (a test DOM): the same frames written by Motion's frame loop.
+  // No Web Animations (a test DOM), or a clip kept on the main thread: the same frames written by Motion's frame loop.
   let shown = 0;
   const draw = (p: number): void => {
     shown = p;

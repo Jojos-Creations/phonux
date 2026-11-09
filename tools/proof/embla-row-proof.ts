@@ -149,6 +149,59 @@ function stillWhileMoving(fr: any[]): { moving: number; still: number; stalled: 
   return { moving: span.length, still: span.filter((x) => x.m <= 0.01).length, stalled: span.filter((x) => x.m <= 0.01 && x.wheels > 0).length, maxFramePx: +Math.max(...span.map((x) => x.m)).toFixed(1) };
 }
 
+// Presented frames: every frame the compositor hands out (CDP screencast), which can differ from what the main thread lays out.
+type Box = { left: number; width: number; top: number; bottom: number };
+let pixelPage: Page | undefined;
+// Each run of window columns (CSS px, 1 px apart) where at least 90% of the sampled rows are page magenta (`bg=1`): `at` from box.left.
+const magentaRuns = async (png: string, viewW: number, box: Box): Promise<{ at: number; w: number }[]> => {
+  if (pixelPage === undefined) {
+    pixelPage = await (await browser.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+    await pixelPage.goto('about:blank');
+  }
+  return pixelPage.evaluate(async ([b64, vw, b]: [string, number, Box]) => {
+    const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+    const c = new OffscreenCanvas(bm.width, bm.height);
+    const x = c.getContext('2d')!;
+    x.drawImage(bm, 0, 0);
+    const d = x.getImageData(0, 0, bm.width, bm.height).data;
+    const k = bm.width / vw;
+    const runs: { at: number; w: number }[] = [];
+    let start = -1;
+    for (let cx = Math.ceil(b.left); cx <= b.left + b.width; cx += 1) {
+      let mag = 0;
+      let n = 0;
+      for (let cy = b.top + 30; cy < b.bottom - 30; cy += 20) {
+        const i = (Math.round(cy * k) * bm.width + Math.round(cx * k)) * 4;
+        n += 1;
+        if (d[i]! > 240 && d[i + 1]! < 15 && d[i + 2]! > 240) mag += 1;
+      }
+      const on = cx < b.left + b.width && n > 0 && mag / n >= 0.9;
+      if (on && start < 0) start = cx;
+      if (!on && start >= 0) {
+        runs.push({ at: start - b.left, w: cx - start });
+        start = -1;
+      }
+    }
+    return runs;
+  }, [png, viewW, box] as [string, number, Box]);
+};
+const castFrames = async (page: Page): Promise<{ shots: string[]; stop: () => Promise<void> }> => {
+  const cdp = await page.context().newCDPSession(page);
+  const shots: string[] = [];
+  cdp.on('Page.screencastFrame', (f: { data: string; sessionId: number }) => {
+    shots.push(f.data);
+    void cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {});
+  });
+  await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 });
+  return { shots, stop: async () => void (await cdp.send('Page.stopScreencast')) };
+};
+// The window's box, the slots' height (the rows a band is sampled over).
+const slotBand = async (page: Page): Promise<Box> => {
+  const win = await g(page, 'win');
+  const slot = await page.evaluate(() => { const r = document.querySelector('[data-row-slot]')!.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
+  return { left: win.left, width: win.width, top: slot.top, bottom: slot.bottom };
+};
+
 async function stream(name: string, slots: string, D: number, send: (page: Page) => Promise<number>, extra = '', more?: (during: any[]) => Record<string, unknown>): Promise<Record<string, unknown>> {
   const { page, errors, close } = await open(slots, 1800, 900, extra);
   await page.mouse.move(900, 400);
@@ -1073,6 +1126,7 @@ if (ONLY.has('width') && ENGINE === 'embla') {
     return r;
   };
   const run = async (label: string, slot: number, act: (page: Page, id: (n: string) => Promise<string>) => Promise<void>, o: Omit<Parameters<typeof measure>[2], 'pitch' | 'max'> & { row?: string; before?: (page: Page) => Promise<void> }): Promise<void> => {
+    if (!want(`width.${label}`)) return;
     const { page, errors, close } = await open(o.row ?? ROW);
     if (o.before !== undefined) await o.before(page);
     else {
@@ -1148,6 +1202,33 @@ if (ONLY.has('width') && ENGINE === 'embla') {
       await sleep(1200);
     },
   });
+  // The same shrink, on presented frames (a magenta page): the size box and its neighbors' glides ease on one clock, so no painted
+  // frame shows a band between two pages wider than one gap (16 px) and a little. The run at rest is the control: it must see the gap.
+  if (want('width.shrinkAsidePresented')) {
+    const { page, errors, close } = await open('2,1,1,1,1,1,1,1', 1800, 900, '&bg=1');
+    await g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 4);
+    await sleep(1200);
+    const box = await slotBand(page);
+    const cast = await castFrames(page);
+    await g(page, 'op', 'setSlots', await g(page, 'idOf', 'p1'), 2);
+    await sleep(1300);
+    await cast.stop();
+    const widest: { k: number; at: number; w: number }[] = [];
+    for (const [k, png] of cast.shots.entries()) {
+      const runs = await magentaRuns(png, 1800, box);
+      const top = runs.reduce((a, b) => (b.w > a.w ? b : a), { at: -1, w: 0 });
+      widest.push({ k, ...top });
+    }
+    const worst = widest.reduce((a, b) => (b.w > a.w ? b : a), { k: -1, at: -1, w: 0 });
+    if (worst.k >= 0) writeFileSync(join(OUT, 'width-shrinkAside-presented-widest.png'), Buffer.from(cast.shots[worst.k]!, 'base64'));
+    const restGap = widest[widest.length - 1]?.w ?? 0;
+    const r = { shots: cast.shots.length, widestBandPx: worst.w, widestAt: worst.at, widestShot: worst.k, restGapPx: restGap, seq: widest.map((x) => x.w).join(' ') };
+    res.shrinkAsidePresented = r;
+    if (r.shots < 10 || !(restGap >= 12 && restGap <= 20)) empty.push(`width shrinkAsidePresented: ${r.shots} presented frames, the band at rest reads ${restGap} px (want the 16 px gap), so the pixels prove nothing`);
+    if (r.widestBandPx > 16 + 8) fail('shrinkAsidePresented', `a presented frame shows a band of page ${r.widestBandPx} px wide at ${r.widestAt} (frame ${r.widestShot}), want one gap (16 px) and at most 8 px more`);
+    if (errors.length > 0) fail('shrinkAsidePresented', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
   // Maximize p3 in view (rest 2: p2, p3 (2), p4), a wheel stream and an arrow key while it fills the window, then restore: nothing
   // behind it moves, the restore lands in its slot with no snap, and the view is the one it left.
   {
