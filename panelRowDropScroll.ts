@@ -7,11 +7,16 @@ import type { DragScroll } from './panelSlotContext.js';
 import { rowScrollerFor, type RowScroller, type ScrollClaim } from './rowScroller.js';
 import { stepTarget } from './scrollTargets.js';
 import { applyRowIntent, holdRow } from './rowIntents.js';
+import type { EmblaCarouselType } from 'embla-carousel';
+import { EMBLA_WINDOW_ATTRIBUTE, emblaDrawnOf, emblaOf, holdEmbla, nearestStop } from './emblaRow.js';
 
 /** A drag's hold on the row scroller: the claim, the scroll it counts from, and the frame state. */
 export interface EdgeHold {
-  scroller: RowScroller;
+  scroller: Pick<RowScroller, 'scrollLeft'>;
+  /** The element whose box bounds the bands: the row scroller, or an Embla row's window. */
   scrollerEl: HTMLElement;
+  /** The Embla row the hold moves, or null on the own row. */
+  embla: EmblaCarouselType | null;
   claim: ScrollClaim;
   startScroll: number;
   /** The slot's edge numbers when the drag locked: a configure made mid-drag must reach the next drag, not this one. */
@@ -29,13 +34,26 @@ export interface EdgeHold {
   cycleWaitMs: number;
 }
 
+/** What a drag inside `box` edge-scrolls: an Embla row's window when the row runs on Embla, else the nearest row scroller. */
+export function edgeScrollerOf(box: Element): HTMLElement | null {
+  return box.closest<HTMLElement>(`[${EMBLA_WINDOW_ATTRIBUTE}]`) ?? box.closest<HTMLElement>('[data-row-scroller]');
+}
+
+/** Where the row of `scrollerEl` (from `edgeScrollerOf`) is drawn now, in scroll px. */
+export function edgeScrollOf(scrollerEl: HTMLElement): number {
+  const embla = scrollerEl.hasAttribute(EMBLA_WINDOW_ATTRIBUTE) ? emblaOf(scrollerEl) : undefined;
+  return embla === undefined ? rowScrollerFor(scrollerEl).scrollLeft() : emblaDrawnOf(embla);
+}
+
 /** Takes the claim on `scrollerEl`'s scroller for a drag that counts its scroll from `startScroll`; null while another drag holds it. */
 export function openEdgeHold(scrollerEl: HTMLElement, startScroll: number, slot: DragScroll, keepId?: string): EdgeHold | null {
-  const scroller = rowScrollerFor(scrollerEl);
-  const claim = holdRow(scroller);
+  const embla = scrollerEl.hasAttribute(EMBLA_WINDOW_ATTRIBUTE) ? (emblaOf(scrollerEl) ?? null) : null;
+  // On Embla the hold writes where the row is drawn: the strip and the dragged box move in the same frame, so the box stays under the pointer.
+  const scroller = embla === null ? rowScrollerFor(scrollerEl) : { scrollLeft: () => emblaDrawnOf(embla) };
+  const claim = embla === null ? holdRow(scroller as RowScroller) : holdEmbla(embla);
   if (claim === null) return null;
   claim.setMaxScroll(slot.maxScroll);
-  return { scroller, scrollerEl, claim, startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false, keepId, cycleWaitMs: 0 };
+  return { scroller, scrollerEl, embla, claim, startScroll, began: { zonePx: slot.zonePx, maxPxPerSec: slot.maxPxPerSec, reducedStepMs: slot.reducedStepMs }, frame: null, lastMs: null, waitedMs: 0, stopped: false, keepId, cycleWaitMs: 0 };
 }
 
 /** One frame: scrolls the row for a pointer at `pointerX`, by speed or, under reduced motion, by a jump to the next stop after the wait. */
@@ -74,16 +92,23 @@ export function stepEdgeHold(h: EdgeHold, nowMs: number, pointerX: number, slot:
   }
 }
 
-/** Gives the claim back and returns how far the row scrolled since the hold began; a release settles on the nearest whole-panel stop when the row has stops. */
-export function endEdgeHold(h: EdgeHold, slot: DragScroll | undefined, reduceMotion: boolean, settle = true): number {
+/**
+ * Gives the claim back and returns how far the row scrolled since the hold began; a release settles on the nearest whole-panel stop
+ * when the row has stops. On Embla the row settles on its nearest stop, or with `back` (a cancelled drag) on the stop it started from.
+ */
+export function endEdgeHold(h: EdgeHold, slot: DragScroll | undefined, reduceMotion: boolean, settle = true, back = false): number {
   if (h.frame !== null) cancelAnimationFrame(h.frame);
   h.frame = null;
   const distance = h.scroller.scrollLeft() - h.startScroll;
   h.claim.release();
+  if (h.embla !== null) {
+    if (settle) h.embla.scrollTo(nearestStop(h.embla, back ? h.startScroll : h.scroller.scrollLeft()), reduceMotion);
+    return distance;
+  }
   if (settle && slot !== undefined && slot.settleStops.length > 0) {
     const at = h.scroller.scrollLeft();
     const to = slot.settleStops.reduce((best, stop) => (Math.abs(stop - at) < Math.abs(best - at) ? stop : best));
-    if (Math.abs(to - at) >= 0.5) applyRowIntent(h.scroller, { kind: 'settle', to, durationSec: slot.settleSec, instant: reduceMotion, ease: slot.settleEase });
+    if (Math.abs(to - at) >= 0.5) applyRowIntent(h.scroller as RowScroller, { kind: 'settle', to, durationSec: slot.settleSec, instant: reduceMotion, ease: slot.settleEase });
   }
   return distance;
 }

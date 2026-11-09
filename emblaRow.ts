@@ -407,6 +407,33 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
 }
 
 
+const heldRows = new WeakSet<EmblaCarouselType>();
+/**
+ * The one writer a reorder drag's edge scroll holds on an Embla row: `write` puts the row at a scroll px clamped to `[0, the bound]`
+ * and draws it there in this frame (`writeEmbla`). Null while another drag holds the row. @internal
+ */
+export function holdEmbla(embla: EmblaCarouselType): { write(left: number): number; setMaxScroll(max: number): void; release(): void } | null {
+  if (heldRows.has(embla)) return null;
+  heldRows.add(embla);
+  let max = 0;
+  return {
+    write(left) {
+      if (!heldRows.has(embla)) return 0;
+      const at = emblaDrawnOf(embla);
+      const to = Math.min(Math.max(0, left), max);
+      if (Math.abs(to - at) < 0.001) return 0;
+      writeEmbla(embla, to);
+      return to - at;
+    },
+    setMaxScroll(m) {
+      max = Math.max(0, m);
+    },
+    release() {
+      heldRows.delete(embla);
+    },
+  };
+}
+
 /**
  * Runs Embla on `windowRef` (the root) with `boxRef` (its container, the box the slots and markers sit in). Wheel and trackpad
  * come through Embla's wheel-gestures plugin, so a wheel handed in from embedded content (`feedRowWheel`) moves the row as a

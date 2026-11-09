@@ -619,9 +619,12 @@ export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHa
     props.reorder = {
       onDragEnd: (offset) => {
         const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
-        if (steps !== 0) handle.move(steps, 'person');
+        if (steps === 0) return;
+        slot.noteReorder?.();
+        handle.move(steps, 'person');
       },
       onStep: (steps) => {
+        slot.noteReorder?.();
         const answer = handle.move(steps, 'person');
         return answer.ok && answer.changed;
       },

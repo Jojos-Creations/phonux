@@ -37,7 +37,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaMarkOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMarkOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -460,10 +460,14 @@ export function PanelRow({
   // A summon, a dismiss or a step-aside of the root marks the commit that draws it with where the view rests (`markEmblaRow`).
   const mark = emblaNow === undefined ? undefined : emblaMarkOf(windowRef.current!);
   const lastMark = React.useRef(0);
+  // A person's move of a panel (a drop, an arrow key on its grab strip) noted by the slot in the task that moves it: the view stays
+  // where it is drawn instead of keeping the left-edge panel still, and the moved panel comes into view if the move took it out.
+  const reorderNote = React.useRef<{ id: string; task: object } | null>(null);
   const marked = mark !== undefined && mark.seq !== lastMark.current && lastLayout.current !== null;
   const changed = lastLayout.current !== null && (marked || lastWindow.current !== emblaWindow.width || !sameLayout(lastLayout.current, layoutNow));
   const stripMax = Math.max(0, stripPx - emblaWindow.width);
-  const keptNow = emblaNow === undefined || !changed ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
+  const reorderNow = reorderNote.current !== null && reorderNote.current.task === taskToken() && changed && !marked && lastLayout.current !== null && lastLayout.current.ids.length === layoutNow.ids.length && lastLayout.current.ids.every((id) => layoutNow.ids.includes(id)) ? reorderNote.current.id : null;
+  const keptNow = emblaNow === undefined || !changed || reorderNow !== null ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
   const keepTo = marked ? (markedScroll(mark, layoutNow, emblaWindow.width, keptNow, stripMax) ?? keptNow) : keptNow;
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
   // A change of the strip in the same window that moves the view (a page in view narrowed at the strip's end) jumps the scroll and
@@ -474,6 +478,9 @@ export function PanelRow({
   // What Embla builds its stops from: the markers and the window box. A change rebuilds them in the commit that draws it.
   const markers = onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap) : [];
   const stopsKey = `${markers.length}|${emblaWindow.width}|${phoneWidth}|${gap}`;
+  // A reorder drag's edge scroll on Embla: the window's own edges, the strip's end and its rests (a Reduce Motion hold jumps rest to rest);
+  // a strip has no hidden panels to swap in, and the release settles on Embla's nearest stop.
+  const emblaDragScroll: DragScroll = { ...dragScroll, maxScroll: stripMax, stops: emblaRests(markers, stripPx, emblaWindow.width), settleStops: [], insetLeft: 0, insetRight: 0, cycle: undefined };
   const lastStops = React.useRef<string | null>(null);
   // On Embla every panel has its slot on the strip; a parkable one far from the view draws a placeholder of its width instead of its
   // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
@@ -481,7 +488,7 @@ export function PanelRow({
   const loadedRef = React.useRef<ReadonlySet<string> | null>(null);
   // What a glide brings into view in the next frames counts as shown, so it is loaded before it enters the view, whatever the cap.
   const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: emblaWindow.width, pitch: phoneWidth + gap, gap, near: nearSlots, limit: workspaceTuning.maxLivePanels, unloadable: (id) => present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
+    loadedNear({ layout: layoutNow, scroll, windowWidth: emblaWindow.width, pitch: phoneWidth + gap, gap, near: nearSlots, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
   // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
   const loadedNow = onEmbla ? (emblaNow === undefined || marked ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow)) : null;
   loadedRef.current = loadedNow;
@@ -539,8 +546,11 @@ export function PanelRow({
           handle,
           closing: closingIds.has(p.id),
           tuning: own,
-          dragScroll,
+          dragScroll: onEmbla ? emblaDragScroll : dragScroll,
           headerButtonSlots,
+          noteReorder: () => {
+            reorderNote.current = { id: p.id, task: taskToken() };
+          },
           dragHops: (offset) => stepsFor(p, offset) !== 0,
           previewReorder: (offset) =>
             setDragging((now) => {
@@ -606,6 +616,12 @@ export function PanelRow({
     if (embla !== undefined && (keeping || restop || marked)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop, marked ? keepTo : null);
     if (embla !== undefined) lastStops.current = stopsKey;
     if (marked) lastMark.current = mark.seq;
+    if (embla !== undefined && reorderNow !== null) {
+      reorderNote.current = null;
+      const k = layoutNow.ids.indexOf(reorderNow);
+      const to = k < 0 ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
+      if (to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
+    }
     if (embla !== undefined && lastLayout.current !== null && (keeping || marked) && boxRef.current !== null) {
       // Two commits in one task (a width change, then the root it lets back beside the page) paint once: glide from what was painted.
       const shown = shownRef.current !== null && shownRef.current.task === taskToken() ? shownRef.current : { layout: lastLayout.current, drawn: drawnScrollNow };
