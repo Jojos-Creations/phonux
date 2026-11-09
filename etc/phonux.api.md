@@ -1933,6 +1933,8 @@ export type WorkspaceOptions = WorkspaceLive & {
     theme?: (mode: 'light' | 'dark') => PhonuxTheme;
     wrap?: ComponentType<WorkspaceWrapProps>;
     undoToast?: boolean;
+    rowEngine?: 'own' | 'embla';
+    rowNearSlots?: number;
 };
 
 // @public
