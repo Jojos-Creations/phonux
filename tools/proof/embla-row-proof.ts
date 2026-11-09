@@ -1612,8 +1612,15 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const movesHold = hold.slice(1).filter((f: any, k: number) => Math.abs(f.pos - hold[k].pos) > 0.01).length;
     const settleFrames = after.slice(1).filter((f: any, k: number) => Math.abs(f.pos - after[k].pos) > 0.01).length;
     const last = fr[fr.length - 1];
-    const r = { holdTravelPx: travelOf(hold), holdMovingFrames: movesHold, worstDriftPx: +driftOf(hold, 'p2', at.offset).toFixed(2), settleMovingFrames: settleFrames, rest: +last.pos.toFixed(1), restOnGrid: onGrid(last.pos, PITCH, await g(page, 'max')), orderChanges: (await g(page, 'orderChanges')) - commits0, blankFrames: fr.filter((f: any) => f.blankIn.length > 0).length };
+    // The dropped page under Reduce Motion lands at once: the frames after the release in which it is drawn somewhere new on the strip.
+    // The content (the drag box), not the size box: the slot stands at its preview rest while the content follows the pointer.
+    const p2Strip = after.filter((f: any) => f.boxX.p2 !== undefined).map((f: any) => f.boxX.p2 + f.pos);
+    const dropMovingFrames = p2Strip.slice(1).filter((x: number, k: number) => Math.abs(x - p2Strip[k]) > 0.5).length;
+    const heldFrames = hold.filter((f: any) => f.boxX.p2 !== undefined).length;
+    const r = { dropTrace: [p2Strip.length, ...p2Strip.filter((x: number, k: number) => k === 0 || Math.abs(x - p2Strip[k - 1]) > 0.01).slice(0, 6).map((x: number) => +x.toFixed(1))], heldFrames, dropMovingFrames, holdTravelPx: travelOf(hold), holdMovingFrames: movesHold, worstDriftPx: +driftOf(hold, 'p2', at.offset).toFixed(2), settleMovingFrames: settleFrames, rest: +last.pos.toFixed(1), restOnGrid: onGrid(last.pos, PITCH, await g(page, 'max')), orderChanges: (await g(page, 'orderChanges')) - commits0, blankFrames: fr.filter((f: any) => f.blankIn.length > 0).length };
     res.reduced = r;
+    if (r.heldFrames < 30) empty.push(`reorder reduced: p2's content drawn in ${r.heldFrames} hold frames, so the drift says nothing`);
+    if (r.dropMovingFrames > 2) failed.push(`reorder reduced: the dropped page moved along the strip in ${r.dropMovingFrames} frames after the release (want at once)`);
     if (!(r.holdTravelPx >= PITCH) || r.holdMovingFrames > 3 || r.worstDriftPx > 0.5 || r.settleMovingFrames > 2 || !r.restOnGrid || r.orderChanges !== 1 || r.blankFrames > 0) failed.push(`reorder reduced: hold moved ${r.holdTravelPx} px in ${r.holdMovingFrames} frames (want jumps of a slot), drift ${r.worstDriftPx} px, ${r.settleMovingFrames} frames of settle, rest ${r.rest} grid ${r.restOnGrid}, ${r.orderChanges} commits, ${r.blankFrames} blank frames`);
     if (errors.length > 0) failed.push(`reorder reduced: page errors ${errors.join(' | ')}`);
     await close();
