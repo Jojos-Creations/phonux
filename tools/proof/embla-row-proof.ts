@@ -19,6 +19,10 @@
  * settle (runs with gesture, or alone with --only settle) a mouse wheel's notches in bursts with 80/150/300/600 ms pauses, a trackpad
  *        swipe with its momentum tail (flagged and not), and a short scroll stopping just past and just before a stop: per frame, no
  *        move against the scroll, no reversal, each burst 1:1, the rest on the grid and not behind the scroll, settled within 1.8 s.
+ *        The ends (settle.end*, settle.midHand): from mid-strip on a row of 25, notch bursts into the start or the end and on past it,
+ *        by real (trusted) wheels with the hand's 1 px pointer moves or handed in; per frame the drawn row, Embla's location and
+ *        target: the row rests at the end it was scrolled into and never moves back into the strip against the scroll (the stretch
+ *        past an end and its spring back are reported, not failed: the step-aside's way back reads it).
  * resize the window 1800 > 1400 > 2300 > 1800 > 1000 at rest: the panel at the window's left edge stays there, no one-slot panel is
  *        cut in any frame, and each rest is on the grid.
  * strip  a parking row (24 parkable panels, maxLivePanels 8): every panel has its slot (the own row, the control, parks some); a wheel
@@ -796,7 +800,11 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     await sleep(2500);
     const fr = await g(page, 'stop');
     writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ order, max, startPx, end, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), loc: f.loc === null ? null : +f.loc.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
-    const moves = fr.slice(1).map((f: any, k: number) => (f.pos - fr[k].pos) * c.dir);
+    // A frame moving back against the scroll that lands inside the strip. Embla's drag stretches the row past an end and springs it
+    // back to the end (the step-aside reads that stretch toward the root as the way back), so a move back that ends at the end or
+    // past it is the stretch, reported as `pastEndPx`, and not counted.
+    const inside = (p: number): boolean => (end - p) * c.dir > 0.5;
+    const moves = fr.slice(1).map((f: any, k: number) => (inside(f.pos) ? (f.pos - fr[k].pos) * c.dir : 0));
     const back = moves.filter((m: number) => m < -0.5);
     // The first frame drawn at the end or past it (an overscroll passes it between two frames).
     const atEnd = fr.findIndex((f: any) => (f.pos - end) * c.dir >= -0.5);
@@ -818,6 +826,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       worstBackPx: +(-Math.min(0, ...moves)).toFixed(2),
       rest: +rest.toFixed(1),
       restFromEndPx: +Math.abs(rest - end).toFixed(1),
+      drawnPastEndPx: +Math.max(0, ...fr.map((f: any) => (f.pos - end) * c.dir)).toFixed(1),
       // Embla's target's largest step back against the scroll in one frame, and where it went.
       targetJump: fr.slice(1).reduce((w: [number, number], f: any, k: number) => ((fr[k].tgt - f.tgt) * c.dir < w[0] ? [+((fr[k].tgt - f.tgt) * c.dir).toFixed(1), +f.tgt.toFixed(1)] : w), [0, startPx] as [number, number]),
     };
@@ -825,7 +834,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (fr.length < 30 || atEnd < 0 && label.startsWith('end')) empty.push(`settle ${label}: the row never reached its end (${r.drawn}), so the check proves nothing`);
     if (label.startsWith('end') && r.pastEndPx < 600) empty.push(`settle ${label}: only ${r.pastEndPx} px of wheel past the end`);
     if (label.startsWith('end') && r.restFromEndPx > 0.5) failed.push(`settle ${label}: scrolled into the end at ${r.end}, rests at ${r.rest} (${r.restFromEndPx} px from it)`);
-    if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved back against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
+    if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved back into the strip against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
     if (c.rootFar === true && order[0] === 'root') empty.push(`settle ${label}: the Workspace is still the first page`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
     await close();

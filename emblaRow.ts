@@ -573,19 +573,9 @@ function endWheelRun(embla: EmblaCarouselType): void {
 }
 const liveRun = (embla: EmblaCarouselType): WheelRun | undefined =>
   wheelPressed.has(embla) && embla.internalEngine().dragHandler.pointerDown() ? wheelRuns.get(embla) : undefined;
-/**
- * Moves a wheel gesture's press to `x` (Embla's drag reads clientX) and keeps the row's wheel body on it. The press stops at the row's
- * ends: a wheel past an end moves nothing (no overscroll to spring back from), and the part past the end is not carried in the
- * plugin's offset, so a wheel turned back moves the row at once.
- */
-function wheelMove(embla: EmblaCarouselType, run: WheelRun, to: number): void {
-  const at = emblaTargetOf(embla);
-  const asked = run.x - to;
-  // Never further past an end than the press already is (a settle glide can leave it a px past): a clamp that pulled it in would
-  // move the row against the wheel.
-  const m = Math.min(Math.max(Math.min(0, at), at + asked), Math.max(emblaMaxOf(embla), at)) - at;
-  run.offset += asked - m;
-  const x = run.x - m;
+/** Moves a wheel gesture's press to `x` (Embla's drag reads clientX) and keeps the row's wheel body on it. */
+function wheelMove(embla: EmblaCarouselType, run: WheelRun, x: number): void {
+  const m = run.x - x;
   run.x = x;
   sendMouse(embla, 'mousemove', x);
   // Embla's body setters are plain closures named use*, not React hooks.
