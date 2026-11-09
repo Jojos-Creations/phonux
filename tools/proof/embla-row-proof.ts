@@ -707,6 +707,8 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     }, ['p15', 'p16', 'p17']);
     await page.screenshot({ path: join(OUT, 'summon-left.png') });
     if (awayBefore !== 'away') empty.push(`summon fromLeft: the root was ${awayBefore} before, so the check proves nothing`);
+    const savedLeft = await g(page, 'saved');
+    if (savedLeft.length > 0) fail('fromLeft', `the summon parked ${savedLeft.length} panels in the list, which is saved`);
     if (s1.rootView !== 'summoned' || s1.rootX !== 0) fail('fromLeft', `root ${s1.rootView} at x ${s1.rootX}, not summoned at 0`);
     if (s1.visibleAfter.join() !== 'root,p15,p16,p17') fail('fromLeft', `view ${s1.visibleAfter}, not root,p15,p16,p17`);
     if (s1.rootFramesMoving < 3) fail('fromLeft', `the root did not glide in (${s1.rootFramesMoving} places drawn)`);
@@ -751,6 +753,8 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     await sleep(500);
     const s2 = await step(page, 'fromRight', () => g(page, 'summon'), ['p1', 'p2', 'p3']);
     await page.screenshot({ path: join(OUT, 'summon-right.png') });
+    const savedRight = await g(page, 'saved');
+    if (savedRight.length > 0) fail('fromRight', `the summon parked ${savedRight.length} panels in the list, which is saved`);
     if (s2.rootView !== 'summoned' || s2.rootX !== 3 * PITCH || s2.visibleAfter.join() !== 'p1,p2,p3,root') fail('fromRight', `root ${s2.rootView} at ${s2.rootX}, view ${s2.visibleAfter}`);
     if (s2.rootFramesMoving < 3) fail('fromRight', `the root did not glide in (${s2.rootFramesMoving} places drawn)`);
     const d2 = await step(page, 'dismissRight', async () => {
@@ -784,11 +788,13 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (m.root !== undefined || m.p1?.x !== 0 || a.rootView !== 'away') fail('asideResize', `root ${m.root === undefined ? 'off the strip' : `at ${m.root.x}`}, p1 at ${m.p1?.x}, ${a.rootView}: the wide page is not whole`);
     const back = await step(page, 'stepBack', () => page.keyboard.press('ArrowLeft'), []);
     const mb = await shown(page);
+    if (m.root !== undefined) fail('stepBack', 'the root never stepped aside, so there was nothing to step back from');
     if (mb.root?.x !== 0 || back.rootView !== 'shown') fail('stepBack', `root at ${mb.root?.x}, ${back.rootView}: stepping back did not return it`);
     await page.setViewportSize({ width: 1800, height: 900 });
     await sleep(900);
     await page.setViewportSize({ width: 1400, height: 900 });
     await sleep(900);
+    if ((await shown(page)).root !== undefined) fail('widenBack', 'the root never stepped aside at 1400, so there was nothing to bring back');
     const w = await step(page, 'widenBack', () => page.setViewportSize({ width: 1800, height: 900 }), []);
     const mw = await shown(page);
     if (mw.root?.x !== 0 || mw.p1?.x !== PITCH) fail('widenBack', `root at ${mw.root?.x}, p1 at ${mw.p1?.x}: widening did not bring the root back beside it`);
@@ -807,6 +813,7 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (m.root !== undefined || m.p1?.x !== 0 || m.p1?.w !== 4 * PITCH - 16) fail('asideSize', `root ${m.root === undefined ? 'off the strip' : `at ${m.root.x}`}, p1 at ${m.p1?.x} ${m.p1?.w} wide: the wide page is not whole`);
     const s = await step(page, 'summonAside', () => g(page, 'summon'), []);
     const ms = await shown(page);
+    if (m.root !== undefined) fail('summonAside', 'the root never stepped aside, so the summon brought nothing back');
     if (ms.root?.x !== 0 || s.rootView !== 'summoned' || ms.p1?.x !== PITCH) fail('summonAside', `root at ${ms.root?.x}, ${s.rootView}, p1 at ${ms.p1?.x}`);
     const d = await step(page, 'dismissAside', () => g(page, 'dismiss'), []);
     const md = await shown(page);

@@ -156,10 +156,53 @@ Measured (`--only dots`, same parking row; bar drawn as the app does, clipped an
 | control: held mid-bar | 0 px |
 | dot press on p20 | glides to show it |
 
+## Step 4: Workspace summon, dismiss and step-aside
+
+On a strip the summon and the step-aside change what the row draws, never the list (`useProvidePanels`, `stripSummon` and
+`stripAside`): nothing is saved, the host's panel list keeps every panel live, and a reload shows the row as the list has it. With
+the switch off the old row's summon runs as before.
+
+- Summon (`panels.summonRoot()`, the window bar's button) with the root off to the left brings it into the far left slot; off to the
+  right, the far right slot. The panels between the root and the view, and the one in that edge's slot when it fits the slot, come
+  off the strip (`emblaSummonPlan`); a wider page there stays and moves over by the root's slot. The commit carries a mark
+  (`markEmblaRow`) that rests the view with the root at that edge, the pages in view stand still, the root glides in from one slot
+  outside the window, and the page that steps out runs its own exit from where it was drawn.
+- The same press (`dismissRoot()`) puts them back and rests the view on the page that was at that edge before; the root glides out
+  over that edge and the returning page fades in where it lands.
+- A step toward the root (an arrow key, a wheel, a drag) leaves the summon standing. Anything that carries the root wholly out of
+  the view (a scroll, a dot press) ends it: the pages come back beside the root, out of view, and the keep-still rule holds the view.
+- Step-aside: after a window or size change, when the root stands whole in the view and a page beside it is cut, cannot fit the
+  window beside it and fits alone (`emblaAsideFor`), the root comes off the strip and the view rests with that page whole. The row
+  moving toward the root (or a step key toward it at the strip's end) brings it back where it was; a window wide enough for both
+  brings it back into view beside the page; a summon draws it beside the page (which moves over), and its dismiss steps it aside
+  again. The root coming back is not itself a change that steps it aside.
+- `rootView()` on Embla: 'summoned' while a summon stands, 'away' while stepped aside or not whole in view where the row is heading.
+
+Embla internals: none new; the provider reads Embla's `target` (where a glide or drag is going), already pinned by the contract test.
+
+Measured (`embla-row-proof.ts --only summon`, 1800 x 900, 24 one-slot pages and the root, eight pages left of it, window of 4 slots;
+each check fails on 43bf248 with the switch on, 17 failures across all 13 checks, and passes now):
+
+| check | result |
+| --- | --- |
+| summon from the left, view p14..p17 | root at 0, view root,p15,p16,p17; p15..p17 move 0 px in every frame; root drawn at 35 places on its way in; list unchanged (nothing saved parked) |
+| dismiss | view p14..p17 again, 25 slots, list order as before |
+| step toward the root (ArrowLeft) | view p8,root,p15,p16; still summoned |
+| a glide carrying the root out | summon over, 25 slots, view p19..p22 where the glide went, rest on the grid, no frame jump past a slot |
+| summon from the right, view p1..p4 | root at 1218, view p1,p2,p3,root; p1..p3 move 0 px; dismiss gives p1..p4 |
+| a dot press carrying the root out | summon over, 25 slots, p20 in view |
+| window 1800 > 1400 beside a 3-slot page | root off the strip, the page whole at 0; ArrowLeft brings the root back at 0; 1400 > 1800 brings it back beside the page |
+| size pick 2 > 4 slots beside the root | root off the strip, the page whole at 0; summon: root at 0, page at 406; dismiss: aside again |
+
+Look at the screenshots (`summon-left-mid.png`, `dismiss-right-mid.png` mid-transition, and the rests): the first run of the
+left summon drew the pages leaving between the root and the view over the view for a frame (their exits were left at their old strip
+place under the jumped scroll); every leaving slot now keeps its screen place.
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
-- Workspace summon, dismiss and step-aside (step 4); maximize and animated width changes (step 5); drag to reorder and its
-  edge scroll (step 6).
+- Maximize and animated width changes (step 5); drag to reorder and its edge scroll (step 6).
+- Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, and a window one slot wide were not tried; a
+  real trackpad flick carrying the root out was not tried (the proof uses a glide and a dot press).
 - Anything that asks the old row scroller to move (`scrollOnOpen`, `revealOnScroll`, a host's `stepRow` chord, the settle after a
   hand resize) moves nothing on Embla.
 - Edge-held panels (`edgeHold`) were not tried on Embla: the old drawing pass that holds them needs the old strip.

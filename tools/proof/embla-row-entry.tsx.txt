@@ -272,6 +272,8 @@ requestAnimationFrame(frame);
   rootView: () => ws.panels.rootView(),
   // Panels by their template's name (p1.., root): the list's order, a name's engine id, and every slot drawn now with its left on
   // screen (window px) and width.
+  // What the list keeps (and saves): every panel's live flag. A summon is drawn only, so it changes none.
+  saved: () => latest.panelList.filter((p: any) => p.live === false).map((p: any) => p.id),
   order: () => latest.entries.map((e: any) => (e.id === ws.rootId ? ROOT : e.view)),
   idOf: (name: string) => (name === ROOT ? ws.rootId : latest.entries.find((e: any) => e.view === name)?.id),
   shown: () => {
