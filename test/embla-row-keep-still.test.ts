@@ -94,7 +94,7 @@ function apply(row: Row, op: Op, keep: Keep): { next: Row; touched: [number, num
     const [moved] = panels.splice(from, 1);
     panels.splice(to, 0, moved!);
     touched = [Math.min(span(from)[0], span(to)[0]), Math.max(span(from)[1], span(to)[1])];
-  } else {
+  } else if (op.kind === 'resize') {
     const at = op.at % panels.length;
     panels[at] = { ...panels[at]!, slots: op.slots };
     touched = span(at);
