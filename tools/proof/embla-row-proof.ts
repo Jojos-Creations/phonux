@@ -12,6 +12,10 @@
  * keys   ArrowRight three times, ArrowLeft once: three slots, then two.
  * change  with the row resting at slot 5: a panel left of the view resized 3 > 2 > 3 slots, moved past the view, and closed:
  *        the panel at the window's left edge stays put in every frame and no one-slot panel is cut.
+ * gesture a change while a gesture or glide holds the row (the audit's cases): a re-render with no layout change while a drag pulls
+ *        the row past its start leaves the drag going; a panel far right of the view closed or resized under a wheel stream moves
+ *        the row back no more than the stream's own settle (control: the stream alone) and loses no motion; a panel left of the
+ *        view narrowed while an arrow-key glide runs lands on the slot grid.
  * resize the window 1800 > 1400 > 2300 > 1800 > 1000 at rest: the panel at the window's left edge stays there, no one-slot panel is
  *        cut in any frame, and each rest is on the grid.
  * strip  a parking row (24 parkable panels, maxLivePanels 8): every panel has its slot (the own row, the control, parks some); a wheel
@@ -39,7 +43,7 @@ const arg = (name: string): string | undefined => {
 };
 const ENGINE = arg('engine') === 'own' ? 'own' : 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,resize,strip,dots').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots').split(','));
 mkdirSync(OUT, { recursive: true });
 
 // The slice of Playwright's Page this script uses, typed loosely.
@@ -321,6 +325,128 @@ function stripDrift(fr: any[]): { worstPx: number; unloadChanges: number; maxLoa
     }
   }
   return { worstPx: +worst.toFixed(2), unloadChanges: changes, maxLoaded: Math.max(...fr.map((f) => Object.keys(f.panels).length - 1 - f.unloaded)) };
+}
+
+if (ONLY.has('gesture') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const mixed = ROWS.mixed;
+  const frameMoves = (fr: any[]): number[] => fr.slice(1).map((f, k) => f.pos - fr[k].pos);
+  // A drag pulls the row past its start; a re-render with no layout change (viewport +2 px) must leave it there and the drag going.
+  {
+    const { page, errors, close } = await open(mixed);
+    const win = await g(page, 'win');
+    const x0 = win.left + 2 * 406 - 8;
+    await page.mouse.move(x0, 450);
+    await page.mouse.down();
+    for (let k = 1; k <= 10; k += 1) { await page.mouse.move(x0 + k * 20, 450); await nextFrame(page); }
+    await sleep(100);
+    const held = await g(page, 'pos');
+    await page.setViewportSize({ width: 1802, height: 900 });
+    await sleep(150);
+    const after = await g(page, 'pos');
+    for (let k = 11; k <= 20; k += 1) { await page.mouse.move(x0 + k * 20, 450); await nextFrame(page); }
+    await sleep(100);
+    const more = await g(page, 'pos');
+    await page.mouse.up();
+    await sleep(1200);
+    const rest = await g(page, 'pos');
+    res.overscroll = { held: +held.toFixed(1), afterRerender: +after.toFixed(1), afterMore: +more.toFixed(1), rest: +rest.toFixed(1) };
+    if (!(held < -50)) empty.push(`gesture overscroll: the drag pulled the row only to ${held}, so the check proves nothing`);
+    if (Math.abs(after - held) > 5) failed.push(`gesture overscroll: a re-render moved a pulled row from ${held.toFixed(1)} to ${after.toFixed(1)}`);
+    if (!(more < held - 50)) failed.push(`gesture overscroll: the drag stopped after the re-render (${held.toFixed(1)} > ${more.toFixed(1)})`);
+    if (Math.abs(rest) > 0.5) failed.push(`gesture overscroll: rest ${rest} after release, not 0`);
+    if (errors.length > 0) failed.push(`gesture overscroll: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  // A steady wheel; 1 s in, a change right of the view. The control is the stream alone: its settle steps back a few px.
+  const midWheel = async (label: string, act: ((page: Page) => Promise<void>) | null): Promise<{ worstBack: number; moved: number; rest: number }> => {
+    const { page, errors, close } = await open(mixed);
+    await page.mouse.move(900, 400);
+    await g(page, 'record');
+    const t0 = Date.now();
+    let acted = false;
+    while (Date.now() - t0 < 2000) {
+      await page.mouse.wheel(12, 0);
+      if (!acted && act !== null && Date.now() - t0 > 1000) { acted = true; await act(page); }
+      await sleep(16);
+    }
+    await sleep(1200);
+    const fr = await g(page, 'stop');
+    const mv = frameMoves(fr);
+    const rest = fr[fr.length - 1].pos;
+    const max = await g(page, 'max');
+    const r = { worstBack: +Math.min(0, ...mv).toFixed(2), moved: +(rest - fr[0].pos).toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, 406, max) };
+    res[label] = r;
+    if (!r.restOnGrid) failed.push(`gesture ${label}: rest ${rest} off the grid`);
+    if (errors.length > 0) failed.push(`gesture ${label}: page errors ${errors.join(' | ')}`);
+    await close();
+    return r;
+  };
+  const ctl = await midWheel('wheelControl', null);
+  if (!(ctl.moved > 300)) empty.push(`gesture: the wheel stream alone moved ${ctl.moved} px, so the mid-stream checks prove nothing`);
+  for (const [label, act] of [
+    ['wheelCloseFarRight', async (page: Page) => { const ids: string[] = await g(page, 'ids'); await g(page, 'op', 'close', ids[ids.length - 1]); }],
+    ['wheelResizeFarRight', async (page: Page) => { const ids: string[] = await g(page, 'ids'); await g(page, 'op', 'setSlots', ids[ids.length - 1], 1); }],
+  ] as const) {
+    const r = await midWheel(label, act);
+    if (r.worstBack < Math.min(ctl.worstBack, 0) - 10) failed.push(`gesture ${label}: the row jumped back ${r.worstBack} px (the stream alone: ${ctl.worstBack})`);
+    if (Math.abs(r.moved - ctl.moved) > 0.5 * 406) failed.push(`gesture ${label}: the row moved ${r.moved} px, the stream alone ${ctl.moved}: the gesture was lost`);
+  }
+  // From slot 5, a wheel stream; 1 s in, the 3-slot panel left of the view narrows to 2. The keep-still shift lands under the gesture:
+  // a panel in view moves on screen only as the stream moves it (worst frame-to-frame move), and the gesture goes on.
+  {
+    const { page, errors, close } = await open(mixed);
+    await g(page, 'jumpToSlot', 5);
+    await sleep(500);
+    const ids: string[] = await g(page, 'ids');
+    await page.mouse.move(900, 400);
+    await g(page, 'record');
+    const t0 = Date.now();
+    let acted = false;
+    while (Date.now() - t0 < 2000) {
+      await page.mouse.wheel(12, 0);
+      if (!acted && Date.now() - t0 > 1000) { acted = true; await g(page, 'op', 'setSlots', ids[2], 2); }
+      await sleep(16);
+    }
+    await sleep(1200);
+    const fr = await g(page, 'stop');
+    const watch = ids[8]!;
+    let worst = 0;
+    for (let k = 1; k < fr.length; k += 1) {
+      const a = fr[k - 1].panels[watch];
+      const b = fr[k].panels[watch];
+      if (a !== undefined && b !== undefined) worst = Math.max(worst, Math.abs(b.x - a.x));
+    }
+    const rest = fr[fr.length - 1].pos;
+    const max = await g(page, 'max');
+    res.wheelNarrowLeft = { worstScreenStepPx: +worst.toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, 406, max) };
+    if (worst > 40) failed.push(`gesture wheelNarrowLeft: a panel in view jumped ${worst.toFixed(1)} px in one frame when a panel left of the view narrowed mid-stream`);
+    if (!onGrid(rest, 406, max)) failed.push(`gesture wheelNarrowLeft: rest ${rest} off the grid`);
+    if (errors.length > 0) failed.push(`gesture wheelNarrowLeft: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  // ArrowRight from slot 5, and 120 ms into the glide narrow the 3-slot panel left of the view: the glide lands on the grid.
+  {
+    const { page, errors, close } = await open(mixed);
+    await g(page, 'jumpToSlot', 5);
+    await sleep(500);
+    const ids: string[] = await g(page, 'ids');
+    await page.mouse.click(5, 5);
+    const before = await g(page, 'pos');
+    await page.keyboard.press('ArrowRight');
+    await sleep(120);
+    const mid = await g(page, 'pos');
+    await g(page, 'op', 'setSlots', ids[2], 2);
+    await sleep(1500);
+    const rest = await g(page, 'pos');
+    const max = await g(page, 'max');
+    res.midGlide = { before: +before.toFixed(1), atChange: +mid.toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, 406, max) };
+    if (!(Math.abs(mid - before) > 5 && Math.abs(mid - before) < 400)) empty.push(`gesture midGlide: the change came at ${mid} from ${before}, not mid-glide`);
+    if (!onGrid(rest, 406, max)) failed.push(`gesture midGlide: rest ${rest} off the grid after a change mid-glide`);
+    if (errors.length > 0) failed.push(`gesture midGlide: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  out.gesture = res;
 }
 
 if (ONLY.has('strip') && ENGINE === 'embla') {

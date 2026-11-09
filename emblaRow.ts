@@ -127,15 +127,77 @@ export function keptScroll(before: StripLayout, after: StripLayout, scroll: numb
   return Math.min(Math.max(0, scroll), max);
 }
 
+/** Whether two strip layouts place the same panels at the same lefts and widths. @internal */
+export function sameLayout(a: StripLayout, b: StripLayout): boolean {
+  return a.ids.length === b.ids.length && a.ids.every((id, k) => id === b.ids[k] && Math.abs(a.lefts[k]! - b.lefts[k]!) < 0.5 && Math.abs(a.widths[k]! - b.widths[k]!) < 0.5);
+}
+
+const rebuildWaiting = new WeakSet<EmblaCarouselType>();
+/** The box width each row's Embla last built its stops at, so its resize watch rebuilds only for a change it did not hear of. */
+const builtWidth = new WeakMap<EmblaCarouselType, number>();
+const boxWidthOf = (embla: EmblaCarouselType): number => embla.containerNode().getBoundingClientRect().width;
+/** Records that `embla` built its stops at the box's width now. @internal */
+export function markEmblaBuilt(embla: EmblaCarouselType): void {
+  builtWidth.set(embla, boxWidthOf(embla));
+}
+
 /**
- * Moves the row to `px` at once and draws it in this frame: Embla's own jump lands on the next animation frame, which would show
- * one frame of the new layout at the old position. Uses Embla's internal engine, which 8.6 is pinned for.
+ * Applies a change of the strip to the row: moves it by `shift` px (the keep-still rule's answer, 0 for a change right of the
+ * view) and, when `restop`, rebuilds Embla's stops from the markers drawn now. The row stays where it is drawn, plus the shift:
+ * a glide in flight goes on to the stop nearest where it was going, and a rest stays a rest. Embla's `reInit` drops a press or
+ * wheel gesture in progress (it rebuilds the drag handler and the wheel plugin), so while one holds the row the shift is applied
+ * in place and the rebuild waits for its release (`releaseEmbla`). Shifting or keeping a position that is not a stop uses
+ * Embla's internal engine, which 8.6 is pinned for; a jump at rest to a stop uses the public `scrollTo`.
  * @internal
  */
-export function jumpEmbla(embla: EmblaCarouselType, px: number): void {
-  embla.scrollTo(nearestStop(embla, px), true);
-  writeEmbla(embla, px);
+export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boolean): void {
+  const e = embla.internalEngine();
+  if (e.dragHandler.pointerDown()) {
+    if (Math.abs(shift) > 0.01) shiftEmbla(embla, shift);
+    if (restop) rebuildWaiting.add(embla);
+    return;
+  }
+  const drawn = emblaDrawnOf(embla) + shift;
+  const target = -e.target.get() + shift;
+  const gliding = Math.abs(e.target.get() - e.location.get()) > 0.5 || Math.abs(e.location.get() - e.offsetLocation.get()) > 0.5;
+  if (restop) {
+    embla.reInit();
+    markEmblaBuilt(embla);
+  } else if (Math.abs(shift) <= 0.01) return;
+  const max = emblaMaxOf(embla);
+  const clamp = (px: number): number => Math.min(Math.max(0, px), max);
+  const stop = nearestStop(embla, clamp(gliding ? target : drawn));
+  const onStop = Math.abs(stopPx(embla, stop) - clamp(drawn)) <= 0.5;
+  if (!gliding && onStop) {
+    embla.scrollTo(stop, true);
+    return;
+  }
+  writeEmbla(embla, clamp(drawn));
+  embla.scrollTo(stop);
 }
+
+/** A gesture that held the row let go: runs the rebuild a strip change made wait (see `moveEmbla`). @internal */
+export function releaseEmbla(embla: EmblaCarouselType): void {
+  if (!rebuildWaiting.delete(embla)) return;
+  moveEmbla(embla, 0, true);
+}
+
+/** Moves every position Embla keeps by `shift` scroll px, so a drag, wheel gesture or glide in flight goes on from there. */
+function shiftEmbla(embla: EmblaCarouselType, shift: number): void {
+  const e = embla.internalEngine();
+  for (const v of [e.location, e.previousLocation, e.offsetLocation, e.target]) v.set(v.get() - shift);
+  e.translate.to(e.offsetLocation.get());
+  notifyEmblaRows();
+}
+
+/** The row's furthest rest in scroll px, from Embla's stops. @internal */
+export function emblaMaxOf(embla: EmblaCarouselType): number {
+  const snaps = embla.internalEngine().scrollSnaps;
+  return snaps.length === 0 ? 0 : Math.max(0, ...snaps.map((x) => -x));
+}
+
+/** Stop `k`'s place in scroll px. */
+const stopPx = (embla: EmblaCarouselType, k: number): number => -(embla.internalEngine().scrollSnaps[k] ?? 0);
 
 /**
  * Whether a press may start a drag of the row. A wheel gesture arrives as Embla's own untrusted mouse events and always may.
@@ -160,6 +222,14 @@ export function emblaRowOptions(): EmblaOptionsType {
     skipSnaps: true,
     dragThreshold: 4,
     watchDrag: (_api, event) => pressStartsRowDrag(event),
+    // The row rebuilds Embla itself (`moveEmbla`) when the markers or the window change: Embla's own watchers would rebuild on every
+    // slot and drop-gap change in the box, back to the selected stop, dropping a gesture in progress.
+    watchSlides: false,
+    // A size change of the window box Embla did not hear about from the row (a row shown after it was hidden) rebuilds the same way.
+    watchResize: (api) => {
+      if (Math.abs(boxWidthOf(api) - (builtWidth.get(api) ?? -1)) >= 0.5) moveEmbla(api, 0, true);
+      return false;
+    },
   };
 }
 
@@ -334,7 +404,8 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     win.addEventListener('wheel', onWheel, { passive: true });
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box }, [WheelGesturesPlugin({ target: win })]);
     instances.set(win, embla);
-    embla.on('scroll', notifyEmblaRows).on('settle', notifyEmblaRows).on('reInit', notifyEmblaRows);
+    markEmblaBuilt(embla);
+    embla.on('scroll', notifyEmblaRows).on('settle', notifyEmblaRows).on('reInit', notifyEmblaRows).on('pointerUp', releaseEmbla);
     notifyEmblaRows();
     const doc = win.ownerDocument;
     const view = doc.defaultView ?? window;

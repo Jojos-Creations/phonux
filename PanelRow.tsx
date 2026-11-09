@@ -35,7 +35,7 @@ import { restTranslate } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaDrawnOf, emblaOf, emblaScrollOf, emblaWindowOf, jumpEmbla, keptScroll, loadedNear, publishEmblaStrip, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaDrawnOf, emblaOf, emblaScrollOf, emblaWindowOf, keptScroll, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -390,10 +390,18 @@ export function PanelRow({
   const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);
   const layoutNow: StripLayout = { ids: present.map((p) => p.id), lefts: leftOffsets, widths };
   const lastLayout = React.useRef<StripLayout | null>(null);
+  const lastWindow = React.useRef<number | null>(null);
   const emblaNow = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
   const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
-  const keepTo = emblaNow === undefined || lastLayout.current === null ? scrollNow : keptScroll(lastLayout.current, layoutNow, scrollNow, Math.max(0, stripPx - emblaWindow.width));
+  // Only a render that changed the strip or the window keeps the view: any other one (a pulled-past-the-end drag included, which
+  // the clamp would snap back) leaves the row where it is.
+  const changed = lastLayout.current !== null && (lastWindow.current !== emblaWindow.width || !sameLayout(lastLayout.current, layoutNow));
+  const keepTo = emblaNow === undefined || !changed ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, Math.max(0, stripPx - emblaWindow.width));
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
+  // What Embla builds its stops from: the markers and the window box. A change rebuilds them in the commit that draws it.
+  const markers = onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap) : [];
+  const stopsKey = `${markers.length}|${emblaWindow.width}|${phoneWidth}|${gap}`;
+  const lastStops = React.useRef<string | null>(null);
   // On Embla every panel has its slot on the strip; a parkable one far from the view draws a placeholder of its width instead of its
   // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
   const nearSlots = React.useContext(RowNearContext);
@@ -515,12 +523,13 @@ export function PanelRow({
   useEmblaRow(windowRef, boxRef, onEmbla, workspaceTuning.gestureQuietMs);
   React.useLayoutEffect(() => {
     const embla = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
-    if (embla !== undefined && keeping) {
-      // The markers changed in this commit: Embla rebuilds its stops from them before the jump lands on one.
-      embla.reInit();
-      jumpEmbla(embla, keepTo);
-    }
+    const restop = lastStops.current !== null && lastStops.current !== stopsKey;
+    // The markers or the window changed in this commit: Embla rebuilds its stops from them, and the row keeps the view (a shift)
+    // from where it is drawn, a glide in flight included.
+    if (embla !== undefined && (keeping || restop)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop);
+    if (embla !== undefined) lastStops.current = stopsKey;
     lastLayout.current = layoutNow;
+    lastWindow.current = emblaWindow.width;
     if (onEmbla && windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap });
   });
   const box = (
@@ -544,7 +553,7 @@ export function PanelRow({
         width: onEmbla ? emblaWindow.width : stripPx,
       }}
     >
-      {onEmbla ? slotMarkerLefts(stripPx, phoneWidth, gap).map((left) => <div key={left} aria-hidden {...{ [EMBLA_SLOT_ATTRIBUTE]: left }} style={{ position: 'absolute', top: 0, left, width: phoneWidth, height: 0, pointerEvents: 'none' }} />) : null}
+      {onEmbla ? markers.map((left) => <div key={left} aria-hidden {...{ [EMBLA_SLOT_ATTRIBUTE]: left }} style={{ position: 'absolute', top: 0, left, width: phoneWidth, height: 0, pointerEvents: 'none' }} />) : null}
       {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
       <SlotRanksContext.Provider value={slotRanks}>
       <AnimatePresence initial={false}>
