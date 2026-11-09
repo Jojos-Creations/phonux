@@ -899,16 +899,16 @@ coast makes depend on the row's speed).
 The checks: every settle case rests on the first stop ahead of the travel plus the coast (read from the row,
 `emblaWheelLanding`); a fast case coasts at least 200 px and, on the frames alone, rests at least a stop past the one its travel would
 rest on without the coast; a slow or trackpad case coasts 0; slow notches travel exactly 0.5 px a wheel px from the start; a burst
-starting while the row glides keeps its speed (the mean of the two frames after its first wheel at least 0.6 of the two before, less
-3 px) and does not lurch (at most 1.5 of it plus 12 px, or the spin's own fastest held frame). The wheel, feed and strip streams'
+starting during a coast keeps its speed (the mean of the three frames after its first wheel at least 0.6 of the three before, less
+3 px, when those three are the coast's own) and does not lurch (at most 1.5 of it plus 12 px, or the spin's own fastest held frame). The wheel, feed and strip streams'
 speed checks read 0.5-1.75 instead of 1:1, and a faster stream must move further per px on every row.
 
 Mutants:
 
 - Fling disabled (`feelWheel` answers coast 0, the early end kept): spin, spinResumed and notch150 fail on both the coast and the
   frames-only check (spin rests at 812, the stop its travel of 678 rests on); endFling proves nothing (its coast never passes the end).
-- No speed carried into a resumed wheel (the glide stopped where drawn, as before): spinResumed fails, 96 px a frame before the
-  second spin's first wheel, 53 after. notch150 passes under it, as it may: its bursts resume a slower glide.
+- No speed carried into a resumed wheel (the glide stopped where drawn, as before): spinResumed fails, 84.5 px a frame before the
+  second spin's first wheel, 8.9 after (three-frame means). notch150 passes under it, as it may: its bursts resume a slower glide.
 
 What this costs: the row moves less per slow notch than at 0.65 (0.5); a quick flick of a few notches now coasts a page or more; the
 early end means a pause of more than 50-120 ms inside a fast spin starts the coast, and the next wheel picks it up at its speed.

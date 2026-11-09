@@ -672,7 +672,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     // A burst that starts while the settle glides (a pause longer than the hold) carries up to a frame of that glide; it is reported,
     // and checked only for moving one way.
     // A burst that starts while the row still moves (a coast) must take it on without a jump: the row's speed over the three frames
-    // after the burst's first wheel against the three before (three, as Embla's fixed steps land 0 or 2 in some frames). A stop where drawn drops
+    // after the burst's first wheel against the three before (three, as Embla's fixed steps land 0 or 2 in some frames), when those
+    // three are the coast's own (not held: a burst 80 ms after the last starts in the dip before the coast, which is not a resume). A stop where drawn drops
     // it to what one wheel gives from rest; a lurch to the coast's target trebles it.
     let k0 = 0;
     const ratios: number[] = [];
@@ -688,7 +689,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       const k = fr.indexOf(before);
       if (k > 0 && Math.abs(before.pos - fr[k - 1].pos) > 0.5) {
         fromGlide.push(ratios.length);
-        if (k > 2 && fr[k + 3] !== undefined) resumed.push([+((before.pos - fr[k - 3].pos) / 3).toFixed(1), +((fr[k + 3].pos - before.pos) / 3).toFixed(1)]);
+        if (k > 2 && fr[k + 3] !== undefined && [0, 1, 2].every((j) => !fr[k - j].held)) resumed.push([+((before.pos - fr[k - 3].pos) / 3).toFixed(1), +((fr[k + 3].pos - before.pos) / 3).toFixed(1)]);
       }
       ratios.push(+((after.pos - before.pos) / grp.reduce((n, [, d]) => n + d, 0)).toFixed(3));
     }
