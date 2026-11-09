@@ -21,7 +21,8 @@ What the switch does (`emblaRow.ts`, and a branch each in `Workspace.tsx` and `P
   as its slides: every slot edge is a stop, a wide panel's inner ones included (`align: 'start'`, `containScroll:
   'trimSnaps'`, `skipSnaps: true`).
 - Wheel and trackpad: the wheel-gestures plugin on the window. A wheel handed in by `feedRowWheel` bubbles to the same listener,
-  so it moves the row like a wheel over it; it returns true for a sideways wheel and false for a vertical one. Option held at a
+  so it moves the row like a wheel over it; it returns true for a sideways wheel and false for a vertical one. A pause or a stop is
+  settled by the row, not the plugin ("A wheel that pauses or stops", below). Option held at a
   gesture's first event leaves the whole gesture to the content (a listener registered before the plugin's stops it).
 - Pointer drag: Embla's own. A mouse press starts one only on the row's surface (a gap, not a panel), so a panel's text,
   controls and header grab keep the mouse; a touch starts one anywhere but on a control, an editable field or a frame.
@@ -526,6 +527,68 @@ the grid in every run), so no separate settle is needed; a hand resize itself is
 
 Not done: a presented-frame pixel check that fails when the summon's leaving-page clip is removed (the screenshots remain the only
 evidence that the root slides beside the cut page, not over it).
+
+## A wheel that pauses or stops (the owner's wiggle and drag-back)
+
+Owner's report, after trying the app: "Scrolling has a wiggle/drag back effect when as i scroll the wheel when I lift my finger to
+reposition it and when stop scrolling altoghether".
+
+Cause, read off per-frame traces (`--only settle`, each case's frames in `settle-<case>-frames.json`):
+
+- The wheel-gestures plugin ends its gesture at any pause of about 100-170 ms (its end timer is about twice the gap between wheels,
+  at least 100 ms), so a finger lifted to reposition ends it, and in Chromium 151 it also ends at the first event flagged
+  `WheelEvent.momentum` (a trackpad's lift). Its untrusted mouseup is Embla's drag release: Embla picks the stop nearest the drag's
+  target plus a flick guess from the last 170 ms. On a trackpad swipe stopped at 121 px that stop is 0, so the row glided back 24 px
+  (7.5 px in one frame) until the next swipe pressed again and turned it forward: the drag-back, then the wiggle. On mouse-wheel bursts
+  the flick guess threw the row ahead instead (1,200 px of notches rested at 1,624 or 2,030 px).
+- Embla's drag body (friction 0.3, duration 0.75) is an underdamped spring: at the end of every burst it ran 1-2 px past the wheel and
+  came back, 10-15 backward frames per run.
+
+The old row never had this (Joe recalled a similar fix there): its gesture (`useRowScrollGesture`) asks for steps in the direction of
+travel only, one stop ahead per step, a step mid-glide retargets the glide in flight, and travel against the gesture under a quarter
+step (a momentum tail's flicker) is not a reversal. The half-step commits (`8e9e9e0`, `5802c60`) concern where a dot click or a step
+rests, not the wheel. The same rule now holds on Embla:
+
+- One wheel gesture is one press of Embla's drag, from its first wheel until the wheel has been idle `WHEEL_IDLE_MS` (500 ms,
+  Chromium's own mouse-wheel transaction, `kDefaultMouseWheelLatchingTransaction`: a wheel that soon after the last one is the same
+  scroll). The plugin's own release is held back, its next press continues the same drag from where Embla last read it, and a
+  momentum tail it drops after its momentum release moves the row by each event's delta, short of the row's ends. No study of how long
+  a finger takes to reposition on a wheel was found; a pause longer than 500 ms settles and the next burst continues from the drawn
+  position.
+- At idle the release rests on the first stop not behind the travel (`stopAhead`; on a stop within half a px it stays). The direction
+  turns only after 8 px of travel against it.
+- While a wheel drives it, Embla's body is critically damped (friction 0.1, duration 0.22): it trails the wheel by no more than the old
+  spring did (33 px in a 40 px-per-30 ms burst, modelled) and never overshoots.
+- A key step during the hold ends it where the row is drawn and steps from there, as a press already did. Keyboard, dot bar, mouse drag
+  and summon settles are unchanged.
+
+Measured (`--only settle`, narrow row, pitch 406; wheels handed in on their own timers, a trackpad's one per frame; per frame, backward =
+a frame moving more than 0.5 px against the scroll):
+
+| case | 1529ed3: backward frames / px (worst frame), reversals, rest, settle | now |
+| --- | --- | --- |
+| notches 6 x 40 px, 80 ms pauses, x5 | 6 / 6.0 (1.6), 6, 1218, 435 ms | 0 / 0, 0, 1218, 1066 ms |
+| 150 ms pauses | 12 / 10.7 (1.2), 10, 1624 (input 1200), 1097 ms | 0 / 0, 0, 1218, 1035 ms |
+| 300 ms pauses | 15 / 11.6 (1.0), 10, 2030, 1062 ms; bursts 1.09-1.13 px/px | 0 / 0, 0, 1218, 1056 ms; bursts 0.99-1.00 |
+| 600 ms pauses | 13 / 10.9 (1.2), 10, 2030, 745 ms | 0 / 0, 0, 1624, 1361 ms |
+| trackpad, momentum flagged | 5 / 24.2 (7.5), 2, 406 | 0 / 0, 0, 812, 1466 ms; tail 1:1 (1.001) |
+| trackpad, tail not flagged | 5 / 23.3 (7.2), 2, 406 | 0 / 0, 0, 812, 1466 ms |
+| 440 px, just past 406 | 4 / 4.5 (1.7), 2, 812 | 0 / 0, 0, 812, 1450 ms |
+| 360 px, just before 406 | 3 / 2.8 (1.2), 2, 406 | 0 / 0, 0, 406, 1191 ms |
+
+Every case fails at 1529ed3 on its backward frames and reversals. Each burst that starts from a standing row moves 0.99-1.02 px per
+input px now; a burst that starts while the settle glides (600 ms pauses) carries up to a frame of that glide and is checked only for
+moving one way. The rest-behind and settle-time (1.8 s) checks are guards the tip also passes. Mutant (the release rests on the nearest
+stop, `stopAhead(…, 0)`): 4 of 8 cases fail: just past (29.8 px back, rests 406), 600 ms pauses (121.3 px back, 11.8 px in one frame), both trackpads
+(9.1 px back, rest 406); the four whose nearest stop is ahead anyway pass, as they should under that mutant.
+
+What this costs: the row now holds still, off the grid, for 500 ms after the last wheel before it settles, and a scroll that stops just
+past a stop goes on to the next one (440 px rests at 812, 372 px further), because a stop behind is ruled out; settles take 1.0-1.5 s
+after the last wheel (0.4-1.1 s at the tip, which settled sooner by settling backward).
+
+Not covered: a real mouse wheel and a real trackpad (headless takes only synthetic wheels: the streams are shaped, not recorded),
+Safari, where the plugin guesses a momentum tail from its deceleration (in Chromium 151 every wheel carries a `momentum` flag, so that guess never runs here; the unflagged case is a tail the plugin passes as plain wheels), a horizontal
+tilt wheel's own cadence, and the gap a real finger reposition takes.
 
 ## Not done yet (still on the old row, or not working on Embla yet)
 

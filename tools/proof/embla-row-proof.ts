@@ -16,6 +16,9 @@
  *        the row past its start leaves the drag going; a panel far right of the view closed or resized under a wheel stream moves
  *        the row back no more than the stream's own settle (control: the stream alone) and loses no motion; a panel left of the
  *        view narrowed while an arrow-key glide runs lands on the slot grid.
+ * settle (runs with gesture, or alone with --only settle) a mouse wheel's notches in bursts with 80/150/300/600 ms pauses, a trackpad
+ *        swipe with its momentum tail (flagged and not), and a short scroll stopping just past and just before a stop: per frame, no
+ *        move against the scroll, no reversal, each burst 1:1, the rest on the grid and not behind the scroll, settled within 1.8 s.
  * resize the window 1800 > 1400 > 2300 > 1800 > 1000 at rest: the panel at the window's left edge stays there, no one-slot panel is
  *        cut in any frame, and each rest is on the grid.
  * strip  a parking row (24 parkable panels, maxLivePanels 8): every panel has its slot (the own row, the control, parks some); a wheel
