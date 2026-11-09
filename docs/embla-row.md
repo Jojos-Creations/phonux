@@ -128,8 +128,8 @@ The "unregistered view" defect this step shipped with was the proof page, and a 
 workspace without `mount: false`, so the library's auto mount rendered a second row; its `useProvidePanels` called the workspace's
 `observe` with the root alone during its render, then failed to attach (`already-attached`, reported to `onError`, not a page
 error). That list replaced the attached row's, so the next `PanelRow` render (the first unload's) found no handle for any panel;
-views drawn before kept theirs, which is why nothing broke with nothing unloaded or on a row that never re-rendered. `observe` now
-takes the attach token and ignores a hook while another holds the workspace (`test/workspace-lifecycle.test.ts`: fails on 4af3f06,
+views drawn before kept theirs, which is why nothing broke with nothing unloaded or on a row that never re-rendered. `useProvidePanels`
+now skips `observe` while another hook holds the workspace (`heldByOther`; a test harness that draws its own list still observes) (`test/workspace-lifecycle.test.ts`: fails on 4af3f06,
 passes now), and the page passes `mount: false`, as the app does. The app was not affected (it passes `mount: false`).
 
 Measured after the fix (`--only strip`): near p2 keeps its state (count 7, 1 mount) at slot 4; far at slot 12, unloaded; back at
