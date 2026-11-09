@@ -11,6 +11,7 @@ import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
 import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
+import { feelWheel, type WheelFeel } from './emblaWheelFeel.js';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
 import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
@@ -521,18 +522,22 @@ const WHEEL_AGAINST_PX = 8;
  */
 const WHEEL_FRICTION = 0.1;
 const WHEEL_DURATION = 0.22;
-/** Row px per wheel px: the owner found the row at 1:1 a bit fast (2026-11-09). */
-const WHEEL_SPEED = 0.65;
 /**
- * A wheel gesture driving the row: its direction of travel (scroll px sign), travel against it, its idle wait, and the wheel's target
- * kept across a release Embla runs with no press of its own.
+ * A wheel gesture driving the row: its direction of travel (scroll px sign), travel against it, its wait for the wheel to stop, the
+ * coast its last wheel leaves (emblaWheelFeel.ts), and the wheel's target kept across a release Embla runs with no press of its own.
  */
 interface WheelRun {
   dir: number;
   against: number;
   idle: ReturnType<typeof setTimeout> | null;
+  coast: number;
   keep: number | null;
 }
+/** Each row's last `RATE_MS` of wheels, kept across gestures, so a spin that pauses for a frame too long goes on at its own speed. */
+const wheelFeels = new WeakMap<EmblaCarouselType, WheelFeel>();
+/** Where each row's last wheel gesture landed from, in scroll px: the wheel's travel and the coast past it. @internal */
+const wheelLandings = new WeakMap<EmblaCarouselType, { travel: number; coast: number }>();
+export const emblaWheelLanding = (embla: EmblaCarouselType): { travel: number; coast: number } | undefined => wheelLandings.get(embla);
 /**
  * The wheel gesture on each row. A wheel moves Embla's target directly, with no press: Embla's drag listens on the document only
  * from a press, so no input but the wheel reaches the row during a gesture (a press of Embla's held open through the gesture let a
@@ -554,22 +559,32 @@ function setWheelBody(embla: EmblaCarouselType): void {
   setDuration(WHEEL_DURATION);
 }
 /**
- * One wheel of a gesture on the row `embla` moves: `by` scroll px (sideways, already normalized). The first one starts the gesture
- * where the row is drawn (a glide in flight stops there, as a press stopped it). The target stops flat at the row's ends (owner
- * ruling 2026-11-09, "just stop"): no stretch past them and no spring back. Every wheel restarts the idle wait.
+ * One wheel of a gesture on the row `embla`: `px` scroll px (sideways, already normalized), `momentum` when the browser flags it as a
+ * trackpad's momentum. The wheel's speed sets how far it moves the row (`feelWheel`). The first wheel starts the gesture where the row
+ * is drawn: a glide going the wheel's way (a coast) keeps its speed, any other stops there, as a press stopped it. The target stops
+ * flat at the row's ends (owner ruling 2026-11-09, "just stop"): no stretch past them and no spring back. Every wheel restarts the wait
+ * for the wheel to stop: short after a fast spin, which then coasts, `WHEEL_IDLE_MS` otherwise.
  */
-function wheelBy(embla: EmblaCarouselType, by: number): void {
+function wheelBy(embla: EmblaCarouselType, px: number, momentum: boolean): void {
   const e = embla.internalEngine();
+  const feel = wheelFeels.get(embla) ?? [];
+  wheelFeels.set(embla, feel);
+  const { row: by, coast, quietMs } = feelWheel(feel, performance.now(), px, momentum);
   let run = wheelRuns.get(embla);
   if (run === undefined) {
-    writeEmbla(embla, emblaDrawnOf(embla));
+    const speed = -e.scrollBody.velocity();
+    const at = emblaDrawnOf(embla);
+    writeEmbla(embla, at);
     // An instant step with the target on the location zeroes the glide's speed, so the wheel body starts from rest.
     e.scrollBody.seek();
-    run = { dir: 0, against: 0, idle: null, keep: null };
+    // A lead of speed * duration / friction gives the wheel body that speed on its next step.
+    if (speed * by > 0) e.target.set(-Math.min(Math.max(0, at + (speed * WHEEL_DURATION) / WHEEL_FRICTION), emblaMaxOf(embla)));
+    run = { dir: 0, against: 0, idle: null, coast: 0, keep: null };
     wheelRuns.set(embla, run);
   }
   if (run.idle !== null) clearTimeout(run.idle);
-  run.idle = setTimeout(() => settleWheelRun(embla), WHEEL_IDLE_MS);
+  run.coast = coast;
+  run.idle = setTimeout(() => settleWheelRun(embla), quietMs ?? WHEEL_IDLE_MS);
   setWheelBody(embla);
   const from = emblaTargetOf(embla);
   const m = Math.min(Math.max(0, from + by), emblaMaxOf(embla)) - from;
@@ -615,7 +630,10 @@ export function stopAhead(stops: readonly number[], from: number, dir: number): 
   const ahead = dir > 0 ? order.find((k) => stops[k]! >= from - 0.5) : [...order].reverse().find((k) => stops[k]! <= from + 0.5);
   return ahead ?? (dir > 0 ? order[order.length - 1]! : order[0]!);
 }
-/** Ends a wheel gesture that has been idle `WHEEL_IDLE_MS`: settles on the stop ahead of the travel, then runs what waited for it. */
+/**
+ * Ends a wheel gesture once the wheel has stopped: coasts on past the travel by the coast its last wheel left (0 after a slow wheel)
+ * and lands on the first stop ahead, in one glide of Embla's own body, then runs what waited for it.
+ */
 function settleWheelRun(embla: EmblaCarouselType): void {
   const run = endWheelRun(embla);
   if (run === undefined) return;
@@ -623,7 +641,8 @@ function settleWheelRun(embla: EmblaCarouselType): void {
   const drawn = emblaDrawnOf(embla);
   const from = run.dir > 0 ? Math.max(target, drawn) : run.dir < 0 ? Math.min(target, drawn) : target;
   const stops = embla.internalEngine().scrollSnaps.map((x) => -x);
-  embla.scrollTo(stopAhead(stops, Math.min(Math.max(0, from), emblaMaxOf(embla)), run.dir), reducedRows.has(embla));
+  wheelLandings.set(embla, { travel: from, coast: run.coast });
+  embla.scrollTo(stopAhead(stops, Math.min(Math.max(0, from + run.coast), emblaMaxOf(embla)), run.dir), reducedRows.has(embla));
   releaseEmbla(embla);
   runFreeWaiting(embla);
 }
@@ -699,12 +718,12 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       wheels.feedWheel(e);
     };
     // A gesture starts on a sideways wheel that is not a momentum tail (as the plugin started one), and not under a person's drag of
-    // the row; from then on every wheel moves the row by its sideways delta until the wheel has been idle WHEEL_IDLE_MS.
+    // the row; from then on every wheel moves the row by its sideways delta until the wheel stops.
     const offWheels = wheels.on('wheel', (s) => {
       if (s.isEnding || embla.internalEngine().dragHandler.pointerDown()) return;
       const [dx, dy] = s.axisDelta;
       if (!wheelRuns.has(embla) && (s.isMomentum || Math.abs(dx) <= Math.abs(dy))) return;
-      wheelBy(embla, dx * WHEEL_SPEED);
+      wheelBy(embla, dx, s.isMomentum);
     });
     win.addEventListener('wheel', onWheel, { passive: false });
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box });

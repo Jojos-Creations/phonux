@@ -44,7 +44,7 @@ test('embla internals: the engine members the row reads and writes are there, wi
       assert.equal(v.get(), -12, `${name} keeps what it is set to`);
     }
     assert.equal(typeof e.translate.to, 'function', 'translate.to');
-    for (const name of ['useDuration', 'useFriction', 'useBaseDuration', 'useBaseFriction', 'seek'] as const) assert.equal(typeof e.scrollBody[name], 'function', `scrollBody.${name}`);
+    for (const name of ['useDuration', 'useFriction', 'useBaseDuration', 'useBaseFriction', 'seek', 'velocity'] as const) assert.equal(typeof e.scrollBody[name], 'function', `scrollBody.${name}`);
     assert.ok(Array.isArray(e.scrollSnaps), 'scrollSnaps is an array');
     assert.equal(typeof e.dragHandler.pointerDown, 'function', 'dragHandler.pointerDown');
     assert.equal(e.dragHandler.pointerDown(), false, 'no press: pointerDown is false');

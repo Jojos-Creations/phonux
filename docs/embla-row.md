@@ -750,10 +750,11 @@ How it works now (emblaRow.ts, `wheelBy`, `settleWheelRun`, `endEmblaWheel`):
   is dropped. It turned the wheel into a synthetic mouse drag, the press this section removes. `wheel-gestures` is its MIT
   normalizer, by the same author, and was already installed under it.
 - A gesture starts on a sideways wheel that is not a momentum tail, as the plugin started one, and not under a person's drag of the
-  row. Its first wheel stops a glide where the row is drawn, as the press did. Each wheel adds its delta to Embla's target with the
-  critically damped body (friction 0.1, duration 0.22) and starts Embla's animation.
+  row. Its first wheel stops a glide where the row is drawn, as the press did (since the coast below, a glide going the wheel's way
+  keeps its speed). Each wheel adds its delta (through the speed curve below) to Embla's target with the critically damped body
+  (friction 0.1, duration 0.22) and starts Embla's animation.
 - While a gesture runs the row is held: `moveEmbla` shifts it in place and its rebuild waits, and `whenEmblaFree` waits. At 500 ms
-  idle it rests on `stopAhead` (never behind the travel; the direction turns only after 8 px against it). The rebuild and whatever
+  idle (sooner after a fast spin, which coasts: below) it rests on `stopAhead` (never behind the travel; the direction turns only after 8 px against it). The rebuild and whatever
   waited then run.
 - Embla's drag adds its document listeners only at a press. So during a gesture no mouse move, release, click or touch reaches
   Embla. Embla's root still runs its release on `contextmenu` and `touchcancel` with no press. A capture listener keeps the wheel's
@@ -830,6 +831,103 @@ Not covered:
 - A touch on the row during a gesture: it is a press, which stops the row by design.
 - A Ctrl+click on macOS: a primary press that opens a menu, which ends the gesture like any press.
 - Safari.
+
+## Wheel speed and the coast after a fast spin
+
+Owner's ask (2026-11-09): a quick spin of the wheel keeps gliding for a moment after the wheel stops, and moves further per notch;
+slow notches move less and stop exactly where they leave the row. It replaces the flat 0.65 (`WHEEL_SPEED`, 692c238).
+
+The wheel path, top to bottom (emblaRow.ts `wheelBy` and `settleWheelRun`, emblaWheelFeel.ts `feelWheel`):
+
+1. wheel: `wheels.on('wheel')` hands each sideways wheel and its momentum flag to `wheelBy`.
+2. speed: `feelWheel` reads the wheel's rate over the last 100 ms and answers the row px (the curve) and, should this wheel be the
+   last, the coast and how long the wheel must be quiet before it starts.
+3. target: the row px go on Embla's target with the wheel body, clamped flat at the ends, as before.
+4. at the gesture's end: after a fast spin the wheel is quiet for twice the spin's own gap (50-120 ms); otherwise 500 ms as before.
+5. land: `settleWheelRun` adds the coast to the travel and glides to the first stop ahead of the sum, clamped to the ends, in one glide
+   of Embla's own body. A slow wheel's coast is 0, so it rests where it did.
+
+The knobs (emblaWheelFeel.ts, at the top; rates in wheel px per ms, a macOS mouse notch in Chromium is 40 px):
+
+| knob | value | what it feels like |
+| --- | --- | --- |
+| `RATE_MS` | 100 | how far back the speed is read: three or four notches of a spin |
+| `SLOW_SPEED`, `SLOW_RATE` | 0.5 at 0.5 | a notch every 100 ms or slower moves 20 px, about a twentieth of a page |
+| `FAST_SPEED`, `FAST_RATE` | 1.75 at 2.5 | a notch every 16 ms moves 70 px; between the two the speed rises in a straight line |
+| `COAST_MIN_RATE` | 1 row px/ms | the row must be moving about 2.5 pages a second when the wheel stops for it to coast |
+| `COAST_MS` | 300 | the coast is 300 ms of the row's speed: a spin of a notch every 30 ms coasts about 540 px, a page and a third |
+| `COAST_QUIET_MIN_MS`, `_MAX_MS` | 50, 120 | how soon a stopped spin starts its coast; the floor lets a trackpad's momentum arrive first |
+
+Which feel it matches: Embla's own release of a drag, which the plugin-era wheel went through (before 8145b77): the plugin's untrusted
+`mouseup` ran `DragHandler.up`, which throws the row its pointer speed times 300 ms (the mouse `forceBoost`; halved once the drag
+had passed a stop, `skipSnaps`) and glides there on Embla's body. That threw notch bursts a stop or two ahead (1,200 px of notches rested at 1,624 or 2,030 px, section "A wheel that
+pauses or stops"). The coast here is the same throw, with the press gone and the stop ahead instead of the nearest. The old row
+(f09f8cd, `useRowScrollGesture`) had no coast for a mouse wheel: each notch after a pause stepped one whole stop.
+
+A trackpad: no coast is added to a gesture that had a wheel flagged `isMomentum` (wheel-gestures' state: Chromium's
+`WheelEvent.momentum`, or its own guess from deceleration where the browser does not flag it) in the last 100 ms. A swipe lifted
+while moving is followed by the browser's momentum wheels within a frame or two, inside the 50 ms floor, and those are its coast. A
+tail the browser does not flag and the plugin does not guess decays to under a px a frame, under the coast's speed, so it adds none
+either. The curve applies to a trackpad's wheels too: a slow finger moves the row about 0.5-0.7 px a px.
+
+A wheel during a coast: the coast is an ordinary glide of Embla's, so a press, a key, a dot or a focus takes the row from where it is
+drawn, as from any glide. A wheel the coast's way starts a new gesture where the row is drawn with the target led by the glide's speed
+times duration / friction of the wheel body, so its next step keeps that speed; the wheels then add on from there. Any other glide
+still stops where it is drawn. The last 100 ms of wheels are kept per row across gestures, so a spin whose gap ran a frame long goes on
+at its speed.
+
+Measured (`--only settle`, narrow row, pitch 406; 40 px notches; per frame, back = a frame moving more than 0.5 px against the scroll):
+
+| case | input | wheel travel, coast | rest | back frames, reversals | settled after last wheel |
+| --- | --- | --- | --- | --- | --- |
+| notch80 (bursts of 6 notches 30 ms apart, 80 ms pauses) | 1,200 | 1,369, 540 | 2,030 | 0, 0 | 1,099 ms |
+| notch150 | 1,200 | 2,568, 540 | 3,248 | 0, 0 | 1,082 ms |
+| notch300 | 1,200 | 3,324, 540 | 4,060 | 0, 0 | 1,078 ms |
+| notch600 | 1,200 | 3,463, 540 | 4,060 | 0, 0 | 1,073 ms |
+| spin (12 notches 16 ms apart) | 480 | 678, 1,463 | 2,436 | 0, 0 | 1,202 ms |
+| spinResumed (two spins, the second 150 ms into the first's coast) | 800 | 1,779, 1,358 | 3,248 | 0, 0 | 1,185 ms |
+| trackpad (momentum flagged) | 420 | 265, 0 | 406 | 0, 0 | 1,332 ms |
+| trackpadGuessed (tail not flagged) | 420 | 274, 0 | 406 | 0, 0 | 1,316 ms |
+| justPast (21 notches 150 ms apart) | 840 | 420, 0 | 812 | 0, 0 | 1,452 ms |
+| justBefore (19 notches) | 760 | 380, 0 | 406 | 0, 0 | 1,100 ms |
+| slowPaused (10 + 10 notches, 400 ms lifted between) | 800 | 400, 0 | 406 | 0, 0 | 916 ms |
+| endFling / endFlingRight (one burst from a page inside an end) | 240 | 179 / 8,348, -540 / 540 | 0 / 8,526 | 0, 0 px past the end | |
+
+"Wheel travel" includes the earlier coasts a resumed burst carried on from. The travel of the bursts' wheels themselves ran 0.92-1.83
+row px per wheel px, rising through each burst; slow notches 0.50. The end cases (18-30 bursts into an end) all rest at their end,
+0 px drawn past it, 0 back. The family cases (`fam*`, `midHand`, `midUp`) rest on the first stop ahead of the wheel's travel and its
+coast (4,060, or 4,466 where the coast read 368 px), 0 px back, and Embla's target never moves while held in a frame no wheel arrived
+in (`heldStrayTargetPx`, 0 in every end and family case; it replaces the family's rest computed from the input at 1:1, which a
+coast makes depend on the row's speed).
+
+The checks: every settle case rests on the first stop ahead of the travel plus the coast (read from the row,
+`emblaWheelLanding`); a fast case coasts at least 200 px and, on the frames alone, rests at least a stop past the one its travel would
+rest on without the coast; a slow or trackpad case coasts 0; slow notches travel exactly 0.5 px a wheel px from the start; a burst
+starting during a coast keeps its speed (the mean of the three frames after its first wheel at least 0.6 of the three before, less
+3 px, when those three are the coast's own) and does not lurch (at most 1.5 of it plus 12 px, or the spin's own fastest held frame). The wheel, feed and strip streams'
+speed checks read 0.5-1.75 instead of 1:1, and a faster stream must move further per px on every row.
+
+Mutants:
+
+- Fling disabled (`feelWheel` answers coast 0, the early end kept): spin, spinResumed and notch150 fail on both the coast and the
+  frames-only check (spin rests at 812, the stop its travel of 678 rests on); endFling proves nothing (its coast never passes the end).
+- No speed carried into a resumed wheel (the glide stopped where drawn, as before): spinResumed fails, 84.5 px a frame before the
+  second spin's first wheel, 8.9 and 39.4 after on two runs (three-frame means; the floor is 47). notch150 passes under it, as it may: its bursts resume a slower glide.
+
+Gates (2026-11-09): full proof, all sections, at 918ebea: failed only the resumed-burst check then in place, on notch80 and notch300,
+whose frames before the burst were the quiet gap's dip, not a coast (fixed in the check, 2f31ad1; code unchanged since a3e8cac);
+`--only settle` at 2f31ad1 three times: failed [] and empty [] each time; full proof, all sections, at 6a06e92: failed [] and
+empty []. Library suite: 3,291 tests, 3,290 pass, 0 fail, 1 skip,
+265 of 265 files (3,286 before; 5 added in test/embla-wheel-feel.test.ts). embla-internals-contract: 2 of 2 pass; it now also checks
+`scrollBody.velocity`. blank-trials `cast glide 3 12`: 0 blank (203 presented frames); `cast hidden 2 12`: fails, as it must (2 of 2
+trials blank).
+
+What this costs: the row moves less per slow notch than at 0.65 (0.5); a quick flick of a few notches now coasts a page or more; the
+early end means a pause of more than 50-120 ms inside a fast spin starts the coast, and the next wheel picks it up at its speed.
+
+Not covered: a real wheel and a real trackpad (headless takes synthetic wheels only; feel is Joe's to judge), Windows, whose 100 px
+notches read 2.5 times faster on the same curve, Safari, a free-spinning wheel's own cadence, and the gap a real finger reposition
+takes inside a fast spin.
 
 ## Not done yet (still on the old row, or not working on Embla yet)
 

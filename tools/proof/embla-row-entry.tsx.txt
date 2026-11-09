@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, usePanelDots, Panel, PanelFrame, PanelSizeBox, feedRowWheel, DragToClose, usePanelDragProps, usePanelPresence } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
-import { emblaHeld, emblaOf, emblaScrollOf, writeEmbla } from 'LIB/emblaRow.js';
+import { emblaHeld, emblaOf, emblaScrollOf, emblaWheelLanding, writeEmbla } from 'LIB/emblaRow.js';
 import { usePanelMaximize } from 'LIB/panelMaximize.js';
 
 // The oval drag's write, routed here by the proof's build. The control eases the row toward the pointer as Embla's own drag does:
@@ -253,6 +253,8 @@ requestAnimationFrame(frame);
   logical,
   // Where Embla is going, scroll px.
   target: () => { const e = emblaOf(container()); return e === undefined ? null : -e.internalEngine().target.get(); },
+  // Where the last wheel gesture landed from: the wheel's travel and the coast past it (scroll px).
+  landing: () => { const e = emblaOf(container()); return e === undefined ? null : (emblaWheelLanding(e) ?? null); },
   win: windowRect,
   max: () => Math.max(0, latest.rowNumbers.stripWidth - windowRect().width),
   stripWidth: () => latest.rowNumbers.stripWidth,
