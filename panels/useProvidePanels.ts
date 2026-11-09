@@ -444,13 +444,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     pendingScroll.set({ ...request, misses: 0 });
     return true;
   };
-  const followPanel = (id: string): void => {
+  const followPanel = (id: string, sized = false): void => {
     const el = i.overflowContainerRef.current;
     const entry = panels.find((p) => p.id === id);
     const k = rowNumbers.ids.indexOf(id);
     if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
     // On a strip "in view" is read off the strip Embla draws now: the old scroller has no strip and reads 0, which took a panel far
     // left of the view for one in it and scrolled the row to it.
+    // A width change on a strip is the keep-still rule's (docs/embla-row.md step 5): the pages that do not change stay where they are.
+    if (strip && sized) return;
     if (strip) {
       const embla = emblaOf(el);
       const drawn = emblaStripOf(el);
@@ -1435,7 +1437,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const changed = resizePanel(engineId, next, source === 'person');
     if (changed) {
       i.onPanelResize?.();
-      followPanel(engineId);
+      followPanel(engineId, true);
     }
     gate.release(token);
     return accepted(changed);
@@ -1587,7 +1589,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const token = gate.take(engineIds, 'other')!;
       const done = resetPanels(engineIds);
       gate.release(token);
-      if (done.changed && follow && engineIds.length === 1) followPanel(engineIds[0]!);
+      if (done.changed && follow && engineIds.length === 1) followPanel(engineIds[0]!, true);
       const keyOf = (id: string): string => {
         const p = panels.find((q) => q.id === id);
         return p === undefined ? id : panelKey(p);
@@ -1708,7 +1710,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
           if (target !== undefined) warnSlotsClamped(target, slots);
           if (resizePanel(id, slots)) {
             i.onPanelResize?.();
-            followPanel(id);
+            followPanel(id, true);
           }
         },
       ),
