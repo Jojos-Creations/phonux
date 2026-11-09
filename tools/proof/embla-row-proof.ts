@@ -16,9 +16,11 @@
  *        the row past its start leaves the drag going; a panel far right of the view closed or resized under a wheel stream moves
  *        the row back no more than the stream's own settle (control: the stream alone) and loses no motion; a panel left of the
  *        view narrowed while an arrow-key glide runs lands on the slot grid.
- * settle (runs with gesture, or alone with --only settle) a mouse wheel's notches in bursts with 80/150/300/600 ms pauses, a trackpad
- *        swipe with its momentum tail (flagged and not), and a short scroll stopping just past and just before a stop: per frame, no
- *        move against the scroll, no reversal, each burst 1:1, the rest on the grid and not behind the scroll, settled within 1.8 s.
+ * settle (runs with gesture, or alone with --only settle) a mouse wheel's fast bursts with 80/150/300/600 ms pauses, one spin and a
+ *        spin resumed mid-coast, a trackpad swipe with its momentum tail (flagged and not), and slow notches stopping just past and
+ *        just before a stop: per frame, no move against the scroll, no reversal, the rest on the first stop ahead of the wheel's travel
+ *        and its coast; a fast spin coasts past a stop, slow notches and a trackpad do not coast and slow notches move SLOW_SPEED px
+ *        a wheel px; a burst that resumes mid-coast takes the glide's speed on (no brake, no lurch); settled within 1.8 s.
  *        The ends (settle.end*, settle.midHand): from mid-strip on a row of 25, notch bursts into the start or the end and on past it,
  *        by real (trusted) wheels with the hand's 1 px pointer moves or handed in; per frame the drawn row, Embla's location and
  *        target: the row rests at the end it was scrolled into, stops flat there (owner ruling 2026-11-09: no stretch past it, no
@@ -69,6 +71,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchChromium } from '../../test/support/chromium.js';
+import { FAST_SPEED, SLOW_SPEED } from '../../emblaWheelFeel.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const arg = (name: string): string | undefined => {
@@ -239,13 +242,14 @@ async function stream(name: string, slots: string, D: number, send: (page: Page)
   await close();
   return row;
 }
-// Same speed over narrow, wide and mixed: each about 1:1 and within 2% of the others.
+// Same speed over narrow, wide and mixed: within 2% of each other, and within the wheel's speed curve (SLOW_SPEED to FAST_SPEED row
+// px per wheel px, emblaWheelFeel.ts).
 function speedCheck(label: string, rows: Record<string, any>): void {
   const v = Object.values(rows).map((r) => r.pxPerInputPx as number);
   const spread = (Math.max(...v) - Math.min(...v)) / Math.max(...v);
   (rows as any).spread = +spread.toFixed(4);
   if (spread > 0.02) failed.push(`${label}: narrow/wide/mixed spread ${(spread * 100).toFixed(1)}% > 2%`);
-  for (const [k, x] of Object.entries(v)) if (Math.abs(x - 1) > 0.05) failed.push(`${label}: ${Object.keys(rows)[Number(k)]} moves ${x} px per input px, not about 1`);
+  for (const [k, x] of Object.entries(v)) if (x < SLOW_SPEED - 0.03 || x > FAST_SPEED + 0.03) failed.push(`${label}: ${Object.keys(rows)[Number(k)]} moves ${x} px per input px, outside ${SLOW_SPEED}-${FAST_SPEED}`);
 }
 
 if (ONLY.has('wheel')) {
@@ -265,6 +269,11 @@ if (ONLY.has('wheel')) {
       });
     speedCheck(`wheel D${D}`, rows);
     wheel[`D${D}`] = rows;
+  }
+  // A faster wheel moves the row further per wheel px (the speed curve), on every row.
+  for (const name of Object.keys(ROWS)) {
+    const at = (D: number): number => (wheel[`D${D}`] as any)[name].pxPerInputPx;
+    if (!(at(6) < at(12) && at(12) < at(24))) failed.push(`wheel ${name}: px per input px ${at(6)}, ${at(12)}, ${at(24)} at D6, D12, D24 does not rise with the wheel's speed`);
   }
   out.wheel = wheel;
 }
@@ -613,17 +622,26 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       [...b.map((d, k): Wheel => [startB + k * f, d]), ...tail.map((d, k): Wheel => (flagged ? [startB + (b.length + k) * f, d, true] : [startB + (b.length + k) * f, d]))],
     ];
   };
-  const CASES_SETTLE: [string, Wheel[][]][] = [
-    ['notch80', bursts(80)],
-    ['notch150', bursts(150)],
-    ['notch300', bursts(300)],
-    ['notch600', bursts(600)],
-    ['trackpad', trackpad(true)],
-    ['trackpadGuessed', trackpad(false)],
-    ['justPast', [notches(11, 0)]],
-    ['justBefore', [notches(9, 0)]],
+  // `fast`: a spin (a notch every 30 ms or faster), which coasts on once the wheel stops; between bursts (80 ms and longer) the next
+  // burst resumes the gesture mid-coast. `slow`: a notch every 150 ms, which moves the row SLOW_SPEED px per wheel px and rests on the
+  // first stop ahead of exactly that travel. `trackpad`: the browser's momentum is the coast, and none is added.
+  type Kind = 'fast' | 'slow' | 'trackpad';
+  const CASES_SETTLE: [string, Wheel[][], Kind][] = [
+    ['notch80', bursts(80), 'fast'],
+    ['notch150', bursts(150), 'fast'],
+    ['notch300', bursts(300), 'fast'],
+    ['notch600', bursts(600), 'fast'],
+    ['spin', [notches(12, 0, 16)], 'fast'],
+    ['spinResumed', [notches(10, 0, 16), notches(10, 144 + 150, 16)], 'fast'],
+    ['trackpad', trackpad(true), 'trackpad'],
+    ['trackpadGuessed', trackpad(false), 'trackpad'],
+    // 21 and 19 slow notches: 420 and 380 px of travel, just past and just before the stop at 406.
+    ['justPast', [notches(21, 0, 150)], 'slow'],
+    ['justBefore', [notches(19, 0, 150)], 'slow'],
+    // Two runs of slow notches with the finger lifted 400 ms between them (inside the 500 ms wait): one gesture, 400 px.
+    ['slowPaused', [notches(10, 0, 150), notches(10, 1350 + 400, 150)], 'slow'],
   ];
-  for (const [label, groups] of CASES_SETTLE) {
+  for (const [label, groups, kind] of CASES_SETTLE) {
     if (!want(`settle.${label}`)) continue;
     const { page, errors, close } = await open(ROWS.narrow);
     const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
@@ -635,7 +653,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     await sleep(2500);
     const fr = await g(page, 'stop');
     const max = await g(page, 'max');
-    writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ events, sent, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
+    const landing: { travel: number; coast: number } | null = await g(page, 'landing');
+    writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ events, sent, landing, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), held: f.held, wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
     const start = fr[0].pos;
     const moves = fr.slice(1).map((f: any, k: number) => f.pos - fr[k].pos);
     const back = moves.filter((m: number) => m < -0.5);
@@ -649,9 +668,13 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     // Each burst: the row's move from the last frame before its first wheel to the first frame 80 ms after its last, against its input.
     // A burst that starts while the settle glides (a pause longer than the hold) carries up to a frame of that glide; it is reported,
     // and checked only for moving one way.
+    // A burst that starts while the row still moves (a coast) must take it on without a jump: the row's speed over the two frames after
+    // the burst's first wheel against the two before (two, as Embla's fixed steps land 0 or 2 in some frames). A stop where drawn drops
+    // it to what one wheel gives from rest; a lurch to the coast's target trebles it.
     let k0 = 0;
     const ratios: number[] = [];
     const fromGlide: number[] = [];
+    const resumed: [number, number][] = [];
     for (const grp of groups) {
       const first = sent.sent[k0]!;
       const last = sent.sent[k0 + grp.length - 1]!;
@@ -660,7 +683,10 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       const after = fr.find((f: any) => f.t >= last + 80);
       if (before === undefined || after === undefined) continue;
       const k = fr.indexOf(before);
-      if (k > 0 && Math.abs(before.pos - fr[k - 1].pos) > 0.5) fromGlide.push(ratios.length);
+      if (k > 0 && Math.abs(before.pos - fr[k - 1].pos) > 0.5) {
+        fromGlide.push(ratios.length);
+        if (k > 1 && fr[k + 2] !== undefined) resumed.push([+((before.pos - fr[k - 2].pos) / 2).toFixed(1), +((fr[k + 2].pos - before.pos) / 2).toFixed(1)]);
+      }
       ratios.push(+((after.pos - before.pos) / grp.reduce((n, [, d]) => n + d, 0)).toFixed(3));
     }
     const rest = fr[fr.length - 1].pos;
@@ -680,13 +706,35 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       furthest: +furthest.toFixed(1),
       restOnGrid: onGrid(rest, PITCH, max),
       settleMs: unsettled === undefined ? 0 : Math.max(0, Math.round(unsettled.t - lastSent)),
+      kind,
+      travel: landing === null ? null : +landing.travel.toFixed(1),
+      coast: landing === null ? null : +landing.coast.toFixed(1),
+      resumedStepPx: resumed,
     };
     res[label] = r;
+    // The first stop at or past where the gesture's travel and its coast end (the row's ends clamp it).
+    const aim = landing === null ? Number.NaN : Math.min(Math.max(0, landing.travel + landing.coast), max);
+    const firstAhead = Math.min(max, Math.ceil((aim - 0.5) / PITCH) * PITCH);
+    if (landing === null) empty.push(`settle ${label}: no wheel gesture landed`);
+    else if (Math.abs(rest - firstAhead) > 0.5) failed.push(`settle ${label}: rests at ${r.rest}, not on ${firstAhead}, the first stop ahead of the travel ${r.travel} and its coast ${r.coast}`);
+    if (kind === 'fast' && landing !== null && landing.coast < 200) failed.push(`settle ${label}: a fast spin coasted ${r.coast} px past its last wheel (under 200)`);
+    // On the frames alone: a coast longer than a page rests at least a stop past the one the wheel's own travel would rest on.
+    const wheelOnly = landing === null ? Number.NaN : Math.min(max, Math.ceil((landing.travel - 0.5) / PITCH) * PITCH);
+    if (kind === 'fast' && wheelOnly < max && rest < wheelOnly + PITCH - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, on the stop the wheel's travel ${r.travel} rests on without a coast (${wheelOnly})`);
+    if (kind !== 'fast' && landing !== null && landing.coast !== 0) failed.push(`settle ${label}: a ${kind} gesture coasted ${r.coast} px (a coast of its own)`);
+    if (kind === 'slow') {
+      const travel = start + SLOW_SPEED * input;
+      if (landing !== null && Math.abs(landing.travel - travel) > 0.5) failed.push(`settle ${label}: slow notches travelled to ${r.travel}, not ${travel} (${SLOW_SPEED} px per wheel px)`);
+      for (const x of ratios) if (Math.abs(x - SLOW_SPEED) > 0.03) failed.push(`settle ${label}: slow notches moved ${x} px per wheel px (${ratios.join(', ')}), not ${SLOW_SPEED}`);
+    }
+    // No brake (the glide's speed dropped to what one wheel gives from rest) and no lurch (past the coast's speed and the spin's own).
+    const heldStep = Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.held && fr[k].held ? f.pos - fr[k].pos : 0)));
+    for (const [b, a] of resumed) if (a > Math.max(1.5 * b + 12, heldStep) || a < 0.6 * b - 3) failed.push(`settle ${label}: a burst resumed the gesture mid-glide with a jump: ${b} px a frame before its first wheel, ${a} px after (two-frame means)`);
+    if (label === 'spinResumed' && resumed.length === 0) empty.push(`settle ${label}: the second spin did not start during the coast`);
     if (fr.length < 30 || Math.abs(rest - start) < 100) empty.push(`settle ${label}: the stream moved the row ${r.moved} px in ${fr.length} frames, so the checks prove nothing`);
     if (ratios.length !== groups.length) empty.push(`settle ${label}: ${ratios.length} of ${groups.length} bursts were measured`);
     if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
     if (reversals > 0) failed.push(`settle ${label}: the row reversed ${reversals} times`);
-    for (const [j, x] of ratios.entries()) if (!fromGlide.includes(j) && Math.abs(x - 1) > 0.05) failed.push(`settle ${label}: a burst moved the row ${x} px per input px (${ratios.join(', ')}), not 1:1`);
     if (!r.restOnGrid) failed.push(`settle ${label}: rest ${r.rest} off the grid`);
     if (rest < furthest - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, behind ${r.furthest} where the scroll carried the row`);
     if (r.settleMs > 1800) failed.push(`settle ${label}: still moving ${r.settleMs} ms after the last wheel`);
@@ -707,7 +755,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
   // on a panel since before the wheel), 'downOut' a click away from the row, 'menuIn' / 'menuOut' a right-click on the row (a panel)
   // or away from it, 'touchOut' a touch moving away from the row. `late`: one more 700 ms after the last notch, while the row settles.
   type Act = 'move1' | 'move0' | 'up' | 'downOut' | 'menuIn' | 'menuOut' | 'touchOut';
-  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean; act?: Act; late?: boolean };
+  // `fling`: one spin that stops short of the end; its coast carries the row on into the end, where it stops flat.
+  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean; act?: Act; late?: boolean; fling?: boolean };
   // The trusted event each action must be seen to deliver, or the case proves nothing.
   const ACT_EVENT: Record<Act, string> = { move1: 'mousemove', move0: 'mousemove', up: 'mouseup', downOut: 'mousedown', menuIn: 'contextmenu', menuOut: 'contextmenu', touchOut: 'touchmove' };
   const FAMILY = (act: Act): EndCase => ({ dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, act, late: true });
@@ -720,6 +769,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     ['endLeftRootFar', { dir: -1, from: 8, bursts: 18, pauses: ONE, mouse: true, inPauses: false, rootFar: true }],
     // Ground on past the end long enough for the plugin's own rubber band (it damps its pointer back, then ends its gesture).
     ['endLeftLong', { dir: -1, from: 2, bursts: 30, pauses: [0], mouse: true, inPauses: false }],
+    ['endFling', { dir: -1, from: 1, bursts: 1, pauses: [0], mouse: false, inPauses: false, fling: true }],
+    ['endFlingRight', { dir: 1, from: -1, bursts: 1, pauses: [0], mouse: false, inPauses: false, fling: true }],
     ['midHand', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true }],
     ['midUp', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, act: 'up' }],
     ['famMove0', FAMILY('move0')],
@@ -805,6 +856,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     } else await g(page, 'feedTimed', wheels);
     await sleep(2500);
     const fr = await g(page, 'stop');
+    const landing: { travel: number; coast: number } | null = await g(page, 'landing');
     const input1: Record<string, number> = await g(page, 'personInput');
     const delivered = (input1[ACT_EVENT[act]] ?? 0) - (input0[ACT_EVENT[act]] ?? 0);
     writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ order, max, startPx, end, delivered, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), loc: f.loc === null ? null : +f.loc.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
@@ -842,10 +894,18 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       delivered,
       // Embla's target's largest step back against the scroll in one frame, and where it went.
       targetJump: fr.slice(1).reduce((w: [number, number], f: any, k: number) => ((fr[k].tgt - f.tgt) * c.dir < w[0] ? [+((fr[k].tgt - f.tgt) * c.dir).toFixed(1), +f.tgt.toFixed(1)] : w), [0, startPx] as [number, number]),
+      // Embla's target's largest step, either way, in a frame no wheel arrived in while the wheel gesture holds the row: only a wheel
+      // moves it then (a stray release snapping it to a stop is a page's worth).
+      heldStrayTargetPx: +Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.held && fr[k].held && f.wheels === 0 ? Math.abs(f.tgt - fr[k].tgt) : 0))).toFixed(1),
+      travel: landing === null ? null : +landing.travel.toFixed(1),
+      coast: landing === null ? null : +landing.coast.toFixed(1),
     };
     res[label] = r;
     if (fr.length < 30 || atEnd < 0 && label.startsWith('end')) empty.push(`settle ${label}: the row never reached its end (${r.drawn}), so the check proves nothing`);
-    if (label.startsWith('end') && r.pastEndPx < 600) empty.push(`settle ${label}: only ${r.pastEndPx} px of wheel past the end`);
+    if (label.startsWith('end') && c.fling !== true && r.pastEndPx < 600) empty.push(`settle ${label}: only ${r.pastEndPx} px of wheel past the end`);
+    if (c.fling === true && (landing === null || Math.abs(landing.travel - end) < 50)) empty.push(`settle ${label}: the wheel's own travel (${r.travel}) reached the end, so the coast is not what took the row there`);
+    if (c.fling === true && landing !== null && (landing.travel + landing.coast - end) * c.dir < 50) empty.push(`settle ${label}: the coast (${r.coast} from ${r.travel}) does not run past the end, so the clamp is not tried`);
+    if (r.heldStrayTargetPx > 0.5) failed.push(`settle ${label}: while the wheel held the row, Embla's target moved ${r.heldStrayTargetPx} px in a frame with no wheel`);
     if (label.startsWith('end') && r.restFromEndPx > 0.5) failed.push(`settle ${label}: scrolled into the end at ${r.end}, rests at ${r.rest} (${r.restFromEndPx} px from it)`);
     if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved back into the strip against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
     if (r.heldTargetBackPx > 50) failed.push(`settle ${label}: while the wheel held the row, Embla's target stepped ${r.heldTargetBackPx} px against the scroll in one frame`);
@@ -855,10 +915,14 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (c.late === true && rest * c.dir < Math.max(...fr.map((f: any) => f.pos * c.dir)) - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, behind where the scroll carried the row`);
     // Mid-strip the wheel's travel is the whole input, so the rest is the first stop ahead of it: a stray release that set the target
     // to the stop nearest it shows here even when that stop lay ahead (the row went a page further than the scroll).
+    // The travel and the coast are read from the row; a stray move of its target while held fails above, on its own.
     if (!label.startsWith('end')) {
-      const carried = (startPx + c.dir * input) / PITCH;
-      const ahead = (Math.abs(carried - Math.round(carried)) * PITCH <= 0.5 ? Math.round(carried) : c.dir < 0 ? Math.floor(carried) : Math.ceil(carried)) * PITCH;
-      if (Math.abs(rest - ahead) > 0.5) failed.push(`settle ${label}: rests at ${r.rest}, not on ${ahead}, the first stop ahead of the wheel's travel to ${startPx + c.dir * input}`);
+      if (landing === null) empty.push(`settle ${label}: no wheel gesture landed`);
+      else {
+        const carried = Math.min(Math.max(0, landing.travel + landing.coast), max) / PITCH;
+        const ahead = (Math.abs(carried - Math.round(carried)) * PITCH <= 0.5 ? Math.round(carried) : c.dir < 0 ? Math.floor(carried) : Math.ceil(carried)) * PITCH;
+        if (Math.abs(rest - ahead) > 0.5) failed.push(`settle ${label}: rests at ${r.rest}, not on ${ahead}, the first stop ahead of the wheel's travel to ${r.travel} and its coast ${r.coast}`);
+      }
     }
     if (c.rootFar === true && order[0] === 'root') empty.push(`settle ${label}: the Workspace is still the first page`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
@@ -933,7 +997,7 @@ if (ONLY.has('strip') && ENGINE === 'embla') {
     return input;
   }, PARKING, (during) => ({ drift: stripDrift(during) }));
   const w = res.wheel as any;
-  if (Math.abs(w.pxPerInputPx - 1) > 0.05) failed.push(`strip wheel: ${w.pxPerInputPx} px per input px`);
+  if (w.pxPerInputPx < SLOW_SPEED - 0.03 || w.pxPerInputPx > FAST_SPEED + 0.03) failed.push(`strip wheel: ${w.pxPerInputPx} px per input px, outside ${SLOW_SPEED}-${FAST_SPEED}`);
   if (w.drift.unloadChanges === 0) empty.push('strip wheel: no panel loaded or unloaded during the stream, so the no-jump check proves nothing');
   if (w.drift.worstPx > 0.5) failed.push(`strip wheel: a panel moved ${w.drift.worstPx} px along the strip while panels loaded and unloaded`);
   if (w.drift.maxLoaded > 8) failed.push(`strip wheel: ${w.drift.maxLoaded} parkable panels loaded in one frame, more than the cap 8`);
