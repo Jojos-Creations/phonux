@@ -14,6 +14,7 @@ import type { PanelSettings, WorkspaceHandle, WorkspaceState, WorkspaceStorage }
 import { LIBRARY_PANEL_DEFAULTS } from '../panelSettings.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
+import { viewContextOf } from '../workspaceCore.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 
@@ -110,6 +111,30 @@ test('a second useProvidePanels on a workspace that is attached throws already-a
   } finally {
     console.error = quiet;
   }
+});
+
+test('a second useProvidePanels that fails to attach leaves the attached row\'s panels answerable to their views', async () => {
+  // The Embla proof page created its workspace without `mount: false`, so the auto mount rendered a second row that failed to
+  // attach; its render-time list (the root alone) replaced the attached row's, and every view that re-rendered after it found no handle.
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('obs-a'), markerTemplate('obs-b')] });
+  const m = mountWorkspace(w);
+  await act(async () => {
+    w.addPanel('obs-a');
+    w.addPanel('obs-b');
+  });
+  await flush();
+  const view = viewContextOf(w);
+  assert.notEqual(view.handleFor('obs-a'), undefined, 'the attached row answers obs-a before the second hook renders');
+  assert.deepEqual(m.slots().filter((s) => s.startsWith('obs-')).sort(), ['obs-a', 'obs-b'], 'both views drew with a handle');
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    assert.throws(() => mountWorkspace(w), (e: unknown) => e instanceof PanelManagerError && e.code === 'already-attached');
+  } finally {
+    console.error = quiet;
+  }
+  assert.notEqual(view.handleFor('obs-a'), undefined, 'obs-a lost its handle to the hook that never attached');
+  assert.notEqual(view.handleFor('obs-b'), undefined, 'obs-b lost its handle to the hook that never attached');
 });
 
 test('a storage whose save throws or rejects reaches onError and the row keeps working', async () => {

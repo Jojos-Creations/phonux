@@ -510,7 +510,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     setRest: (next, row) => setRestHeld(next.lead === 0 && next.tail === 0 && (next.head ?? 0) === 0 ? null : { rest: next, madeFor: restKeyOf(row) }),
   });
 
-  core.observe(panels, heldIds);
+  // The attach token, made before the first observe: a hook that renders while another holds the workspace (and then fails to
+  // attach) must not replace that row's list, or every view the row draws afterwards finds no handle.
+  const attachOwner = useRef({});
+  core.observe(attachOwner.current, panels, heldIds);
 
   // A shown panel the page asked for, whether it was parked or already live out of view, is scrolled to once it is in.
   const activatePanel = (id: string): void => {
@@ -1009,7 +1012,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     core.bindSummon({ view: rootView, summon: summonRoot, dismiss: dismissRoot });
     return () => core.bindSummon(undefined);
   });
-  const attachOwner = useRef({});
   useLayoutEffect(() => {
     core.attach(attachOwner.current);
     return () => core.detach(attachOwner.current);

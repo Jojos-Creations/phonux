@@ -35,7 +35,8 @@ type RowProps = React.ComponentProps<typeof PanelRow>;
 export function StaticRow({ seed, workspace: given, ...row }: Omit<RowProps, 'workspace'> & { seed?: SeedOptions; workspace?: WorkspaceHandle }): React.ReactElement {
   const [made] = React.useState(() => given ?? seededWorkspace(row.entries as readonly PanelWindow[], { rootId: row.rootId, ...seed }));
   const workspace = given ?? made;
-  bindingOf(workspace).observe(row.entries as readonly PanelWindow[], NOT_HELD);
+  const [owner] = React.useState(() => ({}));
+  bindingOf(workspace).observe(owner, row.entries as readonly PanelWindow[], NOT_HELD);
   return React.createElement(PanelRow, { ...row, workspace });
 }
 

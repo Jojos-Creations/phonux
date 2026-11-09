@@ -56,7 +56,9 @@ function RootView() {
   return <div data-box={ROOT} style={{ height: '100%', background: '#243', color: '#fff', font: '24px sans-serif', padding: 12 }}>{ROOT}</div>;
 }
 
+// mount: false, as the app passes: this page renders the row itself. Without it the auto mount renders a second row that fails to attach.
 const ws = createWorkspace({
+  mount: false,
   root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none' } as any }),
   templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })),
   tuning: { rowGesture: 'step', rowGap: GAP, ...(CAP === null ? {} : { maxLivePanels: CAP }) } as any,
