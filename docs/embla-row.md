@@ -6,8 +6,8 @@ steps). This file records what each step delivered and what is left.
 
 ## Step 1: an Embla row behind a switch
 
-`<Workspace rowEngine="embla">` runs the row on `embla-carousel` 8.6.0 with `embla-carousel-wheel-gestures` 8.1.0 (both pinned
-exactly: the later oval drag uses Embla's `internalEngine()`, which semver does not cover). The default is `'own'`, the row as
+`<Workspace rowEngine="embla">` runs the row on `embla-carousel` 8.6.0, with `wheel-gestures` 2.3.0 reading the wheel (both pinned
+exactly; `embla-carousel-wheel-gestures` 8.1.0 until "The wheel without a press", below: the later oval drag uses Embla's `internalEngine()`, which semver does not cover). The default is `'own'`, the row as
 before; with the switch off nothing renders or listens differently.
 
 What the switch does (`emblaRow.ts`, and a branch each in `Workspace.tsx` and `PanelRow.tsx`):
@@ -20,10 +20,10 @@ What the switch does (`emblaRow.ts`, and a branch each in `Workspace.tsx` and `P
   Embla's container, as wide as the window, and holds one zero-height marker per slot (`slotMarkerLefts`), which Embla takes
   as its slides: every slot edge is a stop, a wide panel's inner ones included (`align: 'start'`, `containScroll:
   'trimSnaps'`, `skipSnaps: true`).
-- Wheel and trackpad: the wheel-gestures plugin on the window. A wheel handed in by `feedRowWheel` bubbles to the same listener,
-  so it moves the row like a wheel over it; it returns true for a sideways wheel and false for a vertical one. A pause or a stop is
-  settled by the row, not the plugin ("A wheel that pauses or stops", below). Option held at a
-  gesture's first event leaves the whole gesture to the content (a listener registered before the plugin's stops it).
+- Wheel and trackpad: one listener on the window, through wheel-gestures, moves Embla's target directly ("The wheel without a
+  press", below). A wheel handed in by `feedRowWheel` bubbles to the same listener, so it moves the row like a wheel over it; it
+  returns true for a sideways wheel and false for a vertical one. A pause or a stop is settled by the row ("A wheel that pauses or
+  stops", below). Option held at a gesture's first event leaves the whole gesture to the content.
 - Pointer drag: Embla's own. A mouse press starts one only on the row's surface (a gap, not a panel), so a panel's text,
   controls and header grab keep the mouse; a touch starts one anywhere but on a control, an editable field or a frame.
 - Arrow keys: a bare ArrowLeft or ArrowRight steps one slot (`scrollPrev`, `scrollNext`), under the old row's
@@ -653,6 +653,8 @@ or more) and to a band no wider than a gap and 8 px. Inert: the summon run as be
 
 ### At the row's ends (the owner's snap-back)
 
+Superseded by "The wheel without a press", below: the hold, the stopped set and the wheel's stretch are gone. This records why they were there.
+
 Owner's report, on a mouse wheel: "I scrolled all the way thought the first blue dot, and then it snapped back to where it is!" The
 oval rested about ten dots right of the start.
 
@@ -729,6 +731,95 @@ Not covered:
 - A touch moving during a mouse wheel's hold: `touchmove`/`touchend` are in the stopped set, and a touch inside the row ends the
   hold as a press; a touch outside the row was traced only at 705f2c1 (the set stops it) and has no proof case.
 - The stretch past an end itself: a wheel with no rubber band would need the step-aside to read "toward the root" some other way.
+
+## The wheel without a press (closing the family)
+
+The two sections above held Embla's drag press open through a wheel gesture, and each input that reached the held press had to be
+stopped by name (`mousemove` at 705f2c1; `mouseup`, `touchmove`, `touchend` at 34db111). A right-click on the row still ran Embla's
+release, and every listener Embla adds at a press was another way in. Joe approved closing the whole family: the wheel no longer
+presses at all.
+
+How it works now (emblaRow.ts, `wheelBy`, `settleWheelRun`, `endEmblaWheel`):
+
+- One listener on the window reads each wheel through `wheel-gestures` 2.3.0 (`feedWheel`): px from lines and pages, a cap on one
+  event, the momentum flag, and it cancels a sideways wheel, so `feedRowWheel` still answers true. `embla-carousel-wheel-gestures`
+  is dropped. It turned the wheel into a synthetic mouse drag, the press this section removes. `wheel-gestures` is its MIT
+  normalizer, by the same author, and was already installed under it.
+- A gesture starts on a sideways wheel that is not a momentum tail, as the plugin started one, and not under a person's drag of the
+  row. Its first wheel stops a glide where the row is drawn, as the press did. Each wheel adds its delta to Embla's target with the
+  critically damped body (friction 0.1, duration 0.22) and starts Embla's animation.
+- While a gesture runs the row is held: `moveEmbla` shifts it in place and its rebuild waits, and `whenEmblaFree` waits. At 500 ms
+  idle it rests on `stopAhead` (never behind the travel; the direction turns only after 8 px against it). The rebuild and whatever
+  waited then run.
+- Embla's drag adds its document listeners only at a press. So during a gesture no mouse move, release, click or touch reaches
+  Embla. Embla's root still runs its release on `contextmenu` and `touchcancel` with no press. A capture listener keeps the wheel's
+  target, and Embla's `pointerUp` puts it back with the wheel body.
+- A primary press on the row ends the gesture where the row is drawn. Embla's own drag takes over if the press starts one (a gap, or
+  a touch). Otherwise the release settles on the nearest stop, as before. A right or middle press leaves the gesture going. A dot
+  press, an oval drag, a focus reveal, a key step, a summon and a reorder drag end the gesture where the row is drawn. A dot press
+  was ignored until 500 ms after the last wheel; it now works at once.
+- The ends (owner ruling 2026-11-09, "just stop"): the wheel's target is clamped to `[0, max]`, so the wheel stops flat at the first
+  and last page, with no stretch and no spring back. Embla's own mouse and touch drag keep their edge stretch.
+
+Deleted: `sendMouse`, `ownEvents`, `wheelPressed`, `liveRun`, `wheelMove`, `settleAhead`, `PERSON_INPUT` and its stop,
+`onPluginMouse` (the replacement of the plugin's mouse events), `onWheelAfter` (the tail path) and its stretch clamp. Also the
+`reInit` re-add of that listener, and the untrusted-press exception in `pressStartsRowDrag`. Its unit test now checks the same
+rules without it.
+
+The stretch: nothing on Embla reads it any more. The step-aside that read it ("the wheel did not bring the root back",
+`summon.unrelatedClose`) was deleted with the Workspace-as-a-normal-page commits (31e5bc8, case list in 55530d6). Only the own
+row's step-aside (`rootStepsAside`, `!strip` only) remains. The proof comments that called the stretch the step-aside's way back
+are rewritten.
+
+What a soft stretch would cost to add back: the wheel's clamp would become a damped overshoot past the bound, for example Embla's
+`ScrollBounds` friction or the plugin's 0.25-0.75 damping. A timer would then pull back to the end. Without a press, Embla's bounds
+constrain the target only when target and location are both past the limit. So that is about 15 lines in `wheelBy` and the settle,
+a tuning pass, and the end cases changed back to report the stretch rather than fail it. It would not reopen the family: no press
+comes back.
+
+Proof (`--only settle`; frames in `settle-<case>-frames.json`, with `held`, the row's held flag, in the entry's frames):
+
+| case | 705f2c1 | 34db111 | now |
+| --- | --- | --- | --- |
+| famMove0: mouse move of 0 px in each pause, 200 ms and 700 ms after | pass | pass | rest 5,278; 0 px back |
+| famMove1: the same, 1 px | pass | pass | 5,278; 0 |
+| famUp: bare mouse button release | 5,684, 143.9 px back in 33 frames | pass | 5,278; 0 |
+| famDownOut: a click away from the row | pass | pass | 5,278; 0 |
+| famMenuIn: a right-click on a panel of the row | 5,684, 153 px back | 5,684, 153.7 px back in 34 frames | 5,278; 0 |
+| famMenuOut: a right-click away from the row | 5,684, 143.9 px back (its button release) | pass | 5,278; 0 |
+| famTouchOut: a touch moving away from the row | 812, 1,780 px back, 1,106 px target step | pass | 5,278; 0 |
+| endLeft (into the start) | drawn 306 px past the end | 319 px past | 0 px past, rests 0 |
+
+Each family case runs four bursts of six 40 px notches from 6,496, going left, with 80/300/150 ms pauses. The hand acts in each
+pause, 200 ms after the last notch (inside the 500 ms hold) and 700 ms after it (during the settle glide). Each case fails if the
+trusted event it sends (counted at the window) never arrived. Every mid-strip case must also rest on the first stop ahead of the
+wheel's whole travel (5,278 for 5,536).
+
+All settle cases now: notch80/150/300 rest 1,218, notch600 rests 1,624, both trackpads 812, justPast 812, justBefore 406. All have
+0 back frames and 0 reversals. Bursts move 0.99-1.04 px per input px; notch600's bursts start from the settle glide and are
+excluded, as before. Settles take 1.03-1.47 s after the last wheel. The nine end and mid cases rest at their end, or at 5,278, with
+0 px back, 0 px drawn past an end, and a target that never steps back while held.
+
+Mutant (the `contextmenu` keep disabled): famMenuIn fails. The release set the wheel's target to the nearest stop at each
+right-click: 166 px target steps, and a rest at 4,872, a page past the scroll. Every snap lay ahead of the travel, so no back-move
+check saw it; the rest-ahead check was added for that and committed with the mutant's numbers. famMenuOut passes under the mutant,
+as it should: a right-click away from the row never reaches Embla's root.
+
+Cases changed because they asserted press mechanics, not outcomes:
+
+- settle end cases: `pressedTargetBackPx`, which read Embla's press, is now `heldTargetBackPx`, which reads the row's held flag. They
+  also fail a frame drawn past the end, where they used to report the stretch.
+- `summon.midWheel`, `reorder.wheelBefore`: "a wheel gesture was running at the press" read Embla's press or its `pointerDown`
+  count; they now read the held flag.
+- `summon.reducedRelease`: the wheel's release frame was the plugin's `mouseup`; it is now the first frame after the hold.
+
+Not covered:
+
+- A real mouse and a real trackpad: headless takes only synthetic wheels and CDP input.
+- The context-menu key was not driven. Embla's root hears the same `contextmenu` from it, so it takes the same keep as the right-click.
+- A touch on the row during a gesture: it is a press, which stops the row by design.
+- A Ctrl+click on macOS: a primary press that opens a menu, which ends the gesture like any press.
+- Safari.
 
 ## Not done yet (still on the old row, or not working on Embla yet)
 
