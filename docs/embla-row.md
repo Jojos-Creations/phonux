@@ -277,7 +277,28 @@ An independent audit at b2a749a found these; each reproduced again at e71796f an
   whatever `maxLivePanels` says), and Embla's `select` also notifies the loader. Probe after: 0 frames at cap 8, cap 4 and near 0.
 - The leaving-slot rule from step 4 had no check: `summon fromLeft` and `fromRight` now require a page leaving from out of view never
   to be drawn in the window, and one leaving from the view to start its exit from its place (0 px now).
-- `--only blank` (new): see the table below.
+- `blank-trials.ts` never ran the Embla row (its page has no `rowEngine`, and its control hides `[data-row-strip]`, which Embla never
+  renders). The Embla check is `embla-row-proof.ts --only blank`: a parking row on a magenta page, cap 8 and cap 4 (the window's
+  fit), a far dot press (three times at cap 4), a far jump and back, a wheel fling (20 x 60 px) and a summon; every presented frame
+  (CDP screencast) must have no band of window columns at least 100 px wide that is page magenta, and every animation frame no
+  unloaded placeholder in the window. Control: the same dot press with every slot hidden must read blank (75 of 93 frames, widest
+  1604 px), or the run reports that it proved nothing.
+
+| `--only blank` | e71796f | now |
+| --- | --- | --- |
+| dot press p20, cap 4, three trials: frames with a placeholder in view | 1, 4, 3 of 92 (pixels: 1, 3, 2 frames, widest 284 px) | 0, 0, 0 |
+| dot press, cap 8; far jump; wheel fling (cap 8 and 4) | 0 | 0 |
+| summon at slot 14, cap 8 and 4: placeholder in view | 0 | 0 |
+| hidden control | reads blank | 75 of 93 frames blank |
+
+The summon run shows a band of the page about 220 px wide for 11 frames, at e71796f as now: the edge page shrinks out while the
+root slides in from outside the window (`summon-left-mid.png` shows it). No page there is unloaded, so it is recorded, not failed;
+whether the root should fill that slot sooner is a design question for the summon, not the loader.
+
+Mutants (one per fix, each from a `git archive` of this branch): the mark's rest dropped from `moveEmbla` fails 3 summon checks; the
+Reduce Motion duration in `arriveAndLeave` fails 2; the old ids-sensitive step-aside re-check fails 3; the leaving-slot hold removed
+fails 2 (a leaving page drawn 390 px into the window); the loader reading Embla's location instead of the drawn position fails 3 blank
+checks (5 of 96 frames at cap 8).
 
 Step-5 leftover, measured: in presented frames (CDP screencast, magenta page) of `shrinkAside`, the gap between p1's drawn right edge
 and p2 grows to 78 px (16 at rest) while the per-frame layout says 16.0 px throughout. It is real: p2's glide is a main-thread
