@@ -37,7 +37,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMarkOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, setStayingExit, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMarkOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 // A host may apply a person's move a task or two after the drop or key that asked for it; a note older than this was refused.
@@ -150,6 +150,12 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
   return (offsetX) => reorderStepsForOffset(offsetX, slot?.neighborWidths ?? NO_NEIGHBORS, (slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning ?? OUTSIDE_ROW_TUNING).hopFraction);
 };
 
+/** The page drawn in the `edge` slot at `drawn` that leaves the strip from `before` to `after`, or null. */
+function stayingEdgeExit(before: StripLayout, after: StripLayout, drawn: number, windowWidth: number, edge: 'left' | 'right'): string | null {
+  const k = before.ids.findIndex((id, j) => !after.ids.includes(id) && (edge === 'left' ? Math.abs(before.lefts[j]! - drawn) <= 0.5 : Math.abs(before.lefts[j]! + before.widths[j]! - drawn - windowWidth) <= 0.5));
+  return k < 0 ? null : before.ids[k]!;
+}
+
 /**
  * After a jump of an Embla row from `from` to `to` (scroll px) across a change of its strip from `before` to `after`, keeps what the
  * change did not move where it was on screen: a slot leaving in this commit runs its exit from where it was drawn, in view or out of it.
@@ -158,7 +164,7 @@ export const usePanelReorderSteps = (): ((offsetX: number) => number) => {
  * the commit's shared start, the clock a size box eases on, so a page and its neighbors stay one gap apart in every frame. On a marked
  * commit a panel coming back onto the strip in view fades in where it lands, except `slideIn`, which comes in over its edge.
  */
-function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, glides: boolean, slide: SlideTuning, slideIn: { id: string; edge: 'left' | 'right' } | null, reduced: boolean): void {
+function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayout, from: number, to: number, windowWidth: number, gap: number, marked: boolean, glides: boolean, slide: SlideTuning, slideIn: { id: string; edge: 'left' | 'right' } | null, reduced: boolean, staying: { id: string; pin: string; edge: 'left' | 'right' } | null = null): void {
   const nodeOf = (id: string): HTMLElement | null => box.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
   // Under Reduce Motion every slot lands where it goes at once; a leaving one still runs its exit from where it was drawn.
   const durationMs = reduced ? 0 : slide.durationSec * 1000;
@@ -187,6 +193,26 @@ function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayou
     glide(nodeOf(id), [{ translate: `${outside(was, w) - now}px 0px` }, { translate: `${outside(now, after.widths[j]!) - now}px 0px` }]);
   });
   if (!marked) return;
+  // The page leaving the slot the pinned root glides into is cut back from the root's side as it comes, on the same curve and clock
+  // (composite 'add' keeps the cut on the main thread with the glides). The gap between them closes as the root lands, so the two gaps
+  // (root, page, next page) become one without a frame of two: no band of the page behind the row wider than one gap.
+  const kStay = staying === null ? -1 : before.ids.indexOf(staying.id);
+  const jPin = staying === null ? -1 : after.ids.indexOf(staying.pin);
+  const leaving = kStay < 0 ? null : nodeOf(staying!.id);
+  if (staying !== null && kStay >= 0 && jPin >= 0 && leaving !== null && typeof leaving.animate === 'function' && durationMs > 0) {
+    const w = after.widths[jPin]!;
+    const now = after.lefts[jPin]! - to;
+    const kPin = before.ids.indexOf(staying.pin);
+    const was = kPin < 0 ? null : before.lefts[kPin]! - from;
+    const outsideX = staying.edge === 'left' ? -(w + gap) : windowWidth + gap;
+    const start = was === null || was + w <= 0.5 || was >= windowWidth - 0.5 ? outsideX : was;
+    const lx = before.lefts[kStay]! - from;
+    const lr = lx + before.widths[kStay]!;
+    const cut = (rootX: number): number => Math.max(0, staying.edge === 'left' ? rootX + w + gap - lx : lr - rootX + gap);
+    const inset = (px: number): string => (staying.edge === 'left' ? `inset(-100vh 0px -100vh ${px}px)` : `inset(-100vh ${px}px -100vh 0px)`);
+    const anim = leaving.animate({ clipPath: [inset(cut(start)), inset(Math.max(0, cut(now) - gap))] }, { duration: durationMs, easing: `cubic-bezier(${slide.ease.join(',')})`, composite: 'add', fill: 'both' });
+    anim.startTime = sharedStartTime();
+  }
   after.ids.forEach((id, j) => {
     if (before.ids.includes(id)) return;
     const w = after.widths[j]!;
@@ -472,6 +498,11 @@ export function PanelRow({
   const keptNow = emblaNow === undefined || !changed || reorderNow !== null ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
   const keepTo = marked ? (markedScroll(mark, layoutNow, emblaWindow.width, keptNow, stripMax) ?? keptNow) : keptNow;
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
+  // A summon whose root slides in over an edge: the page leaving that edge's slot stays there and is cut back from the root's side in
+  // step with it (`arriveAndLeave`), so no frame shows the page behind the row between them.
+  const stayingId = marked && mark.pin !== null ? stayingEdgeExit(lastLayout.current!, layoutNow, drawnScrollNow, emblaWindow.width, mark.pin.edge) : null;
+  const stayingExit = stayingId === null || mark?.pin == null ? null : { id: stayingId, pin: mark.pin.id, edge: mark.pin.edge };
+  if (marked && windowRef.current !== null) setStayingExit(windowRef.current, stayingId);
   // A change of the strip in the same window that moves the view (a page in view narrowed at the strip's end) jumps the scroll and
   // snaps the slots as any keep does; the slots it moved on screen then glide there with the size box, so nothing in view jumps.
   // Only a width change: the same panels in the same order (an open, close or move keeps its snap, as a window resize does).
@@ -630,7 +661,7 @@ export function PanelRow({
       const slideIn = marked && mark.pin !== null && !shown.layout.ids.includes(mark.pin.id) ? { id: mark.pin.id, edge: mark.pin.edge } : null;
       // Drawn after this commit: the mark's rest, or where the strip was drawn moved by the keep's shift.
       const drawnTo = marked ? keepTo : drawnScrollNow + keepTo - scrollNow;
-      arriveAndLeave(boxRef.current, shown.layout, layoutNow, shown.drawn, drawnTo, emblaWindow.width, gap, marked, marked || widthGlide, rowTuning.slide, slideIn, reducedMotion);
+      arriveAndLeave(boxRef.current, shown.layout, layoutNow, shown.drawn, drawnTo, emblaWindow.width, gap, marked, marked || widthGlide, rowTuning.slide, slideIn, reducedMotion, stayingExit);
     }
     if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken())) shownRef.current = { layout: lastLayout.current, drawn: drawnScrollNow, task: taskToken() };
     lastLayout.current = layoutNow;

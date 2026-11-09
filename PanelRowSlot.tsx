@@ -12,7 +12,7 @@ import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { LandingContext, useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
-import { EMBLA_WINDOW_ATTRIBUTE } from './emblaRow.js';
+import { EMBLA_WINDOW_ATTRIBUTE, staysOnExit } from './emblaRow.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
 /**
@@ -361,7 +361,8 @@ export function PanelRowSlot({
         return;
       }
       const timing = reducedMotion === true ? { duration: 0, ease: transition.ease } : timingOf(exit.transition as { duration?: number; ease?: unknown } | undefined, transition);
-      glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
+      // The page a summon's root slides in beside stays at its rest; the row cuts it back as the root comes (PanelRow).
+      glide(staysOnExit(node) ? poseOf(animateTarget, leftOffset) : poseOf(exit, leftOffset), timing, () => safeToRemove?.());
       return;
     }
     const returning = exiting.current;

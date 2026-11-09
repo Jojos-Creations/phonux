@@ -652,6 +652,20 @@ export function markEmblaRow(el: Element, mark: Omit<EmblaRowMark, 'seq'>): void
   const win = windowOf(el);
   if (win !== null) marks.set(win, { ...mark, seq: ++markSeq });
 }
+const stayingExits = new WeakMap<Element, string>();
+/**
+ * Names the page that leaves the edge slot a summon's root slides into: it stays where it is through its exit, and the row cuts it
+ * back from the root's side as the root comes in, so the two stay one gap apart. Null clears it. @internal
+ */
+export function setStayingExit(win: Element, id: string | null): void {
+  if (id === null) stayingExits.delete(win);
+  else stayingExits.set(win, id);
+}
+/** Whether the leaving slot `slot` (a `[data-row-slot]` of an Embla row) is the one a summon keeps in place. @internal */
+export function staysOnExit(slot: HTMLElement): boolean {
+  const win = slot.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
+  return win !== null && stayingExits.get(win) === slot.dataset.rowId;
+}
 /** The last mark set on the Embla row rooted on `win`. @internal */
 export const emblaMarkOf = (win: Element): EmblaRowMark | undefined => marks.get(win);
 

@@ -1343,6 +1343,7 @@ if (ONLY.has('blank') && ENGINE === 'embla') {
     // The defect showed in one or two frames of a glide, so the far dot press runs three times at the cap that fits the window.
     const runs = [...Object.entries(acts), ...(cap === 4 ? [['dotFar2', acts.dotFar!], ['dotFar3', acts.dotFar!]] : [])] as [string, (page: Page) => Promise<void>][];
     for (const [name, act] of runs) {
+      if (!want(`blank.${name}`)) continue;
       for (const cond of ['row', 'hidden'] as const) {
         // The control: every slot hidden, a row known to be blank, which the pixel measure must see.
         if (cond === 'hidden' && (cap !== 8 || name !== 'dotFar')) continue;
@@ -1383,8 +1384,9 @@ if (ONLY.has('blank') && ENGINE === 'embla') {
           if (blankShots > 0) controlSeen += 1;
           else empty.push(`blank control ${name}: every page's content hidden and no presented frame read blank, so the measure cannot see a blank page`);
         } else {
-          // A summon's edge page fades out while the root slides in from outside the window, which leaves a band of the page showing for
-          // about 11 frames (e71796f and now alike): recorded, not failed, since no page there is unloaded (the DOM check below).
+          // A summon's root slides in over the edge slot while the page leaving it is cut back from the root's side: no presented frame
+          // shows a band of the page between them wider than one gap (16 px) and a little (it was about 220 px for 11 frames at 2c8d40b).
+          if (name === 'summon' && r.widestBlankPx > 16 + 8) failed.push(`blank summon cap ${cap}: a presented frame shows a band of the page ${r.widestBlankPx} px wide in the window (${widths.filter((w) => w > 24).length} of ${shots.length} frames), want one gap and at most 8 px more`);
           if (blankShots > 0 && name !== 'summon') failed.push(`blank ${name} cap ${cap}: ${blankShots} of ${shots.length} presented frames show a page in the window painting nothing (widest ${r.widestBlankPx} px)`);
           if (domBlank.length > 0) failed.push(`blank ${name} cap ${cap}: an unloaded placeholder was drawn in the window in ${domBlank.length} of ${fr.length} frames (${r.domBlankIds})`);
         }
