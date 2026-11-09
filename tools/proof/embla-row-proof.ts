@@ -701,7 +701,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
   // `pauses` in turn between bursts: under 500 ms the whole scroll is one held gesture; 600 ms settles it between bursts.
   const ONE = [80, 300, 150, 450];
   const SOME = [80, 300, 150, 600];
-  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean };
+  // `up`: the hand's action is a bare mouse button release (a button held on a panel since before the wheel), not a 1 px move.
+  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean; up?: boolean };
   const CASES_END: [string, EndCase][] = [
     ['endLeftFeed', { dir: -1, from: 8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
     ['endRightFeed', { dir: 1, from: -8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
@@ -712,6 +713,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     // Ground on past the end long enough for the plugin's own rubber band (it damps its pointer back, then ends its gesture).
     ['endLeftLong', { dir: -1, from: 2, bursts: 30, pauses: [0], mouse: true, inPauses: false }],
     ['midHand', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true }],
+    ['midUp', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, up: true }],
   ];
   for (const [label, c] of CASES_END) {
     if (!want(`settle.${label}`)) continue;
@@ -758,7 +760,11 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
         let left = wheels.length + handMoves.length;
         const fire = (ms: number, f: () => Promise<unknown>): void => void setTimeout(() => { sends.push(f()); if (--left === 0) done(); }, ms);
         for (const [ms, dx] of wheels) fire(ms, () => cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: hand.x, y: hand.y, deltaX: dx, deltaY: 0 }));
-        for (const ms of handMoves) fire(ms, () => { hand.x += 1; return cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hand.x, y: hand.y }); });
+        for (const ms of handMoves) fire(ms, () => {
+          if (c.up === true) return cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: hand.x, y: hand.y, button: 'left', clickCount: 1 });
+          hand.x += 1;
+          return cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hand.x, y: hand.y });
+        });
       });
       await Promise.all(sends);
     } else await g(page, 'feedTimed', wheels);

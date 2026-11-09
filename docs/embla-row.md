@@ -677,8 +677,10 @@ in `settle-<case>-frames.json`):
   Workspace stepped aside at the start comes back only when the row moves past its rest toward it (`summon.unrelatedClose`). A clamp of
   the wheel at the ends was tried. It broke that case ("the wheel did not bring the root back"), so the stretch stays.
 
-Fix: while a wheel gesture holds the press, a trusted `mousemove` is stopped at the document before Embla's own listener. It is
-registered at mount, ahead of the one Embla adds at each press. The tail path never moves the target back toward an end it is
+Fix: while a wheel gesture holds the press, a person's trusted `mousemove`, `mouseup`, `touchmove` and `touchend` (the set Embla's
+drag listens for on the document from a mouse press, `DragHandler.addDragEvents`) are stopped at the document before Embla's own
+listeners. They are registered at mount, ahead of the ones Embla adds at each press. A trusted press inside the row still ends the hold
+first (`onPress`), so its own release passes. The tail path never moves the target back toward an end it is
 stretched past: a wheel there moves nothing, and Embla's edge resistance and the release bring it back.
 
 Measured. The row is narrow: 25 one-slot pages, the Workspace first unless said, pitch 406, max 8,526. Bursts are six 40 px notches,
@@ -695,10 +697,21 @@ scroll and lands inside the strip:
 | endLeftLong: from 812, 7,200 px with no pause, hand after | 812; 845 (26, 315) | 0; 0 (target back while pressed: 205 px at 97aab2c, at most 8 now) |
 | midHand: 960 px from 6,496, hand in the pauses | 6,090; 1,002 (7, 381) | 5,278; 0 |
 | endLeftFeed / endRightFeed: handed in, no pointer (controls) | 0 / 8,526; 0 | 0 / 8,526; 0 |
+| midUp: midHand with a bare mouse button release in the pauses (a button held on a panel since before the wheel) | at 705f2c1: 5,684, behind the 5,536 reached; 144 (33, 9.5) | 5,278; 0 |
 
 The stretch past the end is reported (`drawnPastEndPx`, 180-353 px at 9a55bbb and 210-321 px now) and not failed.
 
+Independent re-trace (2026-11-09, headless, trusted wheels through CDP, two bursts of six notches with a 300 ms gap, no other input):
+at 9a55bbb the row rests on the stop ahead (3,248 from 4,060) at every gap from 50 to 600 ms, so the double scroll alone does not snap
+back; a trusted `mousemove` 250 ms after a burst (after the plugin's own end, 168 ms after the last notch in that run, inside the 500 ms
+hold) does, even with no travel at all (same x and y: rest 4,060, the exact start, 480 px of target in one frame). A hand that moves
+170 ms after the burst is still blocked by the plugin and does nothing. At 705f2c1 the same inputs rest at 3,248. What still reached
+the held press at 705f2c1: a bare trusted `mouseup` (Embla's own release to the nearest stop, 132 px back) and a touch outside the row
+(its `touchmove` is read against the plugin's pointer, as the move was); a right-click's `contextmenu` runs Embla's release once more
+after the press has ended the hold (a 406 px target step to the nearest stop, then the press's own settle, also to the nearest stop).
+
 Mutant (the pointer's move not stopped): 6 of 8 cases fail with the 9a55bbb numbers (endLeft rests 3,248, 1,509 px in one frame).
+Mutant 3 (`mouseup` dropped from the stopped set): midUp fails with the 705f2c1 numbers (rests 5,684, 143.9 px back in 33 frames).
 The two feed controls pass, as they should with no pointer. Mutant 2 (the tail path's clamp as at 97aab2c): endLeftLong fails,
 with the target stepping 205 px against the scroll in one frame while pressed. The check is that no pressed frame steps Embla's target
 more than 50 px against the scroll; edge resistance takes up to 26.
@@ -707,9 +720,14 @@ What this costs: while a wheel gesture holds the row, the document and the windo
 every trusted mouse event during its own gesture.
 
 Not covered:
-- A click elsewhere during the hold still ends Embla's press with Embla's own release. There is no jump, since its release reads no
-  point.
-- A touch moving during a mouse wheel's hold was not tried.
+- A press inside the row during the hold ends it where the row is drawn and rests on the nearest stop, by design; a right-click there
+  also runs Embla's own release on `contextmenu` (its root listener), to the nearest stop as well. A press outside the row leaves the
+  hold alone, and its release is stopped with the rest.
+- The hold itself is the design that lets these in: Embla's press is kept open across the plugin's gaps so that its release does not
+  pick a stop behind the scroll. Driving the row by Embla's target directly during a wheel (no press at all) would close every such
+  path at once, but loses Embla's edge stretch under a press, which the step-aside's way back reads (above); not done here.
+- A touch moving during a mouse wheel's hold: `touchmove`/`touchend` are in the stopped set, and a touch inside the row ends the
+  hold as a press; a touch outside the row was traced only at 705f2c1 (the set stops it) and has no proof case.
 - The stretch past an end itself: a wheel with no rubber band would need the step-aside to read "toward the root" some other way.
 
 ## Not done yet (still on the old row, or not working on Embla yet)
