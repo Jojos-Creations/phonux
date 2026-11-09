@@ -526,6 +526,8 @@ const WHEEL_AGAINST_PX = 8;
  */
 const WHEEL_FRICTION = 0.1;
 const WHEEL_DURATION = 0.22;
+/** Row px per wheel px: the owner found the row at 1:1 a bit fast (2026-11-09). */
+const WHEEL_SPEED = 0.65;
 /**
  * A wheel gesture driving the row: its direction of travel (scroll px sign), travel against it, its idle wait, and the wheel's target
  * kept across a release Embla runs with no press of its own.
@@ -707,7 +709,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (s.isEnding || embla.internalEngine().dragHandler.pointerDown()) return;
       const [dx, dy] = s.axisDelta;
       if (!wheelRuns.has(embla) && (s.isMomentum || Math.abs(dx) <= Math.abs(dy))) return;
-      wheelBy(embla, dx);
+      wheelBy(embla, dx * WHEEL_SPEED);
     });
     win.addEventListener('wheel', onWheel, { passive: false });
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box });
