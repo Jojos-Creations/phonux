@@ -159,6 +159,9 @@ Measured (`--only dots`, same parking row; bar drawn as the app does, clipped an
 
 ## Step 4: Workspace summon, dismiss and step-aside
 
+Superseded by the owner ruling of 2026-11-09 ("The Workspace as an ordinary page", below): the summon described here, its dismiss,
+the step-aside and the step-away dismiss were deleted. This section and the summon parts of the audit passes below are the record.
+
 On a strip the summon and the step-aside change what the row draws, never the list (`useProvidePanels`, `stripSummon` and
 `stripAside`): nothing is saved, the host's panel list keeps every panel live, and a reload shows the row as the list has it. With
 the switch off the old row's summon runs as before.
@@ -590,13 +593,64 @@ Not covered: a real mouse wheel and a real trackpad (headless takes only synthet
 Safari, where the plugin guesses a momentum tail from its deceleration (in Chromium 151 every wheel carries a `momentum` flag, so that guess never runs here; the unflagged case is a tail the plugin passes as plain wheels), a horizontal
 tilt wheel's own cadence, and the gap a real finger reposition takes.
 
+## The Workspace as an ordinary page (owner ruling 2026-11-09)
+
+Joe picked "Workspace as a normal page": the Workspace sits in the row and scrolls like any page, reached by scrolling or its dot. His
+model of the summon: "Isn't it just a quick reorder of where ever the workspace currently sits to just offscreen, and then normal
+scrolling brings it in?" So on Embla `summonRoot()` (the window bar's button and tabs) does two things:
+
+- `emblaSummonMove` (emblaRow.ts) picks the slot just outside the view on the side the root lies on (the left when on neither): next
+  to the first page reaching into the view on the left, or the last one on the right. The provider moves the root there with
+  `reorderPanel(rootId, hops, true)`, the person's move path (one order commit, recorded as the saved order). The view read is the one
+  drawn now, so mid-glide the root never lands inside the view.
+- The glide is `requestScroll` of the root (`showOnEmbla`: from where the row is heading, to the nearest stop, a jump under Reduce
+  Motion, deferred while a gesture holds the row). A wheel gesture's hold is ended where the row is drawn first (`endEmblaWheel`, as a
+  key step does); a person's drag defers the whole summon to its release (`whenEmblaFree`).
+- The commit that draws the move snaps the slots it moves (`noteEmblaMove`; all of them are out of the view), so the root stands at
+  its new place before the glide brings it in and no page slides on its own. Pages in the view keep their strip places, so the
+  keep-still rule leaves the view where it is.
+
+After that the root is an ordinary page. `dismissRoot()` does nothing on Embla and returns false; `rootView()` reads 'shown' or 'away'.
+Scrolling to it or pressing its dot only scrolls. With it wholly in view the summon does nothing.
+
+Deleted (emblaRow.ts, PanelRow.tsx, PanelRowSlot.tsx, useProvidePanels.ts): `emblaSummonPlan`, `emblaAsideFor`, `EmblaRowMark`,
+`markEmblaRow`, `markedScroll`, `emblaMarkOf`, `setStayingExit`, `staysOnExit`, `onEmblaStep` (the step hook), moveEmbla's `land`,
+`stayingEdgeExit`, the summon clip and the marked-commit slide-in and fade-in in `arriveAndLeave`, the provider's `stripSummon` and
+`stripAside` state, the step-away dismiss, the step-aside layout effect and the aside branch of `requestScroll`. Unit tests removed:
+the five `emblaSummonPlan`, two `emblaAsideFor` and four `markedScroll` tests (test/embla-row-summon.test.ts), replaced by five
+`emblaSummonMove` tests (one a 400-run property: the root lands one gap outside the view on its side, every page reaching into the view
+keeps its strip place). Proof cases removed: summon.dismiss*, stepToward, scrollOut, dotOut, arrowAway, asideResize, asideSize, asideCut,
+apiAside, summonDrag, dismissDrag, dismissMidGlide, reducedAside, unrelatedClose, clip; width.growSummoned; inert's dismiss run.
+Renamed: width.shrinkAside to shrinkBesideRoot (the root now stays beside the cut page) and width.shrinkAsidePresented to shrinkPresented.
+
+Also changed: `moveEmbla` shifts a glide in flight in place (positions and target) instead of writing the drawn position and starting a
+new glide from rest. The first draft placed the root next to the view the glide was heading for; mid-glide that was inside the drawn
+view (the root appeared at 1113 px in the window) and the strip jumped 270 px in one frame (`summon-midGlide-frames.json`).
+
+Proof (`embla-row-proof.ts --only summon`, 24 one-slot pages and the root, window of four). Per frame, over the pages drawn in the
+window or one gap past its edges: every page moves by the strip's one shift within 0.5 px (nothing snaps or slides on its own), no
+frame moves the strip more than half a slot, the window has no run wider than a gap that no page covers, no unloaded placeholder in it.
+
+| case | result |
+| --- | --- |
+| fromLeft: root at place 2, view p14..p17 | root moved to place 13 (next to p14), 1 order commit, glides in: view root,p14,p15,p16 at 5278, root drawn at ~38 places, 0 px off the strip shift, widest hole 16 px |
+| fromRight: root at place 20, view p3..p6 | root moved to place 6 (after p6), 1 commit, view p4,p5,p6,root at 1218 |
+| stays: glide to 20, back to 13, scrollTo(root) from 20 | order unchanged, 0 commits, root at 0 back at slot 13 |
+| inView: root in view | summon false, dismiss false, row moved 0 px, 0 commits |
+| reduced (Reduce Motion) | lands at once (root at <= 2 places), same order and view, 1 commit |
+| midGlide: pressed 90 ms into a glide 14 > 18 | root next to the drawn view (place 14), the glide turns and lands root,p15,p16,p17 at 5684; fastest frame 60 px, 0 px off the shift |
+| midWheel: pressed during a 300 px wheel | the hold ends, root at 13, glides back to root,p14,p15,p16 at 5278; fastest frame 124 px |
+
+Blank (`--only blank`): the summon run is held to the same rule as every other run (no presented frame with a magenta band of 100 px
+or more) and to a band no wider than a gap and 8 px. Inert: the summon run as before; the dismiss run is gone.
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
 - Reorder on Embla: a wide (two-slot or wider) page dragged, a drag held at the left edge to the strip's start, a touch drag and a
   host that refuses a move were not tried. Width changes: a hand resize (`usePanelResizing`, a held width) and a window resize
   during a size glide were not tried on Embla; maximize was tried with a wheel and a key, not with a window resize while grown.
-- Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, and a window one slot wide were not tried; a
-  real trackpad flick carrying the root out was not tried (the proof uses a glide and a dot press).
+- Summon on Embla: a root held at an edge (`edgeHold`), a root wider than one slot, a window one slot wide, a summon during a mouse
+  drag of the row (deferred to the release by design) and a host refusing the move (`crossable: false`) were not tried in the browser.
 - `revealOnScroll` and the settle after a hand resize: not applicable on a strip (fourth pass); a host-hidden panel is not revealed by a
   step on Embla.
 - Edge-held panels (`edgeHold`) were not tried on Embla: the old drawing pass that holds them needs the old strip.
