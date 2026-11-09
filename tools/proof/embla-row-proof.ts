@@ -859,7 +859,9 @@ if (ONLY.has('width') && ENGINE === 'embla') {
     const endJump = tail.length === 0 ? 0 : Math.max(...tail);
     // A follower right of the page keeps one gap from its drawn right edge, one left of it from its drawn left edge.
     const gapOf = (f: any, id: string): number => (f.drawn[id].x > f.drawn[o.page].x ? f.drawn[id].x - (f.drawn[o.page].x + f.drawn[o.page].w) : f.drawn[o.page].x - (f.drawn[id].x + f.drawn[id].w)) - 16;
-    const worstGap = Math.max(0, ...o.followers.flatMap((id) => fr.map((f: any) => Math.abs(gapOf(f, id)))));
+    // A follower off the strip in a frame (the root before it comes back) has no gap there; one never drawn proves nothing.
+    for (const id of o.followers) if (!fr.some((f: any) => f.drawn[id] !== undefined)) empty.push(`width ${label}: follower ${id} never drawn`);
+    const worstGap = Math.max(0, ...o.followers.flatMap((id) => fr.filter((f: any) => f.drawn[id] !== undefined).map((f: any) => Math.abs(gapOf(f, id)))));
     // A one-slot page cut by the window while the row stands on the grid and the page stands still (one gliding across the edge is
     // the glide itself; a wheel or a glide between rests cuts pages by nature), or at the rest.
     const cut = fr.filter((f: any, k: number) => {
