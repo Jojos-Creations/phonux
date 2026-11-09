@@ -29,6 +29,8 @@
  *        slot and the pages in view stay put in every frame; a dismiss restores the view; a step toward it keeps the summon; a scroll
  *        and a dot press carrying it out end the summon and return its pages out of view. The step-aside: a window narrowed under a
  *        wide page beside the root, and a size pick, show the page whole; a step back and a wider window bring the root back.
+ *        On presented frames (screencast), the root slides in beside the page leaving its slot, cut back from its side, from either
+ *        edge: never under it nor over it (summon.clip).
  *
  * width  a row of 17 slots in a window of four: a page's width changes in view, at the window's left edge, cut by it, at the strip's
  *        end (where the view cannot keep its left edge and the right end holds instead), under an arrow-key glide and a wheel stream,
@@ -194,6 +196,40 @@ const castFrames = async (page: Page): Promise<{ shots: string[]; stop: () => Pr
   });
   await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 });
   return { shots, stop: async () => void (await cdp.send('Page.stopScreencast')) };
+};
+// Each window column (CSS px, `step` apart) of a presented frame read as R (the root's #243 fill), M (page magenta, `bg=1`), P (a page's
+// gradient: neither), at least 90% of the sampled rows, else '?'. Column k is `box.left + k * step`.
+const columnKinds = async (png: string, viewW: number, box: Box, step: number): Promise<string> => {
+  if (pixelPage === undefined) {
+    pixelPage = await (await browser.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+    await pixelPage.goto('about:blank');
+  }
+  return pixelPage.evaluate(async ([b64, vw, b, st]: [string, number, Box, number]) => {
+    const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+    const c = new OffscreenCanvas(bm.width, bm.height);
+    const x = c.getContext('2d')!;
+    x.drawImage(bm, 0, 0);
+    const d = x.getImageData(0, 0, bm.width, bm.height).data;
+    const k = bm.width / vw;
+    let out = '';
+    for (let cx = Math.ceil(b.left); cx < b.left + b.width; cx += st) {
+      let r = 0;
+      let m = 0;
+      let p = 0;
+      let n = 0;
+      // Below the root's label (24 px type at the top), so the root reads as its fill.
+      for (let cy = b.top + 60; cy < b.bottom - 30; cy += 20) {
+        const i = (Math.round(cy * k) * bm.width + Math.round(cx * k)) * 4;
+        const [R, G, B] = [d[i]!, d[i + 1]!, d[i + 2]!];
+        n += 1;
+        if (Math.abs(R - 0x22) <= 10 && Math.abs(G - 0x44) <= 10 && Math.abs(B - 0x33) <= 10) r += 1;
+        else if (R > 240 && G < 15 && B > 240) m += 1;
+        else p += 1;
+      }
+      out += n === 0 ? '?' : r / n >= 0.9 ? 'R' : m / n >= 0.9 ? 'M' : p / n >= 0.9 ? 'P' : '?';
+    }
+    return out;
+  }, [png, viewW, box, step] as [string, number, Box, number]);
 };
 // The window's box, the slots' height (the rows a band is sampled over).
 const slotBand = async (page: Page): Promise<Box> => {
@@ -1289,6 +1325,59 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (r.rootView !== 'shown' || r.rootX !== 0) fail('unrelatedClose', `root ${r.rootView} at ${r.rootX}: a far page closing stepped the root aside again`);
     if (errors.length > 0) fail('unrelatedClose', `page errors ${errors.join(' | ')}`);
     await close();
+  }
+  if (want('summon.clip')) {
+    // The page leaving the slot a summoned root glides into is cut back from the root's side as it comes (PanelRow's arriveAndLeave
+    // clip-path), so the root slides in beside it. Read on presented frames (screencast) over that slot, from the side the root enters:
+    // the root's run, then the page background between them, then the page. Without the cut, the root came in under the page from
+    // the left (no root in the slot until the page left) and over it from the right (root against page, no background between).
+    const STEP = 2;
+    const clip: Record<string, unknown> = {};
+    for (const edge of ['left', 'right'] as const) {
+      const label = `clip ${edge}`;
+      const { page, errors, close } = await open(row, 1800, 900, '&bar=0&bg=1');
+      if (!(await placeRoot(page, 8))) empty.push(`summon ${label}: the root could not be placed`);
+      await g(page, 'jumpToSlot', edge === 'left' ? 14 : 0);
+      await sleep(900);
+      const band = await slotBand(page);
+      const cast = await castFrames(page);
+      await g(page, 'summon');
+      await sleep(1200);
+      await cast.stop();
+      const root = (await shown(page)).root;
+      if (root === undefined || root.w < 100) {
+        empty.push(`summon ${label}: the root was not drawn after the summon`);
+        await close();
+        continue;
+      }
+      // The slot the root lands in, a few px inside its edges (the window's edge and the frame's rounding read as neither).
+      const box = { left: band.left + root.x + 4, width: root.w - 8, top: band.top, bottom: band.bottom };
+      let partial = 0;
+      let early = 0;
+      const over: number[] = [];
+      let cols = 0;
+      for (const png of cast.shots) {
+        const read = await columnKinds(png, 1800, box, STEP);
+        const k = edge === 'left' ? read : [...read].reverse().join('');
+        cols = k.length;
+        const r = /^R*/.exec(k)![0].length;
+        if (r < 2 || r > cols - 3) continue;
+        partial += 1;
+        // While the root has come less than 40% of the way, the cut keeps background (magenta) between it and the page: the gap
+        // closes only as the root lands. One column of the root's antialiased edge may read as neither.
+        if (r > cols * 0.4) continue;
+        early += 1;
+        if (!k.slice(r, r + 4).includes('M')) over.push(r * STEP);
+      }
+      clip[edge] = { shots: cast.shots.length, cols, partialFrames: partial, earlyFrames: early, overFrames: over.length, rootX: root.x };
+      if (cast.shots.length < 10) empty.push(`summon ${label}: ${cast.shots.length} presented frames`);
+      if (partial < 5) fail(label, `the root was seen partly in its slot in ${partial} of ${cast.shots.length} presented frames: it came in under the page leaving the slot, not beside it`);
+      else if (early < 3) empty.push(`summon ${label}: only ${early} presented frames early in the glide, so the gap was not read`);
+      if (over.length > 0) fail(label, `in ${over.length} of ${early} presented frames early in the glide the root touched the page with no background between them (root ${over.slice(0, 4).join(', ')} px in): it slid over the page, not beside it`);
+      if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
+      await close();
+    }
+    res.clip = clip;
   }
   out.summon = res;
 }
