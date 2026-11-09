@@ -910,6 +910,34 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail('left', `page errors ${errors.join(' | ')}`);
     await close();
   }
+  if (want('summon.arrowAway')) {
+    // An arrow key after a summon: a step away from the root returns the row (the dismiss, the pages in view standing still), and the
+    // next step goes one stop from where the row rests, not from Embla's selected index, which the summon's and the dismiss's direct
+    // writes leave behind. From the left (view p14..p17) and from the right (view p1..p4).
+    const { page, errors, close } = await open(row, 1800, 900, '&bar=0');
+    if (!(await placeRoot(page, 8))) empty.push('summon arrowAway: the root could not be placed');
+    await g(page, 'jumpToSlot', 14);
+    await sleep(500);
+    await g(page, 'summon');
+    await sleep(900);
+    if ((await g(page, 'rootView')) !== 'summoned') empty.push('summon arrowAway: the summon from the left did not stand, so this proved nothing');
+    const a1 = await step(page, 'arrowAwayLeft', () => page.keyboard.press('ArrowRight'), ['p15', 'p16', 'p17']);
+    if (a1.rootView !== 'away' || a1.slots !== 25 || a1.visibleAfter.join() !== 'p14,p15,p16,p17' || Math.abs(a1.rest - 14 * PITCH) > 0.5) fail('arrowAwayLeft', `after ArrowRight: root ${a1.rootView}, ${a1.slots} slots, view ${a1.visibleAfter}, rest ${a1.rest}; want the summon returned, p14..p17 at ${14 * PITCH}`);
+    const a2 = await step(page, 'arrowNextLeft', () => page.keyboard.press('ArrowRight'), []);
+    if (Math.abs(a2.rest - 15 * PITCH) > 0.5 || a2.visibleAfter.join() !== 'p15,p16,p17,p18') fail('arrowNextLeft', `the next ArrowRight rests ${a2.rest}, view ${a2.visibleAfter}; want one stop on, ${15 * PITCH}, p15..p18`);
+    await g(page, 'jumpToSlot', 0);
+    await sleep(900);
+    await g(page, 'summon');
+    await sleep(900);
+    if ((await g(page, 'rootView')) !== 'summoned') empty.push('summon arrowAway: the summon from the right did not stand, so this proved nothing');
+    const b1 = await step(page, 'arrowAwayRight', () => page.keyboard.press('ArrowLeft'), ['p1', 'p2', 'p3']);
+    if (b1.rootView !== 'away' || b1.slots !== 25 || b1.visibleAfter.join() !== 'p1,p2,p3,p4' || Math.abs(b1.rest) > 0.5) fail('arrowAwayRight', `after ArrowLeft: root ${b1.rootView}, ${b1.slots} slots, view ${b1.visibleAfter}, rest ${b1.rest}; want the summon returned, p1..p4 at 0`);
+    const b2 = await step(page, 'arrowNextRight', () => page.keyboard.press('ArrowRight'), []);
+    if (Math.abs(b2.rest - PITCH) > 0.5 || b2.visibleAfter.join() !== 'p2,p3,p4,p5') fail('arrowNextRight', `the next ArrowRight rests ${b2.rest}, view ${b2.visibleAfter}; want one stop on, ${PITCH}, p2..p5`);
+    res.arrowAway = { a1, a2, b1, b2 };
+    if (errors.length > 0) fail('arrowAway', `page errors ${errors.join(' | ')}`);
+    await close();
+  }
   if (want('summon.fromRight')) {
     // Summon from the right with the view at the start, then a dot press carrying the root out.
     const { page, errors, close } = await open(row, 1800, 900, '&bar=0');
