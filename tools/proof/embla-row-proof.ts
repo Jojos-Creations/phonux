@@ -335,6 +335,33 @@ if (ONLY.has('keys')) {
   out.keys = { rests: seen, want: [1, 2, 3, 2].map((k) => k * pitch) };
   if (seen.join() !== [1, 2, 3, 2].map((k) => k * pitch).join()) failed.push(`keys: rests ${seen}`);
   await close();
+  if (want('keys.edgeFocus')) {
+    // A bare arrow while the panel in use is out of view focuses the panel at the view's far edge and leaves the row where it is, as on
+    // the own row (the app's "plain ArrowLeft/Right" hotkeys). The panel in use is p2, clicked, then scrolled out of view.
+    const r: Record<string, unknown> = {};
+    // Left lands on the rightmost panel in view and Right on the leftmost (`edgeSlotInView`, shared with the own row).
+    for (const [key, edge] of [['ArrowRight', 'left'], ['ArrowLeft', 'right']] as const) {
+      const { page, close } = await open(ROWS.narrow);
+      const at = await page.evaluate(() => { const b = document.querySelector('[data-box="p2"]')!.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+      await page.mouse.click(at.x, at.y);
+      await g(page, 'jumpToSlot', 10);
+      await sleep(900);
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      const pos0 = await g(page, 'pos');
+      await page.keyboard.press(key);
+      await sleep(900);
+      const pos1 = await g(page, 'pos');
+      const name = await page.evaluate(() => (document.activeElement?.closest('[data-row-slot]')?.querySelector('[data-box]') as HTMLElement | null)?.dataset.box ?? null);
+      const shown: any[] = await g(page, 'shown');
+      const win = await g(page, 'win');
+      const inView = shown.filter((x) => x.x >= -1 && x.x + x.w <= win.width + 1).sort((a, b) => a.x - b.x).map((x) => x.id);
+      const want = edge === 'right' ? inView[inView.length - 1] : inView[0];
+      r[key] = { pos0: +pos0.toFixed(1), pos1: +pos1.toFixed(1), focused: name, want, inView: inView.join(), win: win.width, xs: shown.map((x) => `${x.id}@${Math.round(x.x)}`).slice(8, 16).join(" ") };
+      if (Math.abs(pos1 - pos0) > 0.5 || name !== want) failed.push(`keys edgeFocus ${key}: row ${pos0.toFixed(1)} > ${pos1.toFixed(1)}, focus on ${name}, want ${want} at the ${edge} edge and the row still`);
+      await close();
+    }
+    out.keysEdgeFocus = r;
+  }
 }
 
 if (ONLY.has('change')) {

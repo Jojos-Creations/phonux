@@ -3,7 +3,7 @@
  * when the key lands focus on the panel at the far edge of the view instead. `stepRow` gives a host's own chord the same answer.
  */
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
 
 type Direction = 'left' | 'right';
 
@@ -65,7 +65,8 @@ export function focusEdgePanel(container: HTMLElement, active: string | null, di
   const cell = container.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`);
   // Every workspace in a column keeps its row mounted and hears every key; only the one the key went to answers it.
   if (target instanceof Element && target.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`) !== null && cell !== null && !cell.contains(target)) return false;
-  const view = container.getBoundingClientRect();
+  // On an Embla row the view is its window, which the container is wider than (the window is cut to whole slots and centered).
+  const view = (container.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`) ?? container).getBoundingClientRect();
   const slots = [...container.querySelectorAll<HTMLElement>(`[${ROW_ID_ATTRIBUTE}]`)].map((el) => {
     const box = el.getBoundingClientRect();
     return { el, id: el.getAttribute(ROW_ID_ATTRIBUTE), left: box.left, right: box.right };

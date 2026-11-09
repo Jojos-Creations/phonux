@@ -2,8 +2,7 @@
  * Where the row's frames sit in a host's page, measured: their height comes from the phone fit, which only the mounted row knows.
  */
 import * as React from 'react';
-import { ROW_STRIP_ATTRIBUTE } from './rowDom.js';
-import { EMBLA_WINDOW_ATTRIBUTE } from './emblaRow.js';
+import { EMBLA_WINDOW_ATTRIBUTE, ROW_STRIP_ATTRIBUTE } from './rowDom.js';
 
 /** How long the frames must hold still before the band stops following them: past a resize's settle wait and the glide after it. */
 const FOLLOW_STILL_MS = 1000;

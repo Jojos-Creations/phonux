@@ -67,3 +67,6 @@ export function rowPanelIdOf(target: EventTarget | null): string | null {
 export function panelRootOf(target: EventTarget | null): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) : null;
 }
+
+/** On the element Embla is rooted on: the window that shows whole slots. @internal */
+export const EMBLA_WINDOW_ATTRIBUTE = 'data-row-embla-window';

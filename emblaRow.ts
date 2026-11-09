@@ -12,14 +12,14 @@ import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'em
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
-import { PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** On the container of a row that runs on Embla. The old row's own wheel, touch and key listeners stand aside for it. @internal */
 export const ROW_ENGINE_ATTRIBUTE = 'data-row-engine';
 /** On each slot marker: an empty box one phone wide, at its slot's place in the strip. @internal */
 export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
-/** On the element Embla is rooted on: the window that shows whole slots. @internal */
-export const EMBLA_WINDOW_ATTRIBUTE = 'data-row-embla-window';
+// Declared in rowDom so the row's key and band code can read it without importing Embla.
+export { EMBLA_WINDOW_ATTRIBUTE };
 
 /** Which engine moves a row. 'own' is the library's row; 'embla' is the row on Embla Carousel. @internal */
 export type RowEngine = 'own' | 'embla';

@@ -331,7 +331,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (container === null) return undefined;
     const edge = (direction: 'left' | 'right', target: EventTarget | null): boolean => focusEdgePanel(container, chromeStore.active(), direction, target);
     const onKey = (event: KeyboardEvent): void => {
-      if (embla || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || arrowKeyBelongsElsewhere(event, container.ownerDocument)) return;
+      if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || arrowKeyBelongsElsewhere(event, container.ownerDocument)) return;
       if (container.closest('[inert]') !== null) return;
       if (edge(event.key === 'ArrowLeft' ? 'left' : 'right', event.target)) event.preventDefault();
     };
@@ -342,7 +342,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
       view.removeEventListener('keydown', onKey, true);
       unregister();
     };
-  }, [overflowContainerRef, chromeStore, embla]);
+  }, [overflowContainerRef, chromeStore]);
   // A panel whose width differs from the last commit's under the same container width was resized on purpose; a window resize moves
   // the container width too and keeps its snap.
   const panelResizing = resizingId !== null || (drawn.current.containerWidth === containerWidth && panelWidthChanged(drawn.current.numbers, rowNumbers));
