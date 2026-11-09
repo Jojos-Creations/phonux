@@ -19,6 +19,10 @@
  * settle (runs with gesture, or alone with --only settle) a mouse wheel's notches in bursts with 80/150/300/600 ms pauses, a trackpad
  *        swipe with its momentum tail (flagged and not), and a short scroll stopping just past and just before a stop: per frame, no
  *        move against the scroll, no reversal, each burst 1:1, the rest on the grid and not behind the scroll, settled within 1.8 s.
+ *        The ends (settle.end*, settle.midHand): from mid-strip on a row of 25, notch bursts into the start or the end and on past it,
+ *        by real (trusted) wheels with the hand's 1 px pointer moves or handed in; per frame the drawn row, Embla's location and
+ *        target: the row rests at the end it was scrolled into and never moves back into the strip against the scroll (the stretch
+ *        past an end and its spring back are reported, not failed: the step-aside's way back reads it).
  * resize the window 1800 > 1400 > 2300 > 1800 > 1000 at rest: the panel at the window's left edge stays there, no one-slot panel is
  *        cut in any frame, and each rest is on the grid.
  * strip  a parking row (24 parkable panels, maxLivePanels 8): every panel has its slot (the own row, the control, parks some); a wheel
@@ -684,6 +688,123 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (!r.restOnGrid) failed.push(`settle ${label}: rest ${r.rest} off the grid`);
     if (rest < furthest - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, behind ${r.furthest} where the scroll carried the row`);
     if (r.settleMs > 1800) failed.push(`settle ${label}: still moving ${r.settleMs} ms after the last wheel`);
+    if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  // The row's ends (the owner's report: wheeled left to the strip's first dot, stopped, and the row jumped about ten dots back to the
+  // right). A row of 25 one-slot pages, from mid-strip, bursts of six notches with the finger lifted 80-600 ms between them, on past
+  // the end (the row is already at it for the last bursts), then the wheel stops. `mouse`: a real mouse's wheel (trusted wheels at the
+  // pointer) and the hand on it: the pointer moves 1 px in each pause and 200 ms after the last notch, as a hand on a mouse does.
+  // Without it the wheels are handed in (feedRowWheel) and no pointer moves. `root`: where the Workspace stands (0: the strip's first
+  // page, as it opens; 'far': moved to the other end). Per frame: the drawn row, Embla's location and target. The check: the row rests
+  // at the end the scroll carried it into, and never moves back against the scroll.
+  // `pauses` in turn between bursts: under 500 ms the whole scroll is one held gesture; 600 ms settles it between bursts.
+  const ONE = [80, 300, 150, 450];
+  const SOME = [80, 300, 150, 600];
+  type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean };
+  const CASES_END: [string, EndCase][] = [
+    ['endLeftFeed', { dir: -1, from: 8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
+    ['endRightFeed', { dir: 1, from: -8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
+    ['endLeft', { dir: -1, from: 8, bursts: 18, pauses: ONE, mouse: true, inPauses: false }],
+    ['endRight', { dir: 1, from: -8, bursts: 18, pauses: ONE, mouse: true, inPauses: false }],
+    ['endLeftHand', { dir: -1, from: 8, bursts: 18, pauses: SOME, mouse: true, inPauses: true }],
+    ['endLeftRootFar', { dir: -1, from: 8, bursts: 18, pauses: ONE, mouse: true, inPauses: false, rootFar: true }],
+    // Ground on past the end long enough for the plugin's own rubber band (it damps its pointer back, then ends its gesture).
+    ['endLeftLong', { dir: -1, from: 2, bursts: 30, pauses: [0], mouse: true, inPauses: false }],
+    ['midHand', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true }],
+  ];
+  for (const [label, c] of CASES_END) {
+    if (!want(`settle.${label}`)) continue;
+    const { page, errors, close } = await open(Array(24).fill(1).join(','));
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    if (c.rootFar === true) {
+      for (let k = 0; k < 24; k += 1) {
+        await g(page, 'op', 'move', await g(page, 'idOf', 'root'), 'right');
+        await sleep(60);
+      }
+      await sleep(600);
+    }
+    const order: string[] = await g(page, 'order');
+    const max = await g(page, 'max');
+    const startPx = c.from >= 0 ? c.from * PITCH : Math.min(max, Math.round((max + c.from * PITCH) / PITCH) * PITCH);
+    await g(page, 'writeAt', startPx);
+    await sleep(300);
+    const end = c.dir < 0 ? 0 : max;
+    const win = await g(page, 'win');
+    const hand = { x: Math.round(win.left + win.width / 2), y: 300 };
+    if (c.mouse) await page.mouse.move(hand.x, hand.y);
+    await sleep(200);
+    await g(page, 'record');
+    await sleep(100);
+    // The schedule, ms from the first notch: six notches 30 ms apart a burst, then the pause; the hand's 1 px moves.
+    const wheels: [number, number][] = [];
+    const handMoves: number[] = [];
+    let at = 0;
+    for (let b = 0; b < c.bursts; b += 1) {
+      for (let k = 0; k < 6; k += 1) wheels.push([at + k * 30, c.dir * NOTCH]);
+      at += 150;
+      if (b === c.bursts - 1) break;
+      const pause = c.pauses[b % c.pauses.length]!;
+      if (c.inPauses) handMoves.push(at + pause / 2);
+      at += pause;
+    }
+    if (c.mouse) handMoves.push(at + 200);
+    const input = wheels.length * NOTCH;
+    if (c.mouse) {
+      // Trusted input through the DevTools protocol, each on its own node timer (an awaited page.mouse call takes a frame or more).
+      const cdp = await page.context().newCDPSession(page);
+      const sends: Promise<unknown>[] = [];
+      await new Promise<void>((done) => {
+        let left = wheels.length + handMoves.length;
+        const fire = (ms: number, f: () => Promise<unknown>): void => void setTimeout(() => { sends.push(f()); if (--left === 0) done(); }, ms);
+        for (const [ms, dx] of wheels) fire(ms, () => cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: hand.x, y: hand.y, deltaX: dx, deltaY: 0 }));
+        for (const ms of handMoves) fire(ms, () => { hand.x += 1; return cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hand.x, y: hand.y }); });
+      });
+      await Promise.all(sends);
+    } else await g(page, 'feedTimed', wheels);
+    await sleep(2500);
+    const fr = await g(page, 'stop');
+    writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ order, max, startPx, end, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), loc: f.loc === null ? null : +f.loc.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
+    // A frame moving back against the scroll that lands inside the strip. Embla's drag stretches the row past an end and springs it
+    // back to the end (the step-aside reads that stretch toward the root as the way back), so a move back that ends at the end or
+    // past it is the stretch, reported as `pastEndPx`, and not counted.
+    const inside = (p: number): boolean => (end - p) * c.dir > 0.5;
+    const moves = fr.slice(1).map((f: any, k: number) => (inside(f.pos) ? (f.pos - fr[k].pos) * c.dir : 0));
+    const back = moves.filter((m: number) => m < -0.5);
+    // The first frame drawn at the end or past it (an overscroll passes it between two frames).
+    const atEnd = fr.findIndex((f: any) => (f.pos - end) * c.dir >= -0.5);
+    const rest = fr[fr.length - 1].pos;
+    const span = (key: string): [number, number] => [+Math.min(...fr.map((f: any) => f[key])).toFixed(1), +Math.max(...fr.map((f: any) => f[key])).toFixed(1)];
+    const r = {
+      order0: order[0],
+      startPx,
+      end: +end.toFixed(1),
+      input,
+      pastEndPx: +(input - Math.abs(end - startPx)).toFixed(1),
+      firstAtEndFrame: atEnd,
+      frames: fr.length,
+      drawn: span('pos'),
+      location: span('loc'),
+      target: span('tgt'),
+      backFrames: back.length,
+      backPx: +(-back.reduce((n: number, m: number) => n + m, 0)).toFixed(1),
+      worstBackPx: +(-Math.min(0, ...moves)).toFixed(2),
+      rest: +rest.toFixed(1),
+      restFromEndPx: +Math.abs(rest - end).toFixed(1),
+      drawnPastEndPx: +Math.max(0, ...fr.map((f: any) => (f.pos - end) * c.dir)).toFixed(1),
+      // Embla's target's largest step against the scroll in one frame while the wheel holds the press (Embla's edge resistance takes
+      // up to 26 px a frame off a stretch; a pull back to the end or a jump to the gesture's start is hundreds).
+      pressedTargetBackPx: +Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.emblaPress && fr[k].emblaPress ? (fr[k].tgt - f.tgt) * c.dir : 0))).toFixed(1),
+      // Embla's target's largest step back against the scroll in one frame, and where it went.
+      targetJump: fr.slice(1).reduce((w: [number, number], f: any, k: number) => ((fr[k].tgt - f.tgt) * c.dir < w[0] ? [+((fr[k].tgt - f.tgt) * c.dir).toFixed(1), +f.tgt.toFixed(1)] : w), [0, startPx] as [number, number]),
+    };
+    res[label] = r;
+    if (fr.length < 30 || atEnd < 0 && label.startsWith('end')) empty.push(`settle ${label}: the row never reached its end (${r.drawn}), so the check proves nothing`);
+    if (label.startsWith('end') && r.pastEndPx < 600) empty.push(`settle ${label}: only ${r.pastEndPx} px of wheel past the end`);
+    if (label.startsWith('end') && r.restFromEndPx > 0.5) failed.push(`settle ${label}: scrolled into the end at ${r.end}, rests at ${r.rest} (${r.restFromEndPx} px from it)`);
+    if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved back into the strip against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
+    if (r.pressedTargetBackPx > 50) failed.push(`settle ${label}: while the wheel held the press, Embla's target stepped ${r.pressedTargetBackPx} px against the scroll in one frame`);
+    if (c.rootFar === true && order[0] === 'root') empty.push(`settle ${label}: the Workspace is still the first page`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
     await close();
   }

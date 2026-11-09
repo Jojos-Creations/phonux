@@ -732,6 +732,15 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       run.acted = true;
       wheelMove(embla, run, e.clientX + run.offset);
     };
+    // A person's pointer moving while a wheel gesture holds Embla's press (the plugin blocks it only while its own gesture runs, not
+    // through a finger's pause or the hold after the last wheel) would reach Embla's drag, which reads it against the plugin's pointer
+    // the whole gesture's travel away: the row jumped back to where the gesture began. Registered before Embla adds its own document
+    // listener at each press, so it is stopped before it.
+    const page = win.ownerDocument;
+    const onPersonMove = (e: MouseEvent): void => {
+      if (e.isTrusted && liveRun(embla) !== undefined) e.stopImmediatePropagation();
+    };
+    page.addEventListener('mousemove', onPersonMove);
     for (const type of ['mousedown', 'mousemove', 'mouseup']) win.addEventListener(type, onPluginMouse as EventListener, true);
     // After the plugin's own wheel listener: every wheel of a gesture restarts the idle wait, and one the plugin passed nothing for
     // (a momentum tail after it let go) moves the row by its delta, short of the row's ends.
@@ -744,7 +753,9 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       const dx = e.deltaX * unit;
       if (run.acted || Math.abs(dx) <= Math.abs(e.deltaY * unit)) return;
       const at = emblaTargetOf(embla);
-      const by = Math.min(Math.max(0, at + dx), emblaMaxOf(embla)) - at;
+      // Never back toward an end the drag has stretched past: that pull ran against the wheel, turned the gesture's direction, and its
+      // rest went on to the stop inside the strip (406 px off the start after a long grind past it).
+      const by = Math.min(Math.max(Math.min(0, at), at + dx), Math.max(emblaMaxOf(embla), at)) - at;
       if (Math.abs(by) > 0.01) wheelMove(embla, run, run.x - by);
     };
     win.addEventListener('wheel', onWheelAfter, { passive: true });
@@ -838,6 +849,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     win.addEventListener('focusin', onFocus);
     return () => {
       win.removeEventListener('wheel', onWheelAfter);
+      page.removeEventListener('mousemove', onPersonMove);
       for (const type of ['mousedown', 'mousemove', 'mouseup']) win.removeEventListener(type, onPluginMouse as EventListener, true);
       endWheelRun(embla);
       win.removeEventListener('pointerdown', onPress, true);

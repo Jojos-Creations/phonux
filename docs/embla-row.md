@@ -651,6 +651,67 @@ reorder skipped, so the summon is only a glide to the root where it lies): fromL
 Blank (`--only blank`): the summon run is held to the same rule as every other run (no presented frame with a magenta band of 100 px
 or more) and to a band no wider than a gap and 8 px. Inert: the summon run as before; the dismiss run is gone.
 
+### At the row's ends (the owner's snap-back)
+
+Owner's report, on a mouse wheel: "I scrolled all the way thought the first blue dot, and then it snapped back to where it is!" The
+oval rested about ten dots right of the start.
+
+Cause, read off per-frame traces (`--only settle --cases settle.endLeft,...`; each case's frames, with Embla's location and target, are
+in `settle-<case>-frames.json`):
+
+- A pointer move by the person reached the held press. The plugin blocks trusted mouse events only while its own gesture runs. The hold
+  above keeps Embla's press past the plugin's end, through a finger's pause and the 500 ms after the last wheel. Embla listens for
+  `mousemove` on the document. A 1 px move of the mouse under the hand reached Embla's drag, which read it against the plugin's pointer,
+  the gesture's whole travel away. In one frame the target went back to where the gesture began: 1,512 px in one frame, and a rest at
+  3,248, the start of the scroll.
+- The end is where a hand moves: the wheel is ground on past the end, then let go. Mid-strip the same happens on any pause the pointer
+  moves in (`settle.midHand`).
+- A long grind past the start turned the gesture around. Once the plugin's pointer is half the strip past the end, the plugin ends its
+  gesture and passes nothing until the wheel pauses. Each wheel then goes through the row's tail path ("short of the row's ends"),
+  which clamped the target into `[0, max]`. From a stretched target (-208) that is a 208 px pull toward the end, against the wheel. It
+  turned the gesture's direction, and `stopAhead` from the target left 0.83 px inside rested on the next stop: 406 px off the start
+  (`settle.endLeftLong`, 1 of 2 full runs at 97aab2c; the pull itself is in every run, 200-208 px in one frame).
+- Ruled out by the traces: the rest computed from an out-of-bounds target, a misread direction, and Embla's own bounds pulling back.
+  With handed-in wheels and no pointer (`settle.endLeftFeed`, `endRightFeed`), 9a55bbb rests exactly at each end. The drag stretches the
+  row 280-330 px past the end, with Embla's edge resistance, and springs back to the end. The step-aside depends on that stretch: a
+  Workspace stepped aside at the start comes back only when the row moves past its rest toward it (`summon.unrelatedClose`). A clamp of
+  the wheel at the ends was tried. It broke that case ("the wheel did not bring the root back"), so the stretch stays.
+
+Fix: while a wheel gesture holds the press, a trusted `mousemove` is stopped at the document before Embla's own listener. It is
+registered at mount, ahead of the one Embla adds at each press. The tail path never moves the target back toward an end it is
+stretched past: a wheel there moves nothing, and Embla's edge resistance and the release bring it back.
+
+Measured. The row is narrow: 25 one-slot pages, the Workspace first unless said, pitch 406, max 8,526. Bursts are six 40 px notches,
+30 ms apart. The pauses run 80/300/150/450 ms in turn (one held gesture), or 80/300/150/600 ms. The wheels are real (trusted, at the
+pointer), except in the feed cases. "Hand" means the pointer moved 1 px. "Back" counts a frame that moves more than 0.5 px against the
+scroll and lands inside the strip:
+
+| case | 9a55bbb: rest, back px (frames, worst frame) | now |
+| --- | --- | --- |
+| endLeft: from 3,248 to the start and 1,072 px on, hand 200 ms after the stop | 3,248; 3,950 (9, 1,512) | 0; 0 |
+| endRight: the same into the right end | 5,278; 4,032 (9, 1,538) | 8,526; 0 |
+| endLeftRootFar: endLeft with the Workspace moved to the far end | 3,248; 4,018 (9, 1,538) | 0; 0 |
+| endLeftHand: hand in every pause, 600 ms pauses | 2,842, never reached the start; 4,507 (34, 381) | 0; 0 |
+| endLeftLong: from 812, 7,200 px with no pause, hand after | 812; 845 (26, 315) | 0; 0 (target back while pressed: 205 px at 97aab2c, at most 8 now) |
+| midHand: 960 px from 6,496, hand in the pauses | 6,090; 1,002 (7, 381) | 5,278; 0 |
+| endLeftFeed / endRightFeed: handed in, no pointer (controls) | 0 / 8,526; 0 | 0 / 8,526; 0 |
+
+The stretch past the end is reported (`drawnPastEndPx`, 180-353 px at 9a55bbb and 210-321 px now) and not failed.
+
+Mutant (the pointer's move not stopped): 6 of 8 cases fail with the 9a55bbb numbers (endLeft rests 3,248, 1,509 px in one frame).
+The two feed controls pass, as they should with no pointer. Mutant 2 (the tail path's clamp as at 97aab2c): endLeftLong fails,
+with the target stepping 205 px against the scroll in one frame while pressed. The check is that no pressed frame steps Embla's target
+more than 50 px against the scroll; edge resistance takes up to 26.
+
+What this costs: while a wheel gesture holds the row, the document and the window hear no pointer move. The plugin already withheld
+every trusted mouse event during its own gesture.
+
+Not covered:
+- A click elsewhere during the hold still ends Embla's press with Embla's own release. There is no jump, since its release reads no
+  point.
+- A touch moving during a mouse wheel's hold was not tried.
+- The stretch past an end itself: a wheel with no rubber band would need the step-aside to read "toward the root" some other way.
+
 ## Not done yet (still on the old row, or not working on Embla yet)
 
 - Reorder on Embla: a wide (two-slot or wider) page dragged, a drag held at the left edge to the strip's start, a touch drag and a
