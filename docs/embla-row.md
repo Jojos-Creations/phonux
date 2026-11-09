@@ -482,8 +482,10 @@ mutant of its fix.
   view standing still) and the next ArrowRight rests one stop on; from the right, ArrowLeft returns it and ArrowRight steps to p2..p5.
   At 8d42f37: 6 failures (ArrowRight stepped to 6089.5 with the summon over; ArrowLeft left the root summoned). Mutant (the step-away
   dismiss removed): the same 6. The other half of 76059ee (a step counts from the stop nearest where the row is heading, not Embla's
-  selected index) has no library case: reverting it to `scrollNext` passes, because every library write ends in a `scrollTo` that sets
-  the index; the app's window-bar summon (`workspace-summon.mjs`) is its check.
+  selected index) has no proof case: reverting it to `scrollNext` passes the proof, because every library write ends in a `scrollTo`
+  that sets the index; the app's window-bar summon (`workspace-summon.mjs`) is its check, and `test/mount-row-engine.test.ts` (the host
+  chord, which still stubbed `scrollNext` and failed since 76059ee) now requires one stop from the stop nearest the row's target, and
+  fails on the `scrollNext` revert.
 - A wheel gesture running when a reorder hold starts (`--cases reorder.wheelBefore,reorder.wheelClick`, item 7). The plugin holds
   Embla's drag with an untrusted press and lets go only when the gesture's tail ends; that release glided the row to a stop under the
   held page (d288b48: 168 px under the hold, Embla pressed in 14 held frames). A person's press now ends the wheel's press and leaves the

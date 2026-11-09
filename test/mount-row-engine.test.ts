@@ -24,13 +24,18 @@ test("a host's stepRow chord reaches an Embla row", async () => {
   ws.addPanel('plain');
   await until('the panel', () => slots(document.body).length === 1);
   const embla = emblaOf(document.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`)!)!;
-  const steps: string[] = [];
-  embla.scrollNext = () => void steps.push('next');
-  embla.scrollPrev = () => void steps.push('prev');
+  // jsdom lays nothing out, so the row gets three stops 100 px apart; a step goes one stop from the stop nearest where it is heading.
+  const engine = embla.internalEngine();
+  engine.scrollSnaps.splice(0, engine.scrollSnaps.length, 0, -100, -200);
+  embla.scrollSnapList = () => [0, 0.5, 1];
+  const steps: number[] = [];
+  embla.scrollTo = (k: number) => void steps.push(k);
   const event = new window.KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true });
+  engine.target.set(0);
   assert.equal(stepRow(event, 'right'), true);
+  engine.target.set(-100);
   assert.equal(stepRow(event, 'left'), true);
-  assert.deepEqual(steps, ['next', 'prev'], 'Embla moved the row');
+  assert.deepEqual(steps, [1, 0], 'Embla moved the row one stop each way');
 });
 
 test('without rowEngine the auto-mounted row is the own row', async () => {
