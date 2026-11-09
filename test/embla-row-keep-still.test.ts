@@ -136,6 +136,14 @@ function check(keep: Keep): fc.IPropertyWithHooks<[number[], number, Op[]]> {
           assert.ok(Math.abs(now.get(id)! - x) < 1, `${op.kind}: panel ${id} moved ${now.get(id)! - x} px`);
         }
       }
+      // Closing the panel at the window's left edge: the panel after it becomes the anchor and stays where it was on screen.
+      if (!clamped && op.kind === 'close' && touched !== null && touched[0] <= row.scroll + 0.5 && touched[1] > row.scroll + 0.5) {
+        const was = layoutOf(row);
+        const k = op.at % row.panels.length;
+        const after = was.ids[k + 1];
+        const j = after === undefined ? -1 : l.ids.indexOf(after);
+        if (j >= 0) assert.ok(Math.abs(l.lefts[j]! - next.scroll - (was.lefts[k + 1]! - row.scroll)) < 1, `close: the anchor ${after} after the closed left-edge panel moved`);
+      }
       // Reversibility: a step right then left returns, where neither was clamped.
       if (op.kind === 'stepR' && next.scroll > row.scroll + 0.5) assert.equal(apply(next, { kind: 'stepL' }, keep).next.scroll, row.scroll);
       row = next;
@@ -145,6 +153,29 @@ function check(keep: Keep): fc.IPropertyWithHooks<[number[], number, Op[]]> {
 
 test('keep-still: over random sequences of steps, window sizes, opens, closes, reorders and resizes, the view stays still, rests on the grid and cuts no one-slot panel', () => {
   fc.assert(check(keptScroll), { numRuns: 500 });
+});
+
+test('keep-still: closing the panel at the window\'s left edge keeps the panel after it where it was', () => {
+  // p0-p2 one slot, p3 three, p4-p6 one; a two-slot window (p3 clamps to two) at p3's second slot, so p3 is the left-edge panel, cut.
+  const row: Row = { panels: [1, 1, 1, 3, 1, 1, 1].map((s, k) => ({ id: `p${k}`, slots: s })), room: 2 * PITCH - GAP, scroll: 4 * PITCH };
+  const before = layoutOf(row);
+  const { next } = apply(row, { kind: 'close', at: 3 }, keptScroll);
+  const after = layoutOf(next);
+  assert.equal(after.lefts[after.ids.indexOf('p4')]! - next.scroll, before.lefts[before.ids.indexOf('p4')]! - row.scroll);
+  assert.equal(next.scroll, 2 * PITCH);
+});
+
+test('keep-still: the property fails for a rule that keeps the scroll when the left-edge panel itself closes', () => {
+  // The mutant the audit found surviving: the anchor gone, it keeps the scroll instead of moving with the next panel.
+  const anchorGoneKeeps: Keep = (b, a, scroll, max) => {
+    const order = b.ids.map((_, k) => k).sort((x, y) => b.lefts[x]! - b.lefts[y]!);
+    const first = order.find((k) => b.lefts[k]! + b.widths[k]! > scroll + 0.5);
+    if (first !== undefined && !a.ids.includes(b.ids[first]!)) return Math.min(Math.max(0, scroll), max);
+    return keptScroll(b, a, scroll, max);
+  };
+  const result = fc.check(check(anchorGoneKeeps), { numRuns: 500 });
+  assert.equal(result.failed, true, 'a rule that ignores a closed left-edge anchor must fail');
+  assert.match(String(result.errorInstance), /the anchor/);
 });
 
 test('keep-still: the same property fails for a row that keeps its scroll as it was, so the test sees the jump', () => {
