@@ -283,6 +283,32 @@ requestAnimationFrame(frame);
     };
     requestAnimationFrame(tick);
   }),
+  // Hands in a wheel at each `[ms, deltaX]` of `events` (ms after the call, each on its own timer, so a pause between bursts is a
+  // real pause): a mouse wheel's notches, a finger lifted to reposition. `byFrame`: each in the animation frame nearest its ms (16 ms
+  // a frame), as a trackpad's stream and its momentum tail arrive. Answers when each was sent.
+  // A third entry true marks a momentum event (Chromium's WheelEvent.momentum, which the wheel plugin reads when it is there).
+  feedTimed: (events: [number, number, boolean?][], byFrame = false) => new Promise((done) => {
+    const from = document.querySelector('[data-box="p2"]')!;
+    const sent: number[] = [];
+    const t0 = performance.now();
+    const send = (k: number): void => {
+      feedRowWheel(from, { deltaX: events[k]![1], ...(events[k]![2] === undefined ? {} : { momentum: events[k]![2] }) } as WheelEventInit);
+      sent[k] = performance.now();
+      if (sent.filter((x) => x !== undefined).length === events.length) done({ t0, sent });
+    };
+    if (!byFrame) {
+      events.forEach(([at], k) => setTimeout(() => send(k), at));
+      return;
+    }
+    let frame = 0;
+    let k = 0;
+    const tick = (): void => {
+      while (k < events.length && Math.round(events[k]![0] / 16) <= frame) send(k++);
+      frame += 1;
+      if (k < events.length) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }),
   // Hands in one wheel per animation frame from `deltas`; null skips a frame, as a real stream has gaps.
   feedShape: (deltas: (number | null)[]) => new Promise((done) => {
     const from = document.querySelector('[data-box="p2"]')!;

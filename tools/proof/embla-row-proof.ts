@@ -610,6 +610,118 @@ if (ONLY.has('gesture') && ENGINE === 'embla') {
   out.gesture = res;
 }
 
+// A wheel or trackpad gesture that pauses or stops: realistic streams handed in on their own timers (a mouse wheel's 40 px notches,
+// bursts with a finger lifted to reposition between them, a trackpad swipe with a momentum tail, a short scroll that stops just past
+// or just before a stop). Per frame: the row never moves against the scroll (0 px backward past 0.5 px of subpixel noise, 0
+// reversals), each burst moves the row as far as its input (1:1 while input flows), and the rest lands on the grid, ahead of the
+// furthest point the wheel carried the row, within a bounded time after the last wheel.
+if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const NOTCH = 40;
+  const notches = (n: number, from: number, gap = 30): [number, number, boolean?][] => Array.from({ length: n }, (_, k) => [from + k * gap, NOTCH] as [number, number]);
+  // Bursts of six notches 30 ms apart (one finger stroke, 240 px), then `pause` ms with the finger lifted, five times: the bursts end
+  // 240, 480, 720, 960 and 1200 px in, on both sides of the stops at 406, 812 and 1218.
+  const bursts = (pause: number): [number, number, boolean?][][] => Array.from({ length: 5 }, (_, b) => notches(6, b * (150 + pause)));
+  // A trackpad: a slow swipe the finger stops before lifting (ramp, plateau, ease out), 150 ms to reposition, then a swipe lifted while
+  // moving, whose momentum tail decays by 0.9 a frame (the plugin's momentum range) to under half a px.
+  // `flagged`: the tail's events carry WheelEvent.momentum true, as Chromium marks a trackpad's momentum; without it the plugin must
+  // guess the tail from its deceleration.
+  type Wheel = [number, number, boolean?];
+  const trackpad = (flagged: boolean): Wheel[][] => {
+    const f = 16;
+    const a: number[] = [2, 4, 6, 8, 10, 10, 10, 10, 10, 10, 10, 10, 8, 6, 4, 2, 1];
+    const b: number[] = [3, 6, 10, 14, 18, 18, 18, 18, 18, 18];
+    const tail: number[] = [];
+    for (let d = 18 * 0.9; d >= 0.5; d *= 0.9) tail.push(+d.toFixed(2));
+    const startB = a.length * f + 150;
+    return [
+      a.map((d, k): Wheel => [k * f, d]),
+      [...b.map((d, k): Wheel => [startB + k * f, d]), ...tail.map((d, k): Wheel => (flagged ? [startB + (b.length + k) * f, d, true] : [startB + (b.length + k) * f, d]))],
+    ];
+  };
+  const CASES_SETTLE: [string, Wheel[][]][] = [
+    ['notch80', bursts(80)],
+    ['notch150', bursts(150)],
+    ['notch300', bursts(300)],
+    ['notch600', bursts(600)],
+    ['trackpad', trackpad(true)],
+    ['trackpadGuessed', trackpad(false)],
+    ['justPast', [notches(11, 0)]],
+    ['justBefore', [notches(9, 0)]],
+  ];
+  for (const [label, groups] of CASES_SETTLE) {
+    if (!want(`settle.${label}`)) continue;
+    const { page, errors, close } = await open(ROWS.narrow);
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    const events = groups.flat();
+    const input = events.reduce((n, [, d]) => n + d, 0);
+    await g(page, 'record');
+    await sleep(100);
+    const sent: { t0: number; sent: number[] } = await g(page, 'feedTimed', events, label.startsWith('trackpad'));
+    await sleep(2500);
+    const fr = await g(page, 'stop');
+    const max = await g(page, 'max');
+    writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ events, sent, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
+    const start = fr[0].pos;
+    const moves = fr.slice(1).map((f: any, k: number) => f.pos - fr[k].pos);
+    const back = moves.filter((m: number) => m < -0.5);
+    let reversals = 0;
+    let sign = 0;
+    for (const m of moves) {
+      if (Math.abs(m) <= 0.5) continue;
+      if (sign !== 0 && Math.sign(m) !== sign) reversals += 1;
+      sign = Math.sign(m);
+    }
+    // Each burst: the row's move from the last frame before its first wheel to the first frame 80 ms after its last, against its input.
+    // A burst that starts while the settle glides (a pause longer than the hold) carries up to a frame of that glide; it is reported,
+    // and checked only for moving one way.
+    let k0 = 0;
+    const ratios: number[] = [];
+    const fromGlide: number[] = [];
+    for (const grp of groups) {
+      const first = sent.sent[k0]!;
+      const last = sent.sent[k0 + grp.length - 1]!;
+      k0 += grp.length;
+      const before = [...fr].reverse().find((f: any) => f.t < first);
+      const after = fr.find((f: any) => f.t >= last + 80);
+      if (before === undefined || after === undefined) continue;
+      const k = fr.indexOf(before);
+      if (k > 0 && Math.abs(before.pos - fr[k - 1].pos) > 0.5) fromGlide.push(ratios.length);
+      ratios.push(+((after.pos - before.pos) / grp.reduce((n, [, d]) => n + d, 0)).toFixed(3));
+    }
+    const rest = fr[fr.length - 1].pos;
+    const furthest = Math.max(...fr.map((f: any) => f.pos));
+    const lastSent = sent.sent[sent.sent.length - 1]!;
+    const unsettled = [...fr].reverse().find((f: any) => Math.abs(f.pos - rest) > 0.5);
+    const r = {
+      input: +input.toFixed(1),
+      moved: +(rest - start).toFixed(1),
+      backFrames: back.length,
+      backPx: +(-back.reduce((n: number, m: number) => n + m, 0)).toFixed(1),
+      worstBackPx: +(-Math.min(0, ...moves)).toFixed(2),
+      reversals,
+      burstPxPerInputPx: ratios,
+      burstsFromGlide: fromGlide,
+      rest: +rest.toFixed(1),
+      furthest: +furthest.toFixed(1),
+      restOnGrid: onGrid(rest, PITCH, max),
+      settleMs: unsettled === undefined ? 0 : Math.max(0, Math.round(unsettled.t - lastSent)),
+    };
+    res[label] = r;
+    if (fr.length < 30 || Math.abs(rest - start) < 100) empty.push(`settle ${label}: the stream moved the row ${r.moved} px in ${fr.length} frames, so the checks prove nothing`);
+    if (ratios.length !== groups.length) empty.push(`settle ${label}: ${ratios.length} of ${groups.length} bursts were measured`);
+    if (r.worstBackPx > 0.5) failed.push(`settle ${label}: the row moved against the scroll in ${r.backFrames} frames, ${r.backPx} px in all (worst ${r.worstBackPx} px in one frame)`);
+    if (reversals > 0) failed.push(`settle ${label}: the row reversed ${reversals} times`);
+    for (const [j, x] of ratios.entries()) if (!fromGlide.includes(j) && Math.abs(x - 1) > 0.05) failed.push(`settle ${label}: a burst moved the row ${x} px per input px (${ratios.join(', ')}), not 1:1`);
+    if (!r.restOnGrid) failed.push(`settle ${label}: rest ${r.rest} off the grid`);
+    if (rest < furthest - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, behind ${r.furthest} where the scroll carried the row`);
+    if (r.settleMs > 1800) failed.push(`settle ${label}: still moving ${r.settleMs} ms after the last wheel`);
+    if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  out.settle = res;
+}
+
 if (ONLY.has('strip') && ENGINE === 'embla') {
   const narrow = ROWS.narrow;
   const res: Record<string, unknown> = {};
