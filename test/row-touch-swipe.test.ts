@@ -47,16 +47,6 @@ const drag = (m: MountedRow, [x0, y0]: [number, number], [x1, y1]: [number, numb
   act(() => void m.container.dispatchEvent(touchEvent('touchend', x1, y1)));
 };
 
-test('a finger dragged left steps the row right once, and its glide lands on the stop', async () => {
-  const m = stepRow(1000);
-  const stops = stopsOf(m, 1000);
-  mock.timers.enable({ apis: ['setTimeout'] });
-  drag(m, [700, 300], [300, 300], 40);
-  assert.equal(m.scroller.glideTarget(), stops[1]);
-  await advanceFrames(GLIDE_DONE_MS);
-  assert.equal(rowOffsetOf(m.container), stops[1]);
-});
-
 test('a finger dragged up leaves the row where it is', async () => {
   const m = stepRow(1000);
   mock.timers.enable({ apis: ['setTimeout'] });

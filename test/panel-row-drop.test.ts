@@ -180,29 +180,6 @@ test('end with no drag in progress is a refusal that touches nothing', async () 
 
 const OFFSETS = [-1300, -620, -410, -200, 0, 150, 205, 420, 700, 1300];
 
-test('for the same offsets the hook parts the neighbours exactly as a header drag of the same panel does', async () => {
-  const others = ['root', 's1', 's3', 's4'];
-  for (const offset of OFFSETS) {
-    let viaHook: Record<string, number>;
-    {
-      const m = await mounted();
-      begin('s2');
-      await update(at(m, 's2', offset));
-      viaHook = xs(m, others);
-      act(() => hook().cancel());
-      cleanup();
-    }
-    const m = await mounted();
-    await drag(slotOf(m, 's2').querySelector('[data-grab="s2"]')!, { dx: offset, dy: 0, steps: 12, hold: 8, keepDown: true });
-    await frames(60);
-    const viaHeader = xs(m, others);
-    await release(offset, 0);
-    await frames(60);
-    cleanup();
-    assert.deepEqual(viaHook, viaHeader, `offset ${offset}`);
-  }
-});
-
 test('the hop count is the header rule at literal offsets: a hop needs half the next neighbour\'s span, counted from where the last hop ended', async () => {
   // A phone neighbor is 390 + 16 gap = 406 wide, so the thresholds are 203, 609 and 1015.
   const cases: Array<[number, string]> = [

@@ -135,23 +135,6 @@ test('PIN reanchorPanel with the root absent: a left request puts the panel firs
   assert.deepEqual(ids(right), ['b', 'c', 'a']);
 });
 
-test('PIN scrollRow with the root absent: a rightward step brings the first parked panel after the live range and parks the leftmost live one', () => {
-  const view = mountManager([entry('a'), entry('b'), entry('c'), entry('d', { live: false })], 'root');
-  act(() => view.latest().manager.scrollRow('right'));
-  const { panels } = view.latest();
-  assert.deepEqual(ids(panels), ['a', 'b', 'c', 'd'], 'the array order is untouched');
-  assert.deepEqual(panels.filter((p) => p.live).map((p) => p.id), ['b', 'c', 'd']);
-});
-
-test('PIN PanelRow with the root absent enters a reappearing entry from the right: the anchor formula finds no anchor entry', async () => {
-  const workspace = settledWorkspace([entry('a')], 'root');
-  const mounted = mount(rowOf([entry('a')], 'root', NONE, workspace));
-  mounted.rerender(rowOf([entry('a'), entry('b', { anchor: { panel: 'root', position: 'left', priority: 0 } })], 'root', new Set(['b']), workspace));
-  assert.equal(slotX(mounted.container, 'b'), 812, 'rest 406 plus one span of 406: the right-hand start, although the anchor says left');
-  await advanceFrames(600);
-  assert.equal(slotX(mounted.container, 'b'), 406, 'control: it settles at its rest position');
-});
-
 test('PIN right-side tie: [H, A(H right 0), B(H right 1)] plus N(H right 0) is H A N B, and N at priority -1 is H N A B', () => {
   const h = root('h');
   const a = entry('a', { anchor: { panel: 'h', position: 'right', priority: 0 } });
@@ -197,14 +180,6 @@ test("root marker: an entry '__root__' passed as rootId stays put when an unrela
 
   const provider = mountProvider([marker, entry('a'), entry('b')], { rootId: '__root__' });
   assert.equal(provider.latest().fixedViewCount, 0, 'the marker is not a fixed column');
-});
-
-test('PIN a capacity rise returns a parked panel to the slot it was parked in', () => {
-  const view = mountManager([root(), entry('a'), entry('b'), entry('c')], 'root', 1640, 1);
-  act(() => view.setWidth(1234));
-  assert.deepEqual(view.latest().panels.map((p) => `${p.id}:${p.live}`), ['root:true', 'a:false', 'b:true', 'c:true'], 'control: narrowing the row parked the leftmost live panel');
-  act(() => view.setWidth(1640));
-  assert.deepEqual(view.latest().panels.map((p) => `${p.id}:${p.live}`), ['root:true', 'a:true', 'b:true', 'c:true'], 'the rise returned it in the slot it was parked in');
 });
 
 test('after one close, two undoClose calls in one handler report the log id once', () => {

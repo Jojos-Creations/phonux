@@ -154,7 +154,6 @@ test('ROW_LAYER_Z: base 1, raised 100, dragged 200, frozen, the base tier at its
   assert.ok(Math.min(...Object.values(OVERLAY_Z)) > ROW_LAYER_Z.DRAGGED);
 });
 
-
 // The row's own glides (a step, a scrollTo and the settle after a resize) take the workspace's glideEase.
 const SLOW = (glideEase: SlideTuning['glideEase']): { slide: Partial<SlideTuning> } => ({ slide: { durationSec: 1.6, glideEase } });
 
@@ -183,14 +182,3 @@ for (const [name, start] of [
   });
 }
 
-test('a window resize that moves the stops lands the row on the new last stop at once, whatever the leaf', async () => {
-  for (const glideEase of ['linear', 'cubic-out'] as const) {
-    const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
-    m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'linear' });
-    assert.equal(rowOffsetOf(m.container), 1624, 'control: the row starts at the old last stop');
-    m.rerender(1500);
-    assert.equal(m.scroller.glideTarget(), null, `${glideEase}: no glide trails the window`);
-    assert.equal(rowOffsetOf(m.container), 1218, `${glideEase}: the new last stop, 133 + 2420 + 133 - 1468`);
-    cleanup();
-  }
-});

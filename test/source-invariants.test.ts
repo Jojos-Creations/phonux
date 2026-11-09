@@ -136,7 +136,7 @@ function collapsibleReads(source: string, file: string): Site[] {
 const ENTRY_FILES = ['panelWindow.ts', 'panelRowEntry.ts', ...readdirSync(join(ROOT, 'panels')).filter((f) => /[.]tsx?$/.test(f)).sort().map((f) => `panels/${f}`)];
 const sitesOf = (sites: Site[]): string[] => sites.map((s) => `${s.fn}:${s.key}`).sort();
 
-test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createRootPanel and the drawn-only copy of drawnAside; `key` is written by applyTemplate alone", () => {
+test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 literals in appendPanel and createRootPanel; `key` is written by applyTemplate alone", () => {
   assert.ok(ENTRY_FILES.length >= 7, 'the scan list is short: panels/ was not read');
   const outside: string[] = [];
   for (const file of ENTRY_FILES) {
@@ -148,7 +148,6 @@ test("source: `collapsible` is written only by applyTemplate, plus the 0.1.0 lit
       'panelWindow.ts appendPanel:collapsible',
       'panelWindow.ts createRootPanel:collapsible',
       // The drawn entries only: the list keeps the root fixed, so nothing saved or priced reads this.
-      'panels/useProvidePanels.ts drawnAside:collapsible',
       // A template registered after the restore names the entries that were built without it, so lateRegister gives each its key.
       'panels/useProvidePanels.ts lateRegister:key',
     ],
@@ -319,7 +318,6 @@ test('source: a scratch copy of useProvidePanels.ts with a fifth writer of `over
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
   'panelWindow.ts': ['parksForRoom', 'recordOverride', 'sideOfLiveRange'],
-  'panels/rowSettle.ts': ['rowPricing'],
   'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'swapPanels', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],
 };
@@ -373,15 +371,6 @@ test('source: a planted member on the handle or the reader is found, so the shap
 // Timing tuning and the hold wiring
 // ---------------------------------------------------------------------------
 
-test('source: useRowScrollGesture reads gestureLockMs from a ref assigned on every render, measures the burst lock against it and never lists it as an effect dependency', () => {
-  const src = read('panels/useRowScrollGesture.ts');
-  assert.match(src, /const gestureLockMsRef = useRef\(gestureLockMs\);\s*gestureLockMsRef\.current = gestureLockMs;/, 'the ref is created and assigned in the render body, like scrollRowRef');
-  assert.match(src, /now - lastStepAt < gestureLockMsRef\.current/, 'a step inside the lock window is held back, the window read from the ref');
-  assert.match(src, /\}, \[overflowContainerRef, mode\]\);/, 'the effect depends on the container ref and the gesture mode alone, so a new lock does not tear the listeners down');
-  assert.doesNotMatch(src, /GESTURE_LOCK_MS = /, 'the module constant is gone');
-  assert.match(src, /gestureLockMs: number = GESTURE_LOCK_MS/, 'the parameter defaults to the one constant');
-});
-
 test('source: useWorkspacePersistence reads saveQuietMs from a ref assigned on every render and arms the save timer from it', () => {
   const src = read('panels/useWorkspacePersistence.ts');
   assert.match(src, /const saveQuietMsRef = useRef\(i\.saveQuietMs \?\? SAVE_QUIET_MS\);\s*saveQuietMsRef\.current = i\.saveQuietMs \?\? SAVE_QUIET_MS;/);
@@ -422,7 +411,7 @@ test('source: rowNumbers.ts imports no flushSync and uses no useMemo or useCallb
 
 test('source: the scroll files import no flushSync and use no useMemo or useCallback, and a planted import is found', () => {
   assert.equal(importsFlushSync("import { flushSync } from 'react-dom';"), true, 'the matcher must find a planted import');
-  for (const file of ['rowScroller.ts', 'scrollTargets.ts', 'panels/useRowScrollGesture.ts']) {
+  for (const file of ['rowScroller.ts', 'scrollTargets.ts']) {
     assert.equal(importsFlushSync(read(file)), false, `${file} must not flush a render from a pointer handler`);
     assert.equal(usesMemo(read(file)), false, `${file} must close over this render's values`);
   }

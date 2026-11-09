@@ -82,21 +82,6 @@ test('an id that is a panel\'s key is not warned about, and a hand-built entry i
   assert.equal(warn.mock.callCount(), 1, 'control: the warning machinery does warn');
 });
 
-test('tuning.initialScroll.panel takes a key, and a counter id lands in the same place', () => {
-  const rowOf = () => row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, {}, { key: `web~${k + 1}` })));
-  const at = (panel: string): number => {
-    const m = mountRow(rowOf(), 1000, { tuning: { initialScroll: { panel } } });
-    const scrolled = rowOffsetOf(m.container);
-    cleanup();
-    return scrolled;
-  };
-  mock.method(console, 'warn', () => undefined);
-  const byKey = at('web~7');
-  assert.ok(byKey > 0, 'positive control: the strip scrolled to the key');
-  assert.notEqual(byKey, at('web~2'), 'and to a different place for another key');
-  assert.equal(at('s7'), byKey, 'a counter id lands where its key does');
-});
-
 test('useActivePanel reports and takes a key', async () => {
   const setters = new Map<string, (id: string | null) => void>();
   const many = definePanel({

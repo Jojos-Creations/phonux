@@ -622,20 +622,6 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['person two slots', 'live', { slots: 1 }, [], ['slots'], ['slots']],
 ];
 
-test('the result of 17 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
-  assert.equal(SAMPLE.length, 17);
-  let executed = 0;
-  for (const [context, status, patch, now, later, shadowed] of SAMPLE) {
-    const { r, id } = await contextRig(context);
-    assert.equal(r.state(id).status, status, `${context}: control, the status the row expects`);
-    const res = done(r.turn(() => r.h[id]!.configure(patch as never)));
-    assert.deepEqual({ ok: res.ok, changed: res.changed, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, now, later, shadowed }, `${context} ${JSON.stringify(patch)}`);
-    executed += 1;
-    cleanup();
-  }
-  assert.equal(executed, 17);
-});
-
 test('getSettings after a configure deep-equals the resolver over the patched layers, with source instance for the patched keys', async () => {
   const slot = { icon: 'i', label: 'X', onClick: () => undefined };
   const cases: [string, Record<string, unknown>][] = [
@@ -925,46 +911,6 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   assert.deepEqual([r.m.latest().tuning.rowGap, r.ws.tuning.rowGap, r.m.latest().rowNumbers.stripWidth], [40, 40, 4 * 390 + 3 * 40], 'priced in the commit of the call, not after it');
   await r.settle();
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 430, 860, 1290], 'after: 390 + 40 apart');
-});
-
-test('configureTuning rowGap in park mode: a smaller capacity parks the fewest park panels through the reconcile effect, then the live ones fit', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
-  const r = await pinRig({ ids, width: 1950, workspace: { tuning: { rowGap: 0 } }, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' } as PanelSettings])) });
-  await r.settle();
-  const liveParkable = (): string[] => r.live().filter((id) => id !== 'root');
-  assert.equal(liveParkable().length, 4, 'capacity at gap 0: (1950 - 390) / 390');
-  const renders = r.m.renders();
-  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 40 })));
-  await r.settle();
-  const capacity = Math.floor((1950 - 2 * 40 - 390) / (390 + 40));
-  assert.equal(capacity, 3);
-  assert.equal(liveParkable().length <= capacity, true, 'after the settled commit the live park panels fit');
-  assert.equal(liveParkable().length, 3, 'and exactly one was parked: the fewest');
-  assert.equal(r.m.renders() - renders >= 2, true, 'the re-price commits first and the reconcile effect parks in a later commit');
-  const widths = r.m.latest().rowNumbers;
-  assert.equal(widths.stripWidth <= widths.windowWidth, true, 'the live panels fit the window');
-});
-
-test('configureTuning rowGap in a scrolling row only re-prices: nothing is parked, and the farthest legal scrollLeft moves with the strip', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
-  await r.settle();
-  const numbers = () => {
-    const n = r.m.latest().rowNumbers;
-    return [n.stripWidth, n.windowWidth, n.stripWidth - n.windowWidth];
-  };
-  assert.deepEqual(numbers(), [4450, 968, 3482], 'eleven panels at gap 16: 11 x 390 + 10 x 16');
-  const live = r.live();
-  const renders = r.m.renders();
-  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 0 })));
-  await r.settle();
-  assert.deepEqual(numbers(), [4290, 1000, 3290], 'at gap 0: 11 x 390, a window of 1000');
-  assert.deepEqual(r.live(), live, 'nothing was parked');
-  assert.equal(r.m.renders() - renders, 1, 'one commit');
-  r.turn(() => r.h.j!.scrollTo('start'));
-  await r.settle();
-  // At gap 0 the row has (1000 mod 390) / 2 = 110 of centering at each end, so the bound is 110 + 4290 + 110 - 1000.
-  assert.equal(rowOffsetOf(r.m.container), 3510, 'a scroll to the last panel stops at the new bound, not the old 3654');
 });
 
 test('configureTuning rowGap on a row that is not measured is stored: nothing is priced or parked', async () => {

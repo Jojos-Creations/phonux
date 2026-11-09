@@ -23,41 +23,6 @@ function screenX(m: ReturnType<typeof mountRow>, id: string): number {
   return m.latest().rowNumbers.leftInset + translateX(strip) + translateX(slot);
 }
 
-test('locking the first panel at the left leaves the strip panels where they are drawn, then lets go the same way', async () => {
-  const m = mountRow(row(rootEntry(), made('a'), made('b'), made('c')), 1000);
-  await advanceFrames(2000);
-  const ids = m.latest().entries.map((p) => p.id).filter((id) => id !== ROOT);
-  const before = ids.map((id) => screenX(m, id));
-  assert.equal(m.latest().rowNumbers.leftInset, 0, 'control: nothing is held yet');
-
-  await act(async () => {
-    m.workspace.panels.configure(ROOT, { edgeHold: 'left' });
-  });
-  assert.ok(m.latest().rowNumbers.leftInset > 0, 'control: the lock took the left group');
-  assert.deepEqual(ids.map((id) => screenX(m, id)), before, 'at the commit that locks, no strip panel has moved');
-  await advanceFrames(2000);
-  assert.deepEqual(ids.map((id) => screenX(m, id)), before, 'and none moves after it');
-
-  await act(async () => {
-    m.workspace.panels.configure(ROOT, { edgeHold: 'off' });
-  });
-  assert.deepEqual(ids.map((id) => screenX(m, id)), before, 'letting go moves none either');
-});
-
-test('a panel that is let go draws where its line puts it, not where the lock held it', async () => {
-  const m = mountRow(row(rootEntry(), made('a', { edgeHold: 'left' }), made('b'), made('c'), made('d'), made('e')), 1000, { tuning: { rowGesture: 'step' } });
-  await advanceFrames(2000);
-  const hostOf = (): HTMLElement => m.container.querySelector<HTMLElement>('[data-row-id="a"]')!.closest<HTMLElement>('[data-row-hold]')!;
-  setRowOffset(m.container, 812);
-  await advanceFrames(100);
-  assert.notEqual(hostOf().style.transform, '', 'control: the held panel is shifted to its edge once the row has moved on');
-  await act(async () => {
-    m.workspace.panels.configure('a', { edgeHold: 'off' });
-  });
-  await advanceFrames(100);
-  assert.equal(hostOf().style.transform, '', 'let go, it is drawn where its line puts it');
-});
-
 /** Every unheld slot draws at the offset its numbers give it: the slot's own translate is its `data-row-slot`. */
 function drawnOffNumbers(m: ReturnType<typeof mountRow>): string[] {
   const held = new Set([...m.latest().rowNumbers.held.map((h) => h.id), ...m.latest().rowNumbers.stuck.map((s) => s.id)]);

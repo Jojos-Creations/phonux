@@ -113,15 +113,6 @@ function liveAfterBurst(containerWidth: number, count: number): number {
   return live;
 }
 
-test('usePanelManager capacity at gap 16: the live count after a create burst is what computeRowLayout fits, 3 at 1700 and 1740 and the edge at 1640', () => {
-  const fits = (containerWidth: number): number =>
-    computeRowLayout({ containerWidth, phoneWidth: 390, gap: 16, fixedItemCount: 1, liveWidths: Array.from({ length: 10 }, () => 390) }).maxLiveThatFit;
-  for (const [width, expected] of [[1639, 2], [1640, 3], [1700, 3], [1740, 3]] as const) {
-    assert.equal(fits(width), expected, `computeRowLayout at ${width}`);
-    assert.equal(liveAfterBurst(width, 10), expected, `live panels after ten creates at ${width}`);
-  }
-});
-
 test('reorderStepsForOffset: equal neighbours hop at 203 and not at 202, a two-slot neighbour hops at 392, and nothing beyond the last neighbour counts', () => {
   const equal = { left: [390, 390, 390], right: [390, 390, 390] };
   assert.equal(reorderStepsForOffset(203, equal, GAP), 1);

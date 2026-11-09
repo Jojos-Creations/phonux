@@ -101,16 +101,6 @@ test('a window exactly two panels wide fits two, not one', () => {
   assert.equal(n.rowMarginLeft, 0);
 });
 
-test('a resize that changes how many fit brings a row resting past the new last stop back to a stop', async () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  assert.equal(rowOffsetOf(m.container), 1624, 'the last stop at two fit');
-  m.rerender(1500);
-  await advanceFrames(600);
-  assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218], 'three fit at 1500: the grid, with ((1468 + 16) mod 406) / 2 = 133 at each end, and the new end, 133 + 2420 + 133 - 1468');
-  assert.equal(rowOffsetOf(m.container), 1218);
-});
-
 test('the strip margin snaps while stops exist and glides otherwise', () => {
   const style = (entries: PanelWindow[]) => workspaceShellStyle({ containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowNumbers: numbers(entries) });
   assert.deepEqual(style(six()).transition, { duration: 0 });

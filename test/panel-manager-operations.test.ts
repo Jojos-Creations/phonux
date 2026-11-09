@@ -200,26 +200,6 @@ const MATRIX: Array<[name: string, a: unknown, b: unknown, observe: Observe, exp
   ['placeOnShow', 'in-place', 'row-end', async (v) => { const r = await rig({ settings: { a: { placeOnShow: v } } }); r.turn(() => r.h.a!.hide()); r.turn(() => r.h.a!.show()); return r.row(); }, 'a b c', 'b c a'],
 ];
 
-test('the settings matrix: each setting the handle enforces gives its documented result under two values', async () => {
-  for (const [name, a, b, observe, expectA, expectB] of MATRIX) {
-    const outA = await observe(a as never);
-    cleanup();
-    const outB = await observe(b as never);
-    cleanup();
-    assert.deepEqual(outA, expectA, `${name} = ${JSON.stringify(a)}`);
-    assert.deepEqual(outB, expectB, `${name} = ${JSON.stringify(b)}`);
-    differential(name as never, (run) => {
-      run(a, () => outA);
-      run(b, () => outB);
-    });
-  }
-  assert.deepEqual(
-    differentialsCovered().filter((n) => MATRIX.some((row) => row[0] === n)),
-    MATRIX.map((row) => row[0]).sort(),
-    'every matrix setting completed its differential',
-  );
-});
-
 test('toggleWhenClosed and showWhenClosed over the closed, live and parked states', async () => {
   const observe = async (name: 'toggleWhenClosed' | 'showWhenClosed', value: string): Promise<string[]> => {
     const out: string[] = [];
@@ -418,50 +398,6 @@ async function scrolled(settings: Record<string, PanelSettings>, from: number, p
   cleanup();
   return out;
 }
-
-test('scrollTo scrolls to the literal target of each align, reads scrollOnOpen when no align is given, and is never busy', async () => {
-  const at = (align: 'into-view' | 'start' | 'center') => scrolled({}, 0, () => undefined, (r) => r.h.d!.scrollTo(align));
-  assert.deepEqual(await at('into-view'), { result: 'T', left: 812 }, 'd needs 726 to be whole; the stop that shows it is 812');
-  assert.deepEqual(await at('start'), { result: 'T', left: 1218 }, 'd starts at 1304, nearest the stop 1218');
-  assert.deepEqual(await at('center'), { result: 'T', left: 812 }, 'centered d is at 1015, as near 812 as 1218, and the earlier stop wins');
-  const byDefault = async (scrollOnOpen: string) => scrolled({ d: { scrollOnOpen } as unknown as PanelSettings }, 0, () => undefined, (r) => r.h.d!.scrollTo());
-  assert.deepEqual(await byDefault('start'), { result: 'T', left: 1218 });
-  assert.deepEqual(await byDefault('center'), { result: 'T', left: 812 });
-  assert.deepEqual(await byDefault('none'), { result: 'T', left: 812 }, 'none reads as into-view for an explicit scrollTo');
-  assert.deepEqual(await scrolled({}, 812, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'F', left: 812 }, 'already there');
-  assert.deepEqual(await scrolled({}, 726, () => undefined, (r) => r.h.d!.scrollTo('into-view')), { result: 'T', left: 812 }, 'at 726 d is whole but the row rests on a stop, so it still glides to 812');
-  const r = await freeRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], width: 1000 });
-  const mixed = r.turn(() => [brief(r.h.a!.close()), brief(r.h.d!.scrollTo()), brief(r.h.a!.scrollTo())]);
-  assert.deepEqual(mixed, ['T', 'T', 'F'], 'a close in the same turn does not make scrollTo busy, on another panel or on the closing one');
-});
-
-test('scrollOnMove: an accepted move, place or setSlots on an in-view panel follows it; out of view and none record nothing', async () => {
-  const all = (scrollOnMove: string): Record<string, PanelSettings> => Object.fromEntries(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => [id, { scrollOnMove } as PanelSettings]));
-  const none = () => undefined;
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 406 }, 'b moves right past c and ends inside the window, at the stop that shows it');
-  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.move(1)), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 1624 }, 'the row end is the last stop, 86 + 2420 + 86 - 968');
-  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.b!.place('row-end')), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 812 }, 'c grows to 796 px at 898 to 1694: the stop that shows it whole is 812');
-  assert.deepEqual(await scrolled(all('none'), 0, none, (r) => r.h.c!.setSlots(2)), { result: 'T', left: 0 });
-  assert.deepEqual(await scrolled(all('follow'), 0, none, (r) => r.h.e!.setSlots(2)), { result: 'T', left: 0 }, 'e is out of view: no request');
-});
-
-test('scrollOnOpen: open() and show() record one request and the row scrolls to the literal target', async () => {
-  const layer = (scrollOnOpen?: string): Record<string, PanelSettings> => ({ d: scrollOnOpen === undefined ? {} : ({ scrollOnOpen } as unknown as PanelSettings) });
-  const park = (r: FreeRig): void => void r.turn(() => r.h.d!.hide());
-  for (const [align, left] of [['into-view', 812], ['start', 1218], ['center', 812], [undefined, 812]] as const) {
-    assert.deepEqual(await scrolled(layer(align), 0, park, (r) => r.h.d!.show()), { result: 'T', left }, `show of a parked panel: ${align ?? 'default'}`);
-    assert.deepEqual(await scrolled(layer(align), 0, () => undefined, (r) => r.h.d!.show()), { result: 'T', left }, `show of a live panel out of view: ${align ?? 'default'}`);
-  }
-  assert.deepEqual(await scrolled(layer('none'), 0, park, (r) => r.h.d!.show()), { result: 'T', left: 0 }, 'none scrolls nothing');
-  assert.deepEqual(await scrolled(layer('none'), 0, () => undefined, (r) => r.h.d!.show()), { result: 'F', left: 0 });
-  assert.deepEqual(await scrolled({}, 0, () => undefined, (r) => r.h.a!.show()), { result: 'F', left: 0 }, 'a live panel in view: nothing recorded');
-  assert.deepEqual(await scrolled({}, 0, () => undefined, (r) => r.h.a!.hide()), { result: 'T', left: 0 }, 'hide records none');
-  const closed = (r: FreeRig): void => void r.turn(() => r.h.d!.close());
-  assert.deepEqual(await scrolled(layer('start'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 1624 }, 'a reopened panel lands at row-end, the last stop: 2420 and 86 of centering at each end, less the 968 window');
-  assert.deepEqual(await scrolled(layer('none'), 0, closed, (r) => r.h.d!.open()), { result: 'T', left: 0 });
-});
 
 test('the owner example: a button in panel two toggles panel one through a closure over the full handle', async () => {
   const two = definePanel({

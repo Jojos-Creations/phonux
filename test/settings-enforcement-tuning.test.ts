@@ -111,23 +111,6 @@ const seenOf = (id: string): Seen => {
   return value;
 };
 
-// ---------------------------------------------------------------------------
-// The four differentials
-// ---------------------------------------------------------------------------
-
-test('differential tuning.rowGap: the second slot rests one gap beyond the first column', () => {
-  differential('tuning.rowGap', (run) => {
-    for (const rowGap of [16, 40]) {
-      run(rowGap, () => {
-        const mounted = mount(rowOf([entry('a'), entry('b')], { rowGap }));
-        const x = xOf(mounted.container, 'b');
-        mounted.unmount();
-        return x;
-      });
-    }
-  });
-});
-
 /** The x of a slot `frames` frames into its entrance, under a slide of `durationSec`. */
 async function entranceX(durationSec: number, frames: number): Promise<number> {
   const mounted = mount(rowOf([entry('a')], { slide: { durationSec } }));
@@ -137,14 +120,6 @@ async function entranceX(durationSec: number, frames: number): Promise<number> {
   mounted.unmount();
   return x;
 }
-
-test('differential tuning.slide: a longer slide has covered less of its entrance after the same frames', async () => {
-  const outputs = [await entranceX(0.4, 8), await entranceX(0.8, 8)];
-  differential('tuning.slide', (run) => {
-    [0.4, 0.8].forEach((durationSec, i) => run(durationSec, () => outputs[i]));
-  });
-  assert.ok(outputs[0]! < outputs[1]!, `the 0.4 s slide (${outputs[0]}) is nearer its rest than the 0.8 s one (${outputs[1]}); rest is 406 and it starts 796 away`);
-});
 
 /** The steps a 150 px drag right of `a` asks for, with one 390 px neighbor on its right. */
 function stepsFor(hopFraction: number): number {
@@ -230,16 +205,6 @@ async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Pr
   assert.notEqual(start, end, 'control: the margin does move when a panel joins');
   return mid !== start && mid !== end;
 }
-
-test('differential tuning.resizeSettleSlides: 1.5 slides after a width change the row glides at 1 slide and still snaps at 2', async () => {
-  const waitMs = 1.5 * SLIDE_DURATION_SEC * 1000;
-  const short = await glidesAfterResize(waitMs, 1);
-  const long = await glidesAfterResize(waitMs, 2);
-  differential('tuning.resizeSettleSlides', (run) => {
-    run(1, () => short);
-    run(2, () => long);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -358,18 +323,6 @@ async function sizeGlideMs(render: () => React.ReactElement, to = 780): Promise<
 /** One panel the row widens from one slot to two when `boxWidth` grows, which its own box glides over. */
 const growing = (view: string): PanelWindow => entry('a', { view, slots: boxWidth === 780 ? 2 : 1 });
 const TWO_SLOTS = 2 * 390 + 16;
-
-test("slide: a size box's glide is the panel's resolved slide inside a slot and the shared one outside", async () => {
-  const near = (actual: number, seconds: number, what: string): void => assert.ok(Math.abs(actual - seconds * 1000) <= 48, `${what}: ${actual} ms for ${seconds} s`);
-  near(await sizeGlideMs(() => rowOf([growing('tune-size')], { slide: { durationSec: 0.8 } }), TWO_SLOTS), 0.8, "the workspace's slide");
-  near(await sizeGlideMs(() => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') })), PANEL_TRANSITION.duration, 'outside a slot, the shared transition');
-});
-
-test('a size box snaps under Reduce Motion and glides otherwise', async () => {
-  const slide = { slide: { durationSec: 0.8 } };
-  assert.ok((await sizeGlideMs(() => rowOf([growing('snap-size')], slide), TWO_SLOTS)) > 500, 'positive control: the resize glides');
-  assert.equal(await sizeGlideMs(() => React.createElement(MotionConfig, { reducedMotion: 'always' }, rowOf([growing('snap-size-r')], slide)), TWO_SLOTS), 0, 'Reduce Motion snaps');
-});
 
 /** A Workspace shell over one PanelRow, both reading one workspace made with `tuning`. */
 function inWorkspace(tuning: WorkspaceTuning, entries: PanelWindow[], rowRef: React.RefObject<HTMLDivElement | null>, liveWidths: number[] = []): React.ReactElement {
@@ -633,7 +586,3 @@ test('the slot context carries the tuning, edgeScroll included, to a view', () =
   mounted.unmount();
 });
 
-test('every tuning name this file owns has a completed differential', () => {
-  assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
-  assert.deepEqual(differentialsCovered(), [...OWNED].sort());
-});

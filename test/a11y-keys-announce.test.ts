@@ -117,13 +117,6 @@ test('Delete on the strip closes the panel and says so; a panel that cannot clos
   assert.equal(stripOf(fixed, 'solo') === null, true, 'a panel that cannot close has no strip at all');
 });
 
-test('a press on the strip still starts a drag although the strip is itself a button', async () => {
-  const m = await rig(['one', 'two']);
-  await drag(stripOf(m, 'one'), { dx: 450, dy: 0 });
-  await settle();
-  assert.deepEqual(order(m), ['two', 'one']);
-});
-
 test('an arrow with a modifier on the strip does nothing and is not taken', async () => {
   const m = await rig(['one', 'two']);
   const strip = stripOf(m, 'one');

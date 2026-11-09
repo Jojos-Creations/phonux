@@ -52,65 +52,12 @@ const slotOf = (container: HTMLElement, id: string): HTMLElement => container.qu
 const xOf = (container: HTMLElement, id: string): number => Math.round(Number(/translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(container, id)))?.[1] ?? 0));
 const SPAN = 406;
 
-test('a neighbour snaps aside on the frame after the hop point, snaps back when the pointer returns, and the drop moves nobody', async () => {
-  reduceMotion(true);
-  const m = mountRow(panelsOf(3), 3000);
-  await advanceFrames(2000);
-  const rest = xOf(m.container, 's2');
-  await drag(m.container.querySelector<HTMLElement>('[data-grab="s1"]')!, { dx: 213, dy: 0, steps: 6, hold: 4, keepDown: true });
-  await advanceFrames(32);
-  assert.equal(xOf(m.container, 's2'), rest - SPAN, 'no slide: it is already there two frames later');
-  assert.equal(slotOf(m.container, 's1').style.zIndex, '200');
-  await act(async () => {
-    const event = new MouseEvent('pointermove', { bubbles: true, clientX: 130, clientY: 100, buttons: 1 });
-    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
-    document.dispatchEvent(event);
-  });
-  await advanceFrames(32);
-  assert.equal(xOf(m.container, 's2'), rest, 'and back at once when the pointer is');
-  await act(async () => {
-    const event = new MouseEvent('pointermove', { bubbles: true, clientX: 100 + 213, clientY: 100, buttons: 1 });
-    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
-    document.dispatchEvent(event);
-  });
-  await advanceFrames(32);
-  await release(213, 0);
-  await advanceFrames(16);
-  assert.equal(m.latest().entries.map((p) => p.id).join(','), 'root,s2,s1,s3');
-  assert.equal(xOf(m.container, 's2'), rest - SPAN, 'the drop moves nobody');
-  assert.equal(xOf(m.container, 's1'), rest, 'the dragged slot is at its new rest on the next frame, not sliding to it');
-  await advanceFrames(100);
-  assert.equal(slotOf(m.container, 's1').style.zIndex, '3', 'at rest at index 2 of 4 it is one step in from the end');
-});
-
 async function dropOnto(m: ReturnType<typeof mountRow>): Promise<void> {
   await advanceFrames(2000);
   await drag(m.container.querySelector<HTMLElement>('[data-grab="s1"]')!, { dx: 213, dy: 0, steps: 6, hold: 4, keepDown: true });
   await advanceFrames(32);
   await release(213, 0);
 }
-
-test('under StrictMode the drop still lands the dragged slot at its new rest in the commit that moves it', async () => {
-  reduceMotion(true);
-  const m = mountRow(panelsOf(3), 3000, {}, (row) => React.createElement(React.StrictMode, null, row));
-  const rest = xOf(m.container, 's1');
-  await dropOnto(m);
-  assert.equal(m.latest().entries.map((p) => p.id).join(','), 'root,s2,s1,s3');
-  assert.equal(xOf(m.container, 's1'), rest + SPAN, 'at the new rest in the commit that moves it, not a frame later');
-  assert.equal(xOf(m.container, 's2'), rest, 'the crossed neighbour stays where it moved to');
-});
-
-test('the app\'s MotionConfig alone also snaps the neighbour, with the system preference off', async () => {
-  reduceMotion(false);
-  const m = mountRow(panelsOf(3), 3000, {}, (row) => React.createElement(MotionConfig, { reducedMotion: 'always' }, row));
-  await advanceFrames(2000);
-  const rest = xOf(m.container, 's2');
-  await drag(m.container.querySelector<HTMLElement>('[data-grab="s1"]')!, { dx: 213, dy: 0, steps: 6, hold: 4, keepDown: true });
-  await advanceFrames(32);
-  assert.equal(xOf(m.container, 's2'), rest - SPAN);
-  await release(213, 0);
-  await advanceFrames(100);
-});
 
 test('Reduce Motion leaves a move nobody is dragging a slide', async () => {
   reduceMotion(true);

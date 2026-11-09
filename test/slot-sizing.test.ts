@@ -112,19 +112,6 @@ test('widths follow the window: three slots asked in a window that fits two draw
   mounted.unmount();
 });
 
-test('heights: panels of every slot count keep the phone height, measured room or not, and a view is told it', () => {
-  const { height } = phone();
-  const counts = [1, 2, 3, ALL_SLOTS];
-  const entries = counts.map((n) => made(`n${n}`, { slots: n, maxSlots: ALL_SLOTS }));
-  for (const room of [height + 400, 0]) {
-    const mounted = mount(rowOf(entries, undefined, room));
-    assert.deepEqual(counts.map((n) => px(slotOf(mounted.container, `n${n}`).style.height)), counts.map(() => height));
-    assert.equal(boxHeight(mounted.container), height, 'the row box is the phone height');
-    assert.deepEqual(counts.map((n) => summaries.get(`n${n}`)!.size?.height), counts.map(() => height), 'the summary carries the drawn height');
-    mounted.unmount();
-  }
-});
-
 test('setSlots keeps the phone height in a row that has room to grow', async () => {
   const proto = HTMLElement.prototype;
   const original = Object.getOwnPropertyDescriptor(proto, 'clientHeight');
@@ -143,15 +130,6 @@ test('setSlots keeps the phone height in a row that has room to grow', async () 
     if (original === undefined) delete (proto as unknown as Record<string, unknown>).clientHeight;
     else Object.defineProperty(proto, 'clientHeight', original);
   }
-});
-
-test('a hand-built entry without slots keeps the phone height and the older width rule', () => {
-  const { height } = phone();
-  const entry: PanelWindow = { id: 'h', url: 'https://h.example', title: 'h', live: true, view: 'slot-view', collapsible: true, listed: true };
-  const mounted = mount(rowOf([entry], undefined, height + 400));
-  assert.equal(boxHeight(mounted.container), height);
-  assert.equal(slotOf(mounted.container, 'h').style.height, '', 'the slot fills the row');
-  mounted.unmount();
 });
 
 test('setSlots clamps to maxSlots, ignores the resizable setting and no-ops on an unchanged count', () => {

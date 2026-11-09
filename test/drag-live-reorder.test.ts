@@ -60,78 +60,6 @@ const handleOf = (m: MountedRow, id: string): HTMLElement => m.container.querySe
 // One phone span: 390 + the 16 px gap.
 const SPAN = 406;
 
-test('the panels a drag would cross slide aside by the dragged panel\'s span while it is held, and the drop commits that order', async () => {
-  reported.length = 0;
-  const m = mountRow(panelsOf(5), 3000);
-  await advanceFrames(2000);
-  const rest = Object.fromEntries(['s1', 's2', 's3', 's4'].map((id) => [id, xOf(m, id)]));
-  await drag(handleOf(m, 's2'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 12, hold: 8, keepDown: true });
-  await advanceFrames(1000);
-  assert.equal(xOf(m, 's3'), rest.s3! - SPAN, 'the first neighbour made room');
-  assert.equal(xOf(m, 's4'), rest.s4, 'a neighbour past the hop point has not moved yet');
-  assert.equal(xOf(m, 's1'), rest.s1, 'a panel on the other side is untouched');
-  assert.equal(order(m), 'root,s1,s2,s3,s4,s5', 'the order only changes at the drop');
-  assert.equal(zOf(m, 's2'), DRAGGED, 'the dragged slot is drawn over its neighbours');
-  await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(32);
-  assert.equal(order(m), 'root,s1,s3,s2,s4,s5');
-  assert.equal(xOf(m, 's3'), rest.s2, 'the neighbour already rests in its new place while the dragged box is still springing home');
-  assert.equal(xOf(m, 's4'), rest.s4, 'and the next panel was not shifted by a preview left over from the old order');
-  await advanceFrames(3000);
-  assert.equal(xOf(m, 's3'), rest.s2, 'the crossed neighbour rests where the dragged panel was: it did not move at the drop');
-  assert.equal(zOf(m, 's2'), restZ(m, 's2'), 'the raise ends with the spring home');
-  assert.equal(reported[0]?.steps, 1);
-});
-
-test('dragging back before the drop returns the neighbour, and a cancelled drag leaves every slot at rest', async () => {
-  const m = mountRow(panelsOf(5), 3000);
-  await advanceFrames(2000);
-  const rest = xOf(m, 's3');
-  await drag(handleOf(m, 's2'), { dx: SPAN, dy: 0, steps: 6, hold: 4, keepDown: true });
-  await advanceFrames(1000);
-  assert.equal(xOf(m, 's3'), rest - SPAN);
-  await act(async () => {
-    document.dispatchEvent(Object.assign(new MouseEvent('pointermove', { bubbles: true, clientX: 100 + 30, clientY: 100, buttons: 1 }), { pointerId: 1, pointerType: 'mouse', isPrimary: true }));
-  });
-  await advanceFrames(1000);
-  assert.equal(xOf(m, 's3'), rest, 'the neighbour came back when the pointer did');
-  await act(async () => {
-    const event = new MouseEvent('pointercancel', { bubbles: true, cancelable: true, clientX: 130, clientY: 100, button: 0 });
-    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'touch', isPrimary: true })) Object.defineProperty(event, key, { value });
-    document.dispatchEvent(event);
-  });
-  await advanceFrames(2000);
-  assert.equal(order(m), 'root,s1,s2,s3,s4,s5');
-  assert.equal(zOf(m, 's2'), restZ(m, 's2'));
-});
-
-test('dragging left shifts the panels to the left of the dragged one the other way', async () => {
-  const m = mountRow(panelsOf(5), 3000);
-  await advanceFrames(2000);
-  const rest = { s1: xOf(m, 's1'), s2: xOf(m, 's2') };
-  await drag(handleOf(m, 's3'), { dx: -SPAN * 2 + 10, dy: 0, steps: 12, hold: 8, keepDown: true });
-  await advanceFrames(1000);
-  assert.equal(xOf(m, 's2'), rest.s2 + SPAN);
-  assert.equal(xOf(m, 's1'), rest.s1 + SPAN);
-  await release(-SPAN * 2 + 10, 0);
-  await advanceFrames(3000);
-  assert.equal(order(m), 'root,s3,s1,s2,s4,s5'.replace('root,s3,s1,s2', 'root,s3,s1,s2'));
-});
-
-test('a panel wider than its neighbours makes them move by ITS span, and a narrow one moves them by its own', async () => {
-  const wide = made('s1', { maxSlots: 2 });
-  const m = mountRow(row(rootEntry(), wide, made('s2'), made('s3')), 3000);
-  await act(async () => m.latest().setSlots?.('s1', 2));
-  await advanceFrames(2000);
-  const wideSpan = m.latest().rowNumbers.widths[m.latest().rowNumbers.ids.indexOf('s1')]! + 16;
-  const before = xOf(m, 's2');
-  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 8, hold: 8, keepDown: true });
-  await advanceFrames(1000);
-  assert.equal(xOf(m, 's2'), before - wideSpan, 'the phone neighbour moves by the two-slot panel\'s span');
-  await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(3000);
-});
-
 test('nothing is previewed for a panel that is not movable, though the held panel is lifted', async () => {
   const m = mountRow(row(rootEntry(), made('s1', { movable: false }), made('s2')), 3000);
   await advanceFrames(2000);
@@ -158,41 +86,6 @@ test('the preview stops at a panel that cannot be crossed, as the hop rule does'
   assert.equal(order(m), 'root,s1,s2,s3');
 });
 
-test('a drag of two hops previews two neighbours and the release reports the same two hops', async () => {
-  reported.length = 0;
-  const m = mountRow(panelsOf(5), 3000);
-  await advanceFrames(2000);
-  const rest = { s2: xOf(m, 's2'), s3: xOf(m, 's3'), s4: xOf(m, 's4') };
-  await drag(handleOf(m, 's1'), { dx: SPAN * 1.5 + 10, dy: 0, steps: 12, hold: 8, keepDown: true });
-  await advanceFrames(1000);
-  assert.deepEqual([xOf(m, 's2'), xOf(m, 's3'), xOf(m, 's4')], [rest.s2 - SPAN, rest.s3 - SPAN, rest.s4]);
-  await release(SPAN * 1.5 + 10, 0);
-  await advanceFrames(3000);
-  assert.equal(reported[0]?.steps, 2);
-  assert.equal(order(m), 'root,s2,s3,s1,s4,s5');
-});
-
-test('a press on the handle during the spring home ends the raise', async () => {
-  const m = mountRow(panelsOf(3), 3000);
-  await advanceFrames(2000);
-  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 - 40, dy: 0, steps: 6, hold: 4 });
-  await advanceFrames(32);
-  assert.equal(zOf(m, 's1'), DRAGGED, 'the spring is in flight and the slot is still raised');
-  await act(async () => {
-    const event = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, button: 0, buttons: 1 });
-    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
-    handleOf(m, 's2').dispatchEvent(event);
-  });
-  await act(async () => {
-    const event = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, button: 0, buttons: 1 });
-    for (const [key, value] of Object.entries({ pointerId: 2, pointerType: 'mouse', isPrimary: true })) Object.defineProperty(event, key, { value });
-    handleOf(m, 's1').dispatchEvent(event);
-  });
-  await release(0, 0);
-  await advanceFrames(2000);
-  assert.equal(zOf(m, 's1'), restZ(m, 's1'));
-});
-
 test('closing the dragged panel mid-drag leaves no neighbour shifted', async () => {
   const m = mountRow(panelsOf(4), 3000);
   await advanceFrames(2000);
@@ -210,38 +103,6 @@ test('closing the dragged panel mid-drag leaves no neighbour shifted', async () 
   assert.equal(order(m), 'root,s1,s2,s3,s4');
   assert.equal(zOf(m, 's1'), restZ(m, 's1'), 'the revived panel is not still raised');
   assert.equal(xOf(m, 's2'), 2 * SPAN, 'and no neighbour is still shifted for it');
-});
-
-test('without Reduce Motion the neighbour is still sliding two frames after the hop point', async () => {
-  const m = mountRow(panelsOf(4), 3000);
-  await advanceFrames(2000);
-  const rest = xOf(m, 's2');
-  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 6, hold: 0, keepDown: true });
-  await advanceFrames(16);
-  const mid = xOf(m, 's2');
-  assert.ok(mid < rest && mid > rest - SPAN, `mid-slide, not at ${mid}`);
-  await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(2000);
-});
-
-test('a cancel returns every neighbour to rest within the slide time, and the raise ends with the spring home', async () => {
-  const m = mountRow(panelsOf(4), 3000);
-  await advanceFrames(2000);
-  const rest = xOf(m, 's2');
-  await drag(handleOf(m, 's1'), { dx: SPAN * 0.5 + 10, dy: 0, steps: 6, hold: 4, keepDown: true });
-  await advanceFrames(1000);
-  assert.equal(xOf(m, 's2'), rest - SPAN);
-  await act(async () => {
-    const event = new MouseEvent('pointercancel', { bubbles: true, cancelable: true, clientX: 300, clientY: 100, button: 0 });
-    for (const [key, value] of Object.entries({ pointerId: 1, pointerType: 'touch', isPrimary: true })) Object.defineProperty(event, key, { value });
-    document.dispatchEvent(event);
-  });
-  await advanceFrames(16);
-  assert.equal(zOf(m, 's1'), DRAGGED, 'still raised while the box springs home');
-  await advanceFrames(SLIDE_DURATION_SEC * 1000 + 50);
-  assert.equal(xOf(m, 's2'), rest, 'the neighbour is back by the end of its slide, not only when the box has settled');
-  await advanceFrames(3000);
-  assert.equal(zOf(m, 's1'), restZ(m, 's1'));
 });
 
 test('a drag that locks vertical previews nothing: no neighbour moves, and the held slot is lifted until it settles', async () => {

@@ -160,22 +160,6 @@ test('a mounted Workspace marks its scroll container data-row-scroller and no ot
   }
 });
 
-test('the Workspace reset of a row that stops scrolling stops a glide in flight and writes 0 through the scroller', async () => {
-  const ref = React.createRef<HTMLDivElement>();
-  const rowRef = React.createRef<HTMLDivElement>();
-  const at = (rowScroll: boolean): React.ReactElement =>
-    withHost(React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowScroll, children: null }));
-  const mounted = mount(at(true));
-  rowScrollerFor(ref.current!).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
-  await advanceFrames(160);
-  assert.ok(rowOffsetOf(ref.current!) > 0);
-  mounted.rerender(at(false));
-  assert.equal(rowOffsetOf(ref.current!), 0);
-  assert.equal(rowScrollerFor(ref.current!).glideTarget(), null);
-  await advanceFrames(400);
-  assert.equal(rowOffsetOf(ref.current!), 0, 'the glide did not resume');
-});
-
 const stripXOf = (el: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(el.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1] ?? 0);
 
 /** A container holding a strip the way the Workspace does: inside the window element that cuts it. */

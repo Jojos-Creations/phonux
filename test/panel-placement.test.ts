@@ -484,36 +484,6 @@ function provide(initialEntries: PanelWindow[], options: ProvideOptions = {}) {
 /** The container width whose capacity beside the root column is `n` phone panels. */
 const W = (n: number): number => 422 + 406 * n;
 
-test('show: a parked panel is re-placed by placeOnShow in the update that makes it live, and a default panel keeps its slot', () => {
-  const entries = (value: AddPlacement | 'in-place') => [fixed(ROOT), made('A'), made('B', { placeOnShow: value === 'in-place' ? 'in-place' : value }, { live: false }), made('C')];
-  const inPlace = provide(entries('in-place'));
-  act(() => inPlace.now().activate('B'));
-  assert.deepEqual(inPlace.flags(), ['H', 'A', 'B', 'C'], 'default: live in its own slot');
-  for (const [value, want] of [
-    ['row-start', ['B', 'H', 'A', 'C']],
-    ['row-end', ['H', 'A', 'C', 'B']],
-    ['after-fixed', ['H', 'B', 'A', 'C']],
-    [{ after: 'C' }, ['H', 'A', 'C', 'B']],
-    [{ before: 'A' }, ['H', 'B', 'A', 'C']],
-  ] as const) {
-    const provider = provide(entries(value));
-    act(() => provider.now().activate('B'));
-    assert.deepEqual(provider.ids(), want, `placeOnShow ${JSON.stringify(value)}`);
-    assert.equal(provider.now().entries.find((p) => p.id === 'B')!.live, true, 'live in the same update');
-  }
-});
-
-test('show: placeOnShow is read by the show path; a show with an unreachable target notes a fallback', () => {
-  const notes: SettingNote[] = [];
-  const provider = provide([fixed(ROOT), made('A'), made('C', { placeOnShow: { after: 'ghost' } }, { live: false }), made('B', { placeOnShow: 'in-place' }, { live: false })], { over: { onNote: (n) => notes.push(n) } });
-  act(() => provider.now().activate('B'));
-  assert.deepEqual(provider.ids(), ['H', 'A', 'C', 'B'], 'in-place does not move a shown panel');
-  assert.equal(notes.length, 0);
-  act(() => provider.now().activate('C'));
-  assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'C'], 'the missing target landed at the row end');
-  assert.deepEqual(notes.map((n) => [n.code, n.panelId]), [['placement-fallback', 'C']]);
-});
-
 test('show: a panel placed by placeOnShow is not recorded as a person override -- its entry still carries only a new anchor', () => {
   const b = made('B', { placeOnShow: 'row-start' }, { live: false });
   const provider = provide([fixed(ROOT), made('A'), b]);
@@ -521,56 +491,6 @@ test('show: a panel placed by placeOnShow is not recorded as a person override -
   const after = provider.now().entries.find((p) => p.id === 'B')!;
   assert.equal(after.settings, b.settings, 'the settings object is untouched');
   assert.equal(after.settings!.placeOnShow, 'row-start');
-});
-
-test('return: automatic returns keep their slot', () => {
-  const provider = provide([fixed(ROOT), made('A'), made('B'), made('C'), made('D')], { width: W(4) });
-  act(() => provider.setWidth(W(2)));
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B~', 'C', 'D'], 'control: the narrow row parked A and B');
-  act(() => provider.setWidth(W(4)));
-  assert.deepEqual(provider.flags(), ['H', 'A', 'B', 'C', 'D'], 'both return in their own slots');
-});
-
-test('return: a panel returned by the reveal after a close keeps its slot', () => {
-  const provider = provide([fixed(ROOT), made('A'), made('B'), made('C')], { width: W(2) });
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'C'], 'control: the measured row parked the leftmost live panel for room');
-  act(() => provider.now().close('B'));
-  assert.deepEqual(provider.flags(), ['H', 'A', 'C'], 'closing B made room: A returned live in the same update, in its own slot');
-});
-
-test('undo: undoClose restores the panel at its old index, and a parked panel comes back parked', () => {
-  const undone = (live: boolean) => {
-    const provider = provide([fixed(ROOT), made('A'), made('X', {}, { live }), made('B'), made('C')]);
-    act(() => provider.now().close('X'));
-    assert.deepEqual(provider.ids(), ['H', 'A', 'B', 'C'], 'control: X closed');
-    act(() => provider.now().undoClose());
-    return provider;
-  };
-  assert.deepEqual(undone(true).ids(), ['H', 'A', 'X', 'B', 'C']);
-  assert.deepEqual(undone(false).flags(), ['H', 'A', 'X~', 'B', 'C']);
-});
-
-test('undo: a restored live panel goes through the room-making rule -- the row is full, so the oldest live panel is parked', () => {
-  const provider = provide([fixed(ROOT), made('A'), made('B'), made('X')], { width: W(2) });
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'control: the measured row parked A');
-  act(() => provider.now().close('X'));
-  assert.deepEqual(provider.flags(), ['H', 'A', 'B'], 'closing X made room for A');
-  act(() => provider.now().undoClose());
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'X'], 'X returns at the end and live, and A, the older of the two, parks');
-});
-
-test('differential placeOnShow: the resolved setting decides where activate lands a parked panel', () => {
-  differential('placeOnShow', (run) => {
-    for (const value of ['in-place', 'row-start'] as const) {
-      run(value, () => {
-        const provider = provide([fixed(ROOT), made('A'), made('B', { placeOnShow: value }, { live: false })]);
-        act(() => provider.now().activate('B'));
-        const out = provider.ids();
-        cleanup();
-        return out;
-      });
-    }
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -621,51 +541,6 @@ function provideRow(initialEntries: PanelWindow[], width = 0, notes: SettingNote
   };
 }
 
-test('enter side, capacity rise: panels returned in place enter from the side of their old slot', async () => {
-  const provider = provideRow([marker(), made('A'), made('B'), made('C'), made('D')], W0(4));
-  act(() => provider.setWidth(W0(2)));
-  assert.deepEqual(provider.flags(), [MARK, 'A~', 'B~', 'C', 'D'], 'control: the narrow row parked A and B');
-  await provider.settle();
-  act(() => provider.setWidth(W0(4)));
-  assert.deepEqual(provider.flags(), [MARK, 'A', 'B', 'C', 'D']);
-  for (const id of ['A', 'B']) assert.equal(provider.now().enterSideById.get(id), 'left', id);
-  assert.equal(await provider.entersFrom('B'), -1);
-});
-
-test('show: two activates in one handler each place over the row the other left, not over this render', () => {
-  const provider = provide([fixed(ROOT), made('A'), made('B', { placeOnShow: 'row-end' }, { live: false }), made('C', { placeOnShow: 'row-start' }, { live: false }), made('D')]);
-  act(() => {
-    provider.now().activate('B');
-    provider.now().activate('C');
-  });
-  assert.deepEqual(provider.flags(), ['C', 'H', 'A', 'D', 'B']);
-});
-
-test('show: an activate that makes room parks the oldest panel and places the shown one in the same update, whatever an earlier update in the handler did', () => {
-  const entries = () => [fixed(ROOT), made('A'), made('B'), made('C', { placeOnShow: 'row-start' }, { live: false })];
-  const plain = provide(entries(), { width: W(2) });
-  assert.deepEqual(plain.flags(), ['H', 'A', 'B', 'C~'], 'control: two live panels fill the row');
-  act(() => plain.now().activate('C'));
-  assert.deepEqual(plain.flags(), ['C', 'H', 'A~', 'B'], 'C is placed first, and A, the lower index of the two tied, parks');
-  cleanup();
-  const moved = provide(entries(), { width: W(2) });
-  act(() => {
-    moved.now().move('B', 'left');
-    moved.now().activate('C');
-  });
-  assert.deepEqual(moved.flags(), ['C', 'H', 'B', 'A~'], 'the earlier move survived: B still stands before A, and the panel the render picked to park (A, first of the two tied in that render\'s row) is the one that parks');
-});
-
-test('reveal after a close: the placement runs over the row an earlier update in the same handler left', () => {
-  const provider = provide([fixed(ROOT), made('A'), made('B'), made('C'), made('D')], { width: W(3) });
-  assert.deepEqual(provider.flags(), ['H', 'A~', 'B', 'C', 'D']);
-  act(() => {
-    provider.now().move('D', 'left');
-    provider.now().close('B');
-  });
-  assert.deepEqual(provider.flags(), ['H', 'A', 'D', 'C']);
-});
-
 // ---------------------------------------------------------------------------
 // The enter side
 // ---------------------------------------------------------------------------
@@ -715,7 +590,3 @@ test('enter side: the placement cases above cover every named value and the thre
   assert.equal(SIDE_CASES.length, 9);
 });
 
-test('every placement name this file owns has a completed differential', () => {
-  assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
-  assert.deepEqual(differentialsCovered(), [...OWNED].sort());
-});

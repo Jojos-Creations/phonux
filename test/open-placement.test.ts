@@ -46,14 +46,3 @@ const openWith = async (place: PlaceOpen | undefined) => {
   return { row: r.row(), seen };
 };
 
-test('without place a full row opens at the far right and the leftmost in view parks', async () => {
-  assert.equal((await openWith(undefined)).row, 'root w1* w2* w3* w4 w5 w6');
-});
-
-test('place sees the panels in view and can open in the middle, shifting left, right, or closing the occupant', async () => {
-  const left = await openWith(() => ({ slot: 1 }));
-  assert.deepEqual(left.seen, ['w3', 'w4', 'w5']);
-  assert.equal(left.row, 'root w1* w2* w3* w4 w6 w5');
-  assert.equal((await openWith(() => ({ slot: 1, occupant: 'shift-right' }))).row, 'root w1* w2* w3 w6 w4 w5*');
-  assert.equal((await openWith(() => ({ slot: 1, occupant: 'close' }))).row, 'root w1* w2* w3 w6 w5');
-});

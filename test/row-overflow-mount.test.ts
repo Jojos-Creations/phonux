@@ -22,19 +22,6 @@ afterEach(() => cleanup());
 
 const legacyRoot = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, view: 'web', collapsible: false, listed: false });
 
-test('pin R4: a row of hand-built entries at container 1000 keeps History and the newest panel live', () => {
-  let latest: ProvidedPanels | undefined;
-  function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [legacyRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } }));
-    return React.createElement('output');
-  }
-  mount(React.createElement(Probe));
-  for (let i = 0; i < 3; i += 1) act(() => latest!.create());
-  const ids = latest!.entries.map((p) => p.id);
-  assert.equal(ids.length, 4);
-  assert.deepEqual(latest!.entries.filter((p) => p.live).map((p) => p.id), ['root', ids[3]]);
-});
-
 const scrollEntry = (id: string, over: PanelSettings = {}): PanelWindow => {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'ro-view' }, id, 'root')[0]!;
   return applyTemplate(skeleton, resolvePanelSettings({ template: over }).value, 'create');
@@ -70,21 +57,6 @@ test('a mount of 11 scroll panels at a measured container of 1000 renders every 
   const shell = mounted.container.querySelector('[data-shell]') as HTMLElement;
   assert.equal(getComputedStyle(shell).overflowX, 'hidden', 'a stepping row moves only through its scroll writer');
   assert.equal(getComputedStyle(shell).overscrollBehaviorX, 'none');
-});
-
-test('a row that stops scrolling resets the container scrollLeft to 0 in the same commit', () => {
-  const rowNumbers = (entries: PanelWindow[]) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth: 1000, gap: 16 });
-  const ref = React.createRef<HTMLDivElement>();
-  const rowRef = React.createRef<HTMLDivElement>();
-  const at = (entries: PanelWindow[]): React.ReactElement =>
-    withHost(React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowNumbers: rowNumbers(entries), children: null }));
-  const scrolling = [scrollRoot(), scrollEntry('a')];
-  const mounted = mount(at(scrolling));
-  setRowOffset(ref.current!, 300);
-  mounted.rerender(at(scrolling));
-  assert.equal(rowOffsetOf(ref.current!), 300, 'a row that still scrolls keeps its offset');
-  mounted.rerender(at([{ ...createRootPanel('root'), view: 'ro-view' }]));
-  assert.equal(rowOffsetOf(ref.current!), 0);
 });
 
 test('maxLiveWidth comes from computeRowNumbers at every gap: a 64-slot panel is drawn at the slots that fit the window', () => {

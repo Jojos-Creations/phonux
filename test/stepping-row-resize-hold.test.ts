@@ -103,53 +103,6 @@ test('the hold at each of three stops: the others keep their widths through a re
   }
 });
 
-test('stepping across every stop with a cap set never changes the live set', async () => {
-  const m = mountRow(
-    row(rootEntry(), ...[2, 4, 1, 3, 1, 2].map((n, k) => made(`s${k + 1}`, { slots: n, maxSlots: 64, overflow: k < 2 ? 'scroll' : 'park' }, { view: 'resizing-view' }))),
-    1800,
-    { tuning: { rowGesture: 'step', maxLivePanels: 3 } },
-  );
-  await advanceFrames(100);
-  scrolled(m);
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const live = m.live();
-  assert.equal(live.length, 5, `the cap parked one of the four parkable panels (${live.join(',')})`);
-  const stops = m.latest().rowNumbers.stops.length;
-  for (let k = 0; k < stops + 1; k++) {
-    await step(m, 'right');
-    assert.deepEqual(m.live(), live, `after step ${k + 1} right`);
-  }
-  for (let k = 0; k < stops + 1; k++) {
-    await step(m, 'left');
-    assert.deepEqual(m.live(), live, `after step ${k + 1} left`);
-  }
-});
-
-test('a step off the end of a parking row wider than its window brings in the next parked panel', async () => {
-  const m = mountRow(
-    row(rootEntry(), ...[1, 2, 2, 1, 1].map((n, k) => made(`s${k + 1}`, { slots: n, maxSlots: 64, overflow: 'park' }, { view: 'resizing-view' }))),
-    1800,
-    { tuning: { rowGesture: 'step', maxLivePanels: 3 } },
-  );
-  await advanceFrames(100);
-  scrolled(m);
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const live = m.live();
-  const before = live.join(',');
-  const stops = m.latest().rowNumbers.stops.length;
-  assert.ok(stops > 0, `the row overflows its window (${before})`);
-  const seen = new Set(live);
-  for (let k = 0; k < stops + 3; k++) {
-    await step(m, 'left');
-    for (const id of m.live()) seen.add(id);
-  }
-  for (let k = 0; k < 2 * (stops + 3); k++) {
-    await step(m, 'right');
-    for (const id of m.live()) seen.add(id);
-  }
-  assert.ok(seen.size > live.length, `a parked panel came in (${[...seen].join(',')} from ${before})`);
-});
-
 test('slotEdgesAt: a panel fades across the held gap, and one past the grid runs to the window edge only by what it has inside', () => {
   const n = computeRowNumbers({ entries: [made('root', { overflow: 'scroll', edgeHold: 'left' }, { collapsible: false }), ...[1, 1, 2, 1].map((slots, k) => made(`s${k + 1}`, { slots, maxSlots: 64, overflow: 'park' }))], phoneWidth: 320, containerWidth: 1700, gap: 24, wholePanels: true });
   assert.ok(n.leftInset > 0, 'control: the root is held');

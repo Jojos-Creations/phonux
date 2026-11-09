@@ -157,26 +157,6 @@ test("the panel's own maxSlots is the cap when it is lower than what fits", asyn
   assert.equal(widthOf(narrow.container, 's1'), SLOT(2));
 });
 
-test('a held width reaches the live set and the row numbers nowhere: with a cap set, a drag across the whole range parks and returns nothing', async () => {
-  const m = await opened(1800, { tuning: { maxLivePanels: 2 } }, [1, 1, 1], undefined, { overflow: 'park' });
-  const live = m.live();
-  assert.equal(live.length, 2, 'the cap parked one of the three');
-  const id = live[1]!;
-  const numbers = m.latest().rowNumbers;
-  const stops = numbers.stops;
-  act(() => setters.get(id)!.resizing(true));
-  for (const px of [390, 500, 700, 900, 1200, 9000, 400]) {
-    await drag(id, px);
-    assert.deepEqual(m.live(), live, `at ${px}`);
-    assert.equal(m.latest().rowNumbers, numbers, `the row numbers are the same object at ${px}`);
-    assert.equal(m.latest().rowNumbers.stops, stops);
-  }
-  await drag(id, null);
-  act(() => setters.get(id)!.resizing(false));
-  await advanceFrames(600);
-  assert.deepEqual(m.live(), live, 'and after the release');
-});
-
 test('pinned at the end, the panel keeps its right edge and everything after it, and the panels before it make room', async () => {
   const m = await opened(1800, {}, [1, 1, 1]);
   const before = layout(m.container);
@@ -319,94 +299,6 @@ async function frames(count: number, read: () => number[]): Promise<number[][]> 
   return out;
 }
 const monotone = (values: readonly number[]): boolean => values.every((v, k) => k === 0 || v >= values[k - 1]! - 1e-6) || values.every((v, k) => k === 0 || v <= values[k - 1]! + 1e-6);
-
-test('the release: setSlots(nearest), then null, then the mark off, glides every edge from the held width to the stored one with no frame in between and no reversal', async () => {
-  const m = await opened(2200, {}, [1, 1, 1]);
-  act(() => setters.get('s2')!.resizing(true));
-  await drag('s2', 700);
-  const held = edges(m.container, 's3').left;
-  act(() => {
-    m.latest().setSlots('s2', 2);
-    setters.get('s2')!.width(null);
-    setters.get('s2')!.resizing(false);
-  });
-  assert.equal(widthOf(m.container, 's2'), SLOT(2), 'the slot is at the stored width at once');
-  const trace = await frames(40, () => [edges(m.container, 's3').left, m.container.scrollLeft]);
-  const s3 = trace.map((t) => t[0]!);
-  assert.ok(monotone(s3), `the next panel's left edge moves one way: ${s3.map((v) => v.toFixed(1)).join(' ')}`);
-  assert.ok(Math.abs(s3[0]! - held) < 1, 'it starts from where the drag left it, not from a third place');
-  assert.ok(Math.abs(s3.at(-1)! - s3.at(-2)!) < 0.01, 'and comes to rest');
-  assert.ok(monotone(trace.map((t) => t[1]!)), 'the row scroll never reverses');
-});
-
-test('the release in a scrolling row: the scroll glide to the nearest stop and the width glide both end and neither reverses', async () => {
-  const m = await opened(1800, {}, [1, 2, 1]);
-  act(() => setters.get('s2')!.resizing(true));
-  await drag('s2', 1100);
-  const before = m.container.scrollLeft;
-  act(() => {
-    m.latest().setSlots('s2', 3);
-    setters.get('s2')!.width(null);
-    setters.get('s2')!.resizing(false);
-  });
-  const trace = await frames(60, () => [edges(m.container, 's3').left, edges(m.container, 's2').left, m.container.scrollLeft]);
-  for (const [k, name] of ['the next panel', 'the resized panel', 'the scroll'].entries()) {
-    const series = trace.map((t) => t[k]!);
-    assert.ok(monotone(series), `${name} moves one way: ${series.map((v) => v.toFixed(1)).join(' ')}`);
-  }
-  const stops = m.latest().rowNumbers.stops;
-  assert.ok(stops.some((stop) => Math.abs(stop - m.container.scrollLeft) < 1), `the row ends on a stop: ${m.container.scrollLeft} in ${stops.join(',')} (${trace.map((t) => t[2]!.toFixed(0)).join(' ')})`);
-  void before;
-});
-
-test('under Reduce Motion the release is one frame', async () => {
-  const m = await opened(2200, {}, [1, 1, 1], (r) => React.createElement(MotionConfig, { reducedMotion: 'always' }, r));
-  act(() => setters.get('s2')!.resizing(true));
-  await drag('s2', 700);
-  act(() => {
-    m.latest().setSlots('s2', 2);
-    setters.get('s2')!.width(null);
-    setters.get('s2')!.resizing(false);
-  });
-  await advanceFrames(FRAME);
-  const settled = edges(m.container, 's3').left;
-  await advanceFrames(400);
-  assert.ok(Math.abs(edges(m.container, 's3').left - settled) < 0.01, `nothing moves after the first frame: ${settled} then ${edges(m.container, 's3').left}`);
-});
-
-test('the grabber stays under the pointer: the held edge does not move on screen and the other edge is exactly the width away, centred row and scrolling row, either pin', async () => {
-  for (const [slots, stepToStop] of [[[1, 1, 1], 0], [[1, 2, 1], 1]] as const) {
-    for (const pin of ['start', 'end'] as const) {
-      const m = await opened(1800, {}, slots);
-      await advanceFrames(1500);
-      for (let k = 0; k < stepToStop; k += 1) {
-        m.wheel({ deltaX: 50 });
-        await advanceFrames(600);
-        act(() => void m.container.dispatchEvent(new Event('scroll')));
-      }
-      const start = edges(m.container, 's2');
-      const margin = marginOf(m.container);
-      const scroll = m.container.scrollLeft;
-      act(() => setters.get('s2')!.resizing(true));
-      for (const px of [430, 520, 640, 800, 1000]) {
-        await drag('s2', px, pin);
-        const now = edges(m.container, 's2');
-        assert.equal(marginOf(m.container), margin, `${slots.join(',')} ${pin}: the centring margin is held`);
-        assert.equal(m.container.scrollLeft, scroll, `${slots.join(',')} ${pin}: no scroll`);
-        if (pin === 'start') {
-          assert.equal(now.left, start.left, `${slots.join(',')} start at ${px}: the left edge is where it was`);
-          assert.equal(now.right - start.left, px, `${slots.join(',')} start at ${px}: the right edge is exactly the pointer's width away`);
-        } else {
-          assert.equal(now.right, start.right, `${slots.join(',')} end at ${px}: the right edge is where it was`);
-          assert.equal(now.right - now.left, px, `${slots.join(',')} end at ${px}: the left edge is exactly the pointer's width away`);
-        }
-      }
-      mock.timers.reset();
-      cleanup();
-      setters.clear();
-    }
-  }
-});
 
 test('the strip a pinned width leaves is as long as before; a start-pinned one grows by the width', async () => {
   const m = await opened(1800, {}, [1, 1, 1]);

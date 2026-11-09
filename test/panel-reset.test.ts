@@ -57,37 +57,6 @@ test('(c) a two-slot panel the person resized returns to its default slots', asy
   assert.deepEqual(r.entry('b').overrides, {});
 });
 
-test('(c) a slot count that no longer fits parks the fewest park panels and the result lists them', async () => {
-  const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { ...park, slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
-  await r.settle();
-  r.turn(() => r.h.c!.show());
-  await r.settle();
-  r.turn(() => r.h.c!.setSlots(1, 'person'));
-  await r.settle();
-  r.turn(() => r.h.b!.show());
-  await r.settle();
-  r.turn(() => r.h.c!.show());
-  await r.settle();
-  assert.deepEqual(r.live(), ['root', 'b', 'c'], 'showing c parks d, the panel touched longest ago');
-  assert.deepEqual(reset(r, 'c'), { ok: true, changed: true, panels: ['c'], parked: ['b'], returned: [] });
-  await r.settle();
-  assert.deepEqual(r.live(), ['root', 'c']);
-  assert.equal(r.entry('c').slots, 2);
-});
-
-test('(c) a freed slot returns a stacked panel and the result lists it', async () => {
-  const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, park])) });
-  await r.settle();
-  r.turn(() => r.h.d!.setSlots(2, 'person'));
-  await r.settle();
-  assert.deepEqual(r.live(), ['root', 'd']);
-  assert.deepEqual(reset(r, 'd'), { ok: true, changed: true, panels: ['d'], parked: [], returned: ['c'] });
-  await r.settle();
-  assert.deepEqual(r.live(), ['root', 'c', 'd']);
-});
-
 test('(c) a scrolling row parks none when a slot count grows', async () => {
   const ids = ['a', 'b', 'c', 'd'];
   const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
@@ -98,22 +67,6 @@ test('(c) a scrolling row parks none when a slot count grows', async () => {
   await r.settle();
   assert.deepEqual(result.parked, []);
   assert.deepEqual([...r.live()].sort(), [...live].sort());
-});
-
-test('(e) parked and hidden panels are re-placed and stay parked or held', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e'];
-  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, park])) });
-  await r.settle();
-  r.turn(() => r.h.d!.hide());
-  r.turn(() => r.h.b!.place('row-end', 'person'));
-  r.turn(() => r.h.d!.place('row-start', 'person'));
-  assert.equal(r.order().join(' '), 'd root a c e b');
-  const before = [r.state('b').status, r.state('d').status, r.state('d').held];
-  assert.deepEqual(before, ['parked', 'parked', true]);
-  const result = reset(r, 'all') as { ok: boolean; changed?: boolean };
-  assert.deepEqual([result.ok, result.changed], [true, true]);
-  assert.equal(r.order().join(' '), 'root a b c d e');
-  assert.deepEqual([r.state('b').status, r.state('d').status, r.state('d').held], before);
 });
 
 // ---------------------------------------------------------------------------

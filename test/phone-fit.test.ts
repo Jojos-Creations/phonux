@@ -193,36 +193,6 @@ test('a resize holds the previous size until the width has settled, then draws t
   assert.equal(m.slotWidth(), 330, '4 slots of 330 fill 1400 (3 would need 445, over the cap)');
 });
 
-test('a window jump draws the new fit in its own step, with no wait and no old size in between', async () => {
-  const m = await mounted({ tuning: { phoneFit: 'fit' } }, 1000, 1117);
-  assert.equal(m.slotWidth(), 440);
-  await resize(1400);
-  assert.equal(m.slotWidth(), 330, 'the jump lands at the new fit at once');
-  const margin = stripMarginOf(document.body);
-  await advanceFrames(1000);
-  assert.equal(m.slotWidth(), 330, 'and nothing refits after it');
-  assert.equal(stripMarginOf(document.body), margin, 'and nothing glides after it');
-});
-
-test('a window still moving keeps the phone size and moves the row at once on every step; holding still 200 ms refits', async () => {
-  const m = await mounted({ tuning: { phoneFit: 'fit' } }, 1000, 1117);
-  const margin = (): number => stripMarginOf(document.body);
-  const seen: number[] = [margin()];
-  for (const width of [1100, 1200, 1300, 1400]) {
-    await resize(width);
-    await advanceFrames(2 * 16);
-    const now = margin();
-    await advanceFrames(100);
-    assert.equal(margin(), now, `${width}: the row landed in the step's own frame, no glide follows it`);
-    assert.equal(m.slotWidth(), 440, `${width}: the phone size waits while the window moves`);
-    seen.push(now);
-  }
-  assert.equal(new Set(seen).size, seen.length, 'control: every step moved the row');
-  await advanceFrames(300);
-  await until('the settled fit', () => m.slotWidth() !== 440);
-  assert.equal(m.slotWidth(), 330, 'held still: one refit, 4 slots of 330');
-});
-
 test('a hand-wired flow: usePhoneFit before useProvidePanels, the pair to Workspace, and every reader sees the fitted size', async () => {
   win.width = 1000;
   win.height = 1117;

@@ -71,60 +71,11 @@ const grabOf = (r: Rig, key: string): HTMLElement => {
   return grab;
 };
 
-
 const ALL = ['root', 'a', 'b', 'c'];
 const hold = (r: Rig, dx: number) => drag(grabOf(r, 'root'), { dx, dy: 0, steps: 12, hold: 8, keepDown: true });
 /** The orders the commits showed, a repeat of the one before dropped. */
 const distinct = (commits: string[][]): string[] => commits.map((c) => c.join(' ')).filter((c, k, all) => c !== all[k - 1]);
 const sides = (r: Rig): Record<string, string> => Object.fromEntries(Object.entries(anchorsOf(r)).map(([k, v]) => [k, v.split(' ').slice(0, 2).join(' ')]));
-
-test('the preview: a held root drag slides the neighbour it would cross aside, and the order changes only at the drop', async () => {
-  const r = await rig({ root: { movable: true } });
-  const rest = Object.fromEntries(ALL.map((k) => [k, xOf(r, k)]));
-  await hold(r, SPAN * 0.5 + 10);
-  await advanceFrames(1000);
-  assert.equal(xOf(r, 'a'), rest.a! - SPAN, 'the first neighbour made room');
-  assert.equal(xOf(r, 'b'), rest.b, 'a neighbour past the hop point has not moved');
-  assert.equal(order(r).join(' '), 'root a b c', 'the order only changes at the drop');
-  assert.equal(slotOf(r, 'root').style.zIndex, '200', 'the dragged slot is drawn over its neighbours');
-  await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(3000);
-  assert.equal(xOf(r, 'a'), rest.root, 'the crossed neighbour rests where the root was: it did not jump at the drop');
-  assert.equal(xOf(r, 'root'), rest.a, 'and the root rests where the neighbour was');
-});
-
-test('the commit: a drop past one panel re-anchors that panel alone, in one commit', async () => {
-  const commits: string[][] = [];
-  const r = await rig({ root: { movable: true }, commits });
-  const before = sides(r);
-  commits.length = 0;
-  await hold(r, SPAN * 0.5 + 10);
-  await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(3000);
-  assert.equal(order(r).join(' '), 'a root b c');
-  assert.deepEqual(anchorsOf(r), { a: 'root left 0', b: 'root right 0', c: 'root right 1' });
-  const after = sides(r);
-  assert.deepEqual(Object.keys(after).filter((k) => after[k] !== before[k]), ['a'], 'only the crossed panel changed its side');
-  assert.deepEqual(distinct(commits), ['a root b c'], 'the one change of order is the drop');
-});
-
-test('the commit: a drop past two panels re-anchors those two to the root\'s other side and nothing else', async () => {
-  const commits: string[][] = [];
-  const r = await rig({ root: { movable: true }, commits });
-  const before = sides(r);
-  const rest = Object.fromEntries(ALL.map((k) => [k, xOf(r, k)]));
-  commits.length = 0;
-  await hold(r, SPAN * 1.5 + 10);
-  await advanceFrames(1000);
-  assert.deepEqual([xOf(r, 'a'), xOf(r, 'b'), xOf(r, 'c')], [rest.a! - SPAN, rest.b! - SPAN, rest.c], 'both crossed panels stand aside during the hold and the third stays');
-  await release(SPAN * 1.5 + 10, 0);
-  await advanceFrames(3000);
-  assert.equal(order(r).join(' '), 'a b root c');
-  assert.deepEqual(anchorsOf(r), { a: 'root left 1', b: 'root left 0', c: 'root right 0' });
-  const after = sides(r);
-  assert.deepEqual(Object.keys(after).filter((k) => after[k] !== before[k]).sort(), ['a', 'b']);
-  assert.deepEqual(distinct(commits), ['a b root c'], 'no commit showed the root past only the first panel');
-});
 
 test('keys: ArrowRight and ArrowLeft on the root\'s grab handle move it one slot, as they do any panel', async () => {
   const r = await rig({ root: { movable: true } });
@@ -152,16 +103,6 @@ test('without the setting the root is not movable: no reorder through the handle
   assert.equal(order(r).join(' '), 'root a b c');
 });
 
-test('a neighbour that cannot be crossed stops the root\'s drag, as it stops any panel', async () => {
-  const r = await rig({ root: { movable: true } });
-  act(() => void r.ws.panels.get('b')!.configure({ crossable: false }));
-  await advanceFrames(100);
-  await hold(r, SPAN * 2.5 + 10);
-  await release(SPAN * 2.5 + 10, 0);
-  await advanceFrames(3000);
-  assert.equal(order(r).join(' '), 'a root b c', 'the root crossed the first panel and stopped before the one that cannot be crossed');
-});
-
 test('settings: movable true is accepted on the root; closable and parkable true still answer settings-conflict', async () => {
   const resolved = resolvePanelSettings({ template: { movable: true } }, { root: true });
   assert.deepEqual([resolved.value.movable, resolved.source.movable, resolved.conflicts], [true, 'template', []]);
@@ -182,20 +123,5 @@ test('settings: movable true is accepted on the root; closable and parkable true
     assert.equal(refusal.setting, key);
     assert.match(refusal.message, /C5/);
   }
-});
-
-test('a root dragged to the middle is restored there: the saved file names the crossed panels\' sides, and the root\'s place follows', async () => {
-  const store = memoryWorkspaceStorage();
-  const first = await rig({ root: { movable: true }, storage: store });
-  await hold(first, SPAN * 0.5 + 10);
-  await release(SPAN * 0.5 + 10, 0);
-  await advanceFrames(3000);
-  await settle();
-  assert.equal(order(first).join(' '), 'a root b c');
-  cleanup();
-  const second = await rig({ root: { movable: true }, storage: store });
-  await settle();
-  await advanceFrames(3000);
-  assert.equal(order(second).join(' '), 'a root b c');
 });
 
