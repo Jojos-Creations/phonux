@@ -466,8 +466,14 @@ before the fix, where `git diff 8e85487` of the fixed file was empty), passes no
 
 Not done in this pass: item 5 (reorder proof tightening, reduced-motion checks, the AHEAD_STEPS=0 mutant, the summon clip pixel
 check); item 6 (the step-8 API loose ends listed below); item 7 has a proof case (`reorder.wheelBefore`, a wheel gesture running when
-the hold starts) that was not run; the app's ArrowRight after a window-bar click (workspace-summon "a step away returns the row",
-"stepping left reaches Workspace", "one step carries it out") still fails and was not diagnosed.
+the hold starts) that was not run.
+
+- ArrowRight after a window-bar summon (app `workspace-summon.mjs`: "a step away returns the row", "stepping left reaches Workspace",
+  "one step carries it out" at 1400 and 1800, 6 failures on the 8d42f37 build). The key reached the row and Embla took it, but
+  `scrollNext` steps from Embla's selected index, which a direct write (the summon's land) leaves stale, so it named the stop the row
+  rested on. A key step now goes one stop from the stop nearest where the row is heading, and a step away from a summoned root
+  dismisses it (the own row's "a step away returns the row"). App proof on the 76059ee build: 1787 checks, 0 failed. No library proof
+  case or mutant for this one yet.
 
 ## Not done yet (still on the old row, or not working on Embla yet)
 
