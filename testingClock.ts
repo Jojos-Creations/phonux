@@ -86,7 +86,7 @@ define('requestAnimationFrame', requestFrame);
 define('cancelAnimationFrame', cancelFrame);
 
 // What the row (Embla Carousel, the library's only row) reads at init that jsdom lacks: breakpoints through matchMedia, slides in
-// view through IntersectionObserver. Neither ever fires here.
+// view through IntersectionObserver, a resize of the window or a slide through ResizeObserver. None ever fires here.
 class NoIntersections {
   observe(): void {}
   unobserve(): void {}
@@ -99,8 +99,10 @@ if (typeof win.matchMedia !== 'function') {
   win.matchMedia = ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as unknown as typeof win.matchMedia;
 }
 if (typeof win.IntersectionObserver !== 'function') win.IntersectionObserver = NoIntersections as unknown as typeof IntersectionObserver;
+if (typeof win.ResizeObserver !== 'function') win.ResizeObserver = NoIntersections as unknown as typeof ResizeObserver;
 define('matchMedia', win.matchMedia);
 define('IntersectionObserver', win.IntersectionObserver);
+define('ResizeObserver', win.ResizeObserver);
 // An own property shadows Performance.prototype.now; the Node and the jsdom clocks read the same counter.
 Object.defineProperty(globalThis.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
 Object.defineProperty(win.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
