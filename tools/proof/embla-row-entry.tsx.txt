@@ -1,15 +1,24 @@
 // Proof page for embla-row-proof.ts: the real Workspace and PanelRow from useProvidePanels, on the engine the query names.
-// Query: slots=1,3,1,2 (each panel's slots) engine=embla|own
+// Query: slots=1,3,1,2 (each panel's slots) engine=embla|own; park=1 makes every panel parkable (overflow 'park', as the app's web
+// pages are) and cap=N sets tuning.maxLivePanels; near=K is the Workspace's rowNearSlots; bar=W draws a dot bar W px wide (0: as wide as
+// its dots), clipped and kept over the oval as the app's overflow frame does.
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
-import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, Panel, PanelFrame, PanelSizeBox, feedRowWheel } from 'LIB/index.js';
+import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, usePanelDots, Panel, PanelFrame, PanelSizeBox, feedRowWheel } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
-import { emblaOf, emblaScrollOf } from 'LIB/emblaRow.js';
+import { emblaOf, emblaScrollOf, emblaOvalDrag } from 'LIB/emblaRow.js';
 
 const q = new URLSearchParams(location.search);
 const SLOTS = (q.get('slots') ?? '1,1,1,1,1,1').split(',').map(Number);
 const ENGINE = q.get('engine') === 'own' ? 'own' : 'embla';
+const PARK = q.get('park') === '1';
+const CAP = q.get('cap') === null ? null : Number(q.get('cap'));
+const NEAR = q.get('near') === null ? undefined : Number(q.get('near'));
+const BAR = q.get('bar') === null ? null : Number(q.get('bar'));
+// Each view's mounts, and a setter for a piece of React state it holds: state survives only while the view stays mounted.
+const mounts: Record<string, number> = {};
+const setters: Record<string, (n: number) => void> = {};
 const GAP = 16;
 const PHONE = 390;
 const ROOT = 'root';
@@ -19,12 +28,17 @@ let latest: any;
 
 function View({ name, k }: { name: string; k: number }) {
   const hue = (k * 47) % 360;
+  const [count, setCount] = React.useState(0);
+  React.useEffect(() => {
+    mounts[name] = (mounts[name] ?? 0) + 1;
+    setters[name] = setCount;
+  }, []);
   return (
     <PanelSizeBox>
       <Panel title={name} sx={{ height: '100%' }}>
         <PanelFrame>
           <div data-box={name} style={{ height: '100%', background: `linear-gradient(135deg,hsl(${hue} 55% 40%),hsl(${(hue + 60) % 360} 55% 22%))`, color: '#fff', font: '24px sans-serif', padding: 12, boxSizing: 'border-box' }}>
-            {name} ({SLOTS[k]} slot{SLOTS[k] > 1 ? 's' : ''})
+            {name} ({SLOTS[k]} slot{SLOTS[k] > 1 ? 's' : ''}) <span data-count={name}>{count}</span>
           </div>
         </PanelFrame>
       </Panel>
@@ -37,8 +51,8 @@ function RootView() {
 
 const ws = createWorkspace({
   root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none' } as any }),
-  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64 } as any })),
-  tuning: { rowGesture: 'step', rowGap: GAP } as any,
+  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })),
+  tuning: { rowGesture: 'step', rowGap: GAP, ...(CAP === null ? {} : { maxLivePanels: CAP }) } as any,
 });
 for (const id of ids) ws.addPanel(id);
 
@@ -53,17 +67,36 @@ function App() {
     setW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
-  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref } as any);
+  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref, rowEngine: ENGINE } as any);
   latest = p;
   const host = createFakeHost({ panels: p });
   return (
     <HostProvider host={host}>
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-        <Workspace rowEngine={ENGINE} overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
+        <Workspace rowEngine={ENGINE} rowNearSlots={NEAR} overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
           <PanelRow entries={p.entries} rootId={ws.rootId} closingIds={NONE} enteringViaAnchorIds={NONE} rowNumbers={p.rowNumbers} maxLiveWidth={p.maxLiveWidth} workspace={ws} />
         </Workspace>
+        {BAR === null ? null : <Bar p={p} scroller={ref} />}
       </div>
     </HostProvider>
+  );
+}
+
+// A dot bar drawn as the app draws one: the oval under the dots, a frame that clips the track and keeps the oval inside it.
+function Bar({ p, scroller }: { p: any; scroller: React.RefObject<HTMLDivElement | null> }) {
+  const dots = usePanelDots({ rowNumbers: p.rowNumbers, entries: p.entries, scroller, tuning: p.tuning });
+  const frameW = BAR === 0 || BAR === null ? dots.width : Math.min(BAR, dots.width);
+  const offset = React.useRef(0);
+  offset.current = Math.min(Math.max(offset.current, dots.oval.left + dots.oval.width - frameW), dots.oval.left, Math.max(0, dots.width - frameW));
+  offset.current = Math.max(0, offset.current);
+  const { style, ...bar } = dots.barProps;
+  return (
+    <div data-bar-frame="" style={{ position: 'fixed', bottom: 20, left: `calc(50% - ${frameW / 2}px)`, width: frameW, height: 20, overflow: 'hidden', background: '#222' }}>
+      <div data-bar-track="" {...bar} style={{ ...style, position: 'absolute', top: 0, height: 20, left: -offset.current, width: dots.width }}>
+        <div {...dots.ovalProps} data-dot-oval="" style={{ position: 'absolute', top: 0, height: 20, left: dots.oval.left, width: dots.oval.width, border: '1px solid #fff', borderRadius: 10, boxSizing: 'border-box' }} />
+        {dots.dots.map((d) => <button key={d.id} type="button" {...dots.dotProps(d.id)} style={{ position: 'absolute', top: 6, height: 8, left: d.left, width: d.width, padding: 0, border: 0, borderRadius: 4, background: '#aaa' }} />)}
+      </div>
+    </div>
   );
 }
 
@@ -115,7 +148,10 @@ const frame = (t: number): void => {
       const r = el.getBoundingClientRect();
       panels[el.dataset.rowId!] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
     }
-    frames.push({ t, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels });
+    const oval = document.querySelector<HTMLElement>('[data-dot-oval]');
+    const track = document.querySelector<HTMLElement>('[data-bar-track]');
+    const bar = oval === null || track === null ? {} : { ovalLeft: oval.getBoundingClientRect().left - track.getBoundingClientRect().left, ovalScreen: oval.getBoundingClientRect().left, ovalW: oval.getBoundingClientRect().width };
+    frames.push({ t, pos: pos(), logical: logical(), winW: win.width, winLeft: win.left, pointerX, wheels, pd, pm, pu, panels, unloaded: document.querySelectorAll('[data-row-unloaded]').length, ...bar });
     wheels = 0;
     pd = 0;
     pm = 0;
@@ -148,6 +184,7 @@ requestAnimationFrame(frame);
     return best;
   },
   jumpToSlot: (s: number) => emblaOf(container())?.scrollTo(s, true),
+  glideToSlot: (s: number) => emblaOf(container())?.scrollTo(s),
   // A wheel handed in from embedded content, as a webview's script does: deltas only, from an element inside a panel.
   feed: (init: any) => feedRowWheel(document.querySelector('[data-box="p2"]')!, init),
   // A stream of handed-in wheels, one per animation frame, as fix1-wheel.mjs sends them.
@@ -178,6 +215,31 @@ requestAnimationFrame(frame);
   }),
   // A panel verb on the provided panels (close, setSlots, move), as a host's button would call it.
   op: (name: string, ...args: unknown[]) => latest[name](...args),
+  slotCount: () => document.querySelectorAll('[data-row-slot]').length,
+  unloadedIds: () => [...document.querySelectorAll<HTMLElement>('[data-row-unloaded]')].map((el) => el.closest<HTMLElement>('[data-row-slot]')!.dataset.rowId!),
+  loadedIds: () => [...document.querySelectorAll<HTMLElement>('[data-box]')].map((el) => el.dataset.box!).filter((id) => id !== ROOT),
+  mounts: () => ({ ...mounts }),
+  setCount: (name: string, n: number) => setters[name]?.(n),
+  count: (name: string) => document.querySelector(`[data-count="${name}"]`)?.textContent ?? null,
+  statuses: () => latest.entries.map((e: any) => `${e.id}:${e.live ? 'live' : 'parked'}`),
+  // Where every panel sits along the strip: its drawn left in the window plus the drawn scroll, which a jump changes and a scroll does not.
+  stripLefts: () => {
+    const win = windowRect();
+    const at = pos();
+    const out: Record<string, number> = {};
+    for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) out[el.dataset.rowId!] = +(el.getBoundingClientRect().left - win.left + at).toFixed(2);
+    return out;
+  },
+  bar: () => {
+    const t = document.querySelector<HTMLElement>('[data-bar-track]');
+    const f = document.querySelector<HTMLElement>('[data-bar-frame]');
+    const o = document.querySelector<HTMLElement>('[data-dot-oval]');
+    if (t === null || f === null || o === null) return null;
+    const r = (el: HTMLElement) => { const b = el.getBoundingClientRect(); return { left: b.left, width: b.width, top: b.top, height: b.height }; };
+    return { track: r(t), frame: r(f), oval: r(o), dots: document.querySelectorAll('[data-dot]').length };
+  },
+  dotRect: (id: string) => { const b = document.querySelector<HTMLElement>(`[data-dot="${id}"]`)!.getBoundingClientRect(); return { left: b.left, width: b.width, top: b.top }; },
+  easedOval: (on: boolean) => { emblaOvalDrag.eased = on; },
   record: () => { frames.length = 0; recording = true; },
   stop: () => { recording = false; return frames.slice(); },
 };

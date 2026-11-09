@@ -142,6 +142,8 @@ export interface PanelManagerOptions {
   setRest?: (rest: RowRest, row: readonly PanelWindow[]) => void;
   /** Whether the root would step aside for this row. A panel returning for room never makes it: only a person's step does. */
   rootAsideIn?: (row: readonly PanelWindow[]) => boolean;
+  /** The row is one continuous strip (the Embla row): nothing parks for room or the cap, and a panel parked for either comes back in place. */
+  strip?: boolean;
 }
 
 /** How a park is classified: a hide that took a hold, or a park the engine made for room. */
@@ -161,7 +163,8 @@ export function usePanelManager(
   const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
-  const env: RowEnv = { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, dropTieBreak, rest: options?.rest ?? null };
+  const strip = options?.strip === true;
+  const env: RowEnv = { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, dropTieBreak, rest: options?.rest ?? null, strip };
   const pricing = (row: readonly PanelWindow[]) => rowPricing(env, row);
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => settleKeeping(env, next, keep);
   const { widthOf, capacityFor, settles } = pricing(panels);
@@ -745,6 +748,15 @@ export function usePanelManager(
       if (seen === panels || flushingRef.current > 0) waiting.set(id, seen);
     }
     keepLiveRef.current = waiting;
+    if (strip) {
+      // A panel parked for room or the cap before the row became a strip takes its slot back where it is; a host's hide stays.
+      const back = new Set(panels.filter((p) => parksForRoom(p) && !p.live && !heldRef.current.has(p.id)).map((p) => p.id));
+      if (back.size === 0) return;
+      collapseOrderRef.current = collapseOrderRef.current.filter((id) => !back.has(id));
+      capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => !back.has(id));
+      setPanels((current) => current.map((p) => (back.has(p.id) ? { ...p, live: true } : p)));
+      return;
+    }
     if (capacity === Number.POSITIVE_INFINITY) return;
     const live = panels.filter(isParkLive);
     // An 'until-room' hold taken before the first measurement took no threshold; it takes the row's as measured now.
@@ -802,7 +814,7 @@ export function usePanelManager(
       setPanels((current) => landAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capacity, panels, maxLive]);
+  }, [capacity, panels, maxLive, strip]);
 
   /**
    * `stack` (park order, most recent last) in the order a return walk tries it: the tie-break first, then a stable

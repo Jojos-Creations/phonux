@@ -21,6 +21,8 @@ export interface RowEnv {
   readonly dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']>;
   /** The blanks the row rests with: each one is a slot no parked panel may fill. */
   readonly rest?: RowRest | null;
+  /** The row is one continuous strip (the Embla row): every panel has its slot on it, so nothing parks for room or for the cap. */
+  readonly strip?: boolean;
 }
 
 /** Live and parkable for room: the panels whose count and widths the capacity governs. */
@@ -51,6 +53,7 @@ export function rowPricing(env: RowEnv, row: readonly PanelWindow[]) {
    * own), held under a cap to at most N. A scrolling row under a cap ignores the fit.
    */
   const capacityFor = (set: readonly PanelWindow[], fitWidths: readonly number[] = set.map(widthOf)): number => {
+    if (env.strip === true) return Number.POSITIVE_INFINITY;
     if (maxLive === null) return fitCapacityFor(fitWidths);
     const fit = numbers.rowScroll ? Number.POSITIVE_INFINITY : fitCapacityFor(fitWidths);
     return Math.max(1, Math.min(fit, maxLive - blanks));

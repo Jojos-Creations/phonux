@@ -23,7 +23,7 @@ import { PanelRowSlot, SizeBox, type SlotEntrance, type SlotExit } from './Panel
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
-import { reorderStepsForOffset } from './panelWindow.js';
+import { parksForRoom, reorderStepsForOffset } from './panelWindow.js';
 import { RowDropContext, dropParts, partShifts, useRowDrop, type Neighbor, type Walk } from './panelRowDrop.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
@@ -35,7 +35,7 @@ import { restTranslate } from './slotMover.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, emblaOf, emblaScrollOf, emblaWindowOf, jumpEmbla, keptScroll, slotMarkerLefts, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaDrawnOf, emblaOf, emblaScrollOf, emblaWindowOf, jumpEmbla, keptScroll, loadedNear, publishEmblaStrip, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
@@ -394,6 +394,27 @@ export function PanelRow({
   const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
   const keepTo = emblaNow === undefined || lastLayout.current === null ? scrollNow : keptScroll(lastLayout.current, layoutNow, scrollNow, Math.max(0, stripPx - emblaWindow.width));
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
+  // On Embla every panel has its slot on the strip; a parkable one far from the view draws a placeholder of its width instead of its
+  // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
+  const nearSlots = React.useContext(RowNearContext);
+  const loadedRef = React.useRef<ReadonlySet<string> | null>(null);
+  const loadedAt = (scroll: number): Set<string> =>
+    loadedNear({ layout: layoutNow, scroll, windowWidth: emblaWindow.width, pitch: phoneWidth + gap, gap, near: nearSlots, limit: workspaceTuning.maxLivePanels, unloadable: (id) => present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current });
+  const loadedNow = onEmbla ? loadedAt(keepTo) : null;
+  loadedRef.current = loadedNow;
+  const loadedAtRef = React.useRef(loadedAt);
+  loadedAtRef.current = loadedAt;
+  const [, reload] = React.useReducer((n: number) => n + 1, 0);
+  React.useEffect(() => {
+    if (!onEmbla) return undefined;
+    return subscribeEmblaRows(() => {
+      const embla = windowRef.current === null ? undefined : emblaOf(windowRef.current);
+      const was = loadedRef.current;
+      if (embla === undefined || was === null) return;
+      const next = loadedAtRef.current(emblaDrawnOf(embla));
+      if (next.size !== was.size || [...next].some((id) => !was.has(id))) reload();
+    });
+  }, [onEmbla]);
   // The held and stuck entries slotFor draws this render, for the row's one drawing pass, which runs after the render is done.
   const holds: HoldSpec[] = [];
   // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
@@ -475,11 +496,15 @@ export function PanelRow({
           {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
               initial) call needs no id argument. */}
           {/* Every panel resizes through this one box, so a view that draws a bare Panel glides like any other. */}
-          <SizeBox reveal={resize === 'reveal'}>
-            <useViewState.Provider value={panelKey(p)}>
-              <Component panel={summary} />
-            </useViewState.Provider>
-          </SizeBox>
+          {loadedNow !== null && !loadedNow.has(p.id) ? (
+            <div {...{ [EMBLA_UNLOADED_ATTRIBUTE]: '' }} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <SizeBox reveal={resize === 'reveal'}>
+              <useViewState.Provider value={panelKey(p)}>
+                <Component panel={summary} />
+              </useViewState.Provider>
+            </SizeBox>
+          )}
         </PanelRowSlot>
         </PanelHold>
       </PanelSlotContext.Provider>
@@ -496,6 +521,7 @@ export function PanelRow({
       jumpEmbla(embla, keepTo);
     }
     lastLayout.current = layoutNow;
+    if (onEmbla && windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap });
   });
   const box = (
     <>

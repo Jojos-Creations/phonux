@@ -31,7 +31,7 @@ import { nearestStop, scrollHoldingEdge, snapToStop, type RowNumbers } from './r
 import { rowScrollerFor } from './rowScroller.js';
 import { OverlaySlot } from './windowOverlay.js';
 import { applyRowIntent, holdRow } from './rowIntents.js';
-import { ROW_ENGINE_ATTRIBUTE, RowEngineContext } from './emblaRow.js';
+import { ROW_ENGINE_ATTRIBUTE, ROW_NEAR_SLOTS, RowEngineContext, RowNearContext } from './emblaRow.js';
 
 /** The pure half of the row shell's input: the two measured fields the host's row measurement produces,
  * flattened here (not a nested `shell` object) so this file never imports a host measurement type.
@@ -193,10 +193,19 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   children: React.ReactNode;
   /**
    * What moves the row. 'own' (the default) is the library's row. 'embla' runs it on Embla Carousel instead: the window shows
-   * whole slots, and wheel, trackpad, drag and the arrow keys move one continuous strip that rests on the slot grid. Experimental:
-   * the dot bar, Workspace summon, maximize, reorder and parking still assume the 'own' row.
+   * whole slots, and wheel, trackpad, drag and the arrow keys move one continuous strip that rests on the slot grid. Every panel has
+   * its slot on the strip (pass the same value to `useProvidePanels`' `rowEngine`, so nothing parks for room), and a parkable panel
+   * far from the view draws a placeholder of its width instead of its content (see `rowNearSlots`). `usePanelDots` follows it.
+   * Experimental: Workspace summon, maximize and reorder still assume the 'own' row.
    */
   rowEngine?: 'own' | 'embla';
+  /**
+   * With `rowEngine="embla"`: how far past the window's edge, in slots, a parkable panel keeps its content loaded. One further
+   * away draws a placeholder of its width, and loads again (a web page reloads, as a parked one returning does) when it comes
+   * this near. `tuning.maxLivePanels` caps how many parkable panels are loaded at once, nearest the view first, never fewer than
+   * the window shows. Default 2. Ignored on the 'own' row.
+   */
+  rowNearSlots?: number;
 }
 
 /** A subscription that never fires, for a shell given no workspace. */
@@ -212,7 +221,7 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: '1px', height: '1px', mar
  * @public
  */
 export function Workspace(props: WorkspaceProps): React.ReactElement {
-  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, bottomPadding, workspace, beforeRow, children, rowEngine = 'own', ...rest } = props;
+  const { overflowContainerRef, rowRef, containerWidth, rowResizeSettled: given, phoneWidth, phoneHeight, heightBudget, fixedColumnCount, liveWidths, rowScroll, rowNumbers, topPadding, bottomPadding, workspace, beforeRow, children, rowEngine = 'own', rowNearSlots = ROW_NEAR_SLOTS, ...rest } = props;
   const embla = rowEngine === 'embla';
   const binding = workspace === undefined ? undefined : bindingOf(workspace);
   const resolved = React.useSyncExternalStore(binding?.subscribe ?? NO_SUBSCRIPTION, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS, () => binding?.tuning ?? LIBRARY_TUNING_DEFAULTS);
@@ -458,7 +467,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           animate={marginTop === undefined ? {} : { marginTop }}
           transition={reduced || !rowResizeSettled ? { duration: 0 } : slideToTransition(resolved.slide)}
         >
-          <RowEngineContext.Provider value={rowEngine}>{children}</RowEngineContext.Provider>
+          <RowEngineContext.Provider value={rowEngine}><RowNearContext.Provider value={rowNearSlots}>{children}</RowNearContext.Provider></RowEngineContext.Provider>
         </motion.div>
         </div>
         {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}

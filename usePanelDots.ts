@@ -14,6 +14,7 @@ import { applyRowIntent, holdRow } from './rowIntents.js';
 import { FAST_SCROLL_FLOOR_SEC } from './rowFastScroll.js';
 import { FAST_SCROLL } from './rowConstants.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
+import { useEmblaPanelDots } from './emblaDots.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
 export interface PanelDots {
@@ -113,6 +114,12 @@ function rootStep(n: RowNumbers, id: string, maxScroll: number): 'left' | null {
  * with `data-row-scroller`). A dot's width comes from its panel's size, and the bar grows and shrinks with the
  * panels; the app sets no width for it. A dot click glides with the workspace's `slide` (`tuning` is `useProvidePanels(...).tuning`).
  * Reduce Motion snaps it, under either the OS query or `MotionConfig`.
+ *
+ * On a row that runs on Embla (`Workspace rowEngine="embla"`) every panel has a dot at its place on the one strip and the oval spans
+ * the panels the window shows, both read from where the strip is drawn this frame. Dragging the oval moves the row with the pointer,
+ * one dot of travel to one slot, and on release the row glides to the nearest rest; a pointer held at the bar's visible end (its box
+ * cut by any ancestor that clips it) keeps the row moving, faster the further past the end it is. A dot press glides the row to show
+ * that panel; a wheel over the bar steps one slot.
  * @public
  */
 export function usePanelDots(i: {
@@ -123,6 +130,14 @@ export function usePanelDots(i: {
   /** How far the drawn oval reaches past the dots it encloses on each side, in px, so the cursor reads the oval as drawn. Default 0. */
   ovalSide?: number;
 }): PanelDots {
+  const own = useOwnPanelDots(i);
+  const embla = useEmblaPanelDots(i);
+  return embla ?? own;
+}
+
+type PanelDotsInput = Parameters<typeof usePanelDots>[0];
+
+function useOwnPanelDots(i: PanelDotsInput): PanelDots {
   const { rowNumbers: n, entries, scroller, tuning, ovalSide = 0 } = i;
   const systemReduced = useReducedMotion();
   const configReduced = useReducedMotionConfig();

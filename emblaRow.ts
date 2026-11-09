@@ -26,6 +26,19 @@ export type RowEngine = 'own' | 'embla';
 /** The engine the enclosing `Workspace` moves its row with; the row reads it to draw for that engine. @internal */
 export const RowEngineContext = React.createContext<RowEngine>('own');
 
+/**
+ * How far from the view, in slots, a parkable panel keeps its content loaded on an Embla row. Two: a step, an arrow key or a short
+ * flick moves one to three slots, so those never meet a placeholder, and a row whose window fits four slots keeps at most eight
+ * parkable panels alive. @internal
+ */
+export const ROW_NEAR_SLOTS = 2;
+
+/** The enclosing `Workspace`'s `rowNearSlots`: how far from the view an Embla row keeps a parkable panel's content loaded. @internal */
+export const RowNearContext = React.createContext<number>(ROW_NEAR_SLOTS);
+
+/** On the placeholder an Embla row draws for a panel whose content it unloaded: the slot keeps its width and place. @internal */
+export const EMBLA_UNLOADED_ATTRIBUTE = 'data-row-unloaded';
+
 /** Whether the row whose container is `container` runs on Embla. @internal */
 export function runsOnEmbla(container: Element): boolean {
   return container.getAttribute(ROW_ENGINE_ATTRIBUTE) === 'embla';
@@ -120,17 +133,8 @@ export function keptScroll(before: StripLayout, after: StripLayout, scroll: numb
  * @internal
  */
 export function jumpEmbla(embla: EmblaCarouselType, px: number): void {
-  const e = embla.internalEngine();
-  const snaps = e.scrollSnaps.map((x) => -x);
-  let best = 0;
-  for (let k = 1; k < snaps.length; k += 1) if (Math.abs(snaps[k]! - px) < Math.abs(snaps[best]! - px)) best = k;
-  embla.scrollTo(best, true);
-  const to = -px;
-  e.target.set(to);
-  e.location.set(to);
-  e.previousLocation.set(to);
-  e.offsetLocation.set(to);
-  e.translate.to(to);
+  embla.scrollTo(nearestStop(embla, px), true);
+  writeEmbla(embla, px);
 }
 
 /**
@@ -159,6 +163,91 @@ export function emblaRowOptions(): EmblaOptionsType {
   };
 }
 
+/**
+ * Which panels of an Embla row keep their content loaded with the view at `scroll`: every panel `unloadable` says no to; every
+ * panel the window shows; and, nearest first, the unloadable ones whose edge lies under `near` slots past the window's edge, at
+ * most `limit` loaded unloadable panels in all (the view's own count when it shows more). One loaded in `was` stays loaded until it
+ * is a whole slot further, so a row resting on the boundary does not load and unload by turns.
+ * @internal
+ */
+export function loadedNear(i: {
+  layout: StripLayout;
+  scroll: number;
+  windowWidth: number;
+  pitch: number;
+  gap: number;
+  near: number;
+  limit: number | null;
+  unloadable: (id: string) => boolean;
+  was: ReadonlySet<string> | null;
+}): Set<string> {
+  const { layout, scroll, windowWidth, pitch, gap, near, limit, unloadable, was } = i;
+  const loaded = new Set<string>();
+  const nearBy: { id: string; away: number }[] = [];
+  let shown = 0;
+  layout.ids.forEach((id, k) => {
+    const left = layout.lefts[k]!;
+    const right = left + layout.widths[k]!;
+    if (!unloadable(id)) {
+      loaded.add(id);
+      return;
+    }
+    if (Math.min(right, scroll + windowWidth) - Math.max(left, scroll) > 0.5) {
+      loaded.add(id);
+      shown += 1;
+      return;
+    }
+    const outside = Math.max(scroll - right, left - (scroll + windowWidth), 0);
+    const away = Math.max(0, outside - gap) / pitch;
+    if (away < near || (was?.has(id) === true && away < near + 1)) nearBy.push({ id, away });
+  });
+  const room = limit === null ? Number.POSITIVE_INFINITY : Math.max(0, limit - shown);
+  nearBy.sort((a, b) => a.away - b.away);
+  for (const { id } of nearBy.slice(0, room)) loaded.add(id);
+  return loaded;
+}
+
+/** What an Embla row lays out, for the dot bar: its panels along the strip, the window's width and the strip's, in px. @internal */
+export interface EmblaStrip {
+  layout: StripLayout;
+  windowWidth: number;
+  stripWidth: number;
+  pitch: number;
+  gap: number;
+}
+
+const strips = new WeakMap<Element, EmblaStrip>();
+const rowListeners = new Set<() => void>();
+let rowVersion = 0;
+/** Tells every reader of an Embla row (its dot bar, its loader) that the row moved or changed. @internal */
+export function notifyEmblaRows(): void {
+  rowVersion += 1;
+  for (const l of [...rowListeners]) l();
+}
+/** Subscribes to every Embla row's moves and changes, for `useSyncExternalStore`. @internal */
+export function subscribeEmblaRows(listener: () => void): () => void {
+  rowListeners.add(listener);
+  return () => {
+    rowListeners.delete(listener);
+  };
+}
+/** A number that changes whenever an Embla row moved or changed. @internal */
+export const emblaRowsVersion = (): number => rowVersion;
+
+const sameStrip = (a: EmblaStrip | undefined, b: EmblaStrip): boolean =>
+  a !== undefined && a.windowWidth === b.windowWidth && a.stripWidth === b.stripWidth && a.pitch === b.pitch && a.gap === b.gap && a.layout.ids.join(' ') === b.layout.ids.join(' ') && a.layout.lefts.join() === b.layout.lefts.join() && a.layout.widths.join() === b.layout.widths.join();
+/** Records what the Embla row rooted on `win` lays out now. @internal */
+export function publishEmblaStrip(win: Element, strip: EmblaStrip): void {
+  if (sameStrip(strips.get(win), strip)) return;
+  strips.set(win, strip);
+  notifyEmblaRows();
+}
+/** What the Embla row whose window or container is `el` lays out, once it has drawn. @internal */
+export function emblaStripOf(el: Element): EmblaStrip | undefined {
+  const win = el.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`) ?? el.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
+  return win === null ? undefined : strips.get(win);
+}
+
 const instances = new WeakMap<Element, EmblaCarouselType>();
 /** The Embla instance moving the row whose window or container is `el`, for the proof page and the later steps. @internal */
 export function emblaOf(el: Element): EmblaCarouselType | undefined {
@@ -169,6 +258,52 @@ export function emblaOf(el: Element): EmblaCarouselType | undefined {
 /** Where the row is, in scroll px (how far the strip is moved left), from Embla's own location. @internal */
 export function emblaScrollOf(embla: EmblaCarouselType): number {
   return -embla.internalEngine().location.get();
+}
+
+/** Where the row is drawn this frame, in scroll px: Embla draws a translate between its last two fixed-step locations. @internal */
+export function emblaDrawnOf(embla: EmblaCarouselType): number {
+  return -embla.internalEngine().offsetLocation.get();
+}
+
+/** The index of the stop nearest `px` (scroll px). @internal */
+export function nearestStop(embla: EmblaCarouselType, px: number): number {
+  const snaps = embla.internalEngine().scrollSnaps.map((x) => -x);
+  let best = 0;
+  for (let k = 1; k < snaps.length; k += 1) if (Math.abs(snaps[k]! - px) < Math.abs(snaps[best]! - px)) best = k;
+  return best;
+}
+
+/**
+ * Puts the row at `px` and draws it there in this frame, with no glide and no stop: the oval drag's direct write. Any glide in flight
+ * ends (an instant body has no velocity left). Uses Embla's internal engine, which 8.6 is pinned for.
+ * @internal
+ */
+export function writeEmbla(embla: EmblaCarouselType, px: number): void {
+  const e = embla.internalEngine();
+  const to = -px;
+  // Embla's body setters are plain closures named use*, not React hooks.
+  const setDuration = e.scrollBody.useDuration;
+  setDuration(0);
+  e.target.set(to);
+  e.location.set(to);
+  e.previousLocation.set(to);
+  e.offsetLocation.set(to);
+  e.translate.to(to);
+  notifyEmblaRows();
+}
+
+/** The proof's negative control: `true` makes the oval drag ease the row toward the pointer as Embla's own drag does. @internal */
+export const emblaOvalDrag = { eased: false };
+
+/** Moves the row toward `px` the way Embla's own drag does: the target moves, and the body eases the strip after it. @internal */
+export function easeEmbla(embla: EmblaCarouselType, px: number): void {
+  const e = embla.internalEngine();
+  const baseDuration = e.scrollBody.useBaseDuration;
+  const baseFriction = e.scrollBody.useBaseFriction;
+  baseDuration();
+  baseFriction();
+  e.target.set(-px);
+  e.animation.start();
 }
 
 /**
@@ -199,6 +334,8 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     win.addEventListener('wheel', onWheel, { passive: true });
     const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box }, [WheelGesturesPlugin({ target: win })]);
     instances.set(win, embla);
+    embla.on('scroll', notifyEmblaRows).on('settle', notifyEmblaRows).on('reInit', notifyEmblaRows);
+    notifyEmblaRows();
     const doc = win.ownerDocument;
     const view = doc.defaultView ?? window;
     const onKey = (e: KeyboardEvent): void => {
@@ -216,10 +353,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       if (slot == null || !box.contains(slot)) return;
       const to = revealScroll(Number(slot.dataset.rowSlot) || 0, slot.offsetWidth, emblaScrollOf(embla), box.offsetWidth);
       if (to === null) return;
-      const snaps = embla.internalEngine().scrollSnaps.map((x) => -x);
-      let best = 0;
-      for (let k = 1; k < snaps.length; k += 1) if (Math.abs(snaps[k]! - to) < Math.abs(snaps[best]! - to)) best = k;
-      embla.scrollTo(best);
+      embla.scrollTo(nearestStop(embla, to));
     };
     win.addEventListener('focusin', onFocus);
     return () => {
@@ -229,6 +363,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       win.removeEventListener('wheel', onWheel);
       instances.delete(win);
       embla.destroy();
+      notifyEmblaRows();
     };
   }, [enabled, windowRef, boxRef]);
 }

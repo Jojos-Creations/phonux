@@ -100,6 +100,12 @@ export interface PanelsInput {
   containerWidth: number;
   /** The row's scroll container: the gesture's wheel listener attaches here. */
   overflowContainerRef: RefObject<HTMLDivElement | null>;
+  /**
+   * The engine the `Workspace` moves this row with; pass the same value as its `rowEngine`. With 'embla' the row is one continuous
+   * strip: no panel parks for room or for `tuning.maxLivePanels`, and one already parked for either comes back in place. The cap then
+   * limits how many parkable panels keep their content loaded, nearest the view first. A host's own hide still parks. Default 'own'.
+   */
+  rowEngine?: 'own' | 'embla';
   /** Defaults to phonux's `noopCaptureTrigger`: a host that wants real pictures passes its own. */
   capture?: CaptureTrigger;
   /**
@@ -349,7 +355,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const [restHeld, setRestHeld] = useState<{ rest: RowRest; madeFor: string } | null>(null);
   const restKeyOf = (row: readonly PanelWindow[]): string => `${i.containerWidth}|${i.phoneWidth}|${row.filter(isPresent).map((p) => p.id).join(' ')}`;
   const rest = restHeld !== null && restHeld.madeFor === restKeyOf(rawPanels) ? restHeld.rest : null;
-  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak, rest };
+  const strip = i.rowEngine === 'embla';
+  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak, rest, strip };
   const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== rawPanels).map(([id]) => id);
   const panels = maxLive === null ? rawPanels : settleKeeping(settleEnv, rawPanels, acted);
   if (panels !== rawPanels) {
@@ -494,6 +501,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     onNote: i.onNote,
     keepLiveRef,
     capParkedRef,
+    strip,
     tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
