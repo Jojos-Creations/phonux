@@ -853,6 +853,13 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (r.drawnPastEndPx > 0.5) failed.push(`settle ${label}: drawn ${r.drawnPastEndPx} px past the end (the wheel stops flat there)`);
     if (c.mouse && handMoves.length > 0 && delivered < 1) empty.push(`settle ${label}: no trusted ${ACT_EVENT[act]} arrived, so the case proves nothing`);
     if (c.late === true && rest * c.dir < Math.max(...fr.map((f: any) => f.pos * c.dir)) - 0.5) failed.push(`settle ${label}: rests at ${r.rest}, behind where the scroll carried the row`);
+    // Mid-strip the wheel's travel is the whole input, so the rest is the first stop ahead of it: a stray release that set the target
+    // to the stop nearest it shows here even when that stop lay ahead (the row went a page further than the scroll).
+    if (!label.startsWith('end')) {
+      const carried = (startPx + c.dir * input) / PITCH;
+      const ahead = (Math.abs(carried - Math.round(carried)) * PITCH <= 0.5 ? Math.round(carried) : c.dir < 0 ? Math.floor(carried) : Math.ceil(carried)) * PITCH;
+      if (Math.abs(rest - ahead) > 0.5) failed.push(`settle ${label}: rests at ${r.rest}, not on ${ahead}, the first stop ahead of the wheel's travel to ${startPx + c.dir * input}`);
+    }
     if (c.rootFar === true && order[0] === 'root') empty.push(`settle ${label}: the Workspace is still the first page`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
     await close();
