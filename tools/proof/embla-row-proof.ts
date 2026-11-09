@@ -671,8 +671,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     // Each burst: the row's move from the last frame before its first wheel to the first frame 80 ms after its last, against its input.
     // A burst that starts while the settle glides (a pause longer than the hold) carries up to a frame of that glide; it is reported,
     // and checked only for moving one way.
-    // A burst that starts while the row still moves (a coast) must take it on without a jump: the row's speed over the two frames after
-    // the burst's first wheel against the two before (two, as Embla's fixed steps land 0 or 2 in some frames). A stop where drawn drops
+    // A burst that starts while the row still moves (a coast) must take it on without a jump: the row's speed over the three frames
+    // after the burst's first wheel against the three before (three, as Embla's fixed steps land 0 or 2 in some frames). A stop where drawn drops
     // it to what one wheel gives from rest; a lurch to the coast's target trebles it.
     let k0 = 0;
     const ratios: number[] = [];
@@ -688,7 +688,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       const k = fr.indexOf(before);
       if (k > 0 && Math.abs(before.pos - fr[k - 1].pos) > 0.5) {
         fromGlide.push(ratios.length);
-        if (k > 1 && fr[k + 2] !== undefined) resumed.push([+((before.pos - fr[k - 2].pos) / 2).toFixed(1), +((fr[k + 2].pos - before.pos) / 2).toFixed(1)]);
+        if (k > 2 && fr[k + 3] !== undefined) resumed.push([+((before.pos - fr[k - 3].pos) / 3).toFixed(1), +((fr[k + 3].pos - before.pos) / 3).toFixed(1)]);
       }
       ratios.push(+((after.pos - before.pos) / grp.reduce((n, [, d]) => n + d, 0)).toFixed(3));
     }
@@ -732,7 +732,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     }
     // No brake (the glide's speed dropped to what one wheel gives from rest) and no lurch (past the coast's speed and the spin's own).
     const heldStep = Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.held && fr[k].held ? f.pos - fr[k].pos : 0)));
-    for (const [b, a] of resumed) if (a > Math.max(1.5 * b + 12, heldStep) || a < 0.6 * b - 3) failed.push(`settle ${label}: a burst resumed the gesture mid-glide with a jump: ${b} px a frame before its first wheel, ${a} px after (two-frame means)`);
+    for (const [b, a] of resumed) if (a > Math.max(1.5 * b + 12, heldStep) || a < 0.6 * b - 3) failed.push(`settle ${label}: a burst resumed the gesture mid-glide with a jump: ${b} px a frame before its first wheel, ${a} px after (three-frame means)`);
     if (label === 'spinResumed' && resumed.length === 0) empty.push(`settle ${label}: the second spin did not start during the coast`);
     if (fr.length < 30 || Math.abs(rest - start) < 100) empty.push(`settle ${label}: the stream moved the row ${r.moved} px in ${fr.length} frames, so the checks prove nothing`);
     if (ratios.length !== groups.length) empty.push(`settle ${label}: ${ratios.length} of ${groups.length} bursts were measured`);
