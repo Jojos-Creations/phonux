@@ -687,10 +687,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // Registered before the plugin's own listener on the same node, so stopping it here keeps the gesture from the row only.
     let owner: 'row' | 'content' | null = null;
     let quiet: ReturnType<typeof setTimeout> | null = null;
-    // The sideways direction of the wheel the plugin is handling now (0 for a vertical one), null between wheels.
-    let wheelSign: number | null = null;
     const onWheel = (e: WheelEvent): void => {
-      wheelSign = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? Math.sign(e.deltaX) : 0;
       const run = wheelRuns.get(instances.get(win)!);
       if (run !== undefined) run.acted = false;
       if (quiet !== null) clearTimeout(quiet);
@@ -736,13 +733,6 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       e.stopImmediatePropagation();
       if (e.type !== 'mousemove') return;
       run.acted = true;
-      // At an end the plugin damps its own pointer back against the wheel (its rubber band), which would walk the row back off the
-      // end: a move against the wheel that made it is dropped.
-      const asked = run.x - (e.clientX + run.offset);
-      if (wheelSign !== null && Math.abs(asked) >= 0.01 && Math.sign(asked) !== wheelSign) {
-        run.offset += asked;
-        return;
-      }
       wheelMove(embla, run, e.clientX + run.offset);
     };
     // A person's pointer moving while a wheel gesture holds Embla's press (the plugin blocks it only while its own gesture runs, not
@@ -758,7 +748,6 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // After the plugin's own wheel listener: every wheel of a gesture restarts the idle wait, and one the plugin passed nothing for
     // (a momentum tail after it let go) moves the row by its delta, short of the row's ends.
     const onWheelAfter = (e: WheelEvent): void => {
-      wheelSign = null;
       const run = liveRun(embla);
       if (run === undefined) return;
       if (run.idle !== null) clearTimeout(run.idle);

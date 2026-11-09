@@ -740,6 +740,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     ['endRight', { dir: 1, from: -8, bursts: 18, pauses: ONE, mouse: true, inPauses: false }],
     ['endLeftHand', { dir: -1, from: 8, bursts: 18, pauses: SOME, mouse: true, inPauses: true }],
     ['endLeftRootFar', { dir: -1, from: 8, bursts: 18, pauses: ONE, mouse: true, inPauses: false, rootFar: true }],
+    // Ground on past the end long enough for the plugin's own rubber band (it damps its pointer back, then ends its gesture).
+    ['endLeftLong', { dir: -1, from: 2, bursts: 30, pauses: [0], mouse: true, inPauses: false }],
     ['midHand', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true }],
   ];
   for (const [label, c] of CASES_END) {
@@ -796,7 +798,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ order, max, startPx, end, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), loc: f.loc === null ? null : +f.loc.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
     const moves = fr.slice(1).map((f: any, k: number) => (f.pos - fr[k].pos) * c.dir);
     const back = moves.filter((m: number) => m < -0.5);
-    const atEnd = fr.findIndex((f: any) => Math.abs(f.pos - end) <= 0.5);
+    // The first frame drawn at the end or past it (an overscroll passes it between two frames).
+    const atEnd = fr.findIndex((f: any) => (f.pos - end) * c.dir >= -0.5);
     const rest = fr[fr.length - 1].pos;
     const span = (key: string): [number, number] => [+Math.min(...fr.map((f: any) => f[key])).toFixed(1), +Math.max(...fr.map((f: any) => f[key])).toFixed(1)];
     const r = {
