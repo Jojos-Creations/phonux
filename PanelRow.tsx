@@ -40,6 +40,8 @@ import { useViewState } from './viewState.js';
 import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowEngineContext, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMarkOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, loadedNear, markedScroll, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
+// A host may apply a person's move a task or two after the drop or key that asked for it; a note older than this was refused.
+const REORDER_NOTE_MS = 1000;
 const EMPTY_MAP: ReadonlyMap<string, 'left' | 'right'> = new Map();
 const NO_NEIGHBORS: NeighborWidths = { left: [], right: [] };
 
@@ -462,11 +464,11 @@ export function PanelRow({
   const lastMark = React.useRef(0);
   // A person's move of a panel (a drop, an arrow key on its grab strip) noted by the slot in the task that moves it: the view stays
   // where it is drawn instead of keeping the left-edge panel still, and the moved panel comes into view if the move took it out.
-  const reorderNote = React.useRef<{ id: string; task: object } | null>(null);
+  const reorderNote = React.useRef<{ id: string; atMs: number } | null>(null);
   const marked = mark !== undefined && mark.seq !== lastMark.current && lastLayout.current !== null;
   const changed = lastLayout.current !== null && (marked || lastWindow.current !== emblaWindow.width || !sameLayout(lastLayout.current, layoutNow));
   const stripMax = Math.max(0, stripPx - emblaWindow.width);
-  const reorderNow = reorderNote.current !== null && reorderNote.current.task === taskToken() && changed && !marked && lastLayout.current !== null && lastLayout.current.ids.length === layoutNow.ids.length && lastLayout.current.ids.every((id) => layoutNow.ids.includes(id)) ? reorderNote.current.id : null;
+  const reorderNow = reorderNote.current !== null && performance.now() - reorderNote.current.atMs < REORDER_NOTE_MS && changed && !marked && lastLayout.current !== null && lastLayout.current.ids.length === layoutNow.ids.length && lastLayout.current.ids.every((id) => layoutNow.ids.includes(id)) ? reorderNote.current.id : null;
   const keptNow = emblaNow === undefined || !changed || reorderNow !== null ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
   const keepTo = marked ? (markedScroll(mark, layoutNow, emblaWindow.width, keptNow, stripMax) ?? keptNow) : keptNow;
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
@@ -549,7 +551,7 @@ export function PanelRow({
           dragScroll: onEmbla ? emblaDragScroll : dragScroll,
           headerButtonSlots,
           noteReorder: () => {
-            reorderNote.current = { id: p.id, task: taskToken() };
+            reorderNote.current = { id: p.id, atMs: performance.now() };
           },
           dragHops: (offset) => stepsFor(p, offset) !== 0,
           previewReorder: (offset) =>

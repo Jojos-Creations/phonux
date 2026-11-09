@@ -107,7 +107,7 @@ async function open(slots: string, width = 1800, height = 900, extra = '', engin
   page.on('console', (m: any) => { if (m.type() === 'error' && consoleErrors.length < 3) consoleErrors.push(m.text().slice(0, 300)); });
   await page.goto(`http://localhost:${port}/?engine=${engine}&slots=${slots}${extra}`);
   await page.waitForFunction(() => (window as any).__g?.ready(), undefined, { timeout: 15000 }).catch(async (e: Error) => {
-    const why = await page.evaluate(() => { const w = window as any; return w.__g === undefined ? 'no page hooks' : `slots ${w.__g.slotCount()}`; }).catch((x: Error) => x.message);
+    const why = await page.evaluate(() => { const w = window as any; return w.__g === undefined ? 'no page hooks' : `slots ${w.__g.slotCount()} statuses ${w.__g.statuses().filter((s: string) => s.endsWith('parked')).length} parked, engine attr ${document.querySelector('[data-row-engine]')?.getAttribute('data-row-engine')}, embla window ${document.querySelectorAll('[data-row-embla-window]').length}, grabs ${document.querySelectorAll('[data-grab]').length}`; }).catch((x: Error) => x.message);
     throw new Error(`proof page never ready (${extra}): ${errors.join(' | ') || e.message}, ${why}, console: ${consoleErrors.join(' | ')}`);
   });
   await sleep(600);
@@ -1314,7 +1314,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   const QUERY = '&park=1&cap=8&grab=1';
   const stripXs = (f: any): Record<string, number> => Object.fromEntries(Object.entries(f.drawn as Record<string, { x: number }>).map(([n, d]) => [n, d.x + f.pos]));
   // Per frame: how far page `name` is drawn from where the pointer holds it (the pointer's offset into the page at the press).
-  const driftOf = (fr: any[], name: string, offset: number): number => Math.max(0, ...fr.filter((f) => f.drawn[name] !== undefined).map((f) => Math.abs(f.pointerX - f.winLeft - offset - f.drawn[name].x)));
+  const driftOf = (fr: any[], name: string, offset: number): number => Math.max(0, ...fr.filter((f) => f.boxX?.[name] !== undefined).map((f) => Math.abs(f.pointerX - f.winLeft - offset - f.boxX[name])));
   const travelOf = (fr: any[]): number => (fr.length < 2 ? 0 : +(fr[fr.length - 1].pos - fr[0].pos).toFixed(1));
   const stillOf = (fr: any[]): number => fr.slice(1).filter((f, k) => Math.abs(f.pos - fr[k].pos) <= 0.01).length;
   // Along the strip, per page: the largest move between two frames. A page the drag neither carries nor crosses moves 0 px.
@@ -1353,6 +1353,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const win = await g(page, 'win');
     const order0: string[] = await g(page, 'order');
     await g(page, 'record');
+    const commits0 = await g(page, 'orderChanges');
     const at = await press(page, 'p2');
     await glideMouse(page, at, win.left + win.width - 6);
     await sleep(120);
@@ -1376,7 +1377,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const order1: string[] = await g(page, 'order');
     const max = await g(page, 'max');
     // Where the dragged page was drawn at the release, along the strip, gives the slot it must land in.
-    const releasedStrip = released.drawn.p2.x + released.pos;
+    const releasedStrip = released.boxX.p2 + released.pos;
     const landStrip = last.drawn.p2.x + last.pos;
     const expected = orderWith(order0, 'p2', Math.round(landStrip / PITCH));
     const involved = new Set(order0.slice(Math.min(order0.indexOf('p2'), order1.indexOf('p2')), Math.max(order0.indexOf('p2'), order1.indexOf('p2')) + 1));
@@ -1397,7 +1398,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
       restOnGrid: onGrid(last.pos, PITCH, max),
       releasedStripPx: +releasedStrip.toFixed(1),
       landedStripPx: +landStrip.toFixed(1),
-      orderChanges: await g(page, 'orderChanges'),
+      orderChanges: (await g(page, 'orderChanges')) - commits0,
       order: order1.slice(0, 12).join(','),
       orderAsLanded: order1.join(',') === expected.join(','),
       frames: fr.length,
@@ -1423,6 +1424,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const order0: string[] = await g(page, 'order');
     const pos0 = await g(page, 'pos');
     const strip0 = await g(page, 'stripLefts');
+    const commits0 = await g(page, 'orderChanges');
     const at = await press(page, 'p3');
     await glideMouse(page, at, win.left + win.width - 6);
     await sleep(600);
@@ -1434,7 +1436,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     await sleep(400);
     const strip1 = await g(page, 'stripLefts');
     const back = Math.max(0, ...Object.keys(strip0).map((id) => Math.abs((strip1[id] ?? Number.NaN) - strip0[id]!)));
-    const r = { movedBeforePx: movedBefore, rowAfter: +(await g(page, 'pos')).toFixed(1), rowBefore: pos0, worstPageOffPx: +back.toFixed(2), orderSame: (await g(page, 'order')).join(',') === order0.join(','), orderChanges: await g(page, 'orderChanges') };
+    const r = { movedBeforePx: movedBefore, rowAfter: +(await g(page, 'pos')).toFixed(1), rowBefore: pos0, worstPageOffPx: +back.toFixed(2), orderSame: (await g(page, 'order')).join(',') === order0.join(','), orderChanges: (await g(page, 'orderChanges')) - commits0 };
     res.cancel = r;
     if (!(r.movedBeforePx >= 200) || Math.abs(r.rowAfter - pos0) > 0.5 || !(r.worstPageOffPx <= 0.5) || !r.orderSame || r.orderChanges !== 0) failed.push(`reorder cancel: the row moved ${r.movedBeforePx} px before Escape; after it rests at ${r.rowAfter} (was ${pos0}), a page is ${r.worstPageOffPx} px off its place, order same ${r.orderSame}, ${r.orderChanges} commits`);
     if (errors.length > 0) failed.push(`reorder cancel: page errors ${errors.join(' | ')}`);
@@ -1450,6 +1452,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const order0: string[] = await g(page, 'order');
     const pos0 = await g(page, 'pos');
     await g(page, 'record');
+    const commits0 = await g(page, 'orderChanges');
     const at = await press(page, 'p7');
     // Two slots left, which stays out of the left band: the row must not scroll.
     await glideMouse(page, at, at.x - 2 * PITCH);
@@ -1462,7 +1465,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const drop = fr.slice(k0);
     const last = fr[fr.length - 1];
     const others = Object.entries(stripJumps(drop)).filter(([n]) => n !== 'p7');
-    const r = { rowBefore: pos0, rowAfter: +last.pos.toFixed(1), rowMaxMovePx: Math.max(0, ...drop.map((f: any) => Math.abs(f.pos - pos0))), p7ScreenX: +last.drawn.p7.x.toFixed(1), othersMaxMoveAfterDropPx: Math.max(0, ...others.map(([, v]) => v)), orderAsExpected: (await g(page, 'order')).join(',') === orderWith(order0, 'p7', 5).join(','), orderChanges: await g(page, 'orderChanges'), winLeft: win.left };
+    const r = { rowBefore: pos0, rowAfter: +last.pos.toFixed(1), rowMaxMovePx: Math.max(0, ...drop.map((f: any) => Math.abs(f.pos - pos0))), p7ScreenX: +last.drawn.p7.x.toFixed(1), othersMaxMoveAfterDropPx: Math.max(0, ...others.map(([, v]) => v)), orderAsExpected: (await g(page, 'order')).join(',') === orderWith(order0, 'p7', 5).join(','), orderChanges: (await g(page, 'orderChanges')) - commits0, winLeft: win.left };
     res.leftEdgeDrop = r;
     if (r.rowMaxMovePx > 0.5 || Math.abs(r.p7ScreenX) > 0.5 || r.othersMaxMoveAfterDropPx > 0.5 || !r.orderAsExpected || r.orderChanges !== 1) failed.push(`reorder leftEdgeDrop: the row moved ${r.rowMaxMovePx} px at the drop (${pos0} > ${r.rowAfter}), p7 rests at ${r.p7ScreenX} (want 0), other pages moved ${r.othersMaxMoveAfterDropPx} px after the drop, order ${r.orderAsExpected}, ${r.orderChanges} commits`);
     if (errors.length > 0) failed.push(`reorder leftEdgeDrop: page errors ${errors.join(' | ')}`);
@@ -1499,7 +1502,8 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
   {
     const orders: Record<string, string> = {};
     for (const engine of ['embla', 'own']) {
-      const { page, close } = await open(SLOTS24, 1800, 900, QUERY, engine);
+      // No parking here: the own row parks a page at the cap, and the reference must draw all 25 slots as the Embla row does.
+      const { page, close } = await open(SLOTS24, 1800, 900, '&grab=1', engine);
       const at = await press(page, 'p1');
       await glideMouse(page, at, at.x - 1.5 * PITCH);
       await sleep(200);
@@ -1517,6 +1521,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const { page, errors, close } = await open(SLOTS24, 1800, 900, QUERY, ENGINE, { reducedMotion: 'reduce' });
     const win = await g(page, 'win');
     await g(page, 'record');
+    const commits0 = await g(page, 'orderChanges');
     const at = await press(page, 'p2');
     await glideMouse(page, at, win.left + win.width - 6);
     await sleep(100);
@@ -1531,7 +1536,7 @@ if (ONLY.has('reorder') && ENGINE === 'embla') {
     const movesHold = hold.slice(1).filter((f: any, k: number) => Math.abs(f.pos - hold[k].pos) > 0.01).length;
     const settleFrames = after.slice(1).filter((f: any, k: number) => Math.abs(f.pos - after[k].pos) > 0.01).length;
     const last = fr[fr.length - 1];
-    const r = { holdTravelPx: travelOf(hold), holdMovingFrames: movesHold, worstDriftPx: +driftOf(hold, 'p2', at.offset).toFixed(2), settleMovingFrames: settleFrames, rest: +last.pos.toFixed(1), restOnGrid: onGrid(last.pos, PITCH, await g(page, 'max')), orderChanges: await g(page, 'orderChanges'), blankFrames: fr.filter((f: any) => f.blankIn.length > 0).length };
+    const r = { holdTravelPx: travelOf(hold), holdMovingFrames: movesHold, worstDriftPx: +driftOf(hold, 'p2', at.offset).toFixed(2), settleMovingFrames: settleFrames, rest: +last.pos.toFixed(1), restOnGrid: onGrid(last.pos, PITCH, await g(page, 'max')), orderChanges: (await g(page, 'orderChanges')) - commits0, blankFrames: fr.filter((f: any) => f.blankIn.length > 0).length };
     res.reduced = r;
     if (!(r.holdTravelPx >= PITCH) || r.holdMovingFrames > 3 || r.worstDriftPx > 0.5 || r.settleMovingFrames > 2 || !r.restOnGrid || r.orderChanges !== 1 || r.blankFrames > 0) failed.push(`reorder reduced: hold moved ${r.holdTravelPx} px in ${r.holdMovingFrames} frames (want jumps of a slot), drift ${r.worstDriftPx} px, ${r.settleMovingFrames} frames of settle, rest ${r.rest} grid ${r.restOnGrid}, ${r.orderChanges} commits, ${r.blankFrames} blank frames`);
     if (errors.length > 0) failed.push(`reorder reduced: page errors ${errors.join(' | ')}`);
