@@ -39,7 +39,7 @@ import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import { isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
 import type { RootView } from '../panelManager.js';
-import { emblaAsideFor, emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonPlan, emblaTargetOf, markEmblaRow, onEmblaStep, showOnEmbla, subscribeEmblaRows, wholeInView } from '../emblaRow.js';
+import { emblaAsideFor, emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonPlan, emblaTargetOf, markEmblaRow, onEmblaStep, emblaWouldShow, showOnEmbla, subscribeEmblaRows, wholeInView } from '../emblaRow.js';
 import { useRowScrollGesture } from './useRowScrollGesture.js';
 
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
@@ -432,6 +432,17 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   const requestScroll = (request: Omit<ScrollRequest, 'misses'>): boolean => {
     const el = i.overflowContainerRef.current;
     if (el === null) return false;
+    if (strip) {
+      // The old scroller holds nothing on a strip: a gesture holding the Embla row defers the scroll to its release (`showOnEmbla`).
+      // A root stepped aside comes back at the edge it left by, as a step toward it brings it, and the request then shows it there.
+      const aside = stripRef.current.aside;
+      if (request.id === rootId && aside !== null && stripRef.current.summon === null) {
+        setStripAside(null);
+        markEmblaRow(el, { pin: { id: rootId, edge: aside.side, screen: 0 }, reveal: null });
+      }
+      pendingScroll.set({ ...request, misses: 0 });
+      return true;
+    }
     if (rootAside && request.id === rootId && !rowScrollerFor(el).claimHeld()) showRoot(sideOfRoot());
     if (rowScrollerFor(el).claimHeld()) {
       // A host's scrollTo during a resize hold is kept: the resize's release settles the row, then the scroll runs. Automatic
@@ -488,8 +499,12 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   };
   /** Whether a scroll to `align` would move the container: false when it is already there or the row has nothing to scroll. */
   const wouldScroll = (id: string, align: ScrollAlign): boolean => {
-    const to = scrollTargetOf(id, align);
     const el = i.overflowContainerRef.current;
+    const emblaRow = strip && el !== null ? emblaOf(el) : undefined;
+    // On a strip, against where the Embla row is heading; a panel the drawn strip does not carry yet (a root stepped aside) is
+    // brought to the edge it left by, so the row does not move for it.
+    if (emblaRow !== undefined) return emblaWouldShow(emblaRow, id, align) ?? false;
+    const to = scrollTargetOf(id, align);
     return to !== null && el !== null && Math.abs(to - rowScrollerFor(el).scrollLeft()) >= 0.5;
   };
 

@@ -31,6 +31,7 @@ import { fitSlots, slotWidth } from './rowConstants.js';
 import { ROW_LAYER_Z } from './rowConstants.js';
 import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
 import { useRowDraw, type HoldSpec } from './rowDraw.js';
+import { AwayContext } from './panelAway.js';
 import { restTranslate } from './slotMover.js';
 import { sharedStartTime, taskToken } from './rowClock.js';
 import type { SlideTuning } from './panelSettings.js';
@@ -640,7 +641,7 @@ export function PanelRow({
   };
   useRowDraw(boxRef, rowNumbers, gap, holds);
   // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
-  useEmblaRow(windowRef, boxRef, onEmbla, workspaceTuning.gestureQuietMs);
+  useEmblaRow(windowRef, boxRef, onEmbla, workspaceTuning.gestureQuietMs, React.useContext(AwayContext));
   React.useLayoutEffect(() => {
     const embla = onEmbla && windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
     const restop = lastStops.current !== null && lastStops.current !== stopsKey;

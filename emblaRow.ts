@@ -9,6 +9,7 @@
 
 import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
+import type { AwayStore } from './panelAway.js';
 import { WheelGesturesPlugin } from 'embla-carousel-wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
@@ -421,13 +422,15 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
 /**
  * Marks each slot of the row rooted on `win` that is drawn wholly outside the window `inert`, and clears it as soon as any part is
  * drawn inside: a page the window does not show takes no focus, key, pointer or find-in-page, and a host's styles can key on it (a
- * focus halo resting one gap past the edge). Read off each slot's drawn box, so a glide, a wheel, a drag, a slot's own glide and a
+ * focus halo resting one gap past the edge). The row's away store (`usePanelPresence`'s 'scrolledAway') follows the same marks. Read off each slot's drawn box, so a glide, a wheel, a drag, a slot's own glide and a
  * reorder shift all count where they are drawn this frame, never where Embla's location runs ahead. Answers a weighted sum of the drawn
  * lefts, so a caller can tell a frame that moved from one that did not.
  * @internal
  */
 export function markAwaySlots(win: Element): number {
   const view = win.getBoundingClientRect();
+  const store = awayStores.get(win);
+  const seen = new Set<string>();
   let sum = 0;
   let k = 0;
   for (const slot of win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)) {
@@ -436,9 +439,16 @@ export function markAwaySlots(win: Element): number {
     sum += k * r.left + r.width;
     const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
     if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
+    const id = slot.dataset.rowId;
+    if (id !== undefined) {
+      seen.add(id);
+      store?.set(id, away);
+    }
   }
+  store?.retain(seen);
   return sum;
 }
+const awayStores = new WeakMap<Element, AwayStore>();
 
 const awayKicks = new WeakMap<Element, () => void>();
 /** Keeps the inert marks of the row rooted on `win` current over the next frames: a commit that starts slot glides calls it. @internal */
@@ -492,6 +502,19 @@ export function showOnEmbla(embla: EmblaCarouselType, id: string, align: 'into-v
   return true;
 }
 
+/**
+ * Whether `showOnEmbla(embla, id, align)` moves the row now: the stop it would go to differs from where the row is heading. Null when
+ * the drawn strip does not carry `id`. @internal
+ */
+export function emblaWouldShow(embla: EmblaCarouselType, id: string, align: 'into-view' | 'start' | 'center'): boolean | null {
+  const strip = strips.get(embla.rootNode());
+  const k = strip === undefined ? -1 : strip.layout.ids.indexOf(id);
+  if (strip === undefined || k < 0) return null;
+  const from = emblaTargetOf(embla);
+  const stop = nearestStop(embla, emblaShowScroll(strip.layout.lefts[k]!, strip.layout.widths[k]!, from, strip.windowWidth, align, emblaMaxOf(embla)));
+  return Math.abs(stopPx(embla, stop) - from) > 0.5;
+}
+
 const heldRows = new WeakSet<EmblaCarouselType>();
 /** Rows whose drag Embla holds for a wheel gesture: the plugin presses with an untrusted mousedown. */
 const wheelPressed = new WeakSet<EmblaCarouselType>();
@@ -543,9 +566,18 @@ export function holdEmbla(embla: EmblaCarouselType): { write(left: number): numb
  * one slot. `enabled` false tears it down.
  * @internal
  */
-export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxRef: React.RefObject<HTMLElement | null>, enabled: boolean, quietMs: number): void {
+export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxRef: React.RefObject<HTMLElement | null>, enabled: boolean, quietMs: number, awayStore?: AwayStore): void {
   const quietRef = React.useRef(quietMs);
   quietRef.current = quietMs;
+  React.useLayoutEffect(() => {
+    const win = windowRef.current;
+    if (!enabled || win === null || awayStore === undefined) return undefined;
+    awayStores.set(win, awayStore);
+    markAwaySlots(win);
+    return () => {
+      awayStores.delete(win);
+    };
+  }, [enabled, windowRef, awayStore]);
   React.useLayoutEffect(() => {
     const win = windowRef.current;
     const box = boxRef.current;

@@ -938,6 +938,48 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
     if (errors.length > 0) fail('arrowAway', `page errors ${errors.join(' | ')}`);
     await close();
   }
+  if (want('summon.api')) {
+    // Step 8's API loose ends on a strip. A host's panel.scrollTo() answers whether the row moves, read against where the Embla row is
+    // heading (the old scroller reads 0 on a strip); a view's presence reads 'scrolledAway' exactly for the pages whose slot is inert;
+    // a scrollTo of the Workspace while it is stepped aside brings it back into view (the old row's showRoot).
+    const NARROW24 = Array(24).fill(1).join(',');
+    const { page, errors, close } = await open(NARROW24, 1800, 900, '&bar=0');
+    await g(page, 'jumpToSlot', 10);
+    await sleep(700);
+    const inert0 = await g(page, 'inertViews');
+    const away0 = await g(page, 'awayViews');
+    const farAnswer = await g(page, 'scrollTo', 'p2');
+    await sleep(1800);
+    const farRest = await g(page, 'pos');
+    const inViewAnswer = await g(page, 'scrollTo', 'p3');
+    await sleep(900);
+    const inViewRest = await g(page, 'pos');
+    const inert1 = await g(page, 'inertViews');
+    const away1 = await g(page, 'awayViews');
+    const r: any = { inert0, away0, farAnswer, farRest, inViewAnswer, inViewRest, inert1, away1 };
+    if (inert0.length < 10) empty.push(`summon api: ${inert0.length} inert pages at slot 10, so the presence check proves nothing`);
+    if (away0.join() !== inert0.join() || away1.join() !== inert1.join()) fail('api', `views reading scrolledAway ${away0.length}/${away1.length} vs inert ${inert0.length}/${inert1.length} (at slot 10 / after the scroll)`);
+    if (farAnswer?.ok !== true || farAnswer.changed !== true || Math.abs(farRest - 2 * PITCH) > 0.5) fail('api', `scrollTo p2 from slot 10 answered ${JSON.stringify(farAnswer)} and rested ${farRest}; want changed true and the row at ${2 * PITCH}`);
+    if (inViewAnswer?.ok !== true || inViewAnswer.changed !== false || Math.abs(inViewRest - farRest) > 0.5) fail('api', `scrollTo p3 in view answered ${JSON.stringify(inViewAnswer)} and rested ${inViewRest}; want changed false and no move`);
+    if (errors.length > 0) fail('api', `page errors ${errors.join(' | ')}`);
+    await close();
+    // The Workspace stepped aside for a three-slot page (1800 > 1400), then a host's scrollTo of it.
+    const a = await open('3,1,1,1,1,1,1,1', 1800, 900, '&bar=0');
+    await a.page.setViewportSize({ width: 1400, height: 900 });
+    await sleep(1200);
+    const asideView = await g(a.page, 'rootView');
+    const asideSlots = await g(a.page, 'slotCount');
+    const rootAnswer = await g(a.page, 'scrollTo', 'root');
+    await sleep(1500);
+    const after = await shown(a.page);
+    const win = await g(a.page, 'win');
+    r.aside = { asideView, asideSlots, rootAnswer, rootView: await g(a.page, 'rootView'), root: after.root ?? null, rest: await g(a.page, 'pos') };
+    if (asideView !== 'away' || after === undefined) empty.push(`summon api: the root was ${asideView} before the scrollTo, not stepped aside`);
+    if ((rootAnswer !== true && rootAnswer?.ok !== true) || r.aside.rootView === 'away' || after.root === undefined || after.root.x < -0.5 || after.root.x + after.root.w > win.width + 0.5) fail('apiAside', `scrollTo of the stepped-aside Workspace answered ${JSON.stringify(rootAnswer)}; root ${r.aside.rootView} at ${JSON.stringify(after.root)}; want it whole in view`);
+    if (a.errors.length > 0) fail('apiAside', `page errors ${a.errors.join(' | ')}`);
+    await a.close();
+    res.api = r;
+  }
   if (want('summon.fromRight')) {
     // Summon from the right with the view at the start, then a dot press carrying the root out.
     const { page, errors, close } = await open(row, 1800, 900, '&bar=0');

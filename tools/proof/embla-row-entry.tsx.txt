@@ -4,7 +4,7 @@
 // its dots), clipped and kept over the oval as the app's overflow frame does.
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
-import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, usePanelDots, Panel, PanelFrame, PanelSizeBox, feedRowWheel, DragToClose, usePanelDragProps } from 'LIB/index.js';
+import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels, usePanelDots, Panel, PanelFrame, PanelSizeBox, feedRowWheel, DragToClose, usePanelDragProps, usePanelPresence } from 'LIB/index.js';
 import { createFakeHost } from 'LIB/fakeHost.js';
 import { rowScrollerFor } from 'LIB/rowScroller.js';
 import { emblaOf, emblaScrollOf, writeEmbla } from 'LIB/emblaRow.js';
@@ -66,11 +66,12 @@ function View({ name, k }: { name: string; k: number }) {
     };
   }, []);
   const drag = usePanelDragProps();
+  const presence = usePanelPresence();
   const page = (grabProps?: any) => (
     <PanelSizeBox>
       <Panel title={name} sx={{ height: '100%' }} {...(grabProps === undefined ? {} : { grabProps: { ...grabProps, 'data-grab': name } })}>
         <PanelFrame>
-          <div ref={anchor} tabIndex={-1} data-box={name} style={{ height: '100%', background: `linear-gradient(135deg,hsl(${hue} 55% 40%),hsl(${(hue + 60) % 360} 55% 22%))`, color: '#fff', font: '24px sans-serif', padding: 12, boxSizing: 'border-box' }}>
+          <div ref={anchor} tabIndex={-1} data-box={name} data-presence={presence.reason} style={{ height: '100%', background: `linear-gradient(135deg,hsl(${hue} 55% 40%),hsl(${(hue + 60) % 360} 55% 22%))`, color: '#fff', font: '24px sans-serif', padding: 12, boxSizing: 'border-box' }}>
             {name} ({SLOTS[k]} slot{SLOTS[k] > 1 ? 's' : ''}) <span data-count={name}>{count}</span>
           </div>
         </PanelFrame>
@@ -324,6 +325,11 @@ requestAnimationFrame(frame);
   summon: () => ws.panels.summonRoot(),
   dismiss: () => ws.panels.dismissRoot(),
   rootView: () => ws.panels.rootView(),
+  // A host's panel.scrollTo(), and its answer.
+  scrollTo: (name: string, align?: string) => { const h = name === ROOT ? undefined : ws.panels.list().find((x: any) => x.templateId === name); if (h !== undefined) return h.scrollTo(align as any); return name === ROOT ? latest.scrollTo(ws.rootId, align) : 'no handle'; },
+  // Pages whose view reads 'scrolledAway', and pages whose slot is inert.
+  awayViews: () => [...document.querySelectorAll<HTMLElement>('[data-presence="scrolledAway"]')].map((el) => el.dataset.box!).sort(),
+  inertViews: () => [...document.querySelectorAll<HTMLElement>('[data-row-slot][inert] [data-box][data-presence]')].map((el) => el.dataset.box!).sort(),
   // Panels by their template's name (p1.., root): the list's order, a name's engine id, and every slot drawn now with its left on
   // screen (window px) and width.
   // What the list keeps (and saves): every panel's live flag. A summon is drawn only, so it changes none.
