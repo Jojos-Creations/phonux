@@ -9,14 +9,14 @@
 
 /** How far back the wheel's rate is read, in ms: long enough to hold a few notches of a spin, short enough to follow a change. */
 export const RATE_MS = 100;
-/** Row px per wheel px at or under `SLOW_RATE` (a notch every 100 ms or slower): half a notch each, for fine placing. */
-export const SLOW_SPEED = 0.5;
+/** Row px per wheel px at or under `SLOW_RATE` (a notch every 100 ms or slower): about two thirds of a notch each, for fine placing. */
+export const SLOW_SPEED = 0.65;
 export const SLOW_RATE = 0.5;
 /**
  * Row px per wheel px at or over `FAST_RATE` (a notch every 16 ms): a spin covers ground. Between the two rates the speed rises in a
  * straight line, as a desktop's pointer acceleration does.
  */
-export const FAST_SPEED = 1.75;
+export const FAST_SPEED = 1.45;
 export const FAST_RATE = 2.5;
 /** The row speed (row px per ms over `RATE_MS`) a wheel must leave the row moving at for it to coast on: about 2.5 pages a second. */
 export const COAST_MIN_RATE = 1;

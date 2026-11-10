@@ -12,7 +12,7 @@ const run = (wheels: [number, number, boolean?][]): ReturnType<typeof feelWheel>
   return wheels.map(([t, px, m]) => feelWheel(feel, t, px, m === true));
 };
 
-test('slow notches move half a notch each and leave no coast', () => {
+test('slow notches move SLOW_SPEED of a notch each and leave no coast', () => {
   const out = run(Array.from({ length: 8 }, (_, k): [number, number] => [k * 150, 40]));
   for (const o of out) assert.deepEqual(o, { row: 40 * SLOW_SPEED, coast: 0, quietMs: null });
 });
