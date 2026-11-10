@@ -209,13 +209,15 @@ const frame = (t: number): void => {
     const oval = document.querySelector<HTMLElement>('[data-dot-oval]');
     const track = document.querySelector<HTMLElement>('[data-bar-track]');
     const bar = oval === null || track === null ? {} : { ovalLeft: oval.getBoundingClientRect().left - track.getBoundingClientRect().left, ovalScreen: oval.getBoundingClientRect().left, ovalW: oval.getBoundingClientRect().width };
-    // Each page as drawn this frame: its size box under the scale a resize eases (the root has none: its box).
+    // Each page as drawn this frame: its size box under the scale or the clip a resize eases (the root has none: its box). A clip's
+    // right inset is the drawn width short of the box (negative while a shrink still shows the wider content).
     const drawn: Record<string, { x: number; w: number }> = {};
     for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
       const name = el.querySelector<HTMLElement>('[data-box]')?.dataset.box ?? el.dataset.rowId!;
       const sized = el.querySelector<HTMLElement>('[data-panel-size-box]') ?? el.querySelector<HTMLElement>('[data-row-unloaded]') ?? el.querySelector<HTMLElement>('[data-box]') ?? el;
       const r = sized.getBoundingClientRect();
-      drawn[name] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
+      const clipRight = Number(/inset\(\S+ (-?[\d.]+)px/.exec(getComputedStyle(sized).clipPath)?.[1] ?? 0);
+      drawn[name] = { x: +(r.left - win.left).toFixed(2), w: +(r.width - clipRight).toFixed(2) };
     }
     const lifted = document.querySelector<HTMLElement>(':popover-open');
     // What a maximize draws: the lifted box less its clip's right and bottom insets (it is moved, never scaled).

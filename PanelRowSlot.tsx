@@ -660,18 +660,19 @@ function runSizeGlide(
   const heightEases = typeof from.height === 'number' && typeof to.height === 'number' && from.height !== to.height;
   const first = sizeFrame(kind, from, to, heightEases);
   const last = sizeFrame(kind, to, to, heightEases);
-  if (typeof node.animate === 'function' && !(mainThread && kind === 'clip')) {
+  if (typeof node.animate === 'function') {
     // A Web Animation, not a style written each frame: it leaves no style behind when it ends or is cancelled.
     // `startTime` can be ahead of the timeline, whose clock only moves per frame; without the backwards fill that frame shows the landing size.
     // Kept on the main thread, the scale is added to the box's own (none) transform, which Chrome does not composite; its origin is the
     // box's style for the run, since an added origin would sum with the base one.
-    if (mainThread) node.style.transformOrigin = '0 0';
-    const animation = mainThread
+    const added = mainThread && kind === 'scale';
+    if (added) node.style.transformOrigin = '0 0';
+    const animation = added
       ? node.animate({ transform: [first, last] }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards', composite: 'add' })
       : node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards' });
     animation.startTime = startTime;
     animation.onfinish = () => {
-      if (mainThread) node.style.transformOrigin = '';
+      if (added) node.style.transformOrigin = '';
       onLand();
     };
     return {
@@ -681,11 +682,11 @@ function runSizeGlide(
       stop: () => {
         animation.onfinish = null;
         animation.cancel();
-        if (mainThread) node.style.transformOrigin = '';
+        if (added) node.style.transformOrigin = '';
       },
     };
   }
-  // No Web Animations (a test DOM), or a clip kept on the main thread: the same frames written by Motion's frame loop.
+  // No Web Animations (a test DOM): the same frames written by Motion's frame loop.
   let shown = 0;
   const draw = (p: number): void => {
     shown = p;
