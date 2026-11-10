@@ -4,7 +4,7 @@
 
 Six entries of the phone model list (`iphone8`, `iphonex`, `iphonexr`, `iphone11`, `samsunggalaxys10`, `googlepixel3`)
 come from `viewport-sizes.json` in [DevExpress/device-specs](https://github.com/DevExpress/device-specs). That package
-declares the MIT licence in its `package.json` and publishes no separate licence file or copyright line, so none is
+declares the MIT license in its `package.json` and publishes no separate license file or copyright line, so none is
 reproduced here. The MIT terms follow.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated

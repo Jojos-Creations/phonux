@@ -2403,7 +2403,12 @@ The library began as a folder inside phonux-app and was extracted with `git filt
 so `git log --follow` on a source file runs back through its years inside the app. The first entry of `CHANGELOG.md` names the
 phonux-app commit the extraction was taken at.
 
-A release is `npm run release:check`, then the maintainer's own `npm publish` from `dist/` (`npm publish --tag next` for a prerelease version). Nothing in this repository publishes,
+A release is `npm run release:check`, then a publish: either the manual `.github/workflows/publish-release.yml` run (it waits for approval in the `npm-release`
+environment, then publishes `dist/` under the right dist-tag through npm trusted publishing), or the maintainer's own
+`npm publish` from `dist/` (`npm publish --tag next` for a prerelease version). For a
+`0.x.y-rc.N` version, release:check first fetches `origin/rcN` and refuses when HEAD lacks any of it, naming each missing pull request; the
+command it prints starts with `node tools/phonux-rc-branch-check.mjs` so the same comparison runs again at the moment of publishing,
+because the branch can take a merge between the two. A fetch that fails is a refusal, not a pass. A push to `main` publishes nothing,
 and a published version is never edited: a fix is a new version, and `CHANGELOG.md` says what changed. `.github/workflows/ci.yml`
 runs the typecheck, the tests, the build, the API report check and the smoke on a pull request into `release` and on dispatch;
 a pull request into `main` runs no cloud check.

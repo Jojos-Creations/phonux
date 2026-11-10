@@ -32,7 +32,6 @@ import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import type { RootView } from '../panelManager.js';
 import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, emblaWouldShow, showOnEmbla, whenEmblaFree, wholeInView } from '../emblaRow.js';
-
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
 

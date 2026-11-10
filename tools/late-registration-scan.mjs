@@ -315,7 +315,7 @@ function scanFile(sf, file, program, checker) {
     ts.forEachChild(cb, (c) => visit(c, false));
   };
 
-  // The state at each throw inside the try blocks being analysed, innermost last. A branch that throws is dead, so a merge would drop its state before the catch block could see it.
+  // The state at each throw inside the try blocks being analyzed, innermost last. A branch that throws is dead, so a merge would drop its state before the catch block could see it.
   const tries = [];
   const noteThrow = (state) => {
     const top = tries[tries.length - 1];
@@ -470,7 +470,7 @@ function scanFile(sf, file, program, checker) {
       return out;
     }
     if (ts.isLabeledStatement(n)) return stmt(n.statement, s, track);
-    // break and continue stay live: the code after them is then analysed as if they were absent, which can only over-report.
+    // break and continue stay live: the code after them is then analyzed as if they were absent, which can only over-report.
     if (isFunctionLike(n)) { flagFunctionBody(n); return { state: s, live: true }; }
     return { state: expr(n, s, track), live: true };
   };
