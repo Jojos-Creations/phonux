@@ -253,7 +253,7 @@ requestAnimationFrame(frame);
   logical,
   // Where Embla is going, scroll px.
   target: () => { const e = emblaOf(container()); return e === undefined ? null : -e.internalEngine().target.get(); },
-  // Where the last wheel gesture landed from: the wheel's travel and the coast past it (scroll px).
+  // Where the last wheel gesture settled from (scroll px).
   landing: () => { const e = emblaOf(container()); return e === undefined ? null : (emblaWheelLanding(e) ?? null); },
   win: windowRect,
   max: () => Math.max(0, latest.rowNumbers.stripWidth - windowRect().width),

@@ -11,7 +11,6 @@ import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
 import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
-import { feelWheel, type WheelFeel } from './emblaWheelFeel.js';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
 import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
@@ -511,8 +510,12 @@ const heldRows = new WeakSet<EmblaCarouselType>();
 /**
  * How long a wheel gesture holds the row after its last wheel before it settles: Chromium's own wheel transaction (a wheel this soon
  * after the last one is the same scroll), so a finger lifted to reposition on a wheel or a trackpad keeps the row where it is drawn.
+ * After a trackpad's momentum the wait is short: the momentum's own end is the end of the gesture.
  */
 const WHEEL_IDLE_MS = 500;
+const WHEEL_IDLE_MOMENTUM_MS = 150;
+/** The share of the gap between two stops a wheel gesture must cover to rest on the stop ahead; under it the row returns. */
+export const BACK_FRACTION = 0.25;
 /** Wheel travel against a gesture's direction that turns it: a momentum tail's last events can flicker a px the other way. */
 const WHEEL_AGAINST_PX = 8;
 /**
@@ -523,21 +526,18 @@ const WHEEL_AGAINST_PX = 8;
 const WHEEL_FRICTION = 0.1;
 const WHEEL_DURATION = 0.22;
 /**
- * A wheel gesture driving the row: its direction of travel (scroll px sign), travel against it, its wait for the wheel to stop, the
- * coast its last wheel leaves (emblaWheelFeel.ts), and the wheel's target kept across a release Embla runs with no press of its own.
+ * A wheel gesture driving the row: its direction of travel (scroll px sign), travel against it, its wait for the wheel to stop, and
+ * the wheel's target kept across a release Embla runs with no press of its own.
  */
 interface WheelRun {
   dir: number;
   against: number;
   idle: ReturnType<typeof setTimeout> | null;
-  coast: number;
   keep: number | null;
 }
-/** Each row's last `RATE_MS` of wheels, kept across gestures, so a spin that pauses for a frame too long goes on at its own speed. */
-const wheelFeels = new WeakMap<EmblaCarouselType, WheelFeel>();
-/** Where each row's last wheel gesture landed from, in scroll px: the wheel's travel and the coast past it. @internal */
-const wheelLandings = new WeakMap<EmblaCarouselType, { travel: number; coast: number }>();
-export const emblaWheelLanding = (embla: EmblaCarouselType): { travel: number; coast: number } | undefined => wheelLandings.get(embla);
+/** Where each row's last wheel gesture settled from, in scroll px. @internal */
+const wheelLandings = new WeakMap<EmblaCarouselType, number>();
+export const emblaWheelLanding = (embla: EmblaCarouselType): number | undefined => wheelLandings.get(embla);
 /**
  * The wheel gesture on each row. A wheel moves Embla's target directly, with no press: Embla's drag listens on the document only
  * from a press, so no input but the wheel reaches the row during a gesture (a press of Embla's held open through the gesture let a
@@ -559,17 +559,14 @@ function setWheelBody(embla: EmblaCarouselType): void {
   setDuration(WHEEL_DURATION);
 }
 /**
- * One wheel of a gesture on the row `embla`: `px` scroll px (sideways, already normalized), `momentum` when the browser flags it as a
- * trackpad's momentum. The wheel's speed sets how far it moves the row (`feelWheel`). The first wheel starts the gesture where the row
- * is drawn: a glide going the wheel's way (a coast) keeps its speed, any other stops there, as a press stopped it. The target stops
- * flat at the row's ends (owner ruling 2026-11-09, "just stop"): no stretch past them and no spring back. Every wheel restarts the wait
- * for the wheel to stop: short after a fast spin, which then coasts, `WHEEL_IDLE_MS` otherwise.
+ * One wheel of a gesture on the row `embla`: `by` scroll px (sideways, already normalized), `momentum` when the browser flags it as a
+ * trackpad's momentum. The row follows the wheel 1:1: the system already accelerates a wheel and gives a trackpad its momentum. The
+ * first wheel starts the gesture where the row is drawn: a glide going the wheel's way keeps its speed, any other stops there, as a
+ * press stopped it. The target stops flat at the row's ends: no stretch past them and no spring back. Every wheel restarts the wait
+ * for the wheel to stop; the row never settles while it goes on.
  */
-function wheelBy(embla: EmblaCarouselType, px: number, momentum: boolean): void {
+function wheelBy(embla: EmblaCarouselType, by: number, momentum: boolean): void {
   const e = embla.internalEngine();
-  const feel = wheelFeels.get(embla) ?? [];
-  wheelFeels.set(embla, feel);
-  const { row: by, coast, quietMs } = feelWheel(feel, performance.now(), px, momentum);
   let run = wheelRuns.get(embla);
   if (run === undefined) {
     const speed = -e.scrollBody.velocity();
@@ -579,12 +576,11 @@ function wheelBy(embla: EmblaCarouselType, px: number, momentum: boolean): void 
     e.scrollBody.seek();
     // A lead of speed * duration / friction gives the wheel body that speed on its next step.
     if (speed * by > 0) e.target.set(-Math.min(Math.max(0, at + (speed * WHEEL_DURATION) / WHEEL_FRICTION), emblaMaxOf(embla)));
-    run = { dir: 0, against: 0, idle: null, coast: 0, keep: null };
+    run = { dir: 0, against: 0, idle: null, keep: null };
     wheelRuns.set(embla, run);
   }
   if (run.idle !== null) clearTimeout(run.idle);
-  run.coast = coast;
-  run.idle = setTimeout(() => settleWheelRun(embla), quietMs ?? WHEEL_IDLE_MS);
+  run.idle = setTimeout(() => settleWheelRun(embla), momentum ? WHEEL_IDLE_MOMENTUM_MS : WHEEL_IDLE_MS);
   setWheelBody(embla);
   const from = emblaTargetOf(embla);
   const m = Math.min(Math.max(0, from + by), emblaMaxOf(embla)) - from;
@@ -617,22 +613,23 @@ export function endEmblaWheel(embla: EmblaCarouselType): boolean {
 }
 
 /**
- * The stop a wheel gesture moving `dir` rests on from `from` (scroll px): the first one not behind it, so the row never moves back
- * against the scroll; the nearest for no direction.
+ * The stop (an index into `stops`, ascending scroll px) a wheel gesture moving `dir` rests on from `from`: the stop ahead once it has
+ * covered `BACK_FRACTION` of the gap from the stop behind, else the stop behind; the stop it is on within half a px. No direction
+ * reads as rightwards.
  * @internal
  */
-export function stopAhead(stops: readonly number[], from: number, dir: number): number {
-  if (stops.length === 0) return 0;
-  let best = 0;
-  for (let k = 1; k < stops.length; k += 1) if (Math.abs(stops[k]! - from) < Math.abs(stops[best]! - from)) best = k;
-  if (dir === 0 || Math.abs(stops[best]! - from) <= 0.5) return best;
-  const order = stops.map((_, k) => k).sort((a, b) => stops[a]! - stops[b]!);
-  const ahead = dir > 0 ? order.find((k) => stops[k]! >= from - 0.5) : [...order].reverse().find((k) => stops[k]! <= from + 0.5);
-  return ahead ?? (dir > 0 ? order[order.length - 1]! : order[0]!);
+export function restStop(stops: readonly number[], from: number, dir: number): number {
+  const on = stops.findIndex((s) => Math.abs(s - from) <= 0.5);
+  if (on >= 0) return on;
+  const next = stops.findIndex((s) => s > from);
+  if (next <= 0) return next === 0 ? 0 : Math.max(0, stops.length - 1);
+  const [behind, ahead] = dir < 0 ? [next, next - 1] : [next - 1, next];
+  return Math.abs(from - stops[behind]!) >= BACK_FRACTION * (stops[next]! - stops[next - 1]!) ? ahead : behind;
 }
 /**
- * Ends a wheel gesture once the wheel has stopped: coasts on past the travel by the coast its last wheel left (0 after a slow wheel)
- * and lands on the first stop ahead, in one glide of Embla's own body, then runs what waited for it.
+ * Ends a wheel gesture once the wheel has stopped: one glide of Embla's own body to `restStop`, then runs what waited for it. It reads
+ * from the furthest of the target and the drawn row in the direction of travel: the row never runs past its target, so a return
+ * behind moves it back by under `BACK_FRACTION` of a gap.
  */
 function settleWheelRun(embla: EmblaCarouselType): void {
   const run = endWheelRun(embla);
@@ -640,9 +637,8 @@ function settleWheelRun(embla: EmblaCarouselType): void {
   const target = emblaTargetOf(embla);
   const drawn = emblaDrawnOf(embla);
   const from = run.dir > 0 ? Math.max(target, drawn) : run.dir < 0 ? Math.min(target, drawn) : target;
-  const stops = embla.internalEngine().scrollSnaps.map((x) => -x);
-  wheelLandings.set(embla, { travel: from, coast: run.coast });
-  embla.scrollTo(stopAhead(stops, Math.min(Math.max(0, from + run.coast), emblaMaxOf(embla)), run.dir), reducedRows.has(embla));
+  wheelLandings.set(embla, from);
+  embla.scrollTo(restStop(embla.internalEngine().scrollSnaps.map((x) => -x), from, run.dir), reducedRows.has(embla));
   releaseEmbla(embla);
   runFreeWaiting(embla);
 }
