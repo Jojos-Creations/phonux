@@ -218,7 +218,10 @@ const frame = (t: number): void => {
       drawn[name] = { x: +(r.left - win.left).toFixed(2), w: +r.width.toFixed(2) };
     }
     const lifted = document.querySelector<HTMLElement>(':popover-open');
-    const liftedRect = lifted === null ? null : lifted.getBoundingClientRect();
+    // What a maximize draws: the lifted box less its clip's right and bottom insets (it is moved, never scaled).
+    const liftedBox = lifted === null ? null : lifted.getBoundingClientRect();
+    const inset = lifted === null ? null : /inset\(\S+ (\S+)px (\S+)px/.exec(getComputedStyle(lifted).clipPath);
+    const liftedRect = liftedBox === null ? null : { left: liftedBox.left, top: liftedBox.top, width: liftedBox.width - Number(inset?.[1] ?? 0), height: liftedBox.height - Number(inset?.[2] ?? 0) };
     // Unloaded placeholders the window shows this frame (any part of them): a blank page in view.
     const blankIn: string[] = [];
     for (const el of document.querySelectorAll<HTMLElement>('[data-row-unloaded]')) {

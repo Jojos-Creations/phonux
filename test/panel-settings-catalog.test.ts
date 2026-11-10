@@ -377,7 +377,7 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   overflow: 'scroll',
   revealOnScroll: SCROLL_DEFAULTS.revealOnScroll,
   edgeHold: SCROLL_DEFAULTS.edgeHold,
-  resize: 'reflow',
+  resize: 'reveal',
   scrollOnOpen: SCROLL_DEFAULTS.scrollOnOpen,
   scrollOnMove: SCROLL_DEFAULTS.scrollOnMove,
   toggleWhenClosed: 'ignore',

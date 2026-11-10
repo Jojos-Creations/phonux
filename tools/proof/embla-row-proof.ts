@@ -1616,6 +1616,47 @@ if (ONLY.has('width') && ENGINE === 'embla') {
       await sleep(16);
     }
   }, { still: [], page: 'p3', edge: null, followers: ['p4'] });
+  // A Fold page (p3, two slots) and a mouse wheel's 120 px notches from rest 0 that carry the row past it: the page is two slots wide in
+  // every frame and at rest (a scroll never resizes a page), no frame moves the row against the wheel while it holds the row, and the
+  // row rests on a stop, where the rest rule puts the furthest point the wheel carried it.
+  if (want('width.foldStaysOnWheel')) {
+    const label = 'foldStaysOnWheel';
+    const PITCH = 406;
+    const FOLD = 2 * PITCH - 16;
+    const { page, errors, close } = await open('1,1,2,1,1,1,1,1,1,1,1,1');
+    await g(page, 'jumpToSlot', 0);
+    await sleep(500);
+    await g(page, 'record');
+    await nextFrame(page);
+    await nextFrame(page);
+    await page.mouse.move(900, 400);
+    const t0 = Date.now();
+    while (Date.now() - t0 < 1000) {
+      await page.mouse.wheel(120, 0);
+      await sleep(16);
+    }
+    await sleep(1500);
+    const fr = await g(page, 'stop');
+    const max = await g(page, 'max');
+    await page.screenshot({ path: join(OUT, `width-${label}-rest.png`) });
+    const first = fr[0];
+    const last = fr[fr.length - 1];
+    const seen = fr.filter((f: any) => f.drawn.p3 !== undefined);
+    const worstWidth = Math.max(0, ...seen.map((f: any) => Math.abs(f.drawn.p3.w - FOLD)));
+    const furthest = Math.max(...fr.map((f: any) => f.pos));
+    const ruled = ruleRest(furthest, 1, PITCH, max);
+    const back = backSteps(fr, 1);
+    const passedIt = last.drawn.p3 === undefined || last.drawn.p3.x + last.drawn.p3.w <= 0;
+    res[label] = { frames: fr.length, framesWithFold: seen.length, posBefore: +first.pos.toFixed(1), rest: +last.pos.toFixed(1), furthest: +furthest.toFixed(1), ruled, worstFoldWidthPx: +worstWidth.toFixed(2), passedIt, ...back };
+    if (fr.length < 20 || seen.length < 10) empty.push(`width ${label}: ${fr.length} frames, ${seen.length} with the Fold page drawn`);
+    if (!passedIt) empty.push(`width ${label}: the wheel left the Fold page in view, so the row never scrolled past it`);
+    if (worstWidth > 0.5) fail(label, `the Fold page was drawn ${worstWidth.toFixed(1)} px away from ${FOLD} px while the row scrolled`);
+    if (back.heldBackPx > 0.5) fail(label, `a frame moved the row ${back.heldBackPx} px against the wheel while it held the row`);
+    if (!onGrid(last.pos, PITCH, max)) fail(label, `rest ${last.pos.toFixed(1)} off the grid`);
+    else if (Math.abs(last.pos - ruled) > 0.5) fail(label, `rests at ${last.pos.toFixed(1)}, not ${ruled}, where the rule puts a wheel that carried the row to ${furthest.toFixed(1)}`);
+    if (errors.length > 0) fail(label, `page errors ${errors.join(' | ')}`);
+    await close();
+  }
   // p1 beside the root picked four slots wide in a window of four (cut by the right edge: the root no longer steps aside), then
   // narrowed to two: the root and p1's left edge hold and the pages after it follow.
   await run('shrinkBesideRoot', 0, async (page, id) => g(page, 'op', 'setSlots', await id('p1'), 2), {

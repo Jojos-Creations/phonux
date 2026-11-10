@@ -227,6 +227,10 @@ at once and the keep-still rule decides the scroll). What step 5 changed:
   somewhere else. While a panel of the row is lifted (`maximizedIn`: a panel root with the popover attribute, from the grow to the
   end of the shrink) the row takes no wheel, arrow key, drag or focus reveal.
 - Panels do not shrink when unfocused on Embla (owner ruling); nothing here reintroduces it.
+- A width change never stretches a page's content: the size box clips it (`resize: 'reveal'`, the default) and Fullscreen moves and
+  clips the lifted panel instead of scaling it. A scroll never resizes a page: the `foldStaysOnWheel` case wheels a row past a
+  two-slot (Fold) page and checks that it is two slots wide in every frame and at rest, that no frame moves the row against the wheel
+  while it holds the row, and that the row rests where the rest rule puts the furthest point the wheel carried it.
 
 Embla internals: none new.
 

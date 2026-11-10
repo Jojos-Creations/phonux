@@ -54,22 +54,15 @@ function restoreStyle(el: HTMLElement, style: string | null): void {
   else el.setAttribute('style', style);
 }
 
-/** The transform that draws a box laid out at `to` where `from` is. */
-const inverseOf = (from: Box, to: Box): { x: number; y: number; sx: number; sy: number } => ({
-  x: from.left - to.left,
-  y: from.top - to.top,
-  sx: to.width === 0 ? 1 : from.width / to.width,
-  sy: to.height === 0 ? 1 : from.height / to.height,
-});
-
-// The compositor runs the eased curve as linear steps this far apart: sampled, the corner radius can be corrected for the scale.
+// The eased curve is written as linear steps this far apart.
 const SAMPLE_MS = 1000 / 60;
 
 /**
  * Grows `root` from its slot until it fills the window, and back. The root goes to the top layer through the popover attribute, so
  * no ancestor's transform, clip or stacking order can hold it and it never leaves its place in the DOM, which a web view inside it
- * would answer by reloading. Its box is set to the window once; the grow and the shrink are a transform from the slot's box, so no
- * frame of either lays the panel out again.
+ * would answer by reloading. Its box is set to the window once, so its content is laid out at the window's size; the grow and
+ * the shrink move it to the slot's corner and clip it to the eased size, never scaling it, so no frame lays the panel out again or
+ * draws its content stretched.
  */
 function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phase: MaximizePhase) => void, topInset: () => number): Maximizer {
   let phase: MaximizePhase = 'home';
@@ -86,24 +79,22 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
 
   const slotBox = (): Box => boxOf((root.parentElement ?? root).getBoundingClientRect());
 
-  const styleAt = (p: number): { transform: string; radius: string } => {
-    const inv = inverseOf(slot, full);
-    const sx = lerp(inv.sx, 1, p);
-    const sy = lerp(inv.sy, 1, p);
-    // The radius is drawn scaled with the box, so it is set larger by the scale for the corner to read as `r` on screen.
-    const r = lerp(frameRadius, 0, p);
-    return { transform: `translate(${lerp(inv.x, 0, p)}px, ${lerp(inv.y, 0, p)}px) scale(${sx}, ${sy})`, radius: `${r / sx}px / ${r / sy}px` };
+  // The eased box, drawn as the window-sized root moved to its corner and clipped to its size, with the frame's corner on the clip.
+  const styleAt = (p: number): { transform: string; clipPath: string } => {
+    const x = lerp(slot.left, full.left, p) - full.left;
+    const y = lerp(slot.top, full.top, p) - full.top;
+    const right = full.width - lerp(slot.width, full.width, p);
+    const bottom = full.height - lerp(slot.height, full.height, p);
+    return { transform: `translate(${x}px, ${y}px)`, clipPath: `inset(0px ${right}px ${bottom}px 0px round ${lerp(frameRadius, 0, p)}px)` };
   };
 
   const paint = (p: number): void => {
     progress = p;
-    const { transform, radius } = styleAt(p);
-    root.style.transform = transform;
-    if (frame !== null) frame.style.borderRadius = radius;
+    Object.assign(root.style, styleAt(p));
   };
 
   const place = (box: Box): void => {
-    Object.assign(root.style, { top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, height: `${box.height}px`, transformOrigin: '0 0' });
+    Object.assign(root.style, { top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, height: `${box.height}px` });
   };
 
   const setPhase = (next: MaximizePhase): void => {
@@ -131,6 +122,8 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
       // The frame's own pixel size would hold it at the slot's size inside the window's box.
       frame.style.width = '100%';
       frame.style.height = '100%';
+      // The clip draws the corner, at the size on screen.
+      frame.style.borderRadius = '0';
     }
     full = windowBox(topInset());
     place(full);
@@ -141,7 +134,7 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
   const settle = (): void => {
     root.setAttribute(MAXIMIZED_ATTRIBUTE, '');
     // Longhands: a shorthand a test cannot read would hide a wrong inset.
-    Object.assign(root.style, { top: `${topInset()}px`, left: '0', right: '0', bottom: '0', transform: '', transformOrigin: '' });
+    Object.assign(root.style, { top: `${topInset()}px`, left: '0', right: '0', bottom: '0', transform: '', clipPath: '' });
     root.style.width = 'auto';
     root.style.height = 'auto';
     root.style.background = '';
@@ -153,6 +146,7 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     root.removeAttribute(MAXIMIZED_ATTRIBUTE);
     root.style.background = 'transparent';
     Object.assign(root.style, { right: 'auto', bottom: 'auto' });
+    if (frame !== null) frame.style.borderRadius = '0';
     full = windowBox(topInset());
     place(full);
     slot = slotBox();
@@ -196,14 +190,9 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     const durationMs = glide.duration * 1000;
     const curve = cubicBezier(glide.ease[0], glide.ease[1], glide.ease[2], glide.ease[3]);
     const steps = Math.max(1, Math.ceil(durationMs / SAMPLE_MS));
-    const rootFrames: Keyframe[] = [];
-    const radiusFrames: Keyframe[] = [];
-    for (let k = 0; k <= steps; k += 1) {
-      const { transform, radius } = styleAt(lerp(from, to, curve(k / steps)));
-      rootFrames.push({ transform, offset: k / steps });
-      radiusFrames.push({ borderRadius: radius, offset: k / steps });
-    }
-    const anims = [animateShared(root, rootFrames, durationMs), frame === null ? null : animateShared(frame, radiusFrames, durationMs)].filter((a): a is Animation => a !== null);
+    const frames: Keyframe[] = [];
+    for (let k = 0; k <= steps; k += 1) frames.push({ ...styleAt(lerp(from, to, curve(k / steps))), offset: k / steps });
+    const anims = [animateShared(root, frames, durationMs)].filter((a): a is Animation => a !== null);
     // Under the animation, the box it lands on, so its end hands over without a frame of the old one.
     if (anims.length > 0) paint(to);
     run = { from, to, startMs: sharedStartTime(), durationMs, curve, anims, done };

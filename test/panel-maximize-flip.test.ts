@@ -1,6 +1,6 @@
 /**
- * Maximize grows a panel from its slot to the window and back as a transform: the root's box is set once, to the window, and no
- * frame of the grow or the shrink writes its top, left, width or height. jsdom has no popover and no layout, so both are stubbed.
+ * Maximize grows a panel from its slot to the window and back as a move and a clip: the root's box is set once, to the window, no
+ * frame of the grow or the shrink writes its top, left, width or height, and none scales it, so its content is never stretched. jsdom has no popover and no layout, so both are stubbed.
  */
 import { test, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,20 +64,26 @@ test('a grow sets the window box once and moves only the transform until it land
   const root = mountPanel();
   let mid = '';
   let start = '';
+  let startClip = '';
   const boxes = await boxesDuring(root, async () => {
     act(() => void api!.toggle());
     start = root.style.transform;
+    startClip = root.style.clipPath;
     await advanceFrames(300);
     mid = root.style.transform;
     assert.equal(api!.phase, 'growing');
   });
+  const { clientWidth, clientHeight } = document.documentElement;
   assert.deepEqual(boxes, [`0px 0px ${document.documentElement.clientWidth}px ${document.documentElement.clientHeight}px`], 'one box: the window');
-  assert.match(start, /translate\(100px, 50px\) scale\(/, 'it starts drawn over its slot');
+  assert.equal(start, 'translate(100px, 50px)', 'it starts at its slot, moved and never scaled');
+  assert.equal(startClip, `inset(0px ${clientWidth - 390}px ${clientHeight - 700}px 0px round 0px)`, "and clipped to the slot's size");
   assert.notEqual(mid, start, 'the transform moves');
+  assert.doesNotMatch(mid, /scale/, 'no frame scales the content');
   await advanceFrames(400);
   assert.equal(api!.phase, 'maximized');
   assert.ok(root.hasAttribute(MAXIMIZED_ATTRIBUTE));
   assert.equal(root.style.transform, '');
+  assert.equal(root.style.clipPath, '');
   assert.deepEqual([root.style.top, root.style.left, root.style.right, root.style.bottom, root.style.width, root.style.height], ['0px', '0px', '0px', '0px', 'auto', 'auto']);
 });
 
