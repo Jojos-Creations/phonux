@@ -330,7 +330,7 @@ test('defaults: LIBRARY_TUNING_DEFAULTS deep-equals the exact object, with the s
     rowGesture: 'step',
     fastScroll: 'coalesce',
     initialScroll: SCROLL_DEFAULTS.tuning.initialScroll,
-    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', where: 'outside' },
+    chrome: { mode: 'always', fadeMs: 120, fadeEase: 'easeOut', where: 'outside', fitVisibleMaxSlots: 2 },
     maxLivePanels: null,
     phoneFit: 'off',
     phoneFitMin: 0.82,

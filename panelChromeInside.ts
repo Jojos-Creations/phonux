@@ -7,6 +7,7 @@ import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, useOptionHeld } from './panelChrome.js';
 import { BAR_HEIGHT_PX } from './panelChromeSize.js';
+import { chromeCutSides } from './rowDom.js';
 
 /** The attribute on a panel's root while its header and footer are inside its frame. @public */
 export const CHROME_INSIDE_ATTRIBUTE = 'data-panel-chrome-inside';
@@ -33,15 +34,14 @@ export const chromeInsideSx = {
   [`& ${header}`]: {
     top: INSET_PX,
     bottom: 'auto',
-    left: INSET_PX,
-    right: INSET_PX,
+    ...chromeCutSides(INSET_PX),
     zIndex: 2,
     borderRadius: 999,
     bgcolor: 'color-mix(in srgb, var(--mui-palette-background-paper, Canvas) 72%, transparent)',
     backdropFilter: 'blur(12px)',
     boxShadow: 1,
   },
-  [`& ${footer}`]: { top: 'auto', bottom: INSET_PX, left: INSET_PX, right: INSET_PX, zIndex: 2 },
+  [`& ${footer}`]: { top: 'auto', bottom: INSET_PX, ...chromeCutSides(INSET_PX), zIndex: 2 },
 } as const;
 
 const slides = new WeakMap<HTMLElement, Animation>();

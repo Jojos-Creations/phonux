@@ -9,6 +9,7 @@ import { useFrameClaim } from './panelFrameClaim.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade } from './panelChrome.js';
 import { BAR_HEIGHT_PX } from './panelChromeSize.js';
 import { FOOTER_PAD_X_PX, FOOTER_PAD_Y_PX, HEADER_GAP_PX } from './rowConstants.js';
+import { chromeCutSides } from './rowDom.js';
 
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
 export const PanelFooterContext = React.createContext<React.ReactElement | null>(null);
@@ -44,7 +45,7 @@ export function PanelFooter({ sx }: { sx?: CssStyle }): React.ReactElement | nul
   if (footer === null) return null;
   return (
     <FooterBoundary>
-      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${HEADER_GAP_PX}px)`, left: 0, right: 0, boxSizing: 'border-box', height: `${BAR_HEIGHT_PX}px`, display: 'flex', alignItems: 'center', px: `${FOOTER_PAD_X_PX}px`, py: `${FOOTER_PAD_Y_PX}px`, ...sx }}>
+      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${HEADER_GAP_PX}px)`, ...chromeCutSides(), boxSizing: 'border-box', height: `${BAR_HEIGHT_PX}px`, display: 'flex', alignItems: 'center', px: `${FOOTER_PAD_X_PX}px`, py: `${FOOTER_PAD_Y_PX}px`, ...sx }}>
         {footer}
       </Box>
     </FooterBoundary>

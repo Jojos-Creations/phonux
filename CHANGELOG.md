@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- `tuning.chrome.fitVisibleMaxSlots` (whole number 1 to 64, default 2): while the window's edge cuts a panel 2 to that many slots
+  wide, its header and footer are laid across the part the window shows (left buttons at the shown left, right buttons at the
+  shown right, the middle centred between), following the row every frame and never narrower than one phone. The frame, picture,
+  border and glow are drawn as before; a panel filling the window is not affected. 1 turns it off. The row writes the two cuts as
+  custom properties on the slot, and `PanelHeader` and `PanelFooter` read them.
+
 ### Removed (breaking)
 
 - The old panel row ('own') is gone: Embla is the only row (owner ruling 2026-11-09, plan step 8d). Removed with it:
