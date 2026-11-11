@@ -1,6 +1,6 @@
 /**
  * Every panel in a row animates its size in the row's one box, the default frame included: one box around the header, the grab bar
- * and the phone frame, laid out once at its new size and scaled from the size it had to the size it has, on the clock the slot's own slide runs on.
+ * and the phone frame, whose real size eases from the size it had to the size it has, on the clock the slot's own slide runs on.
  */
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,8 +43,8 @@ async function rig(templates: PanelTemplate[], add: string[], o: { width?: numbe
 
 const slotOf = (m: ResizableWorkspace, id: string): HTMLElement => m.container.querySelector(`[data-body="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const boxOf = (m: ResizableWorkspace, id: string): HTMLElement => slotOf(m, id).querySelector<HTMLElement>('[data-panel-size-box]')!;
-/** The width the box is drawn at, in px: its laid-out width times the glide's scale. */
-const widthOf = (el: HTMLElement): number => Number.parseFloat(el.style.width) * Number(/scale\((-?[\d.e-]+)/.exec(el.style.transform)?.[1] ?? 1);
+/** The width the box is drawn at, in px: its real width, which the glide eases. */
+const widthOf = (el: HTMLElement): number => Number.parseFloat(el.style.width);
 
 test('a bare view is drawn inside one size box that holds the header, the grab bar and the phone frame', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
@@ -115,7 +115,7 @@ test('the box is as wide as the frame at a phone, at two slots and at three slot
   assert.match(dims()[1], /^(\d+px|100%)$/, "and as high as the phone, or as the row's own height for fill");
 });
 
-test('a resize lays the box out once at the new width and scales it from the old one over the slide', async () => {
+test('a resize eases the box\'s real width from the old one to the new over the slide, unscaled', async () => {
   const r = await rig([bareTemplate('bare')], ['bare']);
   mock.timers.enable({ apis: ['setTimeout'] });
   const box = boxOf(r.m, 'bare');
@@ -127,7 +127,7 @@ test('a resize lays the box out once at the new width and scales it from the old
   for (let frame = 0; frame < 40; frame++) {
     await advanceFrames(16);
     seen.push(widthOf(box));
-    assert.equal(box.style.width, `${wide}px`, `laid out at the new width, never written again (frame ${frame})`);
+    assert.equal(box.style.transform, '', `never scaled (frame ${frame})`);
   }
   for (let k = 1; k < seen.length; k++) assert.ok(seen[k]! >= seen[k - 1]! - 1e-6, `the width only grows (frame ${k})`);
   assert.ok(seen.some((w) => w > 390 + 0.05 * (wide - 390) && w < wide - 0.05 * (wide - 390)), 'and passes through widths between');

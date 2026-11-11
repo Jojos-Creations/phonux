@@ -1,5 +1,5 @@
 /**
- * The eighteen per-panel settings this version removed: their fixed behavior, what a template or a saved file that
+ * The nineteen per-panel settings this version removed: their fixed behavior, what a template or a saved file that
  * still names one gets, and the list of settings that stay.
  */
 import { test } from 'node:test';
@@ -11,7 +11,7 @@ import { FIXED, resolvePanelSettings } from '../panelSettings.js';
 import { PanelManagerError } from '../panelManagerError.js';
 import type { PanelSettings } from '../index.js';
 
-/** The value each removed setting is fixed at (its 0.1.0 default, but for `evictionOrder`), written out so a changed constant fails here. */
+/** The value each removed setting is fixed at (its 0.1.0 default, but for `evictionOrder` and `resize`), written out so a changed constant fails here. */
 const FROZEN = {
   hideWhenLast: 'allow',
   returnPriority: 0,
@@ -31,13 +31,14 @@ const FROZEN = {
   undoWindowMs: 10000,
   reportClose: true,
   snapshot: 'both',
+  resize: 'reflow',
 } as const;
 
 const REMOVED = Object.keys(FROZEN);
 
 /** The settings that stay: what the app sets, what a verb or a view patch reads, and the two template and clear-all readers. */
 const KEPT = [
-  'multiple', 'hostCreatable', 'hollowDot', 'restoreVisibility', 'overflow', 'capacityReturn', 'revealOnScroll', 'edgeHold', 'resize', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
+  'multiple', 'hostCreatable', 'hollowDot', 'restoreVisibility', 'overflow', 'capacityReturn', 'revealOnScroll', 'edgeHold', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
   'parkable', 'slots', 'maxSlots', 'movable', 'crossable', 'hideStickiness', 'startVisibility', 'placeOnAdd', 'placeOnShow', 'scrollOnOpen', 'showWhenClosed', 'toggleWhenClosed', 'afterClose', 'enterFrom', 'exitTo',
   'clearable', 'maxInstances',
 ];

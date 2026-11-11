@@ -41,7 +41,6 @@ const VALUE: Record<string, unknown> = {
   overflow: 'park',
   revealOnScroll: 'any',
   edgeHold: 'left',
-  resize: 'reveal',
   scrollOnOpen: 'center',
   scrollOnMove: 'none',
   toggleWhenClosed: 'reopen',
