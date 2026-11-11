@@ -12,7 +12,6 @@ import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { LandingContext, useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
-import { EMBLA_WINDOW_ATTRIBUTE } from './emblaRow.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
 /**
@@ -481,33 +480,26 @@ function useHoldsFrame(slot: React.RefObject<HTMLElement | null>): boolean {
 }
 
 /**
- * The box a resize animates. It is laid out once at the new size, and its drawn size eases from the size on screen to the new
- * one over the slide, in step with the neighboring slots, by a scale about its top left corner: the content takes its new layout
- * at the start and is drawn stretched in between. A row already draws one around every panel, which follows the panel's `resize`
- * setting; a `PanelSizeBox` inside it is a plain div that fills it. Under Reduce Motion, or while a host holds a width, the resize snaps.
+ * The box a resize animates. Its size eases from the size on screen to the new one over the slide, in step with the neighboring
+ * slots, and its content is laid out at the eased size on every frame, so a frame's border, corners and edge controls stay on the
+ * moving edge and a cover-fit picture keeps its centre. A row already draws one around every panel; a `PanelSizeBox` inside it is a
+ * plain div that fills it. Under Reduce Motion, or while a host holds a width, the resize snaps.
  * @public
  */
 export function PanelSizeBox({
   width,
   height,
-  reveal,
   children,
 }: {
   /** The box's width in px; a change animates. Omitted: the slot's drawn width inside a row, else the phone width. */
   width?: number;
   /** The box's height in px; a change animates. Omitted: the slot's drawn height inside a row, else the phone height. */
   height?: number;
-  /**
-   * True: while the box glides, its content is laid out once at the larger of the start and end sizes and is clipped, not
-   * scaled, to the eased size, so the content is resized when a grow starts and when a shrink ends and is never stretched.
-   * Nothing is clipped above the box, nor below it while the height holds, so a frame's header and footer still show. Default false.
-   */
-  reveal?: boolean;
-  /** The content, laid out at the box's new size, or under `reveal` at the glide's larger size. */
+  /** The content, laid out at the box's size as drawn. */
   children: React.ReactNode;
 }) {
   return (
-    <SizeBox width={width} height={height} reveal={reveal}>
+    <SizeBox width={width} height={height}>
       {children}
     </SizeBox>
   );
@@ -547,7 +539,7 @@ export const useInsideSizeBox = (): boolean => React.useContext(SizeBoxContext);
  * default frame draws around its whole panel. A box below another draws a plain div of the same size.
  * @internal
  */
-export function SizeBox({ width: given, height: givenHeight, reveal = false, children }: { width?: number; height?: number | '100%'; reveal?: boolean; children: React.ReactNode }) {
+export function SizeBox({ width: given, height: givenHeight, children }: { width?: number; height?: number | '100%'; children: React.ReactNode }) {
   const slot = React.useContext(PanelSlotContext);
   // Read without throwing: a box given both sides needs no host.
   const phone = useOptionalPhoneSize();
@@ -582,10 +574,7 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
     setGlide({ from: start, to });
     const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
     const startMs = sharedStartTime();
-    // On an Embla row the strip and every slot glide move on the main thread, so the size box eases there too, on the same clock: run
-    // by the compositor it drew frames ahead of its neighbors' glides, and a painted frame showed a gap opening beside it.
-    const mainThread = node.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`) !== null;
-    run.current = runSizeGlide(node, reveal ? 'clip' : 'scale', start, to, transition, startMs, mainThread, () => {
+    run.current = runSizeGlide(node, start, to, transition, startMs, () => {
       run.current = undefined;
       setGlide(null);
     });
@@ -595,25 +584,11 @@ export function SizeBox({ width: given, height: givenHeight, reveal = false, chi
   React.useEffect(() => () => run.current?.stop(), []);
   // It fills the box above, so it eases with that box rather than snapping to its own size.
   if (nested) return <div data-panel-size-plain="" style={{ width: '100%', height: '100%' }}>{children}</div>;
-  // The larger size, so a grow lays the content out once at its start and a shrink once at its end.
-  const content = reveal ? (
-    <div
-      data-panel-size-reveal=""
-      style={{
-        width: glide === null ? '100%' : Math.max(glide.from.width, glide.to.width),
-        height: glide !== null && typeof glide.from.height === 'number' && typeof glide.to.height === 'number' && glide.from.height !== glide.to.height ? Math.max(glide.from.height, glide.to.height) : '100%',
-      }}
-    >
-      {children}
-    </div>
-  ) : (
-    children
-  );
-  // Laid out at the landing size once; the glide is drawn by a transform or a clip, which the browser composites.
+  // Its style is the landing size; the glide eases its real size, so the content is laid out at the size it is drawn at.
   return (
     <div ref={box} data-panel-size-box="" style={{ width, height }}>
       <SizeBoxContext.Provider value>
-        <SizeGlideContext.Provider value={glide}>{content}</SizeGlideContext.Provider>
+        <SizeGlideContext.Provider value={glide}>{children}</SizeGlideContext.Provider>
       </SizeBoxContext.Provider>
     </div>
   );
@@ -638,43 +613,31 @@ function shownSize(run: SizeRun): BoxSize {
   };
 }
 
-// The box keeps its landing size; a scale (reflow) or a clip (reveal) draws the eased size about its top left corner.
-function sizeFrame(kind: 'clip' | 'scale', size: BoxSize, to: BoxSize, heightEases: boolean): string {
-  const h = heightEases ? (size.height as number) / (to.height as number) : 1;
-  if (kind === 'scale') return `scale(${size.width / to.width}, ${h})`;
-  // Never clipped above, and below only while the height eases: a frame's header and footer may be drawn outside the box.
-  return `inset(-100vh ${to.width - size.width}px ${heightEases ? `${(to.height as number) - (size.height as number)}px` : '-100vh'} 0px)`;
+// The eased size as the box's real width, and height while that eases too: a height of the slot's own (`'100%'`) is left alone.
+function sizeFrame(size: BoxSize, heightEases: boolean): Keyframe {
+  return heightEases ? { width: `${size.width}px`, height: `${size.height as number}px` } : { width: `${size.width}px` };
 }
 
 function runSizeGlide(
   node: HTMLElement,
-  kind: 'clip' | 'scale',
   from: BoxSize,
   to: BoxSize,
   transition: { duration: number; ease: [number, number, number, number] },
   startTime: number,
-  mainThread: boolean,
   onLand: () => void,
 ): SizeRun {
-  const property = kind === 'clip' ? 'clipPath' : 'transform';
   const heightEases = typeof from.height === 'number' && typeof to.height === 'number' && from.height !== to.height;
-  const first = sizeFrame(kind, from, to, heightEases);
-  const last = sizeFrame(kind, to, to, heightEases);
   if (typeof node.animate === 'function') {
-    // A Web Animation, not a style written each frame: it leaves no style behind when it ends or is cancelled.
-    // `startTime` can be ahead of the timeline, whose clock only moves per frame; without the backwards fill that frame shows the landing size.
-    // Kept on the main thread, the scale is added to the box's own (none) transform, which Chrome does not composite; its origin is the
-    // box's style for the run, since an added origin would sum with the base one.
-    const added = mainThread && kind === 'scale';
-    if (added) node.style.transformOrigin = '0 0';
-    const animation = added
-      ? node.animate({ transform: [first, last] }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards', composite: 'add' })
-      : node.animate({ [property]: [first, last], ...(kind === 'scale' ? { transformOrigin: ['0 0', '0 0'] } : {}) }, { duration: transition.duration * 1000, easing: `cubic-bezier(${transition.ease.join(',')})`, fill: 'backwards' });
+    // A Web Animation on the shared start time, the clock the neighboring slots glide on; it leaves the landing size behind when it ends
+    // or is cancelled. `startTime` can be ahead of the timeline, whose clock only moves per frame; without the backwards fill that frame
+    // shows the landing size.
+    const animation = node.animate([sizeFrame(from, heightEases), sizeFrame(to, heightEases)], {
+      duration: transition.duration * 1000,
+      easing: `cubic-bezier(${transition.ease.join(',')})`,
+      fill: 'backwards',
+    });
     animation.startTime = startTime;
-    animation.onfinish = () => {
-      if (added) node.style.transformOrigin = '';
-      onLand();
-    };
+    animation.onfinish = onLand;
     return {
       from,
       to,
@@ -682,16 +645,14 @@ function runSizeGlide(
       stop: () => {
         animation.onfinish = null;
         animation.cancel();
-        if (added) node.style.transformOrigin = '';
       },
     };
   }
-  // No Web Animations (a test DOM): the same frames written by Motion's frame loop.
+  // No Web Animations (a test DOM): the same frames written by Motion's frame loop, ending on the landing size React wrote.
   let shown = 0;
   const draw = (p: number): void => {
     shown = p;
-    if (kind === 'scale') node.style.transformOrigin = p >= 1 ? '' : '0 0';
-    node.style[property] = p >= 1 ? '' : sizeFrame(kind, shownSize({ from, to, progress: () => p, stop: () => undefined }), to, heightEases);
+    Object.assign(node.style, sizeFrame(shownSize({ from, to, progress: () => p, stop: () => undefined }), heightEases));
   };
   draw(0);
   const controls = animate(0, 1, { ...transition, startTime, onUpdate: draw, onComplete: () => {
@@ -702,10 +663,7 @@ function runSizeGlide(
     from,
     to,
     progress: () => shown,
-    stop: () => {
-      controls.stop();
-      node.style[property] = '';
-      node.style.transformOrigin = '';
-    },
+    // The next commit has already written its own size, so a stopped glide writes nothing.
+    stop: () => controls.stop(),
   };
 }

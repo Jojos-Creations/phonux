@@ -497,7 +497,7 @@ export function PanelRow({
   // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
   const slotFor = (p: PanelRowEntry, rest: { leftOffset: number; width: number }, held: boolean): React.ReactElement => {
     const Component = resolveViewIn(templateOf, p.view);
-    const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons, resize } = effective(p);
+    const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
     const own = rowTuning;
     const handle = viewContext.handleFor(panelKey(p));
     const report = binding.reportError;
@@ -578,7 +578,7 @@ export function PanelRow({
           {!loadedNow.has(p.id) ? (
             <div {...{ [EMBLA_UNLOADED_ATTRIBUTE]: '' }} style={{ width: '100%', height: '100%' }} />
           ) : (
-            <SizeBox reveal={resize === 'reveal'}>
+            <SizeBox>
               <useViewState.Provider value={panelKey(p)}>
                 <Component panel={summary} />
               </useViewState.Provider>

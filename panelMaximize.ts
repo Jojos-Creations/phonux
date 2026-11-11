@@ -60,9 +60,8 @@ const SAMPLE_MS = 1000 / 60;
 /**
  * Grows `root` from its slot until it fills the window, and back. The root goes to the top layer through the popover attribute, so
  * no ancestor's transform, clip or stacking order can hold it and it never leaves its place in the DOM, which a web view inside it
- * would answer by reloading. Its box is set to the window once, so its content is laid out at the window's size; the grow and
- * the shrink move it to the slot's corner and clip it to the eased size, never scaling it, so no frame lays the panel out again or
- * draws its content stretched.
+ * would answer by reloading. The grow and the shrink ease its real box between the slot's and the window's, so its content is laid
+ * out at the size it is drawn at: never stretched, with the frame's border, corners and edge controls on its moving edges.
  */
 function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phase: MaximizePhase) => void, topInset: () => number): Maximizer {
   let phase: MaximizePhase = 'home';
@@ -79,22 +78,19 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
 
   const slotBox = (): Box => boxOf((root.parentElement ?? root).getBoundingClientRect());
 
-  // The eased box, drawn as the window-sized root moved to its corner and clipped to its size, with the frame's corner on the clip.
-  const styleAt = (p: number): { transform: string; clipPath: string } => {
-    const x = lerp(slot.left, full.left, p) - full.left;
-    const y = lerp(slot.top, full.top, p) - full.top;
-    const right = full.width - lerp(slot.width, full.width, p);
-    const bottom = full.height - lerp(slot.height, full.height, p);
-    return { transform: `translate(${x}px, ${y}px)`, clipPath: `inset(0px ${right}px ${bottom}px 0px round ${lerp(frameRadius, 0, p)}px)` };
-  };
+  // The eased box, and the frame's corner easing to the window's square one.
+  const boxAt = (p: number): Keyframe => ({
+    top: `${lerp(slot.top, full.top, p)}px`,
+    left: `${lerp(slot.left, full.left, p)}px`,
+    width: `${lerp(slot.width, full.width, p)}px`,
+    height: `${lerp(slot.height, full.height, p)}px`,
+  });
+  const cornerAt = (p: number): Keyframe => ({ borderRadius: `${lerp(frameRadius, 0, p)}px` });
 
   const paint = (p: number): void => {
     progress = p;
-    Object.assign(root.style, styleAt(p));
-  };
-
-  const place = (box: Box): void => {
-    Object.assign(root.style, { top: `${box.top}px`, left: `${box.left}px`, width: `${box.width}px`, height: `${box.height}px` });
+    Object.assign(root.style, boxAt(p));
+    if (frame !== null) Object.assign(frame.style, cornerAt(p));
   };
 
   const setPhase = (next: MaximizePhase): void => {
@@ -122,11 +118,8 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
       // The frame's own pixel size would hold it at the slot's size inside the window's box.
       frame.style.width = '100%';
       frame.style.height = '100%';
-      // The clip draws the corner, at the size on screen.
-      frame.style.borderRadius = '0';
     }
     full = windowBox(topInset());
-    place(full);
     paint(0);
   };
 
@@ -134,7 +127,7 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
   const settle = (): void => {
     root.setAttribute(MAXIMIZED_ATTRIBUTE, '');
     // Longhands: a shorthand a test cannot read would hide a wrong inset.
-    Object.assign(root.style, { top: `${topInset()}px`, left: '0', right: '0', bottom: '0', transform: '', clipPath: '' });
+    Object.assign(root.style, { top: `${topInset()}px`, left: '0', right: '0', bottom: '0' });
     root.style.width = 'auto';
     root.style.height = 'auto';
     root.style.background = '';
@@ -146,9 +139,7 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     root.removeAttribute(MAXIMIZED_ATTRIBUTE);
     root.style.background = 'transparent';
     Object.assign(root.style, { right: 'auto', bottom: 'auto' });
-    if (frame !== null) frame.style.borderRadius = '0';
     full = windowBox(topInset());
-    place(full);
     slot = slotBox();
     paint(1);
   };
@@ -190,9 +181,9 @@ function createMaximizer(root: HTMLElement, timing: () => Timing, onPhase: (phas
     const durationMs = glide.duration * 1000;
     const curve = cubicBezier(glide.ease[0], glide.ease[1], glide.ease[2], glide.ease[3]);
     const steps = Math.max(1, Math.ceil(durationMs / SAMPLE_MS));
-    const frames: Keyframe[] = [];
-    for (let k = 0; k <= steps; k += 1) frames.push({ ...styleAt(lerp(from, to, curve(k / steps))), offset: k / steps });
-    const anims = [animateShared(root, frames, durationMs)].filter((a): a is Animation => a !== null);
+    const at = (k: number): number => lerp(from, to, curve(k / steps));
+    const frames = (style: (p: number) => Keyframe): Keyframe[] => Array.from({ length: steps + 1 }, (_, k) => ({ ...style(at(k)), offset: k / steps }));
+    const anims = [animateShared(root, frames(boxAt), durationMs), frame === null ? null : animateShared(frame, frames(cornerAt), durationMs)].filter((a): a is Animation => a !== null);
     // Under the animation, the box it lands on, so its end hands over without a frame of the old one.
     if (anims.length > 0) paint(to);
     run = { from, to, startMs: sharedStartTime(), durationMs, curve, anims, done };
