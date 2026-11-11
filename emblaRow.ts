@@ -508,14 +508,16 @@ export function emblaWouldShow(embla: EmblaCarouselType, id: string, align: 'int
 const heldRows = new WeakSet<EmblaCarouselType>();
 
 /**
- * How long a wheel gesture holds the row after its last wheel before it settles: Chromium's own wheel transaction (a wheel this soon
- * after the last one is the same scroll), so a finger lifted to reposition on a wheel or a trackpad keeps the row where it is drawn.
- * After a trackpad's momentum the wait is short: the momentum's own end is the end of the gesture.
+ * How long a wheel gesture holds the row after its last wheel before it settles: just over the gap between two events of one
+ * continuous scroll, so the glide to the stop ahead starts while the row still has the wheel's speed. A wheel that comes later starts
+ * a new gesture, which keeps the glide's speed when it goes the same way.
  */
-const WHEEL_IDLE_MS = 500;
-const WHEEL_IDLE_MOMENTUM_MS = 150;
-/** The share of the gap between two stops a wheel gesture must cover to rest on the stop ahead; under it the row returns. */
-export const BACK_FRACTION = 0.25;
+const WHEEL_IDLE_MS = 90;
+const WHEEL_IDLE_MOMENTUM_MS = 60;
+/** A momentum wheel under this many px is the slow tail of a trackpad's momentum: the row leaves it and glides to the stop ahead. */
+const WHEEL_TAIL_PX = 3;
+/** The share of the gap between two stops a wheel gesture must cover to rest on the stop ahead: a touch under it returns. */
+export const BACK_FRACTION = 0.02;
 /** Wheel travel against a gesture's direction that turns it: a momentum tail's last events can flicker a px the other way. */
 const WHEEL_AGAINST_PX = 8;
 /**
@@ -562,8 +564,8 @@ function setWheelBody(embla: EmblaCarouselType): void {
  * One wheel of a gesture on the row `embla`: `by` scroll px (sideways, already normalized), `momentum` when the browser flags it as a
  * trackpad's momentum. The row follows the wheel 1:1: the system already accelerates a wheel and gives a trackpad its momentum. The
  * first wheel starts the gesture where the row is drawn: a glide going the wheel's way keeps its speed, any other stops there, as a
- * press stopped it. The target stops flat at the row's ends: no stretch past them and no spring back. Every wheel restarts the wait
- * for the wheel to stop; the row never settles while it goes on.
+ * press stopped it. The target stops flat at the row's ends: no stretch past them and no spring back. Every wheel restarts the short
+ * wait for the wheel to stop; a momentum's slow tail settles the row at once.
  */
 function wheelBy(embla: EmblaCarouselType, by: number, momentum: boolean): void {
   const e = embla.internalEngine();
@@ -580,6 +582,10 @@ function wheelBy(embla: EmblaCarouselType, by: number, momentum: boolean): void 
     wheelRuns.set(embla, run);
   }
   if (run.idle !== null) clearTimeout(run.idle);
+  if (momentum && run.dir !== 0 && Math.abs(by) < WHEEL_TAIL_PX) {
+    settleWheelRun(embla);
+    return;
+  }
   run.idle = setTimeout(() => settleWheelRun(embla), momentum ? WHEEL_IDLE_MOMENTUM_MS : WHEEL_IDLE_MS);
   setWheelBody(embla);
   const from = emblaTargetOf(embla);
