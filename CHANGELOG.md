@@ -61,14 +61,15 @@
 - The View Size menu is a pill across the panel with the panel's corners, and the current size is highlighted and disabled.
 - A stepping row draws whole panels in its slot grid and nothing beside it. No slot is hidden any more (a stale measured box once hid panels the window showed): the strip is clipped at the grid's edges from the row's numbers, a panel crossing an edge mid-move is cut there, and reach is judged from the numbers. A left or right `edgeHold` panel sits in the grid's first or last slot, inside the row's margin, with the strip's next panel one gap from it. `snapToStop` and a restored rest land only on stops that draw the panel whole. The flush end rest lives in one function (`flushEndRest`).
 - A template's own `firstPressFocusOnly` (boolean) overrides the workspace's `tuning.firstPressFocusOnly` for that template's panels, either way. Left out, the workspace value decides. `definePanel` refuses a non-boolean.
-- A size glide never draws a panel's content stretched or squeezed. The `resize` setting's default is now `'reveal'` (was
-  `'reflow'`): the content is laid out once at the larger of the two sizes and the panel's moving edge clips it, so a Phone to Fold
-  grow re-lays the content out when it starts and a shrink when it ends. `'reflow'` is still there for a host that wants it, and
-  still scales the content to the eased size. **Migration:** a host that relied on the default scale sets `resize: 'reflow'`.
-- Fullscreen (`usePanelMaximize`, the View Size menu's Fullscreen) grows and shrinks a panel by moving it and clipping it, no longer
-  by a scale: the panel is laid out at the window's size from the first frame, so its content shows at its full-window layout,
-  revealed from the slot's corner, and the frame's corner radius is drawn by the clip. It is still the page's own full-window view,
-  not the browser's or the operating system's fullscreen.
+- A size glide (Phone to Fold and back, any View Size pick, a phone-model change) eases the panel's real size, so its content is
+  laid out at the size it is drawn at on every frame: never stretched or squeezed, the frame's edge, corners and glow stay on the
+  moving edge, and a cover-fit picture keeps its centre as it shows more or less of itself. rc.6 scaled the content (stretched
+  until it landed); an earlier rc.7 build clipped content laid out at the larger size, which cut the frame's edge and glow at the
+  moving edge and jumped the picture to its new framing. The `resize` setting and `PanelSizeBox`'s `reveal` are removed: a
+  template that still names `resize` is told once and the value is ignored. **Migration:** drop `resize` and `reveal`.
+- Fullscreen (`usePanelMaximize`, the View Size menu's Fullscreen) grows and shrinks a panel by easing its real box from the
+  slot's to the window's, and its corner radius to square, no longer by a scale: the content is laid out at the drawn size on every
+  frame. It is still the page's own full-window view, not the browser's or the operating system's fullscreen.
 
 ## 0.2.0-rc.6
 

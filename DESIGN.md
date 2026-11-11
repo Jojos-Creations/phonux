@@ -561,12 +561,15 @@ slot, position and the row's capacity follow, but its content snaps to the new s
 view renders a size box. The row's centering margin glides with the resize even right after a window resize,
 when a window-driven margin change would snap.
 
-The drawn size is a Web Animation of a `transform: scale()` about the box's top left corner, never its real width and height.
-Easing the real size laid every panel's whole content out again on every frame, and a phone-model change does that for every
-panel at once, which is what stalled the glide; a transform runs on the compositor with no layout at all. The cost is that the
-content takes its new layout at the start and is drawn stretched until the box lands, chrome included (the corner radius, the
-1 px edge, the header pill); `reveal` (below) clips instead of stretching. A height of the slot's own (`'100%'`) has no number
-to ease, so only the width scales then. A glide that is cut off part way starts the next from the eased size on screen.
+The drawn size is a Web Animation of the box's real width (and height while that eases), on the row's shared start time, so the
+content is laid out at the size it is drawn at on every frame: the frame's 1 px edge, its corners, a glow behind it and the header's
+buttons stay on the moving edge, and a cover-fit picture keeps its centre. Two cheaper drawings were tried and given up on the
+owner's eye: a `transform: scale()` drew the content stretched until it landed, and a `clip-path` of content laid out at the
+larger size cut the frame's edge, corners and glow at the moving edge (a dark band in dark mode) and jumped the picture to its new
+framing at the start or end. Easing the real size was first dropped because a phone-model change relays every panel at once; in
+the app (pictures, no webviews) seven panels resizing together drew the same frames as the clip did. A height of the slot's own
+(`'100%'`) has no number to ease, so only the width eases then. A glide that is cut off part way starts the next from the eased
+size on screen.
 
 The size box follows any change of the panel's width, not only a slot-count change. Choosing a different phone
 model resizes every panel's size box too, so their width and height glide over the same 0.6 s while
@@ -574,11 +577,7 @@ the slots slide to their new positions; the root, which has no size box, takes t
 panel lands exactly on its slots at the new phone size. A window resize that moves the fit cap resizes a capped panel the
 same way.
 
-`PanelSizeBox`'s `reveal` lays the content out once at the larger of the glide's start and end sizes and animates a
-`clip-path: inset()` on the box instead of a scale, the same way a slot's entrance reveals content at its full width: a grow
-resizes the content when it starts and a shrink when it ends, and nothing is stretched. That suits content in another process
-(a `<webview>`, an out-of-process iframe), which should be resized as few times as possible. The clip never cuts above the box,
-and below it only while the height eases, never `overflow`, because a frame draws its header and footer outside the box. `usePanelSizeGlide()` reports the glide (its
+`usePanelSizeGlide()` reports the glide (its
 start and end size) from the commit that starts it until it lands, for a host that handles the content itself, such as holding
 a page's load back until the size is still. It is state on the box, set in the layout effect that starts the glide, so a
 consumer re-renders twice per glide, never per frame. A window that draws no frames does not advance a glide, so a host that

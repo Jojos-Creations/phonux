@@ -1025,7 +1025,6 @@ export interface PanelsInput {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneWidth: number;
     resetHostDataOnRestore?: (hostData: JsonValue | undefined, panel: PanelWindow) => JsonValue | undefined;
-    rowEngine?: 'own' | 'embla';
     workspace: WorkspaceHandle;
 }
 
@@ -1039,7 +1038,6 @@ export interface PanelSize {
 export function PanelSizeBox(input: {
     width?: number;
     height?: number;
-    reveal?: boolean;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -1541,7 +1539,6 @@ export type SettingValues = {
     overflow: Overflow;
     revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
-    resize: 'reveal' | 'reflow';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -1667,10 +1664,8 @@ export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" 
 
 // @public
 export function usePanelDots(i: {
-    rowNumbers: RowNumbers;
     entries: readonly WorkspaceRowEntry[];
     scroller: React_2.RefObject<HTMLElement | null>;
-    tuning: Pick<ResolvedWorkspaceTuning, 'slide'> & Partial<Pick<ResolvedWorkspaceTuning, 'fastScroll'>>;
     ovalSide?: number;
 }): PanelDots;
 
@@ -1933,7 +1928,6 @@ export type WorkspaceOptions = WorkspaceLive & {
     theme?: (mode: 'light' | 'dark') => PhonuxTheme;
     wrap?: ComponentType<WorkspaceWrapProps>;
     undoToast?: boolean;
-    rowEngine?: 'own' | 'embla';
     rowNearSlots?: number;
 };
 
@@ -2015,7 +2009,6 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneHeight?: number;
     phoneWidth: number;
-    rowEngine?: 'own' | 'embla';
     rowNearSlots?: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
