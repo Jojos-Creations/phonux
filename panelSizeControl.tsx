@@ -21,16 +21,16 @@ import { panelRootOf } from './rowDom.js';
 /** The menu's inset from the panel's sides, in px. */
 const MENU_INSET_PX = 8;
 
-/** A pill across the panel under the button, inset the same on both sides, its corners the panel's own, so the menu never covers the next panel. */
+/** A bar across the top of the panel's frame, inset the same from its top and sides with corners that nest in the frame's, so the menu never covers the next panel. */
 function insidePanel(button: HTMLElement | null): { top: number; left: number; width: number | undefined; radius: string | undefined } {
   const root = button ? panelRootOf(button) : null;
   const frame = root?.querySelector<HTMLElement>(`[${PHONE_FRAME_ATTRIBUTE}]`) ?? root;
   const panel = frame?.getBoundingClientRect();
   return {
-    top: button?.getBoundingClientRect().bottom ?? 0,
+    top: panel ? panel.top + MENU_INSET_PX : (button?.getBoundingClientRect().bottom ?? 0),
     left: (panel?.left ?? 0) + MENU_INSET_PX,
     width: panel ? panel.width - 2 * MENU_INSET_PX : undefined,
-    radius: frame ? getComputedStyle(frame).borderTopLeftRadius : undefined,
+    radius: frame ? `${Math.max(0, (Number.parseFloat(getComputedStyle(frame).borderTopLeftRadius) || 0) - MENU_INSET_PX)}px` : undefined,
   };
 }
 
@@ -113,7 +113,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
         anchorReference="anchorPosition"
         anchorPosition={{ top: place.top, left: place.left }}
         marginThreshold={0}
-        slotProps={{ paper: { sx: { width: place.width, maxWidth: place.width, borderRadius: place.radius } }, list: { sx: { p: 0 } } }}
+        slotProps={{ paper: { sx: { width: place.width, maxWidth: place.width, borderRadius: place.radius, border: 1, borderColor: 'divider', boxSizing: 'border-box' } }, list: { sx: { p: 0 } } }}
       >
         <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, px: 2, py: 1 }}>
           <Typography variant="caption" component="div" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
