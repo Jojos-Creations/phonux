@@ -566,6 +566,12 @@ export function PanelRow({
           onActivate={(control) => {
             chrome.setActive(p.id);
             binding.touch(p.id, control);
+            // A panel the window's edge cuts comes whole into view as it takes the focus.
+            const embla = windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
+            const at = lastLayout.current;
+            const k = at === null ? -1 : at.ids.indexOf(p.id);
+            const to = embla === undefined || at === null || k < 0 || dragging !== null ? null : revealScroll(at.lefts[k]!, at.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
+            if (embla !== undefined && to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
           }}
           dragged={dragging?.id === p.id}
           frame={sticky === null ? (rowNumbers?.leftInset ?? 0) : undefined}
