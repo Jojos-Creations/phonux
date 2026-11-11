@@ -113,7 +113,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
         anchorReference="anchorPosition"
         anchorPosition={{ top: place.top, left: place.left }}
         marginThreshold={0}
-        slotProps={{ paper: { sx: { width: place.width, maxWidth: place.width, borderRadius: place.radius, border: 1, borderColor: 'divider', boxSizing: 'border-box' } }, list: { sx: { p: 0 } } }}
+        slotProps={{ paper: { sx: { width: place.width, maxWidth: place.width, borderRadius: place.radius } }, list: { sx: { p: 0 } } }}
       >
         <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, px: 2, py: 1 }}>
           <Typography variant="caption" component="div" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
