@@ -607,6 +607,16 @@ export function PanelRow({
       const to = k < 0 ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
       if (to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
     }
+    const before = lastLayout.current;
+    if (embla !== undefined && before !== null && lastWindow.current === emblaWindow.width) {
+      // A panel that grew past the window's edge comes whole into view, as a reordered one does.
+      const k = layoutNow.ids.findIndex((id, i) => {
+        const j = before.ids.indexOf(id);
+        return j >= 0 && layoutNow.widths[i]! > before.widths[j]! + 0.5;
+      });
+      const to = k < 0 ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
+      if (to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
+    }
     if (embla !== undefined && lastLayout.current !== null && keeping && boxRef.current !== null) {
       // Two commits in one task (a width change, then the root it lets back beside the page) paint once: glide from what was painted.
       const shown = shownRef.current !== null && shownRef.current.task === taskToken() ? shownRef.current : { layout: lastLayout.current, drawn: drawnScrollNow };
