@@ -297,6 +297,13 @@ export type ChromeTuning = {
   fadeEase: FadeEase;
   /** 'outside' floats the header above the frame and the footer below it. 'inside' draws them over the frame as inset pills, and a panel that scrolls hides them while it scrolls down. */
   where: 'outside' | 'inside';
+  /**
+   * The widest panel, in phone slots, whose header and footer the row lays across the part of it the window shows while the window's
+   * edge cuts it: left buttons at the shown left, right buttons at the shown right, the middle centred between. A whole number from 1
+   * to 64: 2 (the default) for a fold panel only, 64 for every wider panel too, 1 for none. Never narrower than one phone: past that
+   * the chrome is cut with the panel. The frame is drawn as before, and a panel filling the window is not affected.
+   */
+  fitVisibleMaxSlots: number;
 };
 
 /** The workspace's tuning: the row-wide numbers, set through `createWorkspace({ tuning })` and `configureTuning`. A panel carries none. @public */
@@ -1123,8 +1130,8 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
   {
     name: 'tuning.chrome',
     group: 'tuning',
-    values: "object: where 'outside' or 'inside', mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]) (workspace only)",
-    default: "always, 120, easeOut, outside (CHROME)",
+    values: "object: where 'outside' or 'inside', mode 'always' or 'hover-or-active', fadeMs integer [0, 10000], fadeEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers, x1 and x2 in [0,1]), fitVisibleMaxSlots integer [1, 64] (workspace only)",
+    default: "always, 120, easeOut, outside, 2 (CHROME)",
     scope: 'workspace',
     viewSettable: false,
     exists: 'new',
@@ -1580,6 +1587,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
     fadeMs: integer(0, 10000),
     fadeEase: (v) => (typeof v === 'string' ? oneOf('easeIn', 'easeOut', 'easeInOut', 'linear')(v) : bezierProblem(v)),
     where: oneOf('outside', 'inside'),
+    fitVisibleMaxSlots: integer(1, 64),
   },
 };
 

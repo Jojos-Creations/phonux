@@ -80,7 +80,7 @@ test('loadedNear: property: in view always loaded, the cap holds above the view 
 
 test('emblaBarOf: one dot per panel at its place scaled to dots; the oval spans the dots of the panels in view', () => {
   const l = layoutOf([1, 3, 1, 2, 1, 1]);
-  const strip = { layout: l, windowWidth: W4, stripWidth: 9 * PITCH - GAP, pitch: PITCH, gap: GAP };
+  const strip = { layout: l, windowWidth: W4, stripWidth: 9 * PITCH - GAP, pitch: PITCH, gap: GAP, chromeFollowSlots: 2 };
   const scale = (DOT_PHONE_PX + DOT_GAP_PX) / PITCH;
   const bar = emblaBarOf(strip, 4 * PITCH, () => false);
   assert.equal(bar.dots.length, 6);

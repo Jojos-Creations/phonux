@@ -97,6 +97,7 @@ export type ChromeTuning = {
     fadeMs: number;
     fadeEase: FadeEase;
     where: 'outside' | 'inside';
+    fitVisibleMaxSlots: number;
 };
 
 // @public

@@ -85,6 +85,7 @@ export const CHROME = {
   fadeMs: 120,
   fadeEase: 'easeOut',
   where: 'outside',
+  fitVisibleMaxSlots: 2,
 } as const;
 
 /** Pixels between a header and the frame it floats above, and between the frame and its footer. */

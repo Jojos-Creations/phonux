@@ -13,7 +13,7 @@ import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
-import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
+import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** On the container of a row that runs on Embla. The old row's own wheel, touch and key listeners stand aside for it. @internal */
 export const ROW_ENGINE_ATTRIBUTE = 'data-row-engine';
@@ -312,6 +312,8 @@ export interface EmblaStrip {
   stripWidth: number;
   pitch: number;
   gap: number;
+  /** `tuning.chrome.fitVisibleMaxSlots`: the widest panel, in slots, whose header and footer follow the part the window shows. */
+  chromeFollowSlots: number;
 }
 
 const strips = new WeakMap<Element, EmblaStrip>();
@@ -333,7 +335,7 @@ export function subscribeEmblaRows(listener: () => void): () => void {
 export const emblaRowsVersion = (): number => rowVersion;
 
 const sameStrip = (a: EmblaStrip | undefined, b: EmblaStrip): boolean =>
-  a !== undefined && a.windowWidth === b.windowWidth && a.stripWidth === b.stripWidth && a.pitch === b.pitch && a.gap === b.gap && a.layout.ids.join(' ') === b.layout.ids.join(' ') && a.layout.lefts.join() === b.layout.lefts.join() && a.layout.widths.join() === b.layout.widths.join();
+  a !== undefined && a.windowWidth === b.windowWidth && a.stripWidth === b.stripWidth && a.pitch === b.pitch && a.chromeFollowSlots === b.chromeFollowSlots && a.gap === b.gap && a.layout.ids.join(' ') === b.layout.ids.join(' ') && a.layout.lefts.join() === b.layout.lefts.join() && a.layout.widths.join() === b.layout.widths.join();
 /** Records what the Embla row rooted on `win` lays out now. @internal */
 export function publishEmblaStrip(win: Element, strip: EmblaStrip): void {
   if (sameStrip(strips.get(win), strip)) return;
@@ -420,13 +422,23 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
 export function markAwaySlots(win: Element): number {
   const view = win.getBoundingClientRect();
   const store = awayStores.get(win);
+  const strip = strips.get(win);
+  // A panel lifted to fill the window is drawn over the whole window, so no edge cuts its chrome.
+  const lifted = strip !== undefined && strip.chromeFollowSlots >= 2 && maximizedIn(win);
   const seen = new Set<string>();
+  // Written after every slot is read, so a write never forces the next read to lay the row out again.
+  const cuts: [HTMLElement, { left: number; right: number }][] = [];
   let sum = 0;
   let k = 0;
   for (const slot of win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)) {
     const r = slot.getBoundingClientRect();
     k += 1;
     sum += k * r.left + r.width;
+    if (strip !== undefined) {
+      const slots = Math.round((r.width + strip.gap) / strip.pitch);
+      const follows = !lifted && slots >= 2 && slots <= strip.chromeFollowSlots;
+      cuts.push([slot, follows ? chromeCutOf(r.left, r.width, view.left, view.right, strip.pitch - strip.gap) : NO_CUT]);
+    }
     const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
     if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
     const id = slot.dataset.rowId;
@@ -436,9 +448,37 @@ export function markAwaySlots(win: Element): number {
     }
   }
   store?.retain(seen);
+  for (const [slot, cut] of cuts) writeChromeCut(slot, cut);
   return sum;
 }
 const awayStores = new WeakMap<Element, AwayStore>();
+const NO_CUT = { left: 0, right: 0 } as const;
+
+/**
+ * How far in from a slot's left and right its header and footer lie, so they span the part of it the window `viewLeft..viewRight`
+ * shows. Never narrower than `minWidth` (one phone): below that the chrome would not fit, so the cuts give back what they took past it,
+ * each in proportion, and the chrome goes off with the panel as it did uncut. Both zero for a slot the window shows whole.
+ * @internal
+ */
+export function chromeCutOf(slotLeft: number, width: number, viewLeft: number, viewRight: number, minWidth: number): { left: number; right: number } {
+  const left = Math.min(Math.max(viewLeft - slotLeft, 0), width);
+  const right = Math.min(Math.max(slotLeft + width - viewRight, 0), width);
+  const short = minWidth - (width - left - right);
+  if (short <= 0) return { left, right };
+  const total = left + right;
+  if (total <= short) return NO_CUT;
+  return { left: left - (short * left) / total, right: right - (short * right) / total };
+}
+
+const px = (v: number): string => (v < 0.005 ? '' : `${Math.round(v * 100) / 100}px`);
+// Written on the slot, read by the header and footer through CSS inheritance: a frame of the row restyles two values, never re-renders.
+function writeChromeCut(slot: HTMLElement, cut: { left: number; right: number }): void {
+  for (const [name, v] of [[CHROME_CUT_LEFT_PROPERTY, px(cut.left)], [CHROME_CUT_RIGHT_PROPERTY, px(cut.right)]] as const) {
+    if (slot.style.getPropertyValue(name) === v) continue;
+    if (v === '') slot.style.removeProperty(name);
+    else slot.style.setProperty(name, v);
+  }
+}
 
 const awayKicks = new WeakMap<Element, () => void>();
 /** Keeps the inert marks of the row rooted on `win` current over the next frames: a commit that starts slot glides calls it. @internal */

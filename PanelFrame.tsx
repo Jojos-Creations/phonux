@@ -14,6 +14,7 @@ import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
+import { chromeCutSides } from './rowDom.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
 import { PanelSlotContext } from './panelSlotContext.js';
@@ -142,8 +143,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
       sx={{
         position: 'absolute',
         bottom: `calc(100% + ${HEADER_GAP_PX}px)`,
-        left: 0,
-        right: 0,
+        ...chromeCutSides(),
         // Fixed, so however the content wraps the header keeps its height.
         height: `${BAR_HEIGHT_PX}px`,
         display: 'flex',

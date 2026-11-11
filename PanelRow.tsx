@@ -627,7 +627,7 @@ export function PanelRow({
     if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken())) shownRef.current = { layout: lastLayout.current, drawn: drawnScrollNow, task: taskToken() };
     lastLayout.current = layoutNow;
     lastWindow.current = emblaWindow.width;
-    if (windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap });
+    if (windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap, chromeFollowSlots: workspaceTuning.chrome.fitVisibleMaxSlots });
     // A commit can start slots moving on their own (an entrance, a glide, a reorder shift): the inert marks follow them frame by frame.
     if (windowRef.current !== null) kickEmblaAway(windowRef.current);
   });
