@@ -63,7 +63,7 @@ export interface WorkspaceWrapProps {
 export type WorkspaceOptions = WorkspaceLive & {
   /** The workspace's stable id, the key a column stores its panels under. Unset: a counter id. */
   id?: string;
-  /** The workspace's name, shown by a column. Unset: `'Workspace'`. Trimmed and cut to `MAX_WORKSPACE_NAME` characters; an empty one is ignored. */
+  /** The workspace's name, shown by a column. Unset: `'Space'`. Trimmed and cut to `MAX_WORKSPACE_NAME` characters; an empty one is ignored. */
   name?: string;
   /** Called with the new name after `workspace.rename` changed it, never for the name the workspace started with. */
   onRename?: (name: string) => void;

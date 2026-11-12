@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+- The default English labels say "space" where a person reads them: the create button is `New space` (was `Create new
+  workspace`), the name input is `Space name`, and a column names new workspaces `Space 1`, `Space 2`... (a workspace made
+  with no name is `Space`). Saved names are not rewritten; an older `Workspace N` stays and does not block a `Space N`.
+  APIs, ids (`workspace-N`) and data attributes are unchanged.
+
 ### Added
 
 - `tuning.chrome.fitVisibleMaxSlots` (whole number 1 to 64, default 2): while the window's edge cuts a panel 2 to that many slots

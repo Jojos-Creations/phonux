@@ -12,11 +12,11 @@ export interface PhonuxLabels {
   untitledHeader: string;
   /** The accessible name of a panel's close button. Default `Close`. */
   close: string;
-  /** The text of the button that creates a workspace where the column has none above or below. Default `Create new workspace`. */
+  /** The text of the button that creates a workspace where the column has none above or below. Default `New space`. */
   newWorkspace: string;
   /** The accessible name of the button that moves to the workspace called `name`. Default `Go to <name>`. */
   goToWorkspace: (name: string) => string;
-  /** The accessible name of the input that holds a workspace's name. Default `Workspace name`. */
+  /** The accessible name of the input that holds a workspace's name. Default `Space name`. */
   workspaceName: string;
   /** The accessible name of the row of panels, a region. Default `Panels`. */
   row: string;
@@ -68,9 +68,9 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   untitledPanel: 'Untitled panel',
   untitledHeader: 'Untitled',
   close: 'Close',
-  newWorkspace: 'Create new workspace',
+  newWorkspace: 'New space',
   goToWorkspace: (name) => `Go to ${name}`,
-  workspaceName: 'Workspace name',
+  workspaceName: 'Space name',
   row: 'Panels',
   panelPosition: (title, place, total) => `${title}, ${place} of ${total}`,
   grabStrip: (title) => `Move or close ${title}`,

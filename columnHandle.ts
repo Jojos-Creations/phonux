@@ -272,7 +272,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
 
   const freeName = (): string => {
     const used = new Set(list.map((w) => w.name));
-    for (let n = list.length + 1; ; n++) if (!used.has(`Workspace ${n}`)) return `Workspace ${n}`;
+    // Saved names are kept as they were: a "Workspace N" never matches "Space N", so it neither blocks nor shifts the next number.
+    for (let n = list.length + 1; ; n++) if (!used.has(`Space ${n}`)) return `Space ${n}`;
   };
   const freeId = (): string => {
     const ids = new Set(list.map((w) => w.id));
