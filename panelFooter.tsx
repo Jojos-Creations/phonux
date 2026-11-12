@@ -45,7 +45,7 @@ export function PanelFooter({ sx }: { sx?: CssStyle }): React.ReactElement | nul
   if (footer === null) return null;
   return (
     <FooterBoundary>
-      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${HEADER_GAP_PX}px)`, ...chromeCutSides(), boxSizing: 'border-box', height: `${BAR_HEIGHT_PX}px`, display: 'flex', alignItems: 'center', px: `${FOOTER_PAD_X_PX}px`, py: `${FOOTER_PAD_Y_PX}px`, ...sx }}>
+      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${HEADER_GAP_PX}px)`, ...chromeCutSides(), boxSizing: 'border-box', height: `${BAR_HEIGHT_PX}px`, display: 'flex', alignItems: 'center', px: `${FOOTER_PAD_X_PX}px`, py: `${FOOTER_PAD_Y_PX}px`, '&::before': { content: '""', position: 'absolute', left: 0, right: 0, bottom: '100%', height: `${HEADER_GAP_PX}px` }, ...sx }}>
         {footer}
       </Box>
     </FooterBoundary>

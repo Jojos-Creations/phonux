@@ -152,6 +152,8 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         py: '1px',
         fontSize: 13,
         color: 'text.primary',
+        // The gap under the header counts as the header, so a pointer resting in it has not left the panel.
+        '&::after': { content: '""', position: 'absolute', left: 0, right: 0, top: '100%', height: `${HEADER_GAP_PX}px` },
         ...sx,
       }}
     >
