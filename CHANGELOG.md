@@ -10,6 +10,10 @@
   border and glow are drawn as before; a panel filling the window is not affected. 1 turns it off. The row writes the two cuts as
   custom properties on the slot, and `PanelHeader` and `PanelFooter` read them.
 
+### Fixed
+
+- The View Size menu's label draws in the theme's secondary text color, as intended; under MUI 9 it drew in the primary text color.
+
 ### Removed (breaking)
 
 - The old panel row ('own') is gone: Embla is the only row (owner ruling 2026-11-09, plan step 8d). Removed with it:

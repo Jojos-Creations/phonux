@@ -115,7 +115,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
         slotProps={{ paper: { sx: { width: place.width, maxWidth: place.width, borderRadius: 999 } }, list: { sx: { p: 0 } } }}
       >
         <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, px: 2, py: 1 }}>
-          <Typography variant="caption" component="div" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+          {/* MUI 9's Typography takes the text colors as textPrimary/textSecondary; 'text.secondary' falls through to the primary text color. */}
+          <Typography variant="caption" component="div" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
             {labels.viewSize}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
