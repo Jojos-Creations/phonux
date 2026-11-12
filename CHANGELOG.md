@@ -94,6 +94,7 @@
 - Fullscreen (`usePanelMaximize`, the View Size menu's Fullscreen) grows and shrinks a panel by easing its real box from the
   slot's to the window's, and its corner radius to square, no longer by a scale: the content is laid out at the drawn size on every
   frame. It is still the page's own full-window view, not the browser's or the operating system's fullscreen.
+- Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel. Focus landing in such a portaled surface, which React counts as part of the row but the DOM does not, was taken for focus entering the row and moved to a panel, and the dialog's focus trap pulled it back, so the keys never got past the dialog's frame. The row now steers only focus that lands inside its own DOM.
 
 ## 0.2.0-rc.6
 
