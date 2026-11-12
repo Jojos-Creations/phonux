@@ -77,6 +77,7 @@ export function workspaceTileSpan(slots: number | undefined, columns: number): n
 
 /**
  * One row of tiles as `packWorkspaceTiles` lays them out: the tiles `start` up to (not including) `end`, in the order given.
+ * @public
  */
 export interface WorkspaceTileRow {
   /** The index of the row's first tile. */
@@ -93,10 +94,14 @@ export interface WorkspaceTileRow {
 }
 
 /**
- * Packs tiles into rows of `columns` grid columns, in the order given: a tile that does not fit in what is left of a row
- * starts the next row, and the row it left is stretched. No tile moves ahead of another to fill a hole.
- * @param spans - Each tile's span in columns, as `workspaceTileSpan` gives it.
- * @throws RangeError when `columns` is not a positive integer, or a span is not an integer from 1 to `columns`.
+ * Packs tiles into rows of `columns` columns, in the order given: a tile that does not fit in what is left of a row starts
+ * the next row, and the row it left is stretched. No tile moves ahead of another to fill a hole. A tile wider than
+ * `columns` takes a row of its own, whose `used` is then more than `columns`; a single-row strip reads the first row and
+ * shows none of it when it is that wide.
+ * @param spans - Each tile's width in columns: 1 for a phone page, 2 for a Fold page.
+ * @param columns - The columns a row holds: the grid's column count, or the phones that fit across a strip.
+ * @throws RangeError when `columns` is not a positive integer, or a span is not a positive integer.
+ * @public
  */
 export function packWorkspaceTiles(spans: readonly number[], columns: number): WorkspaceTileRow[] {
   if (!Number.isInteger(columns) || columns < 1) throw new RangeError(`WorkspacePanel: the column count must be a positive integer, got ${String(columns)}`);
@@ -104,8 +109,8 @@ export function packWorkspaceTiles(spans: readonly number[], columns: number): W
   let start = 0;
   let used = 0;
   spans.forEach((span, i) => {
-    if (!Number.isInteger(span) || span < 1 || span > columns) throw new RangeError(`WorkspacePanel: a tile span must be an integer from 1 to ${columns}, got ${String(span)}`);
-    if (used + span > columns) {
+    if (!Number.isInteger(span) || span < 1) throw new RangeError(`WorkspacePanel: a tile span must be a positive integer, got ${String(span)}`);
+    if (used > 0 && used + span > columns) {
       rows.push({ start, end: i, used, stretched: used < columns });
       start = i;
       used = 0;

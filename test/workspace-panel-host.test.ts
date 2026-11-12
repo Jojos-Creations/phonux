@@ -99,7 +99,9 @@ test('tiles pack into rows in order, and a row cut short by a tile that does not
   assert.deepEqual(rowsOf([2, 1, 2], 3), ['0-2:3', '2-3:2'], 'a full row before a drop is not stretched');
   assert.deepEqual(rowsOf([1, 1], 1), ['0-1:1', '1-2:1'], 'one column: one tile a row');
   assert.deepEqual(rowsOf([], 4), [], 'no tiles, no rows');
-  assert.throws(() => packWorkspaceTiles([3], 2), RangeError, 'a span wider than the grid');
+  assert.deepEqual(rowsOf([1, 3, 1], 2), ['0-1:1s', '1-2:3', '2-3:1'], 'a tile wider than the row takes a row of its own');
+  assert.deepEqual(rowsOf([2, 1], 1), ['0-1:2', '1-2:1'], 'a strip of one phone cannot show a Fold: its first row is too wide');
+  assert.throws(() => packWorkspaceTiles([0], 2), RangeError, 'a span below one');
   assert.throws(() => packWorkspaceTiles([1], 0), RangeError, 'no columns');
 });
 
