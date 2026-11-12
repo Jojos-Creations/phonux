@@ -3,6 +3,7 @@
 ## Unreleased
 
 - A template's own `firstPressFocusOnly` (boolean) overrides the workspace's `tuning.firstPressFocusOnly` for that template's panels, either way. Left out, the workspace value decides. `definePanel` refuses a non-boolean.
+- Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel. Focus landing in such a portaled surface, which React counts as part of the row but the DOM does not, was taken for focus entering the row and moved to a panel, and the dialog's focus trap pulled it back, so the keys never got past the dialog's frame. The row now steers only focus that lands inside its own DOM.
 
 ## 0.2.0-rc.6
 

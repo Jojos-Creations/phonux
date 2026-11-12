@@ -159,6 +159,7 @@ export function useTabPress(): React.RefObject<TabPress | null> {
  */
 export function steerEntry(event: React.FocusEvent<HTMLElement>, row: HTMLElement, readingIds: readonly string[], tab: TabPress | null): void {
   const from = event.relatedTarget as Node | null;
-  if (tab === null || (from !== null && row.contains(from))) return;
+  // A portaled dialog or popover is a React child of the row but not a DOM descendant; its focus is not the row's.
+  if (tab === null || !row.contains(event.target as Node) || (from !== null && row.contains(from))) return;
   enterInReadingOrder(row, readingIds, tab.shift);
 }
