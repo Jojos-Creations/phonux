@@ -598,6 +598,9 @@ export const OverlaySlot: React_2.NamedExoticComponent<{
 export type OverlaySlotName = 'dialog' | 'toast';
 
 // @public
+export function packWorkspaceTiles(spans: readonly number[], columns: number): WorkspaceTileRow[];
+
+// @public
 export function Panel(input: PanelProps): React_2.JSX.Element;
 
 // @public
@@ -1082,6 +1085,7 @@ export interface PanelState {
     readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly settings: ResolvedPanelSettings;
+    readonly slots?: number;
     readonly status: PanelStatus;
     readonly templateId: string;
     readonly title: string | undefined;
@@ -2074,6 +2078,14 @@ export interface WorkspaceTileCounts {
     readonly large: number;
     readonly medium: number;
     readonly small: number;
+}
+
+// @public
+export interface WorkspaceTileRow {
+    readonly end: number;
+    readonly start: number;
+    readonly stretched: boolean;
+    readonly used: number;
 }
 
 // @public

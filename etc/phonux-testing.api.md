@@ -362,6 +362,7 @@ export interface PanelState {
     readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly settings: ResolvedPanelSettings;
+    readonly slots?: number;
     readonly status: PanelStatus;
     readonly templateId: string;
     readonly title: string | undefined;
