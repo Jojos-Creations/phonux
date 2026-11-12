@@ -104,6 +104,14 @@ export interface WorkspaceColumnHandle {
    */
   removeWorkspace(target: WorkspaceHandle | number): boolean;
   /**
+   * Moves the workspace `target` (a handle of this column, or an index) to `toIndex` in `workspaces`, the others closing up around
+   * it, and saves the new order. The current workspace stays the same workspace; only its index follows the move. A `toIndex` past
+   * either end is clamped to it. Returns false and changes nothing for a workspace that is not in the column, a `toIndex` that is
+   * not a whole number, a column still reading its saved list (which would lay the saved order over the move), and a disposed
+   * column; returns true with nothing changed when `target` already stands at `toIndex`.
+   */
+  reorderWorkspace(target: WorkspaceHandle | number, toIndex: number): boolean;
+  /**
    * Moves the panel `panelId` from the workspace `from` to the end of the row of the workspace `to`, in the same column. Each
    * workspace is a handle of this column or an index into `workspaces`. The panel stays the same panel: its template, params, url,
    * title, size (slot count, and whether the person chose it) and saved identity (`uid`) all go with it; where it stood in the old row and whether the person made it parkable do not, the target saves it
@@ -346,6 +354,19 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       removed.dispose();
       list = list.filter((w) => w !== removed);
       current = cur === removed ? Math.min(i, list.length - 1) : cur === undefined ? -1 : list.indexOf(cur);
+      commit();
+      return true;
+    },
+    reorderWorkspace: (target, toIndex) => {
+      const i = typeof target === 'number' ? target : list.indexOf(target);
+      if (status !== 'ready' || !Number.isInteger(i) || i < 0 || i >= list.length || !Number.isInteger(toIndex)) return false;
+      const to = Math.max(0, Math.min(list.length - 1, toIndex));
+      if (to === i) return true;
+      const moved = list[i]!;
+      const cur = list[current];
+      const rest = list.filter((w) => w !== moved);
+      list = [...rest.slice(0, to), moved, ...rest.slice(to)];
+      current = cur === undefined ? -1 : list.indexOf(cur);
       commit();
       return true;
     },

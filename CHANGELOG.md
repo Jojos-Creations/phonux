@@ -14,6 +14,8 @@
 
 ### Added
 
+- `WorkspaceColumnHandle.reorderWorkspace(target, toIndex)`: moves a workspace to another place in the column and saves the
+  order. The current workspace stays current at its new index.
 - `tuning.chrome.fitVisibleMaxSlots` (whole number 1 to 64, default 2): while the window's edge cuts a panel 2 to that many slots
   wide, its header and footer are laid across the part the window shows (left buttons at the shown left, right buttons at the
   shown right, the middle centred between), following the row every frame and never narrower than one phone. The frame, picture,
