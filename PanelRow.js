@@ -1,0 +1,598 @@
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+/**
+ * One AnimatePresence over ONE array: each PRESENT entry (an always-shown column regardless of `live`, a
+ * collapsible one only while `live`) in its own animated slot, in the array's order. Not a view. Renders ONE
+ * root, this Box.
+ */
+import * as React from 'react';
+import { AnimatePresence, useReducedMotion, useReducedMotionConfig } from 'motion/react';
+import Box from '@mui/material/Box';
+import { AutoMountContext } from './autoMountContext.js';
+import { useHost } from './hostApi.js';
+import { resolveLabels } from './labels.js';
+import { LandingContext, usePhoneSize } from './phoneFit.js';
+import { isPresent, summarisePanel } from './panelRowEntry.js';
+import { anchorTargetOf, resolveEnterDirection } from './panelRowOrder.js';
+import { PanelSlotContext } from './panelSlotContext.js';
+import { PanelViewContextValue } from './panelViewContext.js';
+import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
+import { FIXED, LIBRARY_TUNING_DEFAULTS, effective, panelKey, resolvePanelSettings } from './panelSettings.js';
+import { PanelRowSlot, SizeBox } from './PanelRowSlot.js';
+import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
+import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
+import { slotTuning } from './panelTuning.js';
+import { parksForRoom, reorderStepsForOffset } from './panelWindow.js';
+import { RowDropContext, dropParts, partShifts, useRowDrop } from './panelRowDrop.js';
+import { maxScrollOf } from './rowNumbers.js';
+import { panelWidthOf } from './panelTiers.js';
+import { fitSlots, slotWidth } from './rowConstants.js';
+import { ROW_LAYER_Z } from './rowConstants.js';
+import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
+import { useRowDraw } from './rowDraw.js';
+import { AwayContext } from './panelAway.js';
+import { restTranslate } from './slotMover.js';
+import { sharedStartTime, taskToken } from './rowClock.js';
+import { resolveViewIn } from './templateView.js';
+import { bindingOf, viewContextOf } from './workspaceCore.js';
+import { useViewState } from './viewState.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaPlaceOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow } from './emblaRow.js';
+const EMPTY_SET = new Set();
+// A host may apply a person's move a task or two after the drop or key that asked for it; a note older than this was refused.
+const REORDER_NOTE_MS = 1000;
+const EMPTY_MAP = new Map();
+const NO_NEIGHBORS = { left: [], right: [] };
+/** Whether keyboard focus sits in the header row that panel `panelId`'s declared header buttons mark: where a removed last button leaves it. */
+function focusInHeaderRow(panelId) {
+    if (typeof document === 'undefined')
+        return false;
+    return document.activeElement?.closest(`[${HEADER_ROW_ATTRIBUTE}]`)?.getAttribute(HEADER_ROW_ATTRIBUTE) === panelId;
+}
+/**
+ * How an entry enters. The panel's own `enterFrom` (or the `anchoredEnter` flag, read as 'anchor') wins over the
+ * workspace's `tuning.defaultEnterFrom` unless it is 'auto'. A side or 'fade' is a constant that beats every mark; 'expand'
+ * grows out of the edge on the side a reveal comes in from (its mark, else the anchor formula) and from its center otherwise.
+ * Otherwise an explicit mark from the engine wins, then the anchor formula for an entry that always uses it ('anchor')
+ * or is entering via an anchor, then the right.
+ */
+export function enterDirectionOf(from, anchoredEnter, mark, viaAnchor, formula, workspace = 'auto') {
+    const own = from === 'auto' && anchoredEnter ? 'anchor' : from;
+    const chosen = own === 'auto' ? workspace : own;
+    if (chosen === 'expand') {
+        const side = mark ?? (viaAnchor ? formula() : undefined);
+        return side === undefined ? 'expand' : side === 'left' ? 'expand-left' : 'expand-right';
+    }
+    if (chosen !== 'auto' && chosen !== 'anchor')
+        return chosen;
+    return mark ?? (chosen === 'anchor' || viaAnchor ? formula() : 'right');
+}
+/**
+ * How an entry leaves. The panel's own `exitTo` wins over the workspace's `tuning.defaultExitTo` unless it is 'auto'; when
+ * both are 'auto' a close drops down on the close timing and a park leaves by the side the row marked, else the left. A
+ * 'shrink' park shrinks toward that same side; a 'shrink' close shrinks into its center.
+ */
+export function exitStyleOf(own, workspace, closing, parkRight) {
+    const chosen = own === 'auto' ? workspace : own;
+    if (chosen === 'shrink' && !closing)
+        return parkRight ? 'shrink-right' : 'shrink-left';
+    if (chosen !== 'auto')
+        return chosen;
+    return closing ? FIXED.closeExit : parkRight ? 'right' : 'left';
+}
+/** The view's summary with `size` at the width and height the row draws the slot, so a view passing `panel.size` to Panel stays inside its slot. */
+function renderedSummary(p, width, height, drawnSlots, fitSlots) {
+    const summary = summarisePanel(p);
+    return { ...summary, ...(p.slots !== undefined ? { drawnSlots, fitSlots } : {}), size: { width, height } };
+}
+/** What a view mounted outside any row is told: the library defaults, which `resolvePanelSettings` fills in for the derived keys too. */
+const OUTSIDE_ROW = resolvePanelSettings().value;
+/**
+ * What this panel lets a person do with it by gesture: close it (`closable`), move it (`movable`) and resize it
+ * (`resizable`), and the most slots it may take. `closable` is false for an always-shown column even when its
+ * setting is true, since the row's close gesture never offers one. These limit only the person's gestures, never the
+ * developer's own calls. Outside a row: the library defaults.
+ * @public
+ */
+export const usePanelCapabilities = () => {
+    const inRow = React.useContext(PanelSlotContext);
+    const slot = inRow ?? OUTSIDE_ROW;
+    return { closable: slot.closable && (inRow?.collapsible ?? true), movable: slot.movable, resizable: slot.resizable, maxSlots: slot.maxSlots };
+};
+/** The widths this entry's drag can cross (reorderStepsForOffset's input). Unprovided: none, so no hop.
+ * @public */
+export const usePanelNeighborWidths = () => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
+const OUTSIDE_ROW_TUNING = slotTuning(LIBRARY_TUNING_DEFAULTS);
+/**
+ * The host of every edgeHold panel, held or not, so the panel's React place never changes as its hold starts or lets go. A
+ * held panel's host is a zero-height flex line that starts at the strip's content origin (`lineLeft` is minus the strip's
+ * start), holding a spacer and the panel's box. The row moves by a transform, never a scroll, so the row's drawing pass
+ * (rowDraw.ts) moves the box the way a sticky box would stick: kept `left` px inside the container's left edge and `right` px
+ * inside its right one, and never outside its line. A panel that is not held passes through unchanged.
+ */
+function PanelHold({ sticky, spacer, lineLeft, lineWidth, width, children }) {
+    const held = sticky !== null;
+    return (_jsxs(Box, { "data-row-hold-line": "", style: held ? { display: 'flex', height: 0, width: lineWidth, marginLeft: `${lineLeft}px`, flexShrink: 0 } : { display: 'contents' }, children: [_jsx(Box, { style: held ? { width: spacer, flexShrink: 0 } : { display: 'none' } }), _jsx(Box, { "data-row-hold": "", "data-hold-left": held && sticky.left !== undefined ? `${sticky.left}px` : undefined, "data-hold-right": held && sticky.right !== undefined ? `${sticky.right}px` : undefined, style: held ? { position: 'relative', flexShrink: 0, height: 0, width, zIndex: ROW_LAYER_Z.DRAGGED } : { display: 'contents' }, children: children })] }));
+}
+const OUTSIDE_ROW_VIEW_TUNING = OUTSIDE_ROW_TUNING.view;
+/**
+ * The workspace's row-wide `rowGap`, `dragToClose`, `slide`, `hopFraction` and `edgeScroll`: every panel reads the same
+ * values, since a panel carries no tuning of its own. Outside a row: the library defaults.
+ * @public
+ */
+export const usePanelTuning = () => {
+    const tuning = React.useContext(PanelSlotContext)?.tuning;
+    return tuning === undefined ? OUTSIDE_ROW_VIEW_TUNING : tuning.view;
+};
+/**
+ * The hops a horizontal drag of this panel asks for: `steps(offsetX)` is reorderStepsForOffset over this slot's
+ * neighbors, the row's gap and this panel's hop fraction. Outside a row there are no neighbors, so it is 0.
+ * @public
+ */
+export const usePanelReorderSteps = () => {
+    const slot = React.useContext(PanelSlotContext);
+    return (offsetX) => reorderStepsForOffset(offsetX, slot?.neighborWidths ?? NO_NEIGHBORS, (slot?.tuning ?? OUTSIDE_ROW_TUNING).rowGap, (slot?.tuning ?? OUTSIDE_ROW_TUNING).hopFraction);
+};
+/**
+ * After a jump of an Embla row from `from` to `to` (scroll px) across a change of its strip from `before` to `after`, keeps what the
+ * change did not move where it was on screen: a slot leaving in this commit runs its exit from where it was drawn, in view or out of it.
+ * On a width change the view could not keep still (`glides`), a slot the change moved on screen glides there from where it was,
+ * starting or ending one slot outside the window at most, on the slide's curve and the commit's shared start, the clock a size box
+ * eases on, so a page and its neighbors stay one gap apart in every frame.
+ */
+function arriveAndLeave(box, before, after, from, to, windowWidth, gap, glides, slide, reduced) {
+    const nodeOf = (id) => box.querySelector(`[data-row-id="${CSS.escape(id)}"]`);
+    // Under Reduce Motion every slot lands where it goes at once; a leaving one still runs its exit from where it was drawn.
+    const durationMs = reduced ? 0 : slide.durationSec * 1000;
+    const glide = (node, frames) => {
+        if (node === null || typeof node.animate !== 'function' || durationMs <= 0)
+            return;
+        const anim = node.animate(frames, { duration: durationMs, easing: `cubic-bezier(${slide.ease.join(',')})`, composite: 'add', fill: 'backwards' });
+        anim.startTime = sharedStartTime();
+    };
+    const jump = to - from;
+    before.ids.forEach((id, k) => {
+        const j = after.ids.indexOf(id);
+        const w = before.widths[k];
+        const was = before.lefts[k] - from;
+        if (j < 0) {
+            const node = nodeOf(id);
+            if (Math.abs(jump) > 0.5 && node !== null && typeof node.animate === 'function')
+                node.animate([{ translate: `${jump}px 0px` }, { translate: `${jump}px 0px` }], { duration: 10000, fill: 'forwards', composite: 'add' });
+            return;
+        }
+        if (!glides)
+            return;
+        const now = after.lefts[j] - to;
+        if (Math.abs(now - was) <= 0.5)
+            return;
+        const shownBefore = was + w > 0.5 && was < windowWidth - 0.5;
+        const shownAfter = now + after.widths[j] > 0.5 && now < windowWidth - 0.5;
+        if (!shownBefore && !shownAfter)
+            return;
+        const outside = (x, width) => (x + width <= 0.5 ? -(width + gap) : x >= windowWidth - 0.5 ? windowWidth + gap : x);
+        glide(nodeOf(id), [{ translate: `${outside(was, w) - now}px 0px` }, { translate: `${outside(now, after.widths[j]) - now}px 0px` }]);
+    });
+}
+/**
+ * The row: every present entry in its own animated slot, in the array's order, each rendered by its template's view.
+ * @public
+ */
+export function PanelRow({ entries, rootId, closingIds, enteringViaAnchorIds, exitRightIds = EMPTY_SET, swapExitIds = EMPTY_SET, enterSideById = EMPTY_MAP, maxLiveWidth = Number.POSITIVE_INFINITY, rowNumbers, workspace, }) {
+    const { panels, labels: givenLabels } = useHost();
+    const labels = resolveLabels(givenLabels);
+    const phoneSize = usePhoneSize();
+    const binding = bindingOf(workspace);
+    // The restored panels arrive with the settle, after the row mounted. The row is not ready until the commit after it, and
+    // a slot that mounts before then starts at its rest, so restored panels skip their enter and later ones animate.
+    const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready', () => false);
+    const autoMountOf = React.useContext(AutoMountContext);
+    const handMounted = binding.autoMounted && autoMountOf !== workspace;
+    React.useEffect(() => {
+        if (handMounted)
+            binding.warnHandMounted();
+    }, [handMounted, binding]);
+    const templateOf = (id) => binding.template(id);
+    const workspaceTuning = React.useSyncExternalStore(binding.subscribe, () => binding.tuning, () => binding.tuning);
+    const gap = workspaceTuning.rowGap;
+    const tabPress = useTabPress();
+    const inheritedChrome = React.useContext(ChromeStoreContext);
+    const [ownChrome] = React.useState(createChromeStore);
+    const chrome = inheritedChrome ?? ownChrome;
+    const phoneWidth = phoneSize.width;
+    const phoneHeight = phoneSize.height;
+    // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
+    useViewState.useRetainOnly([...entries.map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
+    // The strip's widths and rests are the present entries the row does not hold at an edge. A held one keeps its React place in
+    // the strip and is positioned by its PanelHold host, so holding or releasing it never remounts its view.
+    const presentAll = entries.filter(isPresent);
+    const heldById = new Map((rowNumbers?.held ?? []).map((h) => [h.id, h]));
+    const present = presentAll.filter((p) => !heldById.has(p.id));
+    chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
+    // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
+    const presentBefore = React.useRef(new Set());
+    // A panel's DOM position is the order it first appeared in, never its reading order: React moves the nodes a reorder
+    // leaves behind, and a moved node restarts what it hosts (a web view reloads). Position on screen comes from leftOffset.
+    const birth = React.useRef({ seq: 0, byId: new Map() });
+    for (const p of presentAll)
+        if (!birth.current.byId.has(p.id))
+            birth.current.byId.set(p.id, birth.current.seq++);
+    const domOrder = [...presentAll].sort((a, b) => birth.current.byId.get(a.id) - birth.current.byId.get(b.id));
+    const slotRanks = useSlotRanks(presentAll.map((p) => p.id));
+    React.useEffect(() => {
+        const now = new Set(presentAll.map((p) => p.id));
+        for (const id of presentBefore.current) {
+            if (now.has(id))
+                continue;
+            if (chrome.active() === id)
+                chrome.setActive(null);
+            chrome.setDragging(id, false);
+            // The row never keeps holding for a drag whose panel is gone.
+            if (chrome.resizing() === id)
+                chrome.setResizing(id, false);
+        }
+        presentBefore.current = now;
+    });
+    // Every present entry's OWN width, in row order. An always-shown column needs no special case: setSlots
+    // no-ops on a collapsible:false id, so panelWidthOf gives it `phoneWidth`.
+    const numberAt = (p) => (rowNumbers === undefined ? -1 : rowNumbers.ids.indexOf(p.id));
+    // While a host resizes a panel by hand every other panel keeps the width it was last drawn at, so nothing moves under the grabber.
+    const resizingId = React.useSyncExternalStore(chrome.subscribeResizing, chrome.resizing, () => null);
+    const heldWidthsRef = React.useRef(null);
+    const drawnBeforeRef = React.useRef(new Map());
+    if (resizingId === null)
+        heldWidthsRef.current = null;
+    else if (heldWidthsRef.current === null)
+        heldWidthsRef.current = drawnBeforeRef.current;
+    const held = heldWidthsRef.current;
+    const baseWidths = present.map((p) => (held !== null && p.id !== resizingId ? held.get(p.id) : undefined) ?? rowNumbers?.widths[numberAt(p)] ?? panelWidthOf(p, phoneWidth, maxLiveWidth, gap));
+    // The width a host draws the resized panel at, held between one slot and the most that fit. It lives here and in the slot
+    // context only: the stops, capacity and the live set read the stored slots, so a drag across the whole range parks nothing.
+    const drawnNow = React.useSyncExternalStore(chrome.subscribeDrawn, chrome.drawn, () => null);
+    const drawnIndex = drawnNow === null ? -1 : present.findIndex((p) => p.id === drawnNow.id);
+    const drawnEntry = drawnIndex < 0 ? undefined : present[drawnIndex];
+    const mostSlots = drawnEntry === undefined ? 1 : Math.max(1, Math.min(effective(drawnEntry).maxSlots, fitSlots(maxLiveWidth, phoneWidth, gap)));
+    const wanted = drawnNow !== null && drawnEntry !== undefined;
+    const drawnPx = !wanted ? undefined : Math.min(slotWidth(mostSlots, phoneWidth, gap), Math.max(phoneWidth, drawnNow.px));
+    // How much wider the override draws the panel than its stored slots do (negative when narrower).
+    const growth = drawnPx === undefined ? 0 : drawnPx - baseWidths[drawnIndex];
+    const tracking = wanted;
+    // A slot's moves snap while the row lands its first measured size, as they do while a width is held.
+    const landing = React.useContext(LandingContext);
+    // Until the row is measured and the restore has settled, a slot's moves take no time, so a reload draws panels where they belong.
+    const [ready, setReady] = React.useState(false);
+    const measuredNow = rowNumbers === undefined || Number.isFinite(rowNumbers.windowWidth);
+    React.useLayoutEffect(() => {
+        if (measuredNow && restoreSettled)
+            setReady(true);
+    }, [measuredNow, restoreSettled]);
+    const slotTracking = tracking || landing || !ready;
+    const widths = baseWidths.map((width, index) => (index === drawnIndex && drawnPx !== undefined ? drawnPx : width));
+    React.useLayoutEffect(() => {
+        drawnBeforeRef.current = new Map(present.map((p, index) => [p.id, baseWidths[index]]));
+    });
+    // Each slot's rest x: every PRECEDING item's own width plus one gap, so a wider item pushes the rest right. Pinned at the end, the
+    // whole strip sits `growth` further left, so the panel's right edge and everything after it stay where they were.
+    const pinShift = tracking && drawnNow.pin === 'end' ? growth : 0;
+    const leftOffsets = [];
+    let runningOffset = 0;
+    for (const [index, width] of widths.entries()) {
+        leftOffsets.push((held === null ? rowNumbers?.leftOffsets[numberAt(present[index])] : undefined) ?? runningOffset - pinShift);
+        runningOffset += width + gap;
+    }
+    // A panel is as many slots wide as its width spans, a half slot rounding up.
+    // A stored width is a whole number of slots, so only the override is ever between two.
+    const slotsOfWidth = (width) => Math.max(1, Math.round((width + gap) / (phoneWidth + gap)));
+    const fitSlotsNow = fitSlots(maxLiveWidth, phoneWidth, gap);
+    const rowHeight = phoneHeight;
+    const rowScroll = rowNumbers?.rowScroll ?? false;
+    // While a width is held the row box is never shorter than it was: the browser would clamp the scroll to a shorter strip and move the row under the pointer.
+    const reservedWidth = Math.max(0, widths.reduce((sum, width) => sum + width + gap, 0) - gap - pinShift, tracking ? baseWidths.reduce((sum, width) => sum + width + gap, 0) - gap : 0, rowNumbers?.stripWidth ?? 0);
+    const maxScroll = rowNumbers === undefined ? 0 : maxScrollOf(rowNumbers);
+    const stops = rowNumbers === undefined ? [] : rowNumbers.stops.length > 0 ? rowNumbers.stops : rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset);
+    const widthById = new Map(present.map((p, index) => [p.id, widths[index]]));
+    // Nearest first on each side, an always-shown column included: movePanel swaps past one like any neighbor. The
+    // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
+    // because that is where movePanel refuses the hop.
+    const neighborsAt = (entry) => {
+        const at = entries.indexOf(entry);
+        const side = (step) => {
+            const out = [];
+            for (let i = at + step; i >= 0 && i < entries.length; i += step) {
+                const next = entries[i];
+                // A held panel is never crossed: it is not in the strip, so a drag that passed it would move it out of its edge.
+                if (!effective(next).crossable || heldById.has(next.id))
+                    break;
+                const width = widthById.get(next.id);
+                if (width !== undefined)
+                    out.push({ id: next.id, width });
+            }
+            return out;
+        };
+        return { left: side(-1), right: side(1) };
+    };
+    const neighborWidthsAt = (entry) => {
+        const { left, right } = neighborsAt(entry);
+        return { left: left.map((n) => n.width), right: right.map((n) => n.width) };
+    };
+    // Per panel, and searched in `present`: each slot's own `index` below counts in that same array.
+    const anchorIndexOf = (p) => present.findIndex((x) => x.id === anchorTargetOf(p, rootId));
+    const viewContext = viewContextOf(workspace);
+    const rowTuning = slotTuning(workspaceTuning);
+    // The one hop rule: the header drag and a drag that starts outside the row both count their hops through it.
+    const stepsFor = (entry, offset) => reorderStepsForOffset(offset, neighborWidthsAt(entry), gap, rowTuning.hopFraction);
+    const boxRef = React.useRef(null);
+    // A root no drag may cross that starts the strip is where a drag stops and its left band ends; a held root is already the inset.
+    const rootEntry = present[0]?.id === rootId ? present[0] : undefined;
+    const barrierEl = () => boxRef.current?.querySelector(`[data-row-id="${CSS.escape(rootId)}"]`);
+    // The root's nudge is added back, so the band stays where the root rests.
+    const nudged = React.useRef(0);
+    const nudgeAnim = React.useRef(null);
+    const barrier = rootEntry === undefined || effective(rootEntry).crossable
+        ? undefined
+        : {
+            barrierRight: () => {
+                const root = barrierEl();
+                return root == null ? undefined : root.getBoundingClientRect().right + nudged.current + gap;
+            },
+            nudgeBarrier: (px) => {
+                const root = barrierEl();
+                if (root == null || px === nudged.current)
+                    return;
+                nudged.current = px;
+                // No Web Animations (a test DOM): the nudge lands at once. A throw here would stop Motion's frame loop for good.
+                if (typeof root.animate !== 'function') {
+                    root.style.translate = restTranslate((Number(root.dataset.rowSlot) || 0) - px);
+                    return;
+                }
+                // An offset added to the rest on `translate`, so a rest the pass moves during a nudge carries it. 'add' leaves the compositor, which a nudge can afford: it runs only against the barrier, never in a glide. By the
+                // Web Animations API, because the theme turns CSS transitions off. A push eases in fast, a release home slower, each from where the last one is now.
+                const from = (Number.parseFloat(getComputedStyle(root).translate) || 0) - (Number.parseFloat(root.style.translate) || 0);
+                nudgeAnim.current?.cancel();
+                const anim = root.animate([{ translate: `${from}px 0px` }, { translate: `${-px}px 0px` }], { duration: px === 0 ? rowTuning.slide.durationSec * 500 : 120, easing: 'ease-out', fill: 'forwards', composite: 'add' });
+                nudgeAnim.current = anim;
+                if (px === 0)
+                    anim.onfinish = () => anim.cancel();
+            },
+        };
+    // A row that fits its window still drags to its edges: there the band swaps hidden panels in rather than scrolling.
+    const dragScroll = { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll: rowScroll ? maxScroll : 0, stops: rowScroll ? stops : [], settleStops: rowScroll && rowNumbers !== undefined ? rowNumbers.stops : [], settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0, ...barrier, cycle: binding.cycle };
+    // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
+    const [dragging, setDragging] = React.useState(null);
+    // A dragged panel that left the row (closed by other means) takes its preview with it.
+    const draggedGone = dragging !== null && !present.some((x) => x.id === dragging.id);
+    React.useEffect(() => {
+        if (draggedGone)
+            setDragging(null);
+    }, [draggedGone]);
+    const leftById = new Map(present.map((p, index) => [p.id, leftOffsets[index]]));
+    const widthFor = (entry) => widthById.get(entry.id) ?? panelWidthOf(entry, phoneWidth, maxLiveWidth, gap);
+    const dropRowOf = (entry) => ({ entries, rowGap: gap, widthById, leftById, width: widthFor(entry), walk: neighborsAt(entry) });
+    const { preview: drop, controller: rowDrop } = useRowDrop({
+        workspace,
+        rootId,
+        entries,
+        chrome,
+        boxRef,
+        walkOf: neighborsAt,
+        stepsFor,
+        dragScroll,
+        centreOf: (entry, hidden) => (hidden ? (dropParts({ id: entry.id, steps: 0, hidden: true }, dropRowOf(entry)).gap?.left ?? 0) + widthFor(entry) / 2 : (leftById.get(entry.id) ?? 0) + widthFor(entry) / 2),
+    });
+    const shiftById = new Map();
+    const draggedEntry = dragging === null ? undefined : present.find((x) => x.id === dragging.id);
+    if (dragging !== null && draggedEntry !== undefined && dragging.steps !== 0 && effective(draggedEntry).movable) {
+        for (const [id, by] of partShifts(neighborsAt(draggedEntry), dragging.steps, widthById.get(draggedEntry.id) + gap))
+            shiftById.set(id, by);
+    }
+    const dropEntry = drop === null ? undefined : entries.find((x) => x.id === drop.id);
+    const dropPartsNow = drop === null || dropEntry === undefined ? undefined : dropParts(drop, dropRowOf(dropEntry));
+    if (dropPartsNow !== undefined)
+        for (const [id, by] of dropPartsNow.shifts)
+            shiftById.set(id, by);
+    const gapSpan = dropPartsNow?.gap == null ? 0 : dropPartsNow.gap.width + gap;
+    // A change left of the view (a panel opened, closed, moved or resized there, or clamped by a narrower window) keeps the
+    // view still: the scroll moves with the panel at the window's left edge, and every slot snaps to its new rest in the same frame.
+    // Under Reduce Motion the size box snaps, so the slots a width change moves snap with it.
+    const configReduced = useReducedMotionConfig() === true;
+    const systemReduced = useReducedMotion() === true;
+    const reducedMotion = configReduced || systemReduced;
+    const windowRef = React.useRef(null);
+    const stripPx = reservedWidth + gapSpan;
+    const emblaWindow = emblaWindowOf(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY, phoneWidth, gap, stripPx);
+    const layoutNow = { ids: present.map((p) => p.id), lefts: leftOffsets, widths };
+    const lastLayout = React.useRef(null);
+    const lastWindow = React.useRef(null);
+    // What the first commit of this task started from: what was painted, when a later commit in the same task glides.
+    const shownRef = React.useRef(null);
+    const emblaNow = windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
+    const scrollNow = emblaNow === undefined ? 0 : emblaScrollOf(emblaNow);
+    // Where the strip is drawn this frame, which a glide's location runs ahead of: slots that move on screen glide from here.
+    const drawnScrollNow = emblaNow === undefined ? 0 : emblaDrawnOf(emblaNow);
+    // Only a render that changed the strip or the window keeps the view: any other one (a pulled-past-the-end drag included, which
+    // the clamp would snap back) leaves the row where it is.
+    // A summon moves the root from out of the view to just outside it (`noteEmblaMove`): the commit that draws it snaps the slots it
+    // moves, so the root stands at its new place before the glide brings it in.
+    const moveNote = emblaNow === undefined ? undefined : emblaMoveOf(windowRef.current);
+    const lastMove = React.useRef(0);
+    // A person's move of a panel (a drop, an arrow key on its grab strip) noted by the slot in the task that moves it: the view stays
+    // where it is drawn instead of keeping the left-edge panel still, and the moved panel comes into view if the move took it out.
+    const reorderNote = React.useRef(null);
+    const changed = lastLayout.current !== null && (lastWindow.current !== emblaWindow.width || !sameLayout(lastLayout.current, layoutNow));
+    const moving = moveNote !== undefined && moveNote.seq !== lastMove.current && changed;
+    const stripMax = Math.max(0, stripPx - emblaWindow.width);
+    const reorderNow = reorderNote.current !== null && performance.now() - reorderNote.current.atMs < REORDER_NOTE_MS && changed && lastLayout.current !== null && lastLayout.current.ids.length === layoutNow.ids.length && lastLayout.current.ids.every((id) => layoutNow.ids.includes(id)) ? reorderNote.current.id : null;
+    // A place by code noted in the task that draws it: the keep-still rule does not anchor the view on the placed panel.
+    const placeNote = emblaNow === undefined ? undefined : emblaPlaceOf(windowRef.current);
+    const lastPlace = React.useRef(0);
+    const placedNow = placeNote !== undefined && placeNote.seq !== lastPlace.current && changed ? placeNote.id : undefined;
+    const keptNow = emblaNow === undefined || !changed || reorderNow !== null ? scrollNow : keptScroll(lastLayout.current, layoutNow, scrollNow, stripMax, placedNow);
+    const keepTo = keptNow;
+    const keeping = Math.abs(keepTo - scrollNow) > 0.5;
+    // A change of the strip in the same window that moves the view (a page in view narrowed at the strip's end) jumps the scroll and
+    // snaps the slots as any keep does; the slots it moved on screen then glide there with the size box, so nothing in view jumps.
+    // Only a width change: the same panels in the same order (an open, close or move keeps its snap, as a window resize does).
+    const sameOrder = lastLayout.current !== null && lastLayout.current.ids.join(' ') === layoutNow.ids.join(' ');
+    const widthGlide = keeping && sameOrder && lastWindow.current === emblaWindow.width && ready && !landing && !reducedMotion;
+    // What Embla builds its stops from: the markers and the window box. A change rebuilds them in the commit that draws it.
+    const markers = slotMarkerLefts(stripPx, phoneWidth, gap);
+    const stopsKey = `${markers.length}|${emblaWindow.width}|${phoneWidth}|${gap}`;
+    // A reorder drag's edge scroll on Embla: the window's own edges, the strip's end and its rests (a Reduce Motion hold jumps rest to rest);
+    // a strip has no hidden panels to swap in, and the release settles on Embla's nearest stop.
+    const emblaDragScroll = { ...dragScroll, maxScroll: stripMax, stops: emblaRests(markers, stripPx, emblaWindow.width), settleStops: [], insetLeft: 0, insetRight: 0, cycle: undefined };
+    const lastStops = React.useRef(null);
+    // On Embla every panel has its slot on the strip; a parkable one far from the view draws a placeholder of its width instead of its
+    // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
+    const nearSlots = React.useContext(RowNearContext);
+    const loadedRef = React.useRef(null);
+    // What a glide brings into view in the next frames counts as shown, so it is loaded before it enters the view, whatever the cap.
+    // Before the window is measured it is drawn the whole strip wide: load only the cap's nearest then, not every page for one commit.
+    const windowKnown = Number.isFinite(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY);
+    const loadedAt = (scroll, ahead, toward) => loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
+    // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
+    const loadedNow = emblaNow === undefined ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow);
+    loadedRef.current = loadedNow;
+    const loadedAtRef = React.useRef(loadedAt);
+    loadedAtRef.current = loadedAt;
+    const [, reload] = React.useReducer((n) => n + 1, 0);
+    React.useEffect(() => {
+        return subscribeEmblaRows(() => {
+            const embla = windowRef.current === null ? undefined : emblaOf(windowRef.current);
+            const was = loadedRef.current;
+            if (embla === undefined || was === null)
+                return;
+            const next = loadedAtRef.current(emblaDrawnOf(embla), emblaAheadOf(embla), emblaTargetOf(embla));
+            if (next.size !== was.size || [...next].some((id) => !was.has(id)))
+                reload();
+        });
+    }, []);
+    // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
+    const slotFor = (p, rest, held) => {
+        const Component = resolveViewIn(templateOf, p.view);
+        const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
+        const own = rowTuning;
+        const handle = viewContext.handleFor(panelKey(p));
+        const report = binding.reportError;
+        const note = binding.reportNote;
+        // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
+        const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
+        const index = presentAll.indexOf(p);
+        const h = heldById.get(p.id);
+        const stuckAt = p.settings?.edgeHold === 'both' && h === undefined ? rowNumbers?.stuck.find((st) => st.id === p.id) : undefined;
+        // A held group sits in the slot grid's first (or last) slots, inside the row's margin, so the strip's next panel is one gap from it.
+        const sticky = h !== undefined ? (h.side === 'left' ? { left: (rowNumbers?.rowMarginLeft ?? 0) + h.offset } : { right: (rowNumbers?.endPad ?? 0) + (rowNumbers?.rightInset ?? 0) + gap - h.offset - h.width }) : stuckAt !== undefined ? { left: stuckAt.left, right: stuckAt.right } : null;
+        const stripStart = rowNumbers?.stripStart ?? 0;
+        // A right hold's group starts where the strip's row box ends (the row box is the strip's first item).
+        const spacer = h !== undefined ? (h.side === 'left' ? h.offset : stripStart + reservedWidth + gapSpan + h.offset) : stuckAt !== undefined ? stripStart + rest.leftOffset : 0;
+        const summary = renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow);
+        const lineWidth = stripStart + reservedWidth + gapSpan + (rowNumbers?.rightInset ?? 0);
+        return (_jsx(PanelSlotContext.Provider, { value: {
+                summary,
+                collapsible: p.collapsible,
+                closable,
+                movable: movable && !held,
+                resizable,
+                maxSlots,
+                id: p.id,
+                tracking: slotTracking,
+                setDragging: (on) => chrome.setDragging(p.id, on),
+                neighborWidths: neighborWidthsAt(p),
+                drawn: { width: rest.width, height: phoneHeight },
+                handle,
+                closing: closingIds.has(p.id),
+                tuning: own,
+                dragScroll: emblaDragScroll,
+                headerButtonSlots,
+                noteReorder: () => {
+                    reorderNote.current = { id: p.id, atMs: performance.now() };
+                },
+                dragHops: (offset) => stepsFor(p, offset) !== 0,
+                previewReorder: (offset) => setDragging((now) => {
+                    if (offset === null)
+                        return now?.id === p.id ? null : now;
+                    const steps = stepsFor(p, offset);
+                    return now?.id === p.id && now.steps === steps ? now : { id: p.id, steps };
+                }),
+            }, children: _jsx(PanelHold, { sticky: sticky, spacer: spacer, lineLeft: -stripStart, lineWidth: lineWidth, width: rest.width, children: _jsx(PanelRowSlot, { panelId: p.id, label: labels.panelPosition(p.title || labels.untitledPanel, index + 1, presentAll.length), leftOffset: (sticky !== null ? 0 : rest.leftOffset) + (shiftById.get(p.id) ?? 0), width: rest.width, phoneHeight: rowHeight, height: p.slots === undefined ? undefined : phoneHeight, enterDirection: held ? 'fade' : enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index), workspaceTuning.defaultEnterFrom), exitDirection: held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id) || swapExitIds.has(p.id), exitRightIds.has(p.id)), zIndex: dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE, tracking: slotTracking || keeping || moving || rowNumbers?.anchor !== undefined, gap: gap, slide: own.slide, rowScroll: rowScroll, previewing: dragging !== null || drop !== null, firstPressFocusOnly: templateOf(p.view)?.firstPressFocusOnly ?? workspaceTuning.firstPressFocusOnly, onActivate: (control) => {
+                        chrome.setActive(p.id);
+                        binding.touch(p.id, control);
+                        // A panel the window's edge cuts comes whole into view as it takes the focus.
+                        const embla = windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
+                        const at = lastLayout.current;
+                        const k = at === null ? -1 : at.ids.indexOf(p.id);
+                        const to = embla === undefined || at === null || k < 0 || dragging !== null ? null : revealScroll(at.lefts[k], at.widths[k], emblaTargetOf(embla), emblaWindow.width);
+                        if (embla !== undefined && to !== null)
+                            embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
+                    }, dragged: dragging?.id === p.id, frame: sticky === null ? (rowNumbers?.leftInset ?? 0) : undefined, children: !loadedNow.has(p.id) ? (_jsx("div", { [EMBLA_UNLOADED_ATTRIBUTE]: '', style: { width: '100%', height: '100%' } })) : (_jsx(SizeBox, { children: _jsx(useViewState.Provider, { value: panelKey(p), children: _jsx(Component, { panel: summary }) }) })) }) }) }, p.id));
+    };
+    useRowDraw(boxRef);
+    // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
+    useEmblaRow(windowRef, boxRef, true, workspaceTuning.gestureQuietMs, React.useContext(AwayContext));
+    React.useLayoutEffect(() => {
+        const embla = windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
+        const restop = lastStops.current !== null && lastStops.current !== stopsKey;
+        // The markers or the window changed in this commit: Embla rebuilds its stops from them, and the row keeps the view (a shift)
+        // from where it is drawn, a glide in flight included.
+        if (embla !== undefined)
+            setEmblaReduced(embla, reducedMotion);
+        if (embla !== undefined && (keeping || restop))
+            moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop);
+        if (embla !== undefined)
+            lastStops.current = stopsKey;
+        if (moveNote !== undefined && changed)
+            lastMove.current = moveNote.seq;
+        if (placeNote !== undefined && changed)
+            lastPlace.current = placeNote.seq;
+        if (embla !== undefined && reorderNow !== null) {
+            reorderNote.current = null;
+            const k = layoutNow.ids.indexOf(reorderNow);
+            const to = k < 0 ? null : revealScroll(layoutNow.lefts[k], layoutNow.widths[k], emblaTargetOf(embla), emblaWindow.width);
+            if (to !== null)
+                embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
+        }
+        const before = lastLayout.current;
+        if (embla !== undefined && before !== null && lastWindow.current === emblaWindow.width) {
+            // A panel that grew past the window's edge comes whole into view, as a reordered one does.
+            const k = layoutNow.ids.findIndex((id, i) => {
+                const j = before.ids.indexOf(id);
+                return j >= 0 && layoutNow.widths[i] > before.widths[j] + 0.5;
+            });
+            const to = k < 0 ? null : revealScroll(layoutNow.lefts[k], layoutNow.widths[k], emblaTargetOf(embla), emblaWindow.width);
+            if (to !== null)
+                embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
+        }
+        if (embla !== undefined && lastLayout.current !== null && keeping && boxRef.current !== null) {
+            // Two commits in one task (a width change, then the root it lets back beside the page) paint once: glide from what was painted.
+            const shown = shownRef.current !== null && shownRef.current.task === taskToken() ? shownRef.current : { layout: lastLayout.current, drawn: drawnScrollNow };
+            // Drawn after this commit: where the strip was drawn, moved by the keep's shift.
+            const drawnTo = drawnScrollNow + keepTo - scrollNow;
+            arriveAndLeave(boxRef.current, shown.layout, layoutNow, shown.drawn, drawnTo, emblaWindow.width, gap, widthGlide, rowTuning.slide, reducedMotion);
+        }
+        if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken()))
+            shownRef.current = { layout: lastLayout.current, drawn: drawnScrollNow, task: taskToken() };
+        lastLayout.current = layoutNow;
+        lastWindow.current = emblaWindow.width;
+        if (windowRef.current !== null)
+            publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap, chromeFollowSlots: workspaceTuning.chrome.fitVisibleMaxSlots });
+        // A commit can start slots moving on their own (an entrance, a glide, a reorder shift): the inert marks follow them frame by frame.
+        if (windowRef.current !== null)
+            kickEmblaAway(windowRef.current);
+    });
+    const box = (_jsx(_Fragment, { children: _jsxs(Box, { ref: boxRef, onKeyDown: (event) => steerTab(event, event.currentTarget, present.map((p) => p.id)), onFocus: (event) => {
+                const ids = present.map((p) => p.id);
+                steerSentinel(event, event.currentTarget, ids);
+                steerEntry(event, event.currentTarget, ids, tabPress.current);
+            }, sx: {
+                position: 'relative',
+                flexShrink: 0,
+                height: rowHeight,
+                display: presentAll.length > 0 ? 'block' : 'none',
+                width: emblaWindow.width,
+            }, children: [markers.map((left) => _jsx("div", { "aria-hidden": true, [EMBLA_SLOT_ATTRIBUTE]: left, style: { position: 'absolute', top: 0, left, width: phoneWidth, height: 0, pointerEvents: 'none' } }, left)), dropPartsNow?.gap == null ? null : _jsx(Box, { "aria-hidden": true, "data-panel-row-drop-gap": "", sx: { position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' } }), _jsx(SlotRanksContext.Provider, { value: slotRanks, children: _jsx(AnimatePresence, { initial: false, children: domOrder.map((p) => {
+                            const h = heldById.get(p.id);
+                            return h !== undefined
+                                ? slotFor(p, { leftOffset: h.offset, width: h.width }, true)
+                                : slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)], width: widths[present.indexOf(p)] }, false);
+                        }) }) })] }) }));
+    // Cut one gap past each window edge, as the old row's grid cut: a focus glow fades there and no neighbour starts inside it.
+    const emblaCut = `polygon(${-gap}px -100000px, ${emblaWindow.width + gap}px -100000px, ${emblaWindow.width + gap}px 100000px, ${-gap}px 100000px)`;
+    return (_jsx(ChromeStoreContext.Provider, { value: chrome, children: _jsx(PanelViewContextValue.Provider, { value: viewContext, children: _jsx(RowDropContext.Provider, { value: rowDrop, children: _jsx("div", { ref: windowRef, [EMBLA_WINDOW_ATTRIBUTE]: '', style: { position: 'relative', flexShrink: 0, width: emblaWindow.width, clipPath: emblaCut, display: presentAll.length > 0 ? 'block' : 'none' }, children: box }) }) }) }));
+}
