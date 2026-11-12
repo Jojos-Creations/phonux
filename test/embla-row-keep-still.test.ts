@@ -184,3 +184,25 @@ test('keep-still: the same property fails for a row that keeps its scroll as it 
   assert.equal(result.failed, true, 'a row with no keep-still rule must fail stillness');
   assert.match(String(result.errorInstance), /moved/);
 });
+
+test('keep-still: a panel placed by code is never the anchor: at the left edge, the panel before it holds still and the next ones close the gap', () => {
+  // W c d e f g, one slot each, a three-slot window at c: c moves left of W (c W d e f g).
+  const before: StripLayout = { ids: ['W', 'c', 'd', 'e', 'f', 'g'], lefts: [0, 1, 2, 3, 4, 5].map((k) => k * PITCH), widths: Array(6).fill(PHONE) };
+  const after: StripLayout = { ids: ['c', 'W', 'd', 'e', 'f', 'g'], lefts: [0, 1, 2, 3, 4, 5].map((k) => k * PITCH), widths: Array(6).fill(PHONE) };
+  const max = 6 * PITCH - GAP - (3 * PITCH - GAP);
+  // Unnamed, the rule keeps c itself still, which is following it.
+  assert.equal(keptScroll(before, after, PITCH, max), 0);
+  // Named, W holds still out of view on the left and d slides into c's place.
+  const to = keptScroll(before, after, PITCH, max, 'c');
+  assert.equal(to, 2 * PITCH);
+  assert.equal(after.lefts[after.ids.indexOf('d')]! - to, before.lefts[before.ids.indexOf('c')]! - PITCH);
+});
+
+test('keep-still: a panel placed by code that is not the anchor leaves the anchor as it was', () => {
+  // W a b c d e, the window at a: c (in view, not the anchor) moves left of W; a stays where it was.
+  const before: StripLayout = { ids: ['W', 'a', 'b', 'c', 'd', 'e'], lefts: [0, 1, 2, 3, 4, 5].map((k) => k * PITCH), widths: Array(6).fill(PHONE) };
+  const after: StripLayout = { ids: ['c', 'W', 'a', 'b', 'd', 'e'], lefts: [0, 1, 2, 3, 4, 5].map((k) => k * PITCH), widths: Array(6).fill(PHONE) };
+  const max = 6 * PITCH - GAP - (3 * PITCH - GAP);
+  assert.equal(keptScroll(before, after, PITCH, max, 'c'), 2 * PITCH);
+  assert.equal(keptScroll(before, after, PITCH, max, 'c'), keptScroll(before, after, PITCH, max));
+});

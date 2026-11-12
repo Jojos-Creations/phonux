@@ -31,7 +31,7 @@ import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import type { RootView } from '../panelManager.js';
-import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, emblaWouldShow, showOnEmbla, whenEmblaFree, wholeInView } from '../emblaRow.js';
+import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, whenEmblaFree, wholeInView } from '../emblaRow.js';
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
 
@@ -882,7 +882,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = placeAt(engineId, value, source === 'person');
-      if (changed) followPanel(engineId);
+      // A place by code (a reorder rule, a restore) leaves the view where it is: only a person's own place follows the panel.
+      if (changed && source === 'person') followPanel(engineId);
+      else if (changed && i.overflowContainerRef.current !== null) noteEmblaPlace(i.overflowContainerRef.current, engineId);
       gate.release(token);
       return accepted(changed);
     },
