@@ -157,12 +157,14 @@ test('chrome fade: a text button sits in the header part and fades with an icon 
   assert.equal(header.style.opacity, '0');
   const panelRoot = header.parentElement!;
   act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body })));
+  act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerenter', { relatedTarget: document.body })));
   await advanceFrames(100);
   const mid = Number(header.style.opacity);
   assert.ok(mid > 0 && mid < 1, `partway through the fade (${mid})`);
   await advanceFrames(800);
   assert.equal(header.style.opacity, '1');
   act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerout', { bubbles: true })));
+  act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerleave')));
   await act(async () => void (await new Promise((r) => setTimeout(r, 200))));
   await advanceFrames(800);
   assert.equal(header.style.opacity, '0');
@@ -173,6 +175,7 @@ test('chrome fade: Reduce Motion snaps the header with both forms inside', async
   const header = rig.row('a')!;
   const panelRoot = header.parentElement!;
   act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, relatedTarget: document.body })));
+  act(() => void panelRoot.dispatchEvent(new MouseEvent('pointerenter', { relatedTarget: document.body })));
   assert.equal(header.style.opacity, '1', 'no time under Reduce Motion');
 });
 
