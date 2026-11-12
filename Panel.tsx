@@ -137,6 +137,19 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
     warned.current = true;
     console.warn('Panel: header buttons are declared but the panel has no title, so no header row is drawn and they are not shown.');
   }, [untitled]);
+  // Hover is read from the DOM's pointer boundaries, not React's: React counts a menu portalled out of the panel as inside it, so a
+  // pointer still on one as it closes would never leave the panel.
+  React.useEffect(() => {
+    const el = rootRef.current;
+    if (el === null) return undefined;
+    const { onPointerEnter, onPointerLeave } = handlers;
+    el.addEventListener('pointerenter', onPointerEnter);
+    el.addEventListener('pointerleave', onPointerLeave);
+    return () => {
+      el.removeEventListener('pointerenter', onPointerEnter);
+      el.removeEventListener('pointerleave', onPointerLeave);
+    };
+  }, [handlers]);
   React.useEffect(() => {
     // No registry (a bare <HostProvider>, as in most tests) or opted out: registering is a no-op, never a throw.
     if (!registry || !viewId || capture === 'never' || !rootRef.current) return undefined;
@@ -157,14 +170,6 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
       {...(visible || (slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome).mode === 'always' ? { [CHROME_SHOWN_ATTRIBUTE]: '' } : {})}
       {...touchProps}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
-      onPointerEnter={(e: React.PointerEvent<HTMLDivElement>) => {
-        handlers.onPointerEnter(e);
-        rest.onPointerEnter?.(e);
-      }}
-      onPointerLeave={(e: React.PointerEvent<HTMLDivElement>) => {
-        handlers.onPointerLeave(e);
-        rest.onPointerLeave?.(e);
-      }}
       onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
         handlers.onFocus(e);
         rest.onFocus?.(e);

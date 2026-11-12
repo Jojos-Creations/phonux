@@ -79,8 +79,12 @@ const activeIds = (m: MountedRow): string[] => ['c1', 'c2', 'c3'].filter((id) =>
 const press = (el: Element): void => void act(() => void el.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true })));
 const focusIn = (el: HTMLElement): void => void act(() => el.focus());
 const part = (m: MountedRow, id: string, which: 'header' | 'grab-bar' | 'footer'): HTMLElement => rootOf(m, id).querySelector<HTMLElement>(`[${CHROME_ATTRIBUTE}="${which}"]`)!;
+// What a browser sends as the pointer crosses the panel's edge: the bubbling pair React reads and the boundary event on the panel itself.
 const hover = (el: Element, on: boolean): void =>
-  void act(() => void el.dispatchEvent(new MouseEvent(on ? 'pointerover' : 'pointerout', { bubbles: true, relatedTarget: on ? document.body : null })));
+  void act(() => {
+    el.dispatchEvent(new MouseEvent(on ? 'pointerover' : 'pointerout', { bubbles: true, relatedTarget: on ? document.body : null }));
+    el.dispatchEvent(new MouseEvent(on ? 'pointerenter' : 'pointerleave', { relatedTarget: on ? document.body : null }));
+  });
 
 test('the attribute names a host styles from are pinned', () => {
   assert.equal(ACTIVE_ATTRIBUTE, 'data-panel-active');
