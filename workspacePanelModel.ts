@@ -41,7 +41,11 @@ export interface WorkspacePanelEntry {
   readonly live: boolean;
   /** An image URL drawn in the tile until a picture of the panel is taken. */
   readonly placeholder?: string;
-  /** The panel's width in slots (a positive integer). The tile spans that many grid columns, capped at the grid's columns. @defaultValue `1` */
+  /**
+   * The panel's width in slots (a positive integer). The tile spans that many grid columns, capped at the grid's columns, and
+   * is as tall as a one-column tile in its row. A tile capped at the columns shows the panel at its own ratio instead.
+   * @defaultValue `1`
+   */
   readonly slots?: number;
   /** The host's own element drawn before the tile's title. The panel sets no size or color on it. Left out, the caption shows the title alone. */
   readonly icon?: ReactNode;
@@ -72,8 +76,49 @@ export function workspaceTileSpan(slots: number | undefined, columns: number): n
 }
 
 /**
- * A tile's picture ratio: `span` phone widths by one phone height, so a tile of any span in a row has the same height as a
- * one-column tile and the row lines up.
+ * One row of tiles as `packWorkspaceTiles` lays them out: the tiles `start` up to (not including) `end`, in the order given.
+ */
+export interface WorkspaceTileRow {
+  /** The index of the row's first tile. */
+  readonly start: number;
+  /** One past the index of the row's last tile. */
+  readonly end: number;
+  /** The grid columns the row's tiles take together. */
+  readonly used: number;
+  /**
+   * Whether the row is drawn across the whole grid width: true only for a row cut short because the next tile did not fit
+   * in what was left of it. Its tiles share the width as if the grid had `used` columns. A last row is never stretched.
+   */
+  readonly stretched: boolean;
+}
+
+/**
+ * Packs tiles into rows of `columns` grid columns, in the order given: a tile that does not fit in what is left of a row
+ * starts the next row, and the row it left is stretched. No tile moves ahead of another to fill a hole.
+ * @param spans - Each tile's span in columns, as `workspaceTileSpan` gives it.
+ * @throws RangeError when `columns` is not a positive integer, or a span is not an integer from 1 to `columns`.
+ */
+export function packWorkspaceTiles(spans: readonly number[], columns: number): WorkspaceTileRow[] {
+  if (!Number.isInteger(columns) || columns < 1) throw new RangeError(`WorkspacePanel: the column count must be a positive integer, got ${String(columns)}`);
+  const rows: WorkspaceTileRow[] = [];
+  let start = 0;
+  let used = 0;
+  spans.forEach((span, i) => {
+    if (!Number.isInteger(span) || span < 1 || span > columns) throw new RangeError(`WorkspacePanel: a tile span must be an integer from 1 to ${columns}, got ${String(span)}`);
+    if (used + span > columns) {
+      rows.push({ start, end: i, used, stretched: used < columns });
+      start = i;
+      used = 0;
+    }
+    used += span;
+  });
+  if (spans.length > start) rows.push({ start, end: spans.length, used, stretched: false });
+  return rows;
+}
+
+/**
+ * A tile's picture ratio: `span` phone widths by one phone height. A tile wider than the grid's columns draws at this
+ * ratio, so it shows the whole panel shorter instead of cropped.
  */
 export function workspaceTileRatio(span: number, size: { width: number; height: number }): string {
   return `${span * size.width} / ${size.height}`;

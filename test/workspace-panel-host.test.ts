@@ -11,7 +11,7 @@ import { DndContext, MouseSensor, pointerWithin, useDroppable, useSensor, useSen
 import { WorkspacePanel, WorkspaceTrash } from '../index.js';
 import type { WorkspacePanelEntry, WorkspacePanelProps } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
-import { reorderWorkspaceIds, workspaceTileRatio, workspaceTileSpan } from '../workspacePanelModel.js';
+import { packWorkspaceTiles, reorderWorkspaceIds, workspaceTileRatio, workspaceTileSpan } from '../workspacePanelModel.js';
 import { advanceFrames, cleanup, mount, withHost, type Mounted } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 
@@ -87,6 +87,42 @@ test('a tile picture is its span in phone widths by one phone height, so a two-c
   assert.equal(workspaceTileRatio(1, phone), '390 / 844');
   assert.equal(workspaceTileRatio(2, phone), '780 / 844', 'twice as wide, the same height');
   assert.equal(workspaceTileRatio(3, phone), '1170 / 844');
+});
+
+const rowsOf = (spans: number[], columns: number) => packWorkspaceTiles(spans, columns).map((r) => `${r.start}-${r.end}:${r.used}${r.stretched ? 's' : ''}`);
+
+test('tiles pack into rows in order, and a row cut short by a tile that does not fit is stretched', () => {
+  assert.deepEqual(rowsOf([1, 1, 1, 1, 1], 3), ['0-3:3', '3-5:2'], 'phones only: full rows, then a short last row that is not stretched');
+  assert.deepEqual(rowsOf([1, 1, 2, 1], 3), ['0-2:2s', '2-4:3'], 'a Fold with one column left drops, and the row it left stretches');
+  assert.deepEqual(rowsOf([1, 2, 2, 1, 1], 4), ['0-2:3s', '2-5:4'], 'a row holding a Fold stretches as well');
+  assert.deepEqual(rowsOf([1, 1, 1, 2], 4), ['0-3:3s', '3-4:2'], 'the dropped Fold alone on the last row is not stretched');
+  assert.deepEqual(rowsOf([2, 1, 2], 3), ['0-2:3', '2-3:2'], 'a full row before a drop is not stretched');
+  assert.deepEqual(rowsOf([1, 1], 1), ['0-1:1', '1-2:1'], 'one column: one tile a row');
+  assert.deepEqual(rowsOf([], 4), [], 'no tiles, no rows');
+  assert.throws(() => packWorkspaceTiles([3], 2), RangeError, 'a span wider than the grid');
+  assert.throws(() => packWorkspaceTiles([1], 0), RangeError, 'no columns');
+});
+
+test('a stretched row is drawn as a grid of its own columns across the full width; other tiles stay direct children of the grid', () => {
+  const m = render({ tileCounts: { medium: 3 }, entries: [entry('a'), entry('b'), entry('fold', { slots: 2 }), entry('c')] });
+  const grid = m.container.querySelector<HTMLElement>('[data-workspace-tiles]');
+  const rows = [...m.container.querySelectorAll<HTMLElement>('[data-workspace-tile-row]')];
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.dataset.columns, '2');
+  assert.equal(rows[0]?.parentElement, grid);
+  assert.deepEqual(tileIds(rows[0] as HTMLElement), ['a', 'b']);
+  assert.equal(m.container.querySelector('[data-workspace-tile="fold"]')?.parentElement, grid);
+  assert.deepEqual(tileIds(m.container), ['a', 'b', 'fold', 'c'], 'the order is the order given');
+  assert.ok(m.container.querySelector('[data-workspace-tile="fold"] [data-workspace-tile-gauge]'), 'a Fold that fits takes its height from a one-column gauge');
+  assert.equal(m.container.querySelector('[data-workspace-tile="a"] [data-workspace-tile-gauge]'), null, 'a phone tile has no gauge');
+  m.unmount();
+});
+
+test('phone tiles draw no row wrapper and no gauge, as before', () => {
+  const m = render({ tileCounts: { medium: 3 }, entries: ['a', 'b', 'c', 'd'].map((id) => entry(id)) });
+  assert.equal(m.container.querySelector('[data-workspace-tile-row]'), null);
+  assert.equal(m.container.querySelector('[data-workspace-tile-gauge]'), null);
+  m.unmount();
 });
 
 // jsdom lays nothing out, so each tile and the trash (or a host target in the trash's place) get a fixed box that the drag measures against.
