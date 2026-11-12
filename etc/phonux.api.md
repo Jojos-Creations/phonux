@@ -1870,6 +1870,7 @@ export interface WorkspaceColumnHandle {
     dispose(): void;
     movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     removeWorkspace(target: WorkspaceHandle | number): boolean;
+    reorderWorkspace(target: WorkspaceHandle | number, toIndex: number): boolean;
     scrollTo(target: WorkspaceHandle | number): void;
     readonly status: ColumnStatus;
     step(direction: 'up' | 'down'): boolean;
