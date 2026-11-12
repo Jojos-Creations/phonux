@@ -37,7 +37,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
    * A call from code is not limited by `movable`, the root's included; with source `'person'` a panel whose `movable` is false answers `not-movable`.
    */
   move(by: number, source?: 'code' | 'person'): PanelResult;
-  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`root-fixed`), as it cannot be anchored to itself. */
+  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`root-fixed`), as it cannot be anchored to itself. With source `'person'` the row follows the panel as its `scrollOnMove` says; a place from code never scrolls the row, and the panels in view stay where they are on screen, those after the panel's old place closing the gap it left. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
   /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. A call from code is not limited by `resizable`; with source `'person'` a panel whose `resizable` is false answers `not-resizable`. */
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;

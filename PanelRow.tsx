@@ -38,7 +38,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaPlaceOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 // A host may apply a person's move a task or two after the drop or key that asked for it; a note older than this was refused.
@@ -455,7 +455,11 @@ export function PanelRow({
   const moving = moveNote !== undefined && moveNote.seq !== lastMove.current && changed;
   const stripMax = Math.max(0, stripPx - emblaWindow.width);
   const reorderNow = reorderNote.current !== null && performance.now() - reorderNote.current.atMs < REORDER_NOTE_MS && changed && lastLayout.current !== null && lastLayout.current.ids.length === layoutNow.ids.length && lastLayout.current.ids.every((id) => layoutNow.ids.includes(id)) ? reorderNote.current.id : null;
-  const keptNow = emblaNow === undefined || !changed || reorderNow !== null ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax);
+  // A place by code noted in the task that draws it: the keep-still rule does not anchor the view on the placed panel.
+  const placeNote = emblaNow === undefined ? undefined : emblaPlaceOf(windowRef.current!);
+  const lastPlace = React.useRef(0);
+  const placedNow = placeNote !== undefined && placeNote.seq !== lastPlace.current && changed ? placeNote.id : undefined;
+  const keptNow = emblaNow === undefined || !changed || reorderNow !== null ? scrollNow : keptScroll(lastLayout.current!, layoutNow, scrollNow, stripMax, placedNow);
   const keepTo = keptNow;
   const keeping = Math.abs(keepTo - scrollNow) > 0.5;
   // A change of the strip in the same window that moves the view (a page in view narrowed at the strip's end) jumps the scroll and
@@ -607,6 +611,7 @@ export function PanelRow({
     if (embla !== undefined && (keeping || restop)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop);
     if (embla !== undefined) lastStops.current = stopsKey;
     if (moveNote !== undefined && changed) lastMove.current = moveNote.seq;
+    if (placeNote !== undefined && changed) lastPlace.current = placeNote.seq;
     if (embla !== undefined && reorderNow !== null) {
       reorderNote.current = null;
       const k = layoutNow.ids.indexOf(reorderNow);

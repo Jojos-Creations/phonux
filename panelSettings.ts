@@ -109,7 +109,7 @@ export type ScrollAlign = 'into-view' | 'start' | 'center';
 /** Where the row scrolls a panel to on open, show or click: a `ScrollAlign`, or 'none' for no scroll. @public */
 export type ScrollOnOpen = ScrollAlign | 'none';
 
-/** Whether the row follows a panel that moves: 'follow' scrolls it into view, 'none' leaves the scroll alone. @public */
+/** Whether the row follows a panel that moves: 'follow' scrolls it into view, 'none' leaves the scroll alone. A `place` from code is never followed. @public */
 export type ScrollOnMove = 'follow' | 'none';
 
 /** Whether the row scrolls while a panel is dragged near the window's edge: 'edge' scrolls, 'none' does not. @public */
