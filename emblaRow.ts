@@ -111,15 +111,26 @@ export interface StripLayout {
  * resized, or clamped by a narrower window). The anchor is the first panel, in strip order, that reaches past the window's left
  * edge at `scroll` and is still in the strip: the scroll moves by as much as that panel moved, so it, and everything after it
  * that did not change, stays where it is on screen. Clamped to `[0, max]`, the strip's new end.
+ * A panel `placed` by code is never the anchor: the view stays on what was beside it. Where it was the anchor, the panel before it
+ * holds still instead (in view or not), so those after it close the gap it left; with none before it, the next one is the anchor.
  * @internal
  */
-export function keptScroll(before: StripLayout, after: StripLayout, scroll: number, max: number): number {
+export function keptScroll(before: StripLayout, after: StripLayout, scroll: number, max: number, placed?: string): number {
   const order = before.ids.map((_, k) => k).sort((a, b) => before.lefts[a]! - before.lefts[b]!);
-  for (const k of order) {
-    if (before.lefts[k]! + before.widths[k]! <= scroll + 0.5) continue;
+  const kept = (k: number): number | null => {
     const j = after.ids.indexOf(before.ids[k]!);
-    if (j < 0) continue;
-    return Math.min(Math.max(0, scroll + after.lefts[j]! - before.lefts[k]!), max);
+    return j < 0 ? null : Math.min(Math.max(0, scroll + after.lefts[j]! - before.lefts[k]!), max);
+  };
+  for (let n = 0; n < order.length; n += 1) {
+    const k = order[n]!;
+    if (before.lefts[k]! + before.widths[k]! <= scroll + 0.5) continue;
+    if (before.ids[k] === placed) {
+      const prev = n > 0 ? kept(order[n - 1]!) : null;
+      if (prev !== null) return prev;
+      continue;
+    }
+    const to = kept(k);
+    if (to !== null) return to;
   }
   return Math.min(Math.max(0, scroll), max);
 }
@@ -909,6 +920,14 @@ export function noteEmblaMove(el: Element, id: string): void {
 }
 /** The last move noted on the Embla row rooted on `win`. @internal */
 export const emblaMoveOf = (win: Element): EmblaMoveNote | undefined => moveNotes.get(win);
+const placeNotes = new WeakMap<Element, EmblaMoveNote>();
+/** Notes that code just placed panel `id` on the Embla row whose window or container is `el`: the commit that draws it keeps the view on what was beside it. @internal */
+export function noteEmblaPlace(el: Element, id: string): void {
+  const win = windowOf(el);
+  if (win !== null) placeNotes.set(win, { id, seq: ++moveSeq });
+}
+/** The last place by code noted on the Embla row rooted on `win`. @internal */
+export const emblaPlaceOf = (win: Element): EmblaMoveNote | undefined => placeNotes.get(win);
 
 /** Whether panel `k` of `layout` stands whole in a window `windowWidth` wide at `scroll`. @internal */
 export function wholeInView(layout: StripLayout, k: number, scroll: number, windowWidth: number): boolean {
