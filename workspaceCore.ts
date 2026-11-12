@@ -425,6 +425,7 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
   a.url === b.url &&
   a.listed === b.listed &&
   a.openedBy === b.openedBy &&
+  a.slots === b.slots &&
   JSON.stringify(a.params) === JSON.stringify(b.params) &&
   sameSettingsValue(a.settings, b.settings);
 
@@ -593,6 +594,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       listed: e.listed,
       settings: res.value,
       openedBy: openerKey(e, entries),
+      slots: e.savedSlots ?? slotsOf(e),
     };
   };
 

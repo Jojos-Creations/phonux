@@ -60,6 +60,11 @@ export interface PanelState {
    * moves away alone, this becomes the opener's own opener.
    */
   readonly openedBy?: PanelId | null;
+  /**
+   * How many phone widths wide the panel is set to, while it is in the row: its own size (a resting panel's size to come
+   * back to), not what the window draws now. Absent for a closed or pending panel.
+   */
+  readonly slots?: number;
 }
 
 /** A readonly picture of a workspace at one moment: its version, its status and every panel's state. @public */
