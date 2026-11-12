@@ -50,17 +50,35 @@ async function three(o: Parameters<typeof createWorkspaceColumn>[0] = {}): Promi
   return c;
 }
 
-test('addWorkspace names workspaces Workspace 1, 2, 3, stores the name and draws a cell each', async () => {
+test('addWorkspace names workspaces Space 1, 2, 3, stores the name and draws a cell each', async () => {
   const c = await three();
-  assert.deepEqual(c.workspaces.map((w) => w.name), ['Workspace 1', 'Workspace 2', 'Workspace 3']);
+  assert.deepEqual(c.workspaces.map((w) => w.name), ['Space 1', 'Space 2', 'Space 3']);
   assert.equal(c.current, 0);
-  assert.deepEqual([...document.querySelectorAll<HTMLInputElement>('[data-workspace-name-input]')].map((i) => i.value), ['Workspace 1', 'Workspace 2', 'Workspace 3']);
+  assert.deepEqual([...document.querySelectorAll<HTMLInputElement>('[data-workspace-name-input]')].map((i) => i.value), ['Space 1', 'Space 2', 'Space 3']);
 });
 
 test('the default name skips a number a workspace already uses', () => {
   const c = make({ mount: false });
+  c.addWorkspace({ name: 'Space 2' });
+  assert.equal(c.addWorkspace().name, 'Space 3');
+});
+
+test('an older Workspace N name is kept and neither blocks nor shifts the next Space N', () => {
+  const c = make({ mount: false });
+  c.addWorkspace({ name: 'Workspace 1' });
   c.addWorkspace({ name: 'Workspace 2' });
-  assert.equal(c.addWorkspace().name, 'Workspace 3');
+  assert.equal(c.addWorkspace().name, 'Space 3');
+  c.addWorkspace({ name: 'Space 5' });
+  assert.equal(c.addWorkspace().name, 'Space 6');
+  assert.deepEqual(c.workspaces.map((w) => w.name), ['Workspace 1', 'Workspace 2', 'Space 3', 'Space 5', 'Space 6']);
+});
+
+test('a restored Workspace N name stays as saved and the next new one is Space N', async () => {
+  const storage = memoryColumnStorage({ version: 1, workspaces: [{ id: 'a', name: 'Workspace 1' }, { id: 'b', name: 'Workspace 2' }], current: 'a' });
+  const c = make({ storage, mount: false });
+  await until('ready', () => c.status === 'ready');
+  assert.equal(c.addWorkspace().name, 'Space 3');
+  assert.deepEqual(c.workspaces.map((w) => w.name), ['Workspace 1', 'Workspace 2', 'Space 3']);
 });
 
 test('one addWorkspace call with templates yields a mounted workspace with its panel', async () => {
@@ -117,38 +135,38 @@ test('the neighbour buttons name the workspace above and below, and a click move
   const c = await three();
   act(() => void c.scrollTo(1));
   const mid = cells()[1]!;
-  assert.equal(neighbour(mid, 'above').textContent, 'Workspace 1');
-  assert.equal(neighbour(mid, 'below').textContent, 'Workspace 3');
+  assert.equal(neighbour(mid, 'above').textContent, 'Space 1');
+  assert.equal(neighbour(mid, 'below').textContent, 'Space 3');
   click(neighbour(mid, 'below'));
   assert.equal(c.current, 2);
   click(neighbour(cells()[2]!, 'above'));
   assert.equal(c.current, 1);
 });
 
-test('with no workspace below, the button reads Create new workspace and creates one and scrolls to it', async () => {
+test('with no workspace below, the button reads New space and creates one and scrolls to it', async () => {
   const c = await three();
   act(() => void c.scrollTo(2));
   const last = cells()[2]!;
-  assert.equal(neighbour(last, 'below').textContent, 'Create new workspace');
+  assert.equal(neighbour(last, 'below').textContent, 'New space');
   click(neighbour(last, 'below'));
   await until('a fourth cell', () => cells().length === 4);
   assert.equal(c.workspaces.length, 4);
   assert.equal(c.current, 3);
-  assert.equal(c.workspaces[3]!.name, 'Workspace 4');
+  assert.equal(c.workspaces[3]!.name, 'Space 4');
 });
 
 test('with no workspace above, the button creates one at the top and scrolls to it', async () => {
   const c = await three();
   const first = cells()[0]!;
-  assert.equal(neighbour(first, 'above').textContent, 'Create new workspace');
+  assert.equal(neighbour(first, 'above').textContent, 'New space');
   click(neighbour(first, 'above'));
   await until('a fourth cell', () => cells().length === 4);
   assert.equal(c.current, 0);
-  assert.equal(c.workspaces[0]!.name, 'Workspace 4');
-  assert.equal(c.workspaces[1]!.name, 'Workspace 1');
+  assert.equal(c.workspaces[0]!.name, 'Space 4');
+  assert.equal(c.workspaces[1]!.name, 'Space 1');
 });
 
-test('an empty column offers Create new workspace alone', async () => {
+test('an empty column offers New space alone', async () => {
   const c = make();
   await until('the button', () => document.querySelector('[data-workspace-neighbour="empty"]') !== null);
   click(document.querySelector('[data-workspace-neighbour="empty"]')!);
@@ -283,7 +301,7 @@ test('the saved list comes back in order with its names and current workspace, a
   assert.equal(c.status, 'loading');
   await until('ready', () => c.status === 'ready');
   assert.deepEqual(c.workspaces.map((w) => w.id), ['b', 'main', 'c', 'extra']);
-  assert.deepEqual(c.workspaces.map((w) => w.name), ['Beta', 'Home', 'Gamma', 'Workspace 2']);
+  assert.deepEqual(c.workspaces.map((w) => w.name), ['Beta', 'Home', 'Gamma', 'Space 2']);
   assert.equal(c.workspaces[1], main);
   assert.equal(c.workspaces[3], extra);
   assert.equal(c.current, 2);
@@ -299,7 +317,7 @@ test('a changed list is saved: an add, a rename and a move each', async () => {
   c.scrollTo(1);
   await until('saved', () => storage.saved.length >= 4);
   const last = storage.saved.at(-1)!;
-  assert.deepEqual(last, { version: 1, workspaces: [{ id: 'one', name: 'First' }, { id: 'two', name: 'Workspace 2' }], current: 'two' });
+  assert.deepEqual(last, { version: 1, workspaces: [{ id: 'one', name: 'First' }, { id: 'two', name: 'Space 2' }], current: 'two' });
 });
 
 test('add and rebuild each ask storage.workspace for their own id; undefined means no storage', async () => {
