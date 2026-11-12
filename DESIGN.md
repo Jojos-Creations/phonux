@@ -888,6 +888,9 @@ saved list no longer names the workspace; deleting them is the app's job. The on
 removed one was last. It returns `false` and changes nothing for the last workspace, an unknown target, a column still reading its saved
 list, and a disposed column.
 
+`reorderWorkspace(target, toIndex)` moves a workspace to another index and saves the order. The current workspace stays the same
+workspace, so the view does not move; only its index changes. It refuses the same cases as `removeWorkspace` except the last workspace.
+
 **Identity and names.** A workspace has a stable `id`, unrelated to its name. The id is the storage key: `ColumnStorage.workspace(id)`
 gives the panel storage of that workspace, so a rename never moves saved panels. An app that already has a workspace adopts it as
 the first one with `addWorkspace({ id })` and a `workspace(id)` that returns its existing storage for that id. `addWorkspace` takes
