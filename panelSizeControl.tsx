@@ -76,13 +76,21 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const maximize = usePanelMaximize(button, { ...(topInset !== undefined ? { topInset } : {}), onRefused: () => refused('fullscreen') });
   const handle = slot?.handle;
   const summary = slot?.summary;
+  // Focus goes back to the button only once the menu has closed: while open, its focus trap pulls focus back into the menu, which then
+  // unmounts holding it with no blur React can see, and the panel would read itself as focused, its chrome shown, from then on.
+  const refocus = React.useRef(false);
+  React.useEffect(() => {
+    if (anchor !== null || !refocus.current) return;
+    refocus.current = false;
+    button.current?.focus({ preventScroll: true });
+  }, [anchor]);
   if (!drawsSizeControl(slot) || handle === undefined || summary === undefined) return null;
   const maxSlots = slot?.maxSlots ?? 1;
   const limit = Math.min(SIZE_KEYS.length, maxSlots, summary.fitSlots ?? maxSlots);
   const own = summary.savedSlots ?? summary.slots ?? 1;
   const close = (): void => {
+    refocus.current = true;
     setAnchor(null);
-    button.current?.focus({ preventScroll: true });
   };
   const fullscreenLabel = fullscreenShortcut === undefined ? labels.fullscreen : `${labels.fullscreen} (${fullscreenShortcut})`;
   return (

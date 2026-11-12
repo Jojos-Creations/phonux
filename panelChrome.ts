@@ -490,10 +490,10 @@ function subscribeHoverNone(listener: () => void): () => void {
 }
 const hoverNone = (): boolean => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(hover: none)').matches;
 
-/** Handlers `Panel` puts on its root box, composed over the caller's own. */
+/** Handlers `Panel` puts on its root box, composed over the caller's own; the pointer pair on the DOM node itself (Panel.tsx). */
 export interface ChromeRootHandlers {
-  onPointerEnter: React.PointerEventHandler<HTMLElement>;
-  onPointerLeave: React.PointerEventHandler<HTMLElement>;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
   onFocus: React.FocusEventHandler<HTMLElement>;
   onBlur: React.FocusEventHandler<HTMLElement>;
 }
