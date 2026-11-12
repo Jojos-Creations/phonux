@@ -870,7 +870,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
-      if (changed) followPanel(engineId);
+      // A move by code leaves the view where it is, as a place by code does: only a person's own move follows the panel.
+      if (changed && source === 'person') followPanel(engineId);
+      else if (changed && i.overflowContainerRef.current !== null) noteEmblaPlace(i.overflowContainerRef.current, engineId);
       gate.release(token);
       return accepted(changed);
     },

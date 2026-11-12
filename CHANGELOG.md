@@ -4,6 +4,9 @@
 
 ### Changed
 
+- `PanelHandle.move(by, 'code')` no longer scrolls the row: like `place` from code, it keeps the panels in view where they are on
+  screen and never anchors the view on the moved panel. A move with source `'person'` still follows the panel as its `scrollOnMove`
+  says. This is what lets a host carry the root across the row without the view jumping after it.
 - The default English labels say "space" where a person reads them: the create button is `New space` (was `Create new
   workspace`), the name input is `Space name`, and a column names new workspaces `Space 1`, `Space 2`... (a workspace made
   with no name is `Space`). Saved names are not rewritten; an older `Workspace N` stays and does not block a `Space N`.

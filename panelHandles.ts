@@ -35,6 +35,8 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
    * Moves a live panel `by` slots, negative to the left, in one gated call. It stops at the row's end or at a panel it
    * cannot cross; the result is accepted with `changed` true when at least one slot was crossed, and false at an end or for 0.
    * A call from code is not limited by `movable`, the root's included; with source `'person'` a panel whose `movable` is false answers `not-movable`.
+   * With source `'person'` the row follows the panel as its `scrollOnMove` says; a move from code never scrolls the row, and the
+   * panels in view stay where they are on screen, as for `place` from code.
    */
   move(by: number, source?: 'code' | 'person'): PanelResult;
   /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`root-fixed`), as it cannot be anchored to itself. With source `'person'` the row follows the panel as its `scrollOnMove` says; a place from code never scrolls the row, and the panels in view stay where they are on screen, those after the panel's old place closing the gap it left. */
