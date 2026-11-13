@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The View Size control works by keyboard. It opens as a popover of buttons, not a `role="menu"` holding buttons (which axe flagged as `aria-required-children`), so the trigger's `aria-haspopup` is now `dialog`. Focus lands on the first width, the arrow keys, Home and End move along the widths and Fullscreen, Tab stays inside, and Escape closes it and returns focus to the View Size button. It looks the same.
 - A template's own `firstPressFocusOnly` (boolean) overrides the workspace's `tuning.firstPressFocusOnly` for that template's panels, either way. Left out, the workspace value decides. `definePanel` refuses a non-boolean.
 - Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel. Focus landing in such a portaled surface, which React counts as part of the row but the DOM does not, was taken for focus entering the row and moved to a panel, and the dialog's focus trap pulled it back, so the keys never got past the dialog's frame. The row now steers only focus that lands inside its own DOM.
 

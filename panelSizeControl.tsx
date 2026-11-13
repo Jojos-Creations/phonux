@@ -6,7 +6,7 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
-import Menu from '@mui/material/Menu';
+import Popover from '@mui/material/Popover';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { AnnounceContext } from './announce.js';
@@ -27,6 +27,18 @@ function insidePanel(button: HTMLElement | null): { side: 'left' | 'right'; maxW
 const SIZE_KEYS = ['phone', 'fold', 'tablet', 'desktop', 'ultrawide'] as const;
 
 const ICON = { color: 'inherit' } as const;
+const STOP_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+
+/** Arrow keys, Home and End step focus along the group's buttons without wrapping. */
+function stepFocus(event: React.KeyboardEvent<HTMLElement>): void {
+  if (!STOP_KEYS.includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const stops = [...event.currentTarget.querySelectorAll<HTMLElement>('button')];
+  const at = stops.indexOf(event.target as HTMLElement);
+  if (at < 0) return;
+  event.preventDefault();
+  const to = event.key === 'Home' ? 0 : event.key === 'End' ? stops.length - 1 : at + (event.key === 'ArrowRight' ? 1 : -1);
+  stops[Math.min(Math.max(to, 0), stops.length - 1)]?.focus({ preventScroll: true });
+}
 const ENTRY = { color: 'text.primary' } as const;
 
 /** Whether the control draws anything in this slot, so `Panel` leaves its header's placeholder alone when it does not. */
@@ -48,7 +60,7 @@ export interface PanelSizeControlProps {
 /**
  * The width control of the panel the call is made in, for its header. It draws nothing outside a row, nor for a panel that is
  * not resizable or may take fewer than two slots. The menu offers the widths up to five phones that `maxSlots` allows and the
- * window fits, with the panel's own width pressed, then Fullscreen. Focus goes back to the button once a width is picked.
+ * window fits, with the panel's own width pressed, then Fullscreen. Focus lands on the first width when it opens, the arrow keys move along the widths, and focus goes back to the button when Escape closes it or a width is picked.
  * @public
  */
 export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys, onRefused }: PanelSizeControlProps = {}): React.JSX.Element | null {
@@ -60,6 +72,14 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const button = React.useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
   const place = insidePanel(anchor);
+  const returnFocus = React.useRef(false);
+  // The popover's focus trap pulls focus back while it is still open, so the button takes it only once the commit that closes it has run.
+  React.useEffect(() => {
+    if (anchor === null && returnFocus.current) {
+      returnFocus.current = false;
+      button.current?.focus({ preventScroll: true });
+    }
+  }, [anchor]);
   const refused = (what: 'resize' | 'fullscreen'): void => {
     if (onRefused !== undefined) onRefused(what);
     else announce?.(what === 'resize' ? labels.couldNotResize : labels.couldNotFullscreen);
@@ -72,8 +92,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const limit = Math.min(SIZE_KEYS.length, maxSlots, summary.fitSlots ?? maxSlots);
   const own = summary.savedSlots ?? summary.slots ?? 1;
   const close = (): void => {
+    returnFocus.current = true;
     setAnchor(null);
-    button.current?.focus({ preventScroll: true });
   };
   const fullscreenLabel = fullscreenShortcut === undefined ? labels.fullscreen : `${labels.fullscreen} (${fullscreenShortcut})`;
   return (
@@ -83,7 +103,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
           ref={button}
           size="small"
           aria-label={labels.viewSize}
-          aria-haspopup="menu"
+          aria-haspopup="dialog"
           aria-expanded={anchor !== null}
           data-panel-size-button=""
           // A press must not move focus first: the row reads a focus change inside a panel as the person choosing it.
@@ -94,17 +114,17 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
           {maximize.maximized || own > SIZE_KEYS.length ? icons.fullscreen : icons.size(own)}
         </IconButton>
       </Tooltip>
-      {/* No restore on close: a dismissed menu leaves focus where it was, and a pick puts it back on the button itself. */}
-      <Menu
+      {/* No restore on close: a click-away leaves focus where it was, and Escape and a pick put it back on the button themselves. */}
+      <Popover
         anchorEl={anchor}
         open={anchor !== null}
-        onClose={() => setAnchor(null)}
+        onClose={(_event, reason) => (reason === 'escapeKeyDown' ? close() : setAnchor(null))}
         disableRestoreFocus
         anchorOrigin={{ vertical: 'bottom', horizontal: place.side }}
         transformOrigin={{ vertical: 'top', horizontal: place.side }}
-        slotProps={{ paper: { sx: { maxWidth: place.maxWidth } } }}
+        slotProps={{ paper: { role: 'dialog', 'aria-label': labels.viewSize, sx: { maxWidth: place.maxWidth, maxHeight: 'calc(100% - 96px)' } } }}
       >
-        <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" sx={{ px: 2, pt: 1, pb: 0.5 }}>
+        <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" onKeyDown={stepFocus} sx={{ px: 2, pt: 2, pb: 1.5 }}>
           <Typography variant="caption" component="div" color="text.secondary">
             {labels.viewSize}
           </Typography>
@@ -114,6 +134,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
                 <IconButton
                   size="small"
                   data-view-size={SIZE_KEYS[slots - 1]}
+                  autoFocus={slots === 1}
                   aria-label={labels.sizeName(slots)}
                   aria-pressed={(summary.slots ?? 1) === slots}
                   onClick={() => {
@@ -144,7 +165,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
             </Tooltip>
           </Box>
         </Box>
-      </Menu>
+      </Popover>
     </>
   );
 }

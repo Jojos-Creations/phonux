@@ -93,3 +93,39 @@ test('with onRefused the host hears the refusal instead, and nothing is announce
   assert.deepEqual(heard, ['resize']);
   assert.deepEqual(said, []);
 });
+
+const key = (target: Element, name: string): void => void act(() => void target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })));
+
+test('opening the menu puts focus on the first width, and the arrow keys, Home and End move it among the widths and Fullscreen', async () => {
+  const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+  await openSizes(rig);
+  const stops = [...document.querySelectorAll<HTMLElement>('[data-panel-size-group] button')];
+  assert.equal(stops.length, 4, 'three widths and Fullscreen');
+  assert.ok(document.activeElement === stops[0], 'focus starts on the first width');
+  key(document.activeElement!, 'ArrowRight');
+  assert.ok(document.activeElement === stops[1], "focus is on the expected stop");
+  key(document.activeElement!, 'End');
+  assert.ok(document.activeElement === stops[3], "focus is on the expected stop");
+  key(document.activeElement!, 'ArrowRight');
+  assert.ok(document.activeElement === stops[3], 'the ends do not wrap');
+  key(document.activeElement!, 'ArrowLeft');
+  assert.ok(document.activeElement === stops[2], "focus is on the expected stop");
+  key(document.activeElement!, 'Home');
+  assert.ok(document.activeElement === stops[0], "focus is on the expected stop");
+});
+
+test('Escape closes the menu and focus returns to the View Size button', async () => {
+  const rig = await headerRig({ ids: ['a'], sizeControl: true });
+  await openSizes(rig);
+  key(document.activeElement!, 'Escape');
+  await wait();
+  assert.equal(document.querySelectorAll('[data-view-size]').length, 0, 'the menu is gone');
+  assert.ok(document.activeElement === sizeButton(rig), "focus is on the expected stop");
+});
+
+test('the menu is not a role=menu holding buttons, which a screen reader cannot read as a menu', async () => {
+  const rig = await headerRig({ ids: ['a'], sizeControl: true });
+  await openSizes(rig);
+  assert.ok(document.querySelector('[role="menu"]') === null, 'no role=menu');
+  assert.equal(sizeButton(rig)!.getAttribute('aria-haspopup'), 'dialog');
+});
