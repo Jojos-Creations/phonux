@@ -317,8 +317,9 @@ test('source: a scratch copy of useProvidePanels.ts with a fifth writer of `over
 
 /** Functions that still read `.collapsible`: presence, parking and fixed-column bookkeeping. Permission decisions read effective(p). */
 const COLLAPSIBLE_READERS: Record<string, readonly string[]> = {
-  'panelWindow.ts': ['parksForRoom', 'recordOverride', 'sideOfLiveRange'],
-  'panels/usePanelManager.ts': ['holdPanel', 'markHeld', 'swapPanels', 'usePanelManager', 'wouldEmptyRow'],
+  'panelWindow.ts': ['recordOverride', 'sideOfLiveRange'],
+  // liveParkable and plannedReturns read it since parksForRoom left with overflow (2026-11-14): collapsible is what parksForRoom kept.
+  'panels/usePanelManager.ts': ['holdPanel', 'liveParkable', 'markHeld', 'plannedReturns', 'swapPanels', 'usePanelManager', 'wouldEmptyRow'],
   'panels/useProvidePanels.ts': ['useProvidePanels'],
 };
 

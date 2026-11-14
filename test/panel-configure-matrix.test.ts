@@ -1360,8 +1360,9 @@ test('matrix:tuning.resizeSettleSlides', async () => {
 test('matrix:tuning.maxLivePanels', async () => {
   probe('tuning.maxLivePanels');
   await wrongScopeInEveryStatus({ tuning: { maxLivePanels: 2 } }, 'tuning.maxLivePanels');
-  // On the Embla row every panel keeps its slot; the cap bounds how many far parkable panels stay loaded (`-`: a placeholder).
-  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], park: true, width: 1280 });
+  // On the Embla row every panel keeps its slot; the cap bounds how many far panels stay loaded (`-`: a placeholder). With no cap a
+  // template row loads every panel, as at 22374a6; since overflow left (2026-11-14) the cap counts every panel, not only 'park' ones.
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], width: 1280 });
   const drawn = (): string => {
     const slots = [...r.m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
     const names = r.order();
@@ -1369,7 +1370,7 @@ test('matrix:tuning.maxLivePanels', async () => {
     return slots.map((slot, k) => `${names[k]}${slot.querySelector('[data-row-unloaded]') !== null ? '-' : ''}`).join(' ');
   };
   await r.settle();
-  assert.equal(drawn(), 'root a b c d e- f- g- h-', 'before: no cap, the panels in view and two past the edge load');
+  assert.equal(drawn(), 'root a b c d e f g h', 'before: no cap, every panel of the template row is loaded');
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 1 }))) }, { ok: true, changed: true, now: ['tuning.maxLivePanels'], later: [], shadowed: [], notes: [] });
   await r.settle();
   assert.equal(drawn(), 'root a b c- d- e- f- g- h-', 'the far panels unload at this commit; the ones in view stay loaded');
@@ -1382,8 +1383,8 @@ test('matrix:tuning.maxLivePanels', async () => {
   done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: null })));
   await r.settle();
   assert.equal(r.ws.tuning.maxLivePanels, null);
-  assert.equal(drawn(), 'root a b c d e- f- g- h-', 'null removes the cap and the near pair loads again');
-  const unmeasured = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 0 });
+  assert.equal(drawn(), 'root a b c d e f g h', 'null removes the cap and every panel loads again');
+  const unmeasured = await matrixRig({ ids: ['a', 'b', 'c'], width: 0 });
   done(unmeasured.turn(() => unmeasured.ws.panels.configureTuning({ maxLivePanels: 1 })));
   assert.deepEqual([unmeasured.ws.tuning.maxLivePanels, unmeasured.live().join(' ')], [1, 'root a b c'], 'unmeasured: applies at once and parks nothing');
 });
@@ -1477,14 +1478,14 @@ test('the class table ran every cell: executed cells equal 4 classes by 7 status
 });
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
-const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable', 'hideStickiness', 'capacityReturn', 'revealOnScroll', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak'];
+const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable', 'hideStickiness', 'capacityReturn', 'revealOnScroll', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'overflow'];
 const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused', 'tuning.fastScroll', 'tuning.firstPressFocusOnly'];
 
-test('the probes ran every catalog name once: 51 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 50 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 60);
-  assert.equal(CATALOG_NAMES.length, 51);
-  assert.equal(probesExecuted().size, 51);
+  assert.equal(CATALOG_NAMES.length, 50);
+  assert.equal(probesExecuted().size, 50);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

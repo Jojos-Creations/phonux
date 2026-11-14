@@ -282,13 +282,16 @@ test('activate releases the hold: the panel is live and unmarked', () => {
   assert.deepEqual(e.live(), ['a', 'b']);
 });
 
-test('the row gesture releases the hold of the panel it brings back', () => {
+// Bringing a hidden panel back on a row gesture was the park row's (overflow 'park', removed 2026-11-14). A template row at
+// 22374a6 already did what this pins: the gesture drops the mark and scrolls, and the hidden panel stays hidden.
+test('the row gesture releases the hold mark, and on the strip it does not bring the hidden panel back', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
   e.hold('b');
   assert.deepEqual(e.held(), ['b:sticky']);
+  assert.ok(!e.live().includes('b'), 'control: the hold hid b');
   e.scroll('right');
   assert.deepEqual(e.held(), [], 'the gesture dropped the mark');
-  assert.ok(e.live().includes('b'), 'b came back');
+  assert.ok(!e.live().includes('b'), 'b stays hidden: nothing parks or returns for room on the strip');
 });
 
 test('a close drops the hold of the closed panel, and nothing else', () => {

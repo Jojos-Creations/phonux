@@ -77,7 +77,7 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
       const viaModel = rowNumbersViaModel(input) !== null;
       seen(viaModel ? 'model' : 'fallback');
       if (viaModel) {
-        seen(!old.rowScroll ? (r.rest !== null ? 'model:flat-rest' : 'model:flat') : old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
+        seen(old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
       } else {
         seen(r.container === 0 ? 'fallback:unmeasured' : old.stuck.length > 0 ? 'fallback:both' : old.held.some((h) => h.side === 'right') ? 'fallback:right' : r.rest !== null ? 'fallback:rest' : 'fallback:other');
       }
@@ -85,7 +85,7 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
     }),
     { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 3000) },
   );
-  const thin = ['model:flat', 'model:flat-rest', 'model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
+  const thin = ['model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
   assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 3000), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));
@@ -147,14 +147,15 @@ test('computeRowNumbers answers through the model: a stand-in for it is what com
   assert.notEqual(rowNumbersViaModel(input), null, 'control: this row is one the model takes');
 });
 
-test('a swap row in a window narrower than a phone gets the older arithmetic\'s numbers through the model, every field', () => {
+// The swap row (every panel 'park') left with overflow (owner, 2026-11-14): a row in a window under a phone is a strip the model declines.
+test('a row in a window narrower than a phone gets the older arithmetic\'s numbers, every field: the model declines it', () => {
   let narrow = 0;
   fc.assert(
     fc.property(rowArb, fc.integer({ min: 0, max: 60 }), (r, shortBy) => {
       // The window (container less a gap each side) is under one phone: 1 to phone-1 px wide, down to nothing.
       const input = { ...inputsOf({ ...r, scroll: false, first: 'off' }), containerWidth: Math.max(1, r.phone + 2 * r.gap - 1 - shortBy) };
       assert.ok(input.containerWidth - 2 * input.gap < input.phoneWidth, 'control: the window is under a phone');
-      assert.notEqual(rowNumbersViaModel(input), null, 'the model takes a swap row whatever the window');
+      assert.equal(rowNumbersViaModel(input), null, 'the model declines a window under a phone');
       assert.deepEqual(computeRowNumbers(input), legacyRowNumbers(input));
       narrow += 1;
     }),

@@ -326,11 +326,9 @@ export type WorkspaceTuning = {
   /** Overrides for the chrome numbers: when header, grab bar and footer show, and how they fade. */
   chrome?: { [K in keyof ChromeTuning]?: ChromeTuning[K] };
   /**
-   * The most parkable panels the row keeps live, an integer of 1 or more, or `null` for no cap. Panels beyond
-   * it park the way they do when the window is full. In a row that
-   * scrolls, the window width does not decide how many are live. No row the document shows holds more, the first included.
-   * Raising it (or setting `null`) through `configureTuning` brings back the most recently capacity-parked panels, up to the new
-   * value, in one commit; a panel the host hid stays hidden, and scrolling, closing, resizing or an equal or lower value return none.
+   * The most collapsible panels the row keeps loaded, an integer of 1 or more, or `null` for no cap. Every panel keeps its slot
+   * on the strip and stays live; past the panels in view, nearest first, the others load until the cap is reached, and the rest
+   * draw a placeholder of their width. A fixed column and the panel being dragged are always loaded and take nothing from it.
    */
   maxLivePanels?: number | null;
   /**

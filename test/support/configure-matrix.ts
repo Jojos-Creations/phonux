@@ -276,7 +276,6 @@ function mountWired(ws: WorkspaceHandle, width: number, over: Partial<PanelsInpu
 export interface MatrixRigOptions {
   ids?: readonly string[];
   settings?: Record<string, PanelSettings>;
-  park?: boolean;
   extra?: readonly PanelTemplate[];
   root?: boolean;
   width?: number;
@@ -309,7 +308,7 @@ export async function matrixRig(o: MatrixRigOptions = {}): Promise<MatrixRig> {
   const ws = createWorkspace({
     mount: false,
     ...(o.root === false ? {} : { root: matrixTemplate('root', { settings: { title: 'History' } }) }),
-    templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.park === true ? { overflow: 'park' as const } : {}), ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
+    templates: [...ids.map((id) => (o.view === 'drag' ? dragTemplate : matrixTemplate)(id, { settings: { ...(o.settings?.[id] ?? {}) } })), ...(o.extra ?? [])],
     ...(o.workspace ?? {}),
     // The enter and exit rows measure the sideways slide; the expand and shrink defaults have their own tests.
     tuning: { defaultEnterFrom: 'auto', defaultExitTo: 'auto', ...(o.workspace?.tuning ?? {}) },

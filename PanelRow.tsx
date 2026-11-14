@@ -477,15 +477,17 @@ export function PanelRow({
   const emblaDragScroll: DragScroll = { ...dragScroll, maxScroll: stripMax, stops: emblaRests(markers, stripPx, emblaWindow.width), settleStops: [], insetLeft: 0, insetRight: 0, cycle: undefined };
   rowDropScroll.current = emblaDragScroll;
   const lastStops = React.useRef<string | null>(null);
-  // On Embla every panel has its slot on the strip; a parkable one far from the view draws a placeholder of its width instead of its
-  // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
+  // On Embla every panel has its slot on the strip; one far from the view draws a placeholder of its width instead of its content, and
+  // loads again when it comes near. Under a cap (`maxLivePanels`) every collapsible panel but the dragged one counts and may unload,
+  // whatever built it; with no cap only a hand-built 0.1.0 entry (collapsible, carrying no settings) does, as before `overflow` was
+  // removed, and a template-built one stays loaded. A fixed column (the root, a pinned panel) is always loaded and takes nothing from the cap.
   const nearSlots = React.useContext(RowNearContext);
   const loadedRef = React.useRef<ReadonlySet<string> | null>(null);
   // What a glide brings into view in the next frames counts as shown, so it is loaded before it enters the view, whatever the cap.
   // Before the window is measured it is drawn the whole strip wide: load only the cap's nearest then, not every page for one commit.
   const windowKnown = Number.isFinite(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY);
   const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id, was: loadedRef.current, ahead, toward });
+    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && p.collapsible && (workspaceTuning.maxLivePanels !== null || p.settings === undefined)), was: loadedRef.current, ahead, toward });
   // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
   const loadedNow = emblaNow === undefined ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow);
   loadedRef.current = loadedNow;

@@ -117,7 +117,8 @@ test('differential tuning.maxLivePanels: ten panels in one window keep three far
     drawn.set(cap, drawnOf(r));
     cleanup();
   }
-  assert.equal(drawn.get(null), 'root w1 w2 w3 w4 w5- w6- w7- w8- w9- w10-', 'control: with the key unset the panels in view and two past the edge load');
+  // A normal template row (the rig's 'park' setting left with overflow, 2026-11-14): with no cap nothing unloads, as at 22374a6.
+  assert.equal(drawn.get(null), 'root w1 w2 w3 w4 w5 w6 w7 w8 w9 w10', 'control: with the key unset every panel of a template row stays loaded');
   differential('tuning.maxLivePanels', (run) => {
     run(1, () => drawn.get(1));
     run(3, () => drawn.get(3));

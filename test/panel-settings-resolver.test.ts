@@ -669,8 +669,8 @@ test('host layer: closable true, headerButtons and edgeHold are not-view-settabl
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
-    ['headerButtons', 'host', 'not-view-settable'],
     ['edgeHold', 'host', 'not-view-settable'],
+    ['headerButtons', 'host', 'not-view-settable'],
   ]);
   assert.deepEqual([res.value.closable, res.value.edgeHold, res.value.headerButtons, res.source.closable, res.source.edgeHold], [true, 'off', {}, 'library', 'library']);
 });

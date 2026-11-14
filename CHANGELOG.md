@@ -56,8 +56,10 @@
 - The `overflow` panel setting and the `Overflow` type are removed (owner ruling 2026-11-14): every row is one scrolling
   strip and no panel is parked for room, whatever its settings say. A layer that still names `overflow` is warned once in
   development and ignored, as the other parking settings are; a saved instance layer drops it with an
-  `invalid-saved-setting` note. `tuning.maxLivePanels` now unloads the content of any panel far from the window, not only
-  former `overflow: 'park'` ones (the root included; a panel being dragged stays loaded). A row of hand-built 0.1.0
+  `invalid-saved-setting` note. `tuning.maxLivePanels` now counts every collapsible panel, not only
+  former `overflow: 'park'` ones: under a cap a template-built panel far from the window unloads its content too (a fixed
+  column such as the root, and a panel being dragged, stay loaded). With no cap a template-built row loads every panel,
+  as before. A row of hand-built 0.1.0
   entries (no settings) scrolls like every other row: it no longer prices its panels beside the fixed columns, so its
   panels may draw at slightly different widths and its margin centers the strip. `rootStepsAside` and the parking helpers
   behind it are gone; `RowNumbers.rowScroll` and `ProvidedPanels.rowScroll` are always true, `RowNumbers.parkLiveWidths`
