@@ -578,9 +578,6 @@ export interface OpenRow {
 }
 
 // @public
-export type Overflow = 'scroll' | 'park';
-
-// @public
 export const OVERLAY_Z: {
     readonly dialog: 2000;
     readonly toast: 1400;
@@ -1540,7 +1537,6 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    overflow: Overflow;
     edgeHold: 'off' | 'left' | 'right' | 'both';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;

@@ -227,9 +227,6 @@ export interface MemoryWorkspaceStorage extends WorkspaceStorage {
 export function memoryWorkspaceStorage(initial?: WorkspaceState | null): MemoryWorkspaceStorage;
 
 // @public
-export type Overflow = 'scroll' | 'park';
-
-// @public
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
     close(source?: 'code' | 'person'): PanelResult;
     configure(patch: InstancePatch): ConfigureResult;
@@ -532,7 +529,6 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    overflow: Overflow;
     edgeHold: 'off' | 'left' | 'right' | 'both';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
