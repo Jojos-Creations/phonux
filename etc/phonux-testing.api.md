@@ -286,7 +286,7 @@ export interface PanelsAPI {
     clearAll(): void;
     // @deprecated
     close(id: string): void;
-    readonly closedByPerson: readonly PanelSummary[] | null;
+    readonly closedByPerson?: readonly PanelSummary[] | null;
     // @deprecated
     create(): void;
     // @deprecated
