@@ -113,7 +113,7 @@ test('computeRowNumbers: a fixedItemCount the host passes prices a hand-built ro
   assert.equal(price(2), 862 - 406, 'a second fixed column takes its width and gap out of the cap');
 });
 
-test('a mounted scrolling row: the container pads 16 on the left and none on the right, and the eleven slots plus ten gaps sum to the strip', () => {
+test('a mounted scrolling row: the container pads 16 on both sides, the eleven slots plus ten gaps sum to the strip, and the row box is the window two slots wide', () => {
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
@@ -121,11 +121,14 @@ test('a mounted scrolling row: the container pads 16 on the left and none on the
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);
-  assert.match(markup, /padding-right:0px/);
+  // The Embla row is a window cut one gap inside each edge; the old row scrolled its container and padded none on the right.
+  assert.match(markup, /padding-right:16px/);
   assert.doesNotMatch(markup, /data-row-end-pad/, 'the range comes from the numbers, so no element holds it open');
   const slotWidths = [...markup.matchAll(/data-panel-size-box="" style="width:(\d+)px/g)].map((m) => Number(m[1]));
   assert.equal(slotWidths.length, 11);
   assert.equal(slotWidths.reduce((sum, w) => sum + w, 0) + 10 * GAP, n.stripWidth);
   assert.equal(n.stripWidth, 4450);
-  assert.match(markup, /width:4450px/, 'the row box is as wide as the strip');
+  // The slots overflow Embla's box, which is as wide as the window: two slots and a gap fit in 1000 less 16 on each side.
+  assert.match(markup, /data-row-embla-window="" style="[^"]*width:796px/, 'the row window is two slots and a gap wide');
+  assert.doesNotMatch(markup, /width:4450px/, 'no box is as wide as the strip: the window cuts it');
 });

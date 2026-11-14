@@ -1,7 +1,7 @@
 /**
  * Below a `PanelSizeBox` the panel and its frame fill it ('100%' on both axes), so one eased size on the box is the size they
- * all draw; outside one they keep their own pixel size. The box takes its new inline width and height at once, a scale draws the
- * eased size, and it snaps under Reduce Motion.
+ * all draw; outside one they keep their own pixel size. The box eases its real width and height, so its content is laid out at
+ * the size it is drawn at on every frame, with no scale, and it snaps under Reduce Motion.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -103,7 +103,7 @@ const drawnBox = (el: HTMLElement): { width: number; height: number; layoutWidth
   css: el.getAttribute('style') ?? '',
 });
 
-test('a resize lays the box out once at the new size and scales it from the size on screen, with no size variables', async () => {
+test('a resize eases the box\'s real size from the size on screen, laid out at the drawn size on every frame, with no scale and no size variables', async () => {
   const m = mount(boxed(390, 700));
   const box = boxOf(m.container);
   assert.deepEqual([drawnBox(box).width, drawnBox(box).height], [390, 700], 'at rest');
@@ -122,7 +122,8 @@ test('a resize lays the box out once at the new size and scales it from the size
   assert.ok(seen.some((s) => s.width > 400 && s.width < 770 && s.height > 510 && s.height < 690), 'and passes through sizes between');
   assert.deepEqual([seen.at(-1)!.width, seen.at(-1)!.height], [780, 500], 'it ends at the new size');
   for (const s of seen) {
-    assert.deepEqual([s.layoutWidth, s.layoutHeight], ['780px', '500px'], 'laid out at the new size on every frame');
+    // The real size eases (rc.6 laid the box out at the new size and scaled it; the CHANGELOG has the change).
+    assert.deepEqual([s.layoutWidth, s.layoutHeight], [`${s.width}px`, `${s.height}px`], 'laid out at the drawn size on every frame, with no scale');
     assert.doesNotMatch(s.css, /--phonux-size/);
   }
   assert.equal(box.style.transform, '', 'landed: no transform left behind');
