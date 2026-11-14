@@ -82,7 +82,7 @@ test('keepDown holds the pointer, release lets go, and nothing is reordered befo
 });
 
 test('setWidth gives the row a new window: the scroller reports it, every animation finishes, and on the strip a panel keeps its slot', async () => {
-  const ws = createWorkspace({ root: view('root'), templates: [view('a'), view('b')], defaults: { overflow: 'park' }, storage: memoryWorkspaceStorage() });
+  const ws = createWorkspace({ root: view('root'), templates: [view('a'), view('b')], defaults: {}, storage: memoryWorkspaceStorage() });
   ws.addPanel('a');
   ws.addPanel('b');
   const rendered = await render(ws, 1600);

@@ -3,12 +3,12 @@
  * function that operates on a `PanelWindow[]` array.
  */
 import type { JsonValue } from './hostApi.js';
-import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
+import { isPresent, type NeighborWidths } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
-import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
+import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import { HOP_FRACTION } from './rowConstants.js';
 
 /**
@@ -183,32 +183,6 @@ export function waitsLeft(before: number, drawn: number): boolean {
   return before <= 0 || (before < drawn && before <= drawn - before);
 }
 
-/** Whether the row may park `p` to make room: a collapsible entry whose `overflow` is 'park', which every hand-built collapsible entry reads as. Any other entry scrolls instead. @internal */
-export function parksForRoom(p: PanelWindow | PanelRowEntry): boolean {
-  return p.collapsible && effective(p).overflow === 'park';
-}
-
-/** The park levers of `p`: its own `capacityReturn` when its `overflow` is 'park', 'auto' otherwise, because a panel the row never parks for room has no lever to pull. @internal */
-export function parkLevers(_p: PanelWindow): Pick<FixedBehaviour, 'evictionRank' | 'returnPriority'> & { capacityReturn: 'auto' | 'manual' } {
-  return { evictionRank: FIXED.evictionRank, returnPriority: FIXED.returnPriority, capacityReturn: 'auto' };
-}
-
-/**
- * The id of the live panel to park for room (one whose `overflow` is 'park'), or null with none live: the one with the
- * smallest `touchedAt`, a tie going to the lower index. `exclude` exempts the panel being opened or restored, already
- * live in `panels`, and any panel another action in the same update must keep live.
- * @internal
- */
-export function leastRecentlyTouchedId(panels: PanelWindow[], touchedAt: (id: string) => number, exclude: ReadonlySet<string> = new Set()): string | null {
-  let best: { id: string; at: number } | null = null;
-  for (const p of panels) {
-    if (!p.live || !parksForRoom(p) || exclude.has(p.id)) continue;
-    const at = touchedAt(p.id);
-    if (best === null || at < best.at) best = { id: p.id, at };
-  }
-  return best?.id ?? null;
-}
-
 /**
  * Which side of the row a park/reveal at `id` reads as, for the exit/enter animation: 'left' when `id`'s
  * own array index sits below every OTHER live collapsible panel's index, 'right' otherwise (a parked panel
@@ -236,72 +210,26 @@ const revealable = (p: PanelWindow): boolean => !isPresent(p) && p.marker !== tr
  * @internal
  */
 export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {
-  let first = -1;
-  let last = -1;
-  panels.forEach((p, k) => {
-    if (!isPresent(p) || !parksForRoom(p)) return;
-    if (first < 0) first = k;
-    last = k;
-  });
-  if (first >= 0) {
-    if (direction === 'left') {
-      for (let k = first - 1; k >= 0; k -= 1) if (revealable(panels[k]!)) return panels[k]!;
-    } else {
-      for (let k = last + 1; k < panels.length; k += 1) if (revealable(panels[k]!)) return panels[k]!;
-    }
-  }
   const drawn = panels.filter(isPresent).length;
   let before = 0;
   const side: PanelWindow[] = [];
   panels.forEach((p, k) => {
     if (isPresent(p)) before += 1;
-    else if (revealable(p) && (first < 0 || (k > first && k < last)) && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+    else if (revealable(p) && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
   });
   return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
 }
 
 /**
- * Whether bringing `candidate` in keeps the drawn parkable panels one unbroken run of the row's list: it lies inside the run,
- * or no other panel a step could bring in lies between it and the run. `live` is the ids drawn, those being brought in included.
+ * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position, and never hides
+ * another panel: the row is one strip with room for all of them. Returns `null` for an unknown id or one already live
+ * (a legitimate no-op, not an error).
  * @internal
  */
-export function extendsRun(panels: readonly PanelWindow[], live: ReadonlySet<string>, candidate: string): boolean {
-  const at = panels.findIndex((p) => p.id === candidate);
-  if (at < 0) return false;
-  let first = -1;
-  let last = -1;
-  panels.forEach((p, k) => {
-    if (!live.has(p.id) || !parksForRoom(p)) return;
-    if (first < 0) first = k;
-    last = k;
-  });
-  if (first < 0 || (at > first && at < last)) return true;
-  const [from, to] = at < first ? [at + 1, first] : [last + 1, at];
-  for (let k = from; k < to; k += 1) if (revealable(panels[k]!) && !live.has(panels[k]!.id)) return false;
-  return true;
-}
-
-/**
- * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position.
- * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
- * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `leastRecentlyTouchedId`
- * picks by `touchedAt`. Never demotes a `collapsible: false` entry or any id in `keep`.
- * @internal
- */
-export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, touchedAt: (id: string) => number, keep: ReadonlySet<string> = new Set()): PanelWindow[] | null {
+export function promoteToLive(panels: PanelWindow[], id: string): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
-  const liveCountAfter = panels.filter((p) => p.live && parksForRoom(p)).length + (parksForRoom(target) ? 1 : 0);
-  let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
-  if (liveCountAfter > capacity) {
-    // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
-    // from the search without needing `keep`.
-    const demote = leastRecentlyTouchedId(panels, touchedAt, keep);
-    if (demote) {
-      next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
-    }
-  }
-  return next;
+  return panels.map((p) => (p.id === id ? { ...p, live: true } : p));
 }
 
 /**

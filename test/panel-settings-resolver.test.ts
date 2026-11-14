@@ -93,7 +93,6 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   multiple: BOOL,
   maxInstances: ['unlimited', 1, 2, 50],
   startVisibility: ['live', 'parked'],
-  overflow: ['scroll', 'park'],
   edgeHold: ['off', 'left', 'right', 'both'],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
@@ -121,7 +120,7 @@ const PROBES: readonly Probe[] = [
   ['number given a string', { template: asSettings({ maxSlots: '1' }) }, 'template', 'maxSlots'],
   ['number given NaN', { template: asSettings({ slots: Number.NaN }) }, 'template', 'slots'],
   ['title given a number', { template: asSettings({ title: 5 }) }, 'template', 'title'],
-  ['unknown member of overflow', { template: asSettings({ overflow: 'wrap' }) }, 'template', 'overflow'],
+  ['unknown member of edgeHold', { template: asSettings({ edgeHold: 'wrap' }) }, 'template', 'edgeHold'],
   ['slots given a string', { template: asSettings({ slots: '2' }) }, 'template', 'slots'],
   ['zero slots', { template: asSettings({ slots: 0 }) }, 'template', 'slots'],
   ['fractional maxSlots', { template: asSettings({ maxSlots: 1.5 }) }, 'template', 'maxSlots'],
@@ -137,7 +136,7 @@ const PROBES: readonly Probe[] = [
   ['unknown key at the instance layer', { instance: asSettings({ nope: 1 }) }, 'instance', 'nope'],
   ['unknown key at the host layer', { host: asSettings({ nope: 1 }) }, 'host', 'nope'],
   ['unknown key at the workspace layer', { workspace: asSettings({ nope: 1 }) }, 'workspace', 'nope'],
-  ["overflow 'maybe'", { template: asSettings({ overflow: 'maybe' }) }, 'template', 'overflow'],
+  ["edgeHold 'maybe'", { template: asSettings({ edgeHold: 'maybe' }) }, 'template', 'edgeHold'],
   ["enterFrom 'diagonal'", { template: asSettings({ enterFrom: 'diagonal' }) }, 'template', 'enterFrom'],
   ["enterFrom 'shrink', an exit", { template: asSettings({ enterFrom: 'shrink' }) }, 'template', 'enterFrom'],
   ["exitTo 'expand', an entrance", { template: asSettings({ exitTo: 'expand' }) }, 'template', 'exitTo'],
@@ -188,8 +187,8 @@ test('enumerations: every enumerated value resolves to itself from the template 
 });
 
 test("enumerations: a probe's refusal names the layer and key in its message too", () => {
-  const error = refuses({ template: asSettings({ overflow: 'maybe' }) }, 'template', 'overflow');
-  assert.match(error.message, /template\.overflow/);
+  const error = refuses({ template: asSettings({ edgeHold: 'maybe' }) }, 'template', 'edgeHold');
+  assert.match(error.message, /template\.edgeHold/);
 });
 
 test('enumerations: the three enumerated tuning leaves accept every member', () => {
@@ -463,7 +462,7 @@ test('cascade: the source map names the winner of each key, from every layer at 
     user: { slots: 2 },
   });
   assert.deepEqual(
-    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.edgeHold, res.source.slots, res.source.overflow],
+    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.edgeHold, res.source.slots, res.source.startVisibility],
     ['workspace', 'template', 'host', 'instance', 'instance', 'user', 'library'],
   );
 });
@@ -535,12 +534,11 @@ test('derived defaults: a derived default is overridable at every layer and the 
 
 type ForcedRow = readonly [key: string, asked: unknown, applied: unknown];
 const C1_ROWS: readonly ForcedRow[] = [
-  ['overflow', 'park', 'scroll'],
   ['startVisibility', 'parked', 'live'],
   ['restoreVisibility', 'parked', 'live'],
 ];
 
-test('C1: a fixed column forces overflow, startVisibility and restoreVisibility, one conflict per ask', () => {
+test('C1: a fixed column forces startVisibility and restoreVisibility, one conflict per ask', () => {
   for (const layer of ['template', 'instance'] as const) {
     for (const [key, asked, applied] of C1_ROWS) {
       const layers: PanelSettingsLayers = layer === 'template' ? { template: asSettings({ parkable: false, [key]: asked }) } : { template: { parkable: false }, instance: asSettings({ [key]: asked }) };
@@ -577,23 +575,23 @@ test('C1: without the trigger the same asks stand, and a library or workspace co
   }
   const silent = resolve({ template: { parkable: false } });
   assert.deepEqual(silent.conflicts, []);
-  assert.deepEqual([silent.value.resizable, silent.value.maxSlots, silent.value.slots, silent.value.overflow, silent.value.startVisibility, silent.value.restoreVisibility], [false, 1, 1, 'scroll', 'live', 'live']);
+  assert.deepEqual([silent.value.resizable, silent.value.maxSlots, silent.value.slots, silent.value.startVisibility, silent.value.restoreVisibility], [false, 1, 1, 'live', 'live']);
   assert.deepEqual([silent.source.resizable, silent.source.maxSlots, silent.source.restoreVisibility], ['forced', 'forced', 'forced'], 'a value the library gave is forced without a conflict');
-  const workspaceAsk = resolve({ workspace: { overflow: 'park' }, template: { parkable: false } });
-  assert.deepEqual([workspaceAsk.value.overflow, workspaceAsk.conflicts], ['scroll', []]);
-  const equalAsk = resolve({ template: { parkable: false, overflow: 'scroll', resizable: false } });
+  const workspaceAsk = resolve({ workspace: { startVisibility: 'parked' }, template: { parkable: false } });
+  assert.deepEqual([workspaceAsk.value.startVisibility, workspaceAsk.conflicts], ['live', []]);
+  const equalAsk = resolve({ template: { parkable: false, startVisibility: 'live', resizable: false } });
   assert.deepEqual(equalAsk.conflicts, []);
-  assert.equal(equalAsk.source.overflow, 'template', 'asking what the rule gives is not a collision');
+  assert.equal(equalAsk.source.startVisibility, 'template', 'asking what the rule gives is not a collision');
 });
 
 test('C1: every key a layer asked otherwise is listed, each at the layer that asked, host included', () => {
   const res = resolve({
-    template: { parkable: false, overflow: 'park' },
-    instance: { startVisibility: 'parked', restoreVisibility: 'parked' },
+    template: { parkable: false, startVisibility: 'parked' },
+    instance: { restoreVisibility: 'parked' },
   });
   assert.deepEqual(
     res.conflicts.map((c) => `${c.layer}:${c.key}`).sort(),
-    ['instance:restoreVisibility', 'instance:startVisibility', 'template:overflow'],
+    ['instance:restoreVisibility', 'template:startVisibility'],
   );
   assert.ok(res.conflicts.every((c) => c.kind === 'forced' && c.rule === 'C1' && c.forcedBy === 'parkable'));
 });
@@ -636,16 +634,16 @@ test('C5: the root is never closable, parkable or clearable, is not movable unti
   assert.deepEqual([notRoot.value.closable, notRoot.value.movable], [true, true]);
 });
 
-test('C5 feeds C1 and C2 for the root: a root asking overflow park or clearable true is also forced, naming parkable and closable', () => {
-  const res = resolve({ template: { overflow: 'park', clearable: true } }, { root: true });
-  assert.deepEqual(res.conflicts.map((c) => [c.key, c.rule, c.forcedBy]).sort(), [['clearable', 'C2', 'closable'], ['overflow', 'C1', 'parkable']]);
-  assert.deepEqual([res.value.overflow, res.value.clearable, res.value.resizable, res.value.slots], ['scroll', false, false, 1]);
+test('C5 feeds C1 and C2 for the root: a root asking startVisibility parked or clearable true is also forced, naming parkable and closable', () => {
+  const res = resolve({ template: { startVisibility: 'parked', clearable: true } }, { root: true });
+  assert.deepEqual(res.conflicts.map((c) => [c.key, c.rule, c.forcedBy]).sort(), [['clearable', 'C2', 'closable'], ['startVisibility', 'C1', 'parkable']]);
+  assert.deepEqual([res.value.startVisibility, res.value.clearable, res.value.resizable, res.value.slots], ['live', false, false, 1]);
 });
 
 test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, applied and message, plus rule and forcedBy when forced', () => {
   type Row = readonly [rule: string, layers: PanelSettingsLayers, options: ResolveOptions, key: string, forcedBy: string | undefined];
   const rows: readonly Row[] = [
-    ['C1', { template: { parkable: false, overflow: 'park' } }, {}, 'overflow', 'parkable'],
+    ['C1', { template: { parkable: false, startVisibility: 'parked' } }, {}, 'startVisibility', 'parkable'],
     ['C2', { template: { closable: false, clearable: true } }, {}, 'clearable', 'closable'],
     ['C4', { template: { maxSlots: 1, slots: 2 } }, {}, 'slots', 'maxSlots'],
     ['C5', { template: { closable: true } }, { root: true }, 'closable', undefined],
@@ -665,16 +663,16 @@ test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, ap
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
 
-test('host layer: closable true, headerButtons and overflow are not-view-settable and change nothing', () => {
+test('host layer: closable true, headerButtons and edgeHold are not-view-settable and change nothing', () => {
   const res = resolve({
-    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, overflow: 'park' }),
+    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, edgeHold: 'left' }),
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
     ['headerButtons', 'host', 'not-view-settable'],
-    ['overflow', 'host', 'not-view-settable'],
+    ['edgeHold', 'host', 'not-view-settable'],
   ]);
-  assert.deepEqual([res.value.closable, res.value.overflow, res.value.headerButtons, res.source.closable, res.source.overflow], [true, 'scroll', {}, 'library', 'library']);
+  assert.deepEqual([res.value.closable, res.value.edgeHold, res.value.headerButtons, res.source.closable, res.source.edgeHold], [true, 'off', {}, 'library', 'library']);
 });
 
 test('host layer: the keys a view may set are accepted: title, listed, layer, slots, placeOnAdd with an anchor and enterFrom anchor', () => {
@@ -769,7 +767,7 @@ test('user layer: a slot count on a resizable:false panel and an anchor on a pan
 test('user layer: parkable false joins as the top layer, so C1 re-runs with source user and no conflict', () => {
   const res = resolve({ user: { parkable: false } });
   assert.deepEqual([res.value.parkable, res.source.parkable], [false, 'user']);
-  assert.deepEqual([res.value.resizable, res.value.overflow, res.value.maxSlots], [false, 'scroll', 1]);
+  assert.deepEqual([res.value.resizable, res.value.startVisibility, res.value.maxSlots], [false, 'live', 1]);
   assert.deepEqual([res.value.movable, res.value.listed, res.value.clearable], [false, false, false]);
   assert.deepEqual(res.conflicts, []);
   assert.deepEqual(res.notes, []);
@@ -778,9 +776,9 @@ test('user layer: parkable false joins as the top layer, so C1 re-runs with sour
 });
 
 test("user layer: a template's own ask that the user's fixed column forces is still a conflict of that template", () => {
-  const res = resolve({ template: { overflow: 'park' }, user: { parkable: false } });
-  assert.deepEqual(res.conflicts.map((c) => [c.layer, c.key, c.rule, c.forcedBy]), [['template', 'overflow', 'C1', 'parkable']]);
-  assert.equal(res.value.overflow, 'scroll');
+  const res = resolve({ template: { startVisibility: 'parked' }, user: { parkable: false } });
+  assert.deepEqual(res.conflicts.map((c) => [c.layer, c.key, c.rule, c.forcedBy]), [['template', 'startVisibility', 'C1', 'parkable']]);
+  assert.equal(res.value.startVisibility, 'live');
 });
 
 test('user layer: parkable false is dropped with a note when the resolved panel is more than one slot, and kept when the user slot count is one', () => {
@@ -807,16 +805,16 @@ test('user layer: only slots, anchor and parkable are accepted; anything else, o
 // Lenient mode
 // ---------------------------------------------------------------------------
 
-const SAVED_INSTANCE = asSettings({ closable: false, bogus: 1, listed: 'yes', overflow: 'evictable', parkable: 'yes', tuning: { rowGap: 999, hopFraction: 0.7 } });
+const SAVED_INSTANCE = asSettings({ closable: false, bogus: 1, listed: 'yes', edgeHold: 'evictable', parkable: 'yes', tuning: { rowGap: 999, hopFraction: 0.7 } });
 const SAVED_USER = { slots: 2, bogus: 1, parkable: 'yes', anchor: 5 } as unknown as PanelSettingsLayers['user'];
 
 test('lenient: an instance and a user layer holding bad keys return the others intact with one invalid-saved-setting note per drop and never throw', () => {
   const res = resolve({ instance: SAVED_INSTANCE, user: SAVED_USER }, { lenient: true });
-  assert.deepEqual([res.value.closable, res.value.slots, res.value.listed, res.value.overflow, res.value.parkable], [false, 2, true, 'scroll', true]);
+  assert.deepEqual([res.value.closable, res.value.slots, res.value.listed, res.value.edgeHold, res.value.parkable], [false, 2, true, 'off', true]);
   assert.ok(res.notes.every((n) => n.code === 'invalid-saved-setting'));
   const instanceNotes = res.notes.filter((n) => n.message.startsWith('instance.'));
   const userNotes = res.notes.filter((n) => n.message.startsWith('user.'));
-  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'listed', 'overflow', 'parkable', 'tuning']);
+  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'edgeHold', 'listed', 'parkable', 'tuning']);
   assert.deepEqual(userNotes.map((n) => n.key).sort(), ['anchor', 'bogus', 'parkable']);
   assert.equal(res.notes.length, 8, 'one note per drop');
   assert.deepEqual(res.conflicts, []);
@@ -833,7 +831,7 @@ test('lenient: each kind of bad saved value is dropped alone: unknown key, wrong
     ['unknown key', asSettings({ gone: true }), 'gone'],
     ['wrong type', asSettings({ title: 5 }), 'title'],
     ['a saved tuning, whatever it holds', asSettings({ tuning: { rowGap: 8 } }), 'tuning'],
-    ['removed enum member', asSettings({ overflow: 'evictable' }), 'overflow'],
+    ['removed enum member', asSettings({ edgeHold: 'evictable' }), 'edgeHold'],
     ['non-boolean parkable', asSettings({ parkable: 1 }), 'parkable'],
     ['a saved tuning that is no object', asSettings({ tuning: 5 }), 'tuning'],
   ];
@@ -880,7 +878,7 @@ test('lenient: a layer that is not an object is dropped whole with one note; the
     refuses({ workspace: asSettings({ bogus: 1 }) }, 'workspace', 'bogus', { lenient });
     refuses({ template: asSettings({ bogus: 1 }) }, 'template', 'bogus', { lenient });
     refuses({ host: asSettings({ bogus: 1 }) }, 'host', 'bogus', { lenient });
-    refuses({ template: asSettings({ overflow: 'evictable' }) }, 'template', 'overflow', { lenient });
+    refuses({ template: asSettings({ edgeHold: 'evictable' }) }, 'template', 'edgeHold', { lenient });
     refuses({ workspace: asSettings({ tuning: { rowGap: 1 } }) }, 'workspace', 'tuning', { lenient });
     refuses({ template: asSettings({ tuning: { rowGap: 1 } }) }, 'template', 'tuning', { lenient });
   }
@@ -923,7 +921,7 @@ function deepFreeze<T>(value: T): T {
 }
 
 /** Keys a stack asks for more often, so the coupling rules fire in most stacks. */
-const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, maxSlots: 0.3, slots: 0.3, overflow: 0.3, clearable: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
+const BOOSTED: Record<string, number> = { parkable: 0.3, closable: 0.25, maxSlots: 0.3, slots: 0.3, clearable: 0.2, afterClose: 0.2, resizable: 0.2, startVisibility: 0.2, restoreVisibility: 0.2 };
 const SKEWED_FALSE = new Set(['parkable', 'closable']);
 const SLOT_IDS = ['size', 'pin', 'menu'] as const;
 const VIEW_KEYS = ['title', 'listed', 'layer', 'slots', 'placeOnAdd', 'enterFrom'];
@@ -985,7 +983,7 @@ function checkStack(layers: PanelSettingsLayers, options: ResolveOptions): void 
 
   if (v.parkable === false) {
     const asked = (key: string): boolean => ['template', 'host', 'instance'].includes(res.source[key] as string);
-    assert.deepEqual([v.overflow, v.startVisibility, v.restoreVisibility], ['scroll', 'live', 'live'], 'C1');
+    assert.deepEqual([v.startVisibility, v.restoreVisibility], ['live', 'live'], 'C1');
     const fixed: Loose = { resizable: false, slots: 1, maxSlots: 1 };
     const askedValue = (key: string): unknown => ['instance', 'host', 'template'].map((name) => (name === 'host' && !VIEW_KEYS.includes(key) ? undefined : (layers[name as 'instance'] as Loose | undefined)?.[key])).find((x) => x !== undefined);
     if (!Object.keys(fixed).some((key) => askedValue(key) !== undefined && !isDeepStrictEqual(askedValue(key), fixed[key]))) assert.deepEqual([v.resizable, v.slots, v.maxSlots], [false, 1, 1], 'C1 size');
@@ -1076,7 +1074,7 @@ test('property: the generator exercised every rule, every conflict kind, the roo
 test('property: a fixed stack holding every layer is not mutated, even deeply frozen, and resolves the same twice', () => {
   const layers: PanelSettingsLayers = deepFreeze({
     workspace: { scrollOnMove: 'none', hostCreatable: false },
-    template: { parkable: false, overflow: 'park', headerButtons: { size: slot('Size') } },
+    template: { parkable: false, startVisibility: 'parked', headerButtons: { size: slot('Size') } },
     host: { title: 'T' },
     instance: { closable: false, headerButtons: { pin: slot('Pin') } },
     user: { slots: 1, anchor: { panel: 'x', position: 'left' } },
@@ -1093,7 +1091,7 @@ test('property: a fixed stack holding every layer is not mutated, even deeply fr
 test('removed with parking: each removed key and tuning leaf warns once by name, is ignored, and never throws', () => {
   const warn = mock.method(console, 'warn', () => undefined);
   try {
-    const removed = { hideStickiness: 'until-room', capacityReturn: 'manual', revealOnScroll: 'any' };
+    const removed = { hideStickiness: 'until-room', capacityReturn: 'manual', revealOnScroll: 'any', overflow: 'park' };
     const res = resolve({ template: asSettings(removed) });
     for (const key of Object.keys(removed)) assert.equal(key in res.value, false, `${key} is not in the resolved value`);
     const tuning = resolveWorkspaceTuning({ gestureLockMs: 80, returnTieBreak: 'row-order', dropTieBreak: 'rightmost', slide: { durationSec: 1, glideEase: 'linear' } } as never);
@@ -1101,7 +1099,7 @@ test('removed with parking: each removed key and tuning leaf warns once by name,
     assert.equal('glideEase' in tuning.slide, false, 'slide.glideEase is dropped');
     assert.equal(tuning.slide.durationSec, 1, 'the live member beside it still applies');
     const messages = warn.mock.calls.map((c) => String(c.arguments[0]));
-    const named = ['hideStickiness', 'capacityReturn', 'revealOnScroll', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.slide.glideEase'];
+    const named = ['hideStickiness', 'capacityReturn', 'revealOnScroll', 'overflow', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.slide.glideEase'];
     for (const name of named) {
       const mine = messages.filter((m) => m.includes(`'${name}'`));
       assert.equal(mine.length, 1, `${name} warned once: ${JSON.stringify(messages)}`);

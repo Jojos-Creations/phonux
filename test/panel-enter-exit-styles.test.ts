@@ -40,7 +40,7 @@ registerTestView('slow-view', SlowView);
 const resolve = (layer: PanelSettings = {}) => resolvePanelSettings({ template: layer }).value;
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'style-view' }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
+  return applyTemplate({ ...skeleton, ...over }, resolve({ ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
   applyTemplate({ ...createRootPanel(ROOT), view: 'style-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');

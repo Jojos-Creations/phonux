@@ -20,7 +20,7 @@ const ROOT = 'root';
 registerTestView('stack-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
 const made = (id: string): PanelWindow =>
-  applyTemplate(appendPanel([], { url: `https://${id}.example`, title: id, view: 'stack-view' }, id, ROOT)[0]!, resolvePanelSettings({ template: { overflow: 'park' } }).value, 'create');
+  applyTemplate(appendPanel([], { url: `https://${id}.example`, title: id, view: 'stack-view' }, id, ROOT)[0]!, resolvePanelSettings({ template: {} }).value, 'create');
 const rootEntry = (): PanelWindow =>
   applyTemplate({ ...createRootPanel(ROOT), view: 'stack-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 

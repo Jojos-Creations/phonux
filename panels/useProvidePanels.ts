@@ -230,7 +230,7 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;
-  /** Whether the row scrolls: any drawn entry carries settings whose `overflow` is 'scroll'. Hand it to a Workspace's `rowScroll`. */
+  /** Always true: every row is one scrolling strip. Hand it to a Workspace's `rowScroll`. */
   readonly rowScroll: boolean;
   /** The row's one set of numbers, the same value the shell, the row and the capacity are priced from. Hand it to a Workspace's and a PanelRow's `rowNumbers`. */
   readonly rowNumbers: RowNumbers;

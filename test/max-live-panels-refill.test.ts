@@ -45,7 +45,7 @@ function flatRow(width: number, cap: number): { row: () => string; raiseTo: (n: 
   function Probe(): React.ReactElement {
     const [n, set] = React.useState(cap);
     setCap = set;
-    latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: width, workspaceDefaults: { overflow: 'park' }, tuning: { maxLivePanels: n } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: entries, containerWidth: width, workspaceDefaults: {}, tuning: { maxLivePanels: n } }));
     seen.push(rowOf(latest.entries));
     return React.createElement('output');
   }

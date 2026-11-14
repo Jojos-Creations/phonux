@@ -96,7 +96,7 @@ function grabbable(id: string, settings: PanelSettings) {
 
 export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
   const ids = Array.from({ length: o.count ?? 7 }, (_, k) => `w${k + 1}`);
-  const settings: PanelSettings = { overflow: 'park', ...o.settings };
+  const settings: PanelSettings = { ...o.settings };
   const template = (id: string) => {
     const own: PanelSettings = { ...settings, ...o.own?.[id] };
     return o.grab === true ? grabbable(id, own) : markerTemplate(id, { settings: own });

@@ -353,7 +353,6 @@ test('a Host-bag create of a plain registerView view resolves through the cascad
   create(l, { view: 'memory-view', title: 'p' });
   const p = l.byTitle('p');
   assert.notEqual(p.settings, undefined);
-  assert.equal(p.settings!.overflow, 'scroll');
 });
 
 test('a Host-bag create naming no template while templates exist still resolves through the cascade', async () => {

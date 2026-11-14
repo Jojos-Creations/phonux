@@ -54,7 +54,7 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
 // The first panel is the held one most often: a hold on any other panel is a case the model does not express.
 function inputsOf(r: Row, distinct = r.panels.length) {
   const entries = r.panels.map((p, k) => {
-    const entry = made(`p${k % distinct}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, overflow: r.scroll && (k > 0 || p.parks || r.first !== 'off') ? 'scroll' : 'park', parkable: !(p.pinned && r.scroll) });
+    const entry = made(`p${k % distinct}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, parkable: !(p.pinned && r.scroll) });
     // A hand-built fixed column beside parking panels: not collapsible, so the margin counts it among the fixed items.
     const column = p.pinned && !r.scroll ? { ...entry, collapsible: false } : entry;
     return p.live || (p.pinned && r.scroll) ? column : { ...column, live: false };
@@ -132,7 +132,7 @@ test('fractional pixels: the model and the older arithmetic agree to a micropixe
 });
 
 test('computeRowNumbers answers through the model: a stand-in for it is what comes back, and a row it declines goes to the older arithmetic', () => {
-  const entries = [0, 1, 2, 3, 4, 5].map((k) => made(`p${k}`, { slots: 1, overflow: 'scroll', ...(k === 0 ? { edgeHold: 'both' as const } : {}) }));
+  const entries = [0, 1, 2, 3, 4, 5].map((k) => made(`p${k}`, { slots: 1, ...(k === 0 ? { edgeHold: 'both' as const } : {}) }));
   const input = { entries, phoneWidth: 390, containerWidth: 1000, gap: 16, wholePanels: true };
   const real = rowNumberSources.model;
   const marker = { ...legacyRowNumbers(input), endPad: -12345 };

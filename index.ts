@@ -124,7 +124,6 @@ export type {
   PanelId,
   AnchorRequest,
   AddPlacement,
-  Overflow,
   EnterFrom,
   ExitTo,
   ScrollAlign,

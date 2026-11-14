@@ -112,7 +112,7 @@ const swipe = async (m: MountedRow, deltaX: number): Promise<void> => {
 };
 
 test('a History click (activate) brings a parked panel back', () => {
-  const m = mountRow(row(rootEntry(), made('b', { overflow: 'park' }, { live: false }), made('c')), narrow);
+  const m = mountRow(row(rootEntry(), made('b', {}, { live: false }), made('c')), narrow);
   act(() => m.latest().activate('b'));
   assert.ok(m.live().includes('b'));
   cleanup();

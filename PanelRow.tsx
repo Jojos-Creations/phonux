@@ -23,7 +23,7 @@ import { PanelRowSlot, SizeBox, type SlotEntrance, type SlotExit } from './Panel
 import { steerEntry, steerSentinel, steerTab, useTabPress } from './panelRowTabOrder.js';
 import { ChromeStoreContext, createChromeStore } from './panelChrome.js';
 import { slotTuning, type SlotTuning } from './panelTuning.js';
-import { parksForRoom, reorderStepsForOffset } from './panelWindow.js';
+import { reorderStepsForOffset } from './panelWindow.js';
 import { RowDropContext, dropParts, partShifts, useRowDrop, type Neighbor, type Walk } from './panelRowDrop.js';
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
@@ -485,7 +485,7 @@ export function PanelRow({
   // Before the window is measured it is drawn the whole strip wide: load only the cap's nearest then, not every page for one commit.
   const windowKnown = Number.isFinite(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY);
   const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && parksForRoom(p)), was: loadedRef.current, ahead, toward });
+    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id, was: loadedRef.current, ahead, toward });
   // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
   const loadedNow = emblaNow === undefined ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow);
   loadedRef.current = loadedNow;

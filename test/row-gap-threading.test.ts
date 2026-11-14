@@ -53,7 +53,7 @@ const slotX = (container: HTMLElement, id: string): number => {
 function provided(rowGap: number, containerWidth: number, count = 0): { now: () => ProvidedPanels; live: () => number; unmount: () => void } {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [fixedRoot()], containerWidth, workspaceDefaults: { overflow: 'park' }, tuning: { rowGap } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [fixedRoot()], containerWidth, workspaceDefaults: {}, tuning: { rowGap } }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));

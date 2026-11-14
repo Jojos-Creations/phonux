@@ -132,7 +132,7 @@ test('case A4: closable true on the root is a settings-conflict naming closable 
 });
 
 test('case A5: parkable true to false on a live phone panel: listed, movable and clearable re-derive false at the commit unless named, the settled row fits, a resizable true beside it stands and a measured park row accepts it', async () => {
-  const r = await matrixRig({ ids: ['a', 'b', 'c'], settings: { a: { overflow: 'park' }, c: { overflow: 'park' } }, width: 1700 });
+  const r = await matrixRig({ ids: ['a', 'b', 'c'], settings: { a: {}, c: {} }, width: 1700 });
   await r.settle();
   assert.equal(r.live().join(' '), 'root a b c');
   const facts = (name: string): unknown[] => {

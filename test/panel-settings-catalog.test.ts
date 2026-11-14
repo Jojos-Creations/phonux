@@ -40,7 +40,6 @@ const NAME_TABLE: Record<CatalogName, true> = {
   maxInstances: true,
   listed: true,
   startVisibility: true,
-  overflow: true,
   edgeHold: true,
   scrollOnOpen: true,
   scrollOnMove: true,
@@ -85,7 +84,6 @@ const OWNER_TABLE: ReadonlyArray<readonly [string, readonly CatalogName[]]> = [
   ['phonux-engine-placement-and-motion-settings', ['placeOnAdd', 'placeOnShow', 'layer', 'enterFrom']],
   ['phonux-engine-tuning-look-settings', ['tuning.rowGap', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.chrome', 'tuning.resizeSettleSlides']],
   ['core-app-row-api', ['tuning.rowTop', 'tuning.phoneHeight']],
-  ['phonux-row-numbers-and-overflow', ['overflow']],
   ['phonux-row-scroll-gesture-and-requests', ['edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll']],
   ['phonux-edge-scroll-while-dragging', ['tuning.edgeScroll']],
   ['phonux-saved-overrides-and-template-paths', ['restoreVisibility', 'hostCreatable', 'hollowDot', 'multiple', 'maxInstances']],
@@ -231,8 +229,8 @@ test('catalog: OWNER_ENTRY assigns each of the 51 names to exactly one of 18 ids
 test('catalog: a scratch owner table with one name moved to a second id, or dropped, fails', () => {
   const moved = OWNER_TABLE.map(([id, names]) => [id, id === 'phonux-header-buttons' ? [...names, 'closable'] : names] as const);
   assert.ok(ownerTableProblems(moved).some((p) => p.includes('closable is owned by both')));
-  const dropped = OWNER_TABLE.map(([id, names]) => [id, names.filter((n) => n !== 'overflow')] as const);
-  assert.ok(ownerTableProblems(dropped).some((p) => p.includes('overflow has no owner')));
+  const dropped = OWNER_TABLE.map(([id, names]) => [id, names.filter((n) => n !== 'edgeHold')] as const);
+  assert.ok(ownerTableProblems(dropped).some((p) => p.includes('edgeHold has no owner')));
   assert.deepEqual(ownerTableProblems(OWNER_TABLE), [], 'control: the real table has no problem, so the two probes above could have passed');
 });
 
@@ -361,7 +359,6 @@ const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]:
   maxInstances: 'unlimited',
   listed: true,
   startVisibility: 'live',
-  overflow: 'scroll',
   edgeHold: SCROLL_DEFAULTS.edgeHold,
   scrollOnOpen: SCROLL_DEFAULTS.scrollOnOpen,
   scrollOnMove: SCROLL_DEFAULTS.scrollOnMove,

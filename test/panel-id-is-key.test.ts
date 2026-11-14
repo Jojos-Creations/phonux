@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 /** A row [root, s1..s4, parked s5] whose panels are keyed web~1..web~5: the counter id of each is its sN name. */
-const keyedRow = () => row(rootEntry(), ...[1, 2, 3, 4].map((k) => made(`s${k}`, {}, { key: `web~${k}` })), made('s5', { overflow: 'park' }, { key: 'web~5', live: false }));
+const keyedRow = () => row(rootEntry(), ...[1, 2, 3, 4].map((k) => made(`s${k}`, {}, { key: `web~${k}` })), made('s5', {}, { key: 'web~5', live: false }));
 const slotsOf = (m: ReturnType<typeof mountRow>, counter: string): number | undefined => m.latest().entries.find((p) => p.id === counter)?.slots;
 
 test('a template panel\'s view is given panel.id equal to handle.id, for a singleton and for each instance of a multiple template', async () => {

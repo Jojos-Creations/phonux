@@ -509,17 +509,9 @@ test('a row of hand-built and created entries has unique names by `key ?? id`', 
 // effective(): legacy defaults
 // ---------------------------------------------------------------------------
 
-test("effective of a hand-built collapsible entry has overflow 'park'", () => {
-  assert.equal(effective(hand('a')).overflow, 'park');
-});
-
-test("effective of a hand-built fixed column has overflow 'scroll'", () => {
-  assert.equal(effective(hand('a', { collapsible: false })).overflow, 'scroll');
-});
-
 test('effective of a hand-built entry has every key without a legacy field at its library default', () => {
   const eff = effective(hand('a')) as unknown as Record<string, unknown>;
-  const fromFields = new Set(['closable', 'parkable', 'movable', 'resizable', 'maxSlots', 'clearable', 'listed', 'overflow', 'layer', 'enterFrom', 'slots', 'title']);
+  const fromFields = new Set(['closable', 'parkable', 'movable', 'resizable', 'maxSlots', 'clearable', 'listed', 'layer', 'enterFrom', 'slots', 'title']);
   const derived = resolvePanelSettings().value as unknown as Record<string, unknown>;
   let compared = 0;
   for (const key of Object.keys(derived)) {

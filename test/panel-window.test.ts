@@ -288,16 +288,12 @@ test('History stays at array index 0 through appendPanel, closePanel and restore
 });
 
 // ---------------------------------------------------------------------------
-// promoteToLive: flips `live` IN PLACE (never reorders), and demotes at most one OTHER live panel -- the
-// least recently touched -- when doing so would exceed `capacity`.
+// promoteToLive: flips `live` IN PLACE (never reorders), and hides no other panel.
 // ---------------------------------------------------------------------------
-
-/** Every panel touched at the same moment, so a tie decides and the lower index goes. */
-const untouched = (): number => 0;
 
 test('promoteToLive: makes a parked panel live IN PLACE -- array order is unchanged, nothing is appended', () => {
   const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1', 'w2'); // w1,w2 parked; w3 live
-  const result = promoteToLive(panels, 'w1', Number.POSITIVE_INFINITY, untouched)!;
+  const result = promoteToLive(panels, 'w1')!;
   assert.deepEqual(
     result.map((p) => p.id),
     ['w1', 'w2', 'w3'],
@@ -306,48 +302,13 @@ test('promoteToLive: makes a parked panel live IN PLACE -- array order is unchan
   assert.equal(result[0]!.live, true);
 });
 
-test('promoteToLive: over capacity, demotes exactly one OTHER live panel -- the one touched longest ago', () => {
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1'); // w1 parked (index 0); w2,w3 live
-  const touchedAt = (id: string): number => ({ w1: 3, w2: 2, w3: 1 })[id]!;
-  const result = promoteToLive(panels, 'w1', 2, touchedAt)!; // capacity 2: promoting w1 would make 3 live
-  assert.deepEqual(
-    result.filter((p) => p.live).map((p) => p.id),
-    ['w1', 'w2'],
-    'w3 (touched first) was demoted to keep exactly one swap',
-  );
-  assert.equal(result.find((p) => p.id === 'w3')!.live, false);
-});
-
-test('promoteToLive: a tie in touch time demotes the lower index', () => {
-  const panels = park(makeExtraPanels('w1', 'w2', 'w3'), 'w1');
-  const result = promoteToLive(panels, 'w1', 2, untouched)!;
-  assert.deepEqual(result.filter((p) => !p.live).map((p) => p.id), ['w2']);
-});
-
-test('promoteToLive: exactly at capacity demotes nothing at all', () => {
-  const panels = park(makeExtraPanels('w1', 'w2'), 'w1'); // w1 parked; w2 live
-  const result = promoteToLive(panels, 'w1', 2, untouched)!; // promoting w1 makes 2 live, exactly capacity
-  assert.deepEqual(
-    result.filter((p) => p.live).map((p) => p.id).sort(),
-    ['w1', 'w2'],
-    'both live now -- there was room, nothing needed to leave',
-  );
-});
-
 test('promoteToLive: an already-live panel is a no-op (null) -- "keep it live" needs nothing applied', () => {
   const panels = makeExtraPanels('w1');
-  assert.equal(promoteToLive(panels, 'w1', 1, untouched), null);
+  assert.equal(promoteToLive(panels, 'w1'), null);
 });
 
 test('promoteToLive: an unknown id returns null -- nothing to promote', () => {
-  assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope', Number.POSITIVE_INFINITY, untouched), null);
-});
-
-test('promoteToLive: demotion never targets a collapsible:false entry (History) -- a manual activation must not bump an always-shown column', () => {
-  const panels = park([createRootPanel(ROOT_ID), ...makeExtraPanels('w1')], 'w1'); // History live; w1 parked
-  const result = promoteToLive(panels, 'w1', 1, untouched)!; // capacity 1: something should demote, but History is exempt
-  assert.equal(result.find((p) => p.id === ROOT_ID)!.live, true, 'History stays live: it is the only OTHER live entry, but it is exempt');
-  assert.equal(result.find((p) => p.id === 'w1')!.live, true, 'w1 was promoted -- nothing was left to demote');
+  assert.equal(promoteToLive(makeExtraPanels('w1'), 'nope'), null);
 });
 
 // ---------------------------------------------------------------------------

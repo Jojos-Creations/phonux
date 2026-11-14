@@ -5,7 +5,7 @@
 
 import { computeRowNumbers } from '../rowNumbers.js';
 import { panelWidthOf } from '../panelTiers.js';
-import { parksForRoom, type PanelWindow } from '../panelWindow.js';
+import type { PanelWindow } from '../panelWindow.js';
 
 /** The workspace numbers a row is priced against. `maxLive` is null without a cap. */
 export interface RowEnv {
@@ -16,9 +16,6 @@ export interface RowEnv {
   readonly maxLive: number | null;
   readonly dropTieBreak: 'leftmost' | 'rightmost';
 }
-
-/** Live and parkable for room: the panels whose count and widths the capacity governs. */
-export const isParkLive = (p: PanelWindow): boolean => p.live && parksForRoom(p);
 
 /**
  * What prices `row`: panel widths, how many parkable panels may be live, whether a live set settles. The row is one continuous

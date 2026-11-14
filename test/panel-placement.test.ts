@@ -33,7 +33,7 @@ const liveFlags = (panels: readonly PanelWindow[]): string[] => panels.map((p) =
 /** A parkable panel as a creation path builds it: appendPanel's skeleton, then the 'create' writer over `layer`. */
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'place-view' }, id, ROOT)[0]!;
-  return { ...applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create'), instance: { overflow: 'park', ...layer } };
+  return { ...applyTemplate({ ...skeleton, ...over }, resolve({ ...layer }), 'create'), instance: { ...layer } };
 }
 /** A fixed column: never parked, anchored to nothing when it is the root. */
 const fixed = (id: string): PanelWindow => applyTemplate({ ...createRootPanel(id), title: id }, resolvePanelSettings({ template: { title: id } }, { root: true }).value, 'create');

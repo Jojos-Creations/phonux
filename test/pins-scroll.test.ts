@@ -27,7 +27,7 @@ const made = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, ...over }, resolvePanelSettings({ template: layer }).value, 'create');
 };
-const park = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => made(id, { overflow: 'park' }, over);
+const park = (id: string, over: Partial<PanelWindow> = {}): PanelWindow => made(id, {}, over);
 const rootEntry = (): PanelWindow =>
   applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 const row = (...entries: PanelWindow[]): PanelWindow[] => deriveAnchorsFromOrder(entries, ROOT);

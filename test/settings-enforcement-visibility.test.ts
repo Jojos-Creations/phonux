@@ -14,7 +14,7 @@ import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings, SettingNote, WorkspaceTuning } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { appendPanel, createRootPanel, leastRecentlyTouchedId, promoteToLive } from '../panelWindow.js';
+import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
@@ -37,8 +37,8 @@ function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> 
   const skeleton = appendPanel([], { view: 'web', url: `https://${id}.example`, title: id.toUpperCase() }, id, ROOT)[0]!;
   return applyTemplate({ ...skeleton, instance: layer, ...over }, resolve(layer), 'create');
 }
-/** A panel the row may park for room. */
-const park = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => made(id, { overflow: 'park', ...layer }, over);
+/** A collapsible panel made from settings. */
+const park = (id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow => made(id, layer, over);
 const rootEntry = (): PanelWindow =>
   applyTemplate(createRootPanel(ROOT), resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
 /** The row in array order with every anchor read from it, as the engine keeps it. */
@@ -401,10 +401,10 @@ test('a real host: a panel added hidden before the row mounts, one created hidde
   const ws = createWorkspace({
     mount: false,
     root: plainTemplate(ROOT),
-    templates: [definePanel({ id: 'quiet', view: () => null, settings: { startVisibility: 'parked', overflow: 'park', multiple: true } }), plainTemplate('loud')],
+    templates: [definePanel({ id: 'quiet', view: () => null, settings: { startVisibility: 'parked', multiple: true } }), plainTemplate('loud')],
   });
   ws.addPanel('quiet', { id: 'q1' });
-  const l1 = ws.addPanel('loud', { id: 'l1', settings: { overflow: 'park' } });
+  const l1 = ws.addPanel('loud', { id: 'l1' });
   const named = (panels: readonly PanelWindow[]): PanelWindow[] => panels.map((p) => ({ ...p, id: p.key ?? p.id }));
   let latest: ProvidedPanels | undefined;
   function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
@@ -440,25 +440,6 @@ test('created parked through useProvidePanels: a parked entry that a restore add
   assert.equal(p.ids().length, 2, 'control: the restore added the saved panel');
   assert.deepEqual(p.live(), [], 'the restored parked panel stays parked in a row with room');
   assert.equal(p.now().panelList.length, 1);
-});
-
-// ---------------------------------------------------------------------------
-// The park order
-// ---------------------------------------------------------------------------
-
-test('leastRecentlyTouchedId: the smallest touch time goes, a tie goes to the lower index, and an excluded panel is spared', () => {
-  const panels = row(rootEntry(), park('a'), park('b'), park('c'), park('d'));
-  const at: Record<string, number> = { a: 5, b: 2, c: 2, d: 9 };
-  assert.equal(leastRecentlyTouchedId(panels, (id) => at[id]!), 'b', 'b and c are tied at 2, and b is first in the row');
-  assert.equal(leastRecentlyTouchedId(panels, (id) => at[id]!, new Set(['b'])), 'c');
-  assert.equal(leastRecentlyTouchedId(panels, () => 0), 'a', 'all tied: the lowest index');
-  assert.equal(leastRecentlyTouchedId(panels, () => 0, new Set(['a', 'b', 'c', 'd'])), null, 'nothing left to park');
-});
-
-test('promoteToLive never parks a panel in the keep set', () => {
-  const panels = row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false }));
-  const out = promoteToLive(panels, 'p', 2, () => 0, new Set(['a']))!;
-  assert.deepEqual(parkedOf(out), ['b'], 'a is the oldest, but it is kept');
 });
 
 // ---------------------------------------------------------------------------

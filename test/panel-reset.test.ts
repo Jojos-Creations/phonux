@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 const quiet = { tuning: { saveQuietMs: 5 } };
 const wait = (): Promise<void> => act(async () => void (await new Promise((done) => setTimeout(done, 80))));
 const reset = (r: PinRig, target: string) => r.turn(() => r.ws.panels.resetLayout(target));
-const park: PanelSettings = { overflow: 'park' };
+const park: PanelSettings = {};
 
 // ---------------------------------------------------------------------------
 // Literal rows
@@ -59,7 +59,7 @@ test('(c) a two-slot panel the person resized returns to its default slots', asy
 
 test('(c) a scrolling row parks none when a slot count grows', async () => {
   const ids = ['a', 'b', 'c', 'd'];
-  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
+  const r = await pinRig({ ids, width: 1300, settings: Object.fromEntries(ids.map((id) => [id, { slots: id === 'c' ? 2 : 1 } as PanelSettings])) });
   await r.settle();
   r.turn(() => r.h.c!.setSlots(1, 'person'));
   const live = r.live();
@@ -164,7 +164,7 @@ test('all is rejected as a template id and as an instance id', () => {
 test('resetLayout(id) of an in-view panel follows its scrollOnMove and resetLayout(all) scrolls nothing', async () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const make = async (): Promise<PinRig> => {
-    const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'scroll', scrollOnMove: 'follow' } as unknown as PanelSettings])) });
+    const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { scrollOnMove: 'follow' } as unknown as PanelSettings])) });
     await r.settle();
     return r;
   };

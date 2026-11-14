@@ -29,7 +29,7 @@ registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-
 const resolve = (layer: PanelSettings = {}) => resolvePanelSettings({ template: layer }).value;
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'motion-view' }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
+  return applyTemplate({ ...skeleton, ...over }, resolve({ ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
   applyTemplate({ ...createRootPanel(ROOT), view: 'motion-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');

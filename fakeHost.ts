@@ -42,7 +42,7 @@ export type { BezierEase, FadeEase } from './panelSettings.js';
 export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext } from './panelSettings.js';
 export type { SettingsPatch } from './settingsPatch.js';
 export type { CssStyle, ElementProps } from './cssStyle.js';
-export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
+export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, PanelSettings, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
 export type { InstancePatch } from './settingsPatch.js';
 
 /** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */

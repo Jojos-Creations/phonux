@@ -67,8 +67,7 @@ so nothing reads `maxSlots === slots` as "not resizable".
 
 `effective(p)` (`panelSettings.ts`, internal) is the one reader of an entry's settings: `p.settings` itself when
 the entry has them, otherwise values read from the fields a hand-built entry carries (`collapsible` gives
-`parkable`, `closable`, `movable`, `resizable` and `clearable`; a
-collapsible entry's `overflow` is 'park', a fixed column's 'scroll'), with every other key at its library
+`parkable`, `closable`, `movable`, `resizable` and `clearable`), with every other key at its library
 default. So a hand-built 0.1.0 entry behaves as it did. `applyTemplate(entry, resolved, mode)` is the one writer
 of the fields that mirror the settings: 'create' writes `collapsible` (`parkable`),
 `listed`, `layer`, `anchoredEnter`, `slots`, `title`, `settings` and `key`; 'reconfigure'
@@ -240,7 +239,7 @@ it come second. A row gesture or a close later in the same handler prices the re
 
 ### The fit cap
 
-(A row whose root reads `overflow` 'scroll', which is every row built from settings, caps a panel at the window instead, and the root steps aside for it: see "The root steps aside".) A panel is never wider than the widest ONE live panel can be beside the fixed columns in
+(Every row is a scrolling strip and caps a panel at the window instead: see "Row numbers".) A panel is never wider than the widest ONE live panel can be beside the fixed columns in
 the current window: `max(phone width, row width - 2 x gap - fixed columns - gap)` (`computeMaxLiveWidth`, from the same
 budget arithmetic the row's fit count uses), and it is drawn at the whole slots that fit that width. So a wide panel always
 fits in the row instead of overflowing it, at every window size. With the root as the only fixed column, a 390 phone and a
@@ -256,17 +255,11 @@ The floor is the phone width: when not even a phone fits beside the fixed column
 one-slot panel is never capped (the window minimum already fits the root plus one phone). The cap moves with the window, so a
 capped panel widens and narrows as the window does; the chosen `slots` is never rewritten. Before the first measurement there is no cap.
 
-A panel at the cap fills the row beside the fixed columns, so nothing else fits beside it, which is also
-true of the same panel at its full chosen width. The capacity rules therefore park and reveal exactly the same
-panels either way, for the panels whose `overflow` is 'park'; the cap changes how wide the panel is drawn,
-never which panels are live.
-
-A row whose entries carry settings with `overflow: 'scroll'` (the library default for every panel built through
-the settings cascade) has no such cap on a fixed column's account: `computeRowNumbers` prices it from the window
-alone. The window is the container less one gap each side; a panel is as many whole slots as fit it (see "Slot sizing":
-two slots, 796 of 968, at a container of 1000). Every drawn entry is laid out, and a strip wider than the
-window scrolls instead of parking anything. The shell, the row and the capacity all read that one result, so they
-cannot disagree: `ProvidedPanels.rowNumbers`.
+Every row is one scrolling strip (the `overflow` setting is removed, owner ruling 2026-11-14), so no fixed column caps a
+panel on its own account: `computeRowNumbers` prices it from the window alone. The window is the container less one gap
+each side; a panel is as many whole slots as fit it (see "Slot sizing": two slots, 796 of 968, at a container of 1000).
+Every drawn entry is laid out, and a strip wider than the window scrolls instead of parking anything. The shell and the
+row read that one result, so they cannot disagree: `ProvidedPanels.rowNumbers`.
 
 ### The minimum workspace width
 
@@ -294,51 +287,22 @@ columns and a tablet panel is uncapped. Holding that is the job of the plan that
 lands, a host with `phoneFit` on sets no window minimum from this value. A phone width that is not a positive finite number leaves
 `PanelsAPI.minWorkspaceWidth` unset, because the function throws on it and a number a host only reads must not take the row down.
 
-### Row numbers and overflow
+### Row numbers
 
-`computeRowNumbers` is the one place a row's widths, resting offsets, margin and strip width are derived. It
-reads `p.settings?.overflow`, never `effective(p).overflow`: a hand-built fixed root reads 'scroll' under
-`effective()`, and a row of hand-built entries must keep its 0.1.0 numbers (`computeMaxLiveWidth` and
-`computeRowLayout`'s margin). Within a scrolling row the margin is 0 once the strip is wider than the window (the first stop's
-margin in a stepping row, see below) and centers it otherwise; before the first measurement the window is unbounded and nothing scrolls.
-
-Only an entry whose `overflow` is 'park' is parked for room. Its capacity is `computeRowLayout` over the widths
-of the live park entries, with the widths of every other drawn entry (the fixed columns and the scroll panels)
-subtracted as `reservedWidths`; the existing floor of one park panel stands, so a crowded row overflows and
-scrolls instead of refusing a panel. A park exit in a scrolling row travels one span from the slot's own rest, not
-to the row's origin, because the strip extends far past the window.
+`computeRowNumbers` is the one place a row's widths, resting offsets, margin and strip width are derived. Every row is
+a scrolling strip, a row of hand-built 0.1.0 entries included (owner ruling 2026-11-14: such a row may draw at slightly
+different widths than 0.1.0 did). The margin is 0 once the strip is wider than the window (the first stop's margin in a
+stepping row, see below) and centers the strip otherwise; before the first measurement the window is unbounded and
+nothing scrolls. No panel is parked for room: every drawn width is in `reservedWidths`, and `parkLiveWidths` is empty.
+A park exit (a host's hide) travels one span from the slot's own rest, not to the row's origin, because the strip
+extends far past the window.
 
 #### The live panel cap
 
-`tuning.maxLivePanels` (an integer of 1 or more; `null`, the default, is no cap and leaves everything above as it was)
-limits how many panels are live. A panel counts when its `overflow` is 'park'. The capacity of a set of live park panels
-becomes `min(fit, N)`, with `fit` the window's fit above, and a row with a scroll entry takes no
-`fit`: the root is one, so there the window's width no longer decides how many panels are live, exactly N are,
-at 600 px as at 1920. That one capacity answers every question the window's fit answered, through the row's one
-`pricing`: the park that settles a row, the park that an open, a `show`, a root click or an undo makes, the free slots
-an 'until-room' hold waits for, and the returns a `resetLayout` reports.
-
-`PanelsAPI.maxFitPanels` is the window's phone-width ceiling: `effectiveMaxPanels` over `rowFitCount` with no live widths, the same
-`rowFitCount` the row's capacity calls, so the two cannot disagree. It is `null` while `containerWidth` is 0 and is not lowered by
-a scrolling row. A host reads it to default a cap (`tuning.maxLivePanels`) that follows the window.
-
-No row that reaches the document holds more live panels than the cap. A row that lands over it (the panels of a
-restore or of a replayed `addPanel`, a seeded `initialEntries`, a row after a lower value from `configureTuning`, class NOW)
-is settled in the render that would show it, which React then renders again, so the first committed row has the excess
-parked and a panel the cap parks is never mounted. While a cap is set that settle also takes the window's fit; without
-one the reconcile effect parks for the window one commit after the row lands, as before. The settle keeps the panels an
-action has just marked, as the effect does, and the effect records its parks once the row has committed. On the Embla strip nothing is parked for room, so the cap's are
-the only parks (0.2.0 removed `capacityReturn` and `tuning.returnTieBreak` with the parking engine). A higher value, or `null`, returns what has room for it under 'auto', and under 'manual' the panels the capacity parked, most recently parked first, up to the new value; never one the host hid.
-
-Opening, showing or undoing a panel parks the panel touched longest ago, never the panel just
-opened or moved. A panel's touch time is set when it is created and set again when it is shown from parked or
-focused (or pressed) in the row; a tie goes to the panel nearer the start of the row. Touch times are session state and
-are not saved: a restored row starts every panel tied, so the row order decides until something is touched. A park the
-window forces (a capacity drop, a resize) is a different rule and still parks the fewest panels, the leftmost first.
-
-The cap reveals nothing. A wheel step, Shift+wheel, arrow key or swipe only scrolls the
-strip (0.2.0 removed `revealOnScroll` with the parking engine: the Embla row reveals no parked panel). A hidden panel comes
-back by `show`, a root click or an undo of its close, each of which parks one other to stay at N.
+`tuning.maxLivePanels` (an integer of 1 or more; `null`, the default, is no cap) limits how many panels keep their
+content loaded, never how many are live: every panel keeps its slot on the strip. The panels in view are always loaded;
+past them, nearest first, the others within the row's near band load until N are loaded in all (`loadedNear` in
+`emblaRow.ts`). It applies to every panel, the root included; only the panel being dragged is exempt.
 
 #### Whole-panel stops
 
@@ -421,16 +385,6 @@ A parking row can rest with blanks (`rowRest.ts`). `tail` is whole slots after t
 ### The root leaves and is summoned
 
 A root with no `edgeHold` is a panel of the strip: the row's scroll carries it out of the window on either side, and it cannot be closed or parked for room. Panels may sit on both sides of it, any number on each: the root's place in the list is wherever a move left it. `panels.summonRoot()` brings it back to the view's edge on the side it lies: the far left slot when it is off to the left, the far right slot when it is off to the right. Every panel from it to the far side of that edge's slot parks, so the rest of the view stands still; a panel wider than the slot does not park but moves over by the root's slot and runs off the far edge, on either side. The scroll goes with the slots' own slide, on their curve, through the settle effect, so no panel that stays moves on screen. The summon is state of the provider, never saved: a reload shows the row as the list has it, with the parked panels parked. The summon records which panels were live when it came. `panels.dismissRoot()`, and a step away from the root, which is that dismiss, go back to that: what it parked lands in place, and what a step toward the root swapped in while it stood parks again, so the row is the one the summon found, and the scroll returns to where it was. A step toward a summoned root leaves the summon standing. Anything else that carries the root out of the view (a dot, a scroll to a panel) ends the summon and returns what it parked, beside the root, and the row stays where that scroll took it. A row that steps the root aside draws it again for as long as the summon stands. The root's dot rides the oval only while the window shows it; scrolled out, it keeps its own place on the bar outside the oval, on the side the root left by (`rowBar.ts`, `gone`).
-
-### The root steps aside
-
-In a row that swaps (every drawn panel but the fixed columns has `overflow` 'park'), the floor of one panel can leave a panel that does not fit beside the root. `rootStepsAside` (rowNumbers.ts) answers that: when the one parking panel drawn, chosen wider than a phone, does not fit the window beside the root and does fit it without, the root is not drawn, and the panel rests whole and centered. It is derived from the list and the window, so a window change moves the root in the commit that carries the new width, and a window that commits before its paint (`flushSync` in the observer, as the library's own mount does) shows no cut frame; a window step that moves the root lands in one commit, as a window jump does, because a slide there would cut the panel. A host that measures with a plain state update draws the old row for one frame.
-
-Nothing is stored. The root stays live on the list, so the save, `panelList` and capacity are unchanged, and capacity goes on pricing the row beside it: a panel that stepped it aside takes no neighbor. Only the entries the row draws (`entries`, `rowNumbers`) read it as a parked panel, `live: false` and `collapsible: true`, which is the root's parked dot; its `closable` stays false. A hold is therefore set aside with the root and comes back with it, and `edgeHold` itself never changes.
-
-A step toward the root with no parked panel between (`rootIsNext`), its dot and `scrollTo` park the drawn panels (`showRoot`) and the root rests alone: a panel the root cannot sit beside would break the run, so none is drawn past it. A panel returning for room never steps the root aside, or the root could not stay; a person's step does, and so does a window narrowing under a panel already shown. `showRoot` takes a side and the rule reads the root's place in the list, so a root that comes back at the far right needs a new intent through `swapPanels`, not a new rule.
-
-A row with a cap keeps its live panels whatever the window, so two or more drawn past the fit still scroll, wide or not, a wide one cut at the edge as in any scrolling row, and a second fixed column that leaves a wide panel no room leaves the row as it was.
 
 ### Edge holds
 
@@ -1681,7 +1635,7 @@ covers only what a panel author can use.
 
 ### Who reads each setting
 
-Set by the reference app: `title`, `multiple`, `hostCreatable`, `restoreVisibility`, `startVisibility`, `overflow`,
+Set by the reference app: `title`, `multiple`, `hostCreatable`, `restoreVisibility`, `startVisibility`,
 `showWhenClosed`, `placeOnAdd`, `listed`, `layer`, `slots`, `resizable`, `movable`,
 `crossable`, `closable`, `headerButtons`, `hollowDot`, `edgeHold`, `enterFrom` and `exitTo`. The second known consumer is not
 in this repository, so only these are proven in use.
@@ -1726,7 +1680,7 @@ set them, and a value a layer sets is never forced.
 
 | Rule | When | Forces |
 | --- | --- | --- |
-| C1 | `parkable: false` (a fixed column) | `resizable: false`, `slots: 1`, `maxSlots: 1` (all three stand when the panel's own template, host or instance asked for any of them), `overflow: 'scroll'`, `startVisibility: 'live'`, `restoreVisibility: 'live'` |
+| C1 | `parkable: false` (a fixed column) | `resizable: false`, `slots: 1`, `maxSlots: 1` (all three stand when the panel's own template, host or instance asked for any of them), `startVisibility: 'live'`, `restoreVisibility: 'live'` |
 | C2 | `closable: false` | `clearable: false` |
 | C4 | `slots` above `maxSlots` | `slots` is `maxSlots` |
 | C5 | the root | `parkable: false`, `closable: false` (`movable` is not forced: it follows the fixed column to `false` until a layer sets it) |
@@ -1832,7 +1786,6 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `maxInstances` | integer >= 1, unlimited (template scope) | unlimited | SCOPE (configureTemplate). Raising it or null: ok. Lowering below the instances that exist: instance-limit with the count; no instance is closed. Moot without multiple (a note). |
 | `listed` | true, false | derived: parkable | NOW. L, T, K, H: the panel appears in or leaves panelList at this commit; its slot and state do not change. false on a hidden panel whose hold the gesture cannot release leaves it showable by code only (note). |
 | `startVisibility` | live, parked | live | NEXT. Governs panels created after the commit; every existing panel keeps its state. C: used by the next open(). C1: parked on a fixed column is settings-conflict. |
-| `overflow` | scroll, park | scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park | NEXT. Read at the next park decision. L: park->scroll protects it from then on; scroll->park makes it eligible; nothing parks, returns or scrolls at configure. K, H: stored; a K panel already on the stack still returns. C1: park on a fixed column is settings-conflict. |
 | `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; a `both` panel (one per row) leaves for the edge the scroll takes it past. It lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
 | `scrollOnOpen` | into-view, start, center, none | into-view | NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none). |
 | `scrollOnMove` | follow, none | follow | NEXT. Read by the next move, place, setSlots or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure. |

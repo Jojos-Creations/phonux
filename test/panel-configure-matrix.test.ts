@@ -602,35 +602,6 @@ test('matrix:startVisibility', async () => {
   assert.match(conflict.message, /C1/);
 });
 
-test('matrix:overflow', async () => {
-  probe('overflow');
-  const opens = async (configure: boolean): Promise<string> => {
-    const c = matrixTemplate('c', { settings: { overflow: 'park' } });
-    const r = await matrixRig({ ids: ['a', 'b'], park: true, width: 1300, extra: [c] });
-    await r.settle();
-    if (configure) {
-      assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ overflow: 'scroll' }))), { now: [], later: ['overflow'], shadowed: [] });
-      assert.equal(r.live().join(' '), 'root a b', 'nothing parks or returns at configure');
-    }
-    r.turn(() => void r.ws.addPanel('c'));
-    await r.settle();
-    r.m.unmount();
-    return r.live().join(' ');
-  };
-  assert.equal(await opens(false), 'root b c', 'control: opening c parks a, the oldest');
-  assert.equal(await opens(true), 'root a c', 'park to scroll: a is no longer parked for room, so b goes instead');
-  const wide = await matrixRig({ ids: ['a', 'b', 'c'], width: 1300 });
-  await wide.settle();
-  assert.equal(wide.live().join(' '), 'root a b c', 'three scroll panels overflow a row of two');
-  assert.deepEqual(shape(wide.turn(() => wide.h.a!.configure({ overflow: 'park' }))), { now: [], later: ['overflow'], shadowed: [] });
-  await wide.settle();
-  assert.equal(wide.live().join(' '), 'root a b c', 'scroll to park: eligible only at the next overflow, so nothing parks now');
-  const fixed = await matrixRig();
-  done(fixed.turn(() => fixed.h.a!.configure({ parkable: false })));
-  const conflict = refusedWith(fixed.turn(() => fixed.h.a!.configure({ overflow: 'park' })), 'settings-conflict');
-  assert.equal(conflict.setting, 'overflow');
-});
-
 const swipeRight = (r: MatrixRig, dx = 50): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX: dx, cancelable: true, bubbles: true })));
 
 test('matrix:edgeHold', async () => {

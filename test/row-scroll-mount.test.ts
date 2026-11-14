@@ -43,7 +43,7 @@ test('first paint and a restore record no request and raise no note', async () =
 });
 
 test('a panel created hidden records none and raises no waiting-request note', async () => {
-  const m = mountRow({ over: { workspaceDefaults: { startVisibility: 'parked', overflow: 'park' } } });
+  const m = mountRow({ over: { workspaceDefaults: { startVisibility: 'parked' } } });
   const asked = glides(m.container);
   act(() => m.latest().create({ view: 'scroll-row-view' }));
   await settle();
@@ -144,7 +144,7 @@ test('initialScroll is skipped when a wheel or a pointer-down reached the row be
 // The row here scrolls in steps (overflow 'scroll', rowGesture 'step'): the eleven panels rest on the grid 0, 406, 812, ...,
 // with 86 of centering before the strip, so a stop does not sit on a panel's left edge. The end is 3654. A panel as wide as the window (a two-slot panel at container 828) is the wide case.
 
-const SCROLLING = { overflow: 'scroll' } as const;
+const SCROLLING = {};
 const stepping = (): PanelWindow[] => row(...['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => made(id, SCROLLING)), rootEntry(), ...['w1', 'w2', 'w3', 'w4', 'w5'].map((id) => made(id, SCROLLING)));
 const stepTuning = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']> = 'start'): Parameters<typeof mountScrollRow>[2] => ({ tuning: { rowGesture: 'step', initialScroll, saveQuietMs: 5 } });
 /** Lets the save timer (real time, so not the frame clock) fire. */

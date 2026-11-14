@@ -75,7 +75,6 @@ export type AddPlacement =
     };
 
 /** What the row may do with a panel when the open panels do not all fit: scroll past it, or park it. @public */
-export type Overflow = 'scroll' | 'park';
 
 /**
  * How a panel enters the row. 'auto' takes the workspace's `tuning.defaultEnterFrom`, whose own 'auto' slides in from the side
@@ -193,8 +192,6 @@ export type SettingValues = {
   listed: boolean;
   /** Whether a panel made from this setting starts live or parked. */
   startVisibility: 'live' | 'parked';
-  /** What the row may do with the panel when the open panels do not all fit. */
-  overflow: Overflow;
   /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' is in the strip while it is in view, and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
   edgeHold: 'off' | 'left' | 'right' | 'both';
   /** Where the row scrolls the panel to on its next open, show or click. */
@@ -730,17 +727,6 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'overflow',
-    group: 'visibility',
-    values: 'scroll, park',
-    default: 'scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park',
-    scope: 'instance',
-    viewSettable: false,
-    exists: 'new',
-    ownerEntry: 'phonux-row-numbers-and-overflow',
-    configure: { cls: 'NEXT', doors: ['instance'] },
-  },
-  {
     name: 'edgeHold',
     group: 'scrolling',
     values: 'off, left, right, both',
@@ -1199,7 +1185,6 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   multiple: false,
   maxInstances: 'unlimited' as number | 'unlimited',
   startVisibility: 'live' as const,
-  overflow: 'scroll' as Overflow,
   edgeHold: 'off' as const,
   scrollOnOpen: 'into-view' as ScrollOnOpen,
   scrollOnMove: 'follow' as ScrollOnMove,
@@ -1406,7 +1391,7 @@ function reportRemovedKey(layer: string, key: string): void {
 }
 
 /** The per-panel settings 0.2.0 removed with the parking engine. A layer that names one is warned once and the key is ignored. @internal */
-export const REMOVED_PANEL_KEYS: ReadonlySet<string> = new Set(['hideStickiness', 'capacityReturn', 'revealOnScroll']);
+export const REMOVED_PANEL_KEYS: ReadonlySet<string> = new Set(['hideStickiness', 'capacityReturn', 'revealOnScroll', 'overflow']);
 /** The tuning leaves 0.2.0 removed with the parking engine. @internal */
 export const REMOVED_TUNING_LEAVES: ReadonlySet<string> = new Set(['gestureLockMs', 'returnTieBreak', 'dropTieBreak']);
 /** The tuning members 0.2.0 removed with the parking engine, by leaf. */
@@ -1460,7 +1445,6 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   maxInstances: maxInstancesProblem,
   listed: bool,
   startVisibility: oneOf('live', 'parked'),
-  overflow: oneOf('scroll', 'park'),
   edgeHold: oneOf('off', 'left', 'right', 'both'),
   scrollOnOpen: oneOf('into-view', 'start', 'center', 'none'),
   scrollOnMove: oneOf('follow', 'none'),
@@ -1791,7 +1775,6 @@ function applyRules(s: State, root: boolean): void {
     const fixedSize = [['resizable', false], ['slots', 1], ['maxSlots', 1]] as const;
     const askedForThisPanel = fixedSize.some(([key, applied]) => (s.source[key] === 'template' || s.source[key] === 'host' || s.source[key] === 'instance') && !sameSettingsValue(s.values[key], applied));
     if (!askedForThisPanel) for (const [key, applied] of fixedSize) force(s, key, applied, 'C1', 'parkable');
-    force(s, 'overflow', 'scroll', 'C1', 'parkable');
     force(s, 'startVisibility', 'live', 'C1', 'parkable');
     force(s, 'restoreVisibility', 'live', 'C1', 'parkable');
   }
@@ -1899,7 +1882,6 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
     resizable: parkable,
     clearable: parkable,
     listed: 'listed' in p ? p.listed : parkable,
-    overflow: parkable ? 'park' : 'scroll',
     layer: p.layer ?? 'base',
     enterFrom: p.anchoredEnter === true ? 'anchor' : 'auto',
     slots: ('slots' in p ? p.slots : undefined) ?? 1,

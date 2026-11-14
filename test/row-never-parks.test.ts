@@ -1,7 +1,6 @@
 /**
- * The engine's reading of `overflow`: a scroll panel is never parked for room and a park panel is, priced over the
- * widths the reserved panels leave. One differential for the name, seeded sequences for the default row, the park
- * role, the rest-relative park exit, the workspaceDefaults path and the doc comments that promised parking.
+ * The row is one scrolling strip and never parks a panel for room: seeded sequences over the row, a crowded row that
+ * scrolls, the rest-relative park exit, the workspaceDefaults path, and the doc comments that once promised parking.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,16 +10,13 @@ import * as React from 'react';
 import { act } from 'react';
 import { definePanel, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
-import { computeRowLayout } from '../panelRowLayout.js';
 import { applyTemplate, effective, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { panelRowSlotMotion, parkExitTarget, } from '../PanelRowSlot.js';
-import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, useSeededInput, type SeedOptions, type SeededOver } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';
-const OWNED = ['overflow'];
 
 registerTestView('ov-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
 
@@ -141,7 +137,7 @@ function sequence(seed: number, defaults: PanelSettings, steps: number): Run {
   return { wrong, created, peak };
 }
 
-test('S11: 500 seeded sequences of create, activate, resize, close, undo, drag, hide and show over scroll panels never park one for room', () => {
+test('S11: 500 seeded sequences of create, activate, resize, close, undo, drag, hide and show never park a panel for room', () => {
   let run = 0;
   let created = 0;
   let crowded = 0;
@@ -159,94 +155,17 @@ test('S11: 500 seeded sequences of create, activate, resize, close, undo, drag, 
   assert.deepEqual(failures, []);
 });
 
-test('S11 control: the same sequences over park panels do park for room, so the check can fail', () => {
-  let failed = 0;
-  for (let seed = 1; seed <= 40; seed += 1) if (sequence(seed, { overflow: 'park' }, 14).wrong.length > 0) failed += 1;
-  assert.ok(failed > 0, 'a park row parks a panel that was neither hidden nor closed in at least one sequence');
-});
-
 // ---------------------------------------------------------------------------
-// The differential
+// A crowded row
 // ---------------------------------------------------------------------------
 
-test('overflow differential: three creates at container 1000 park two panels under park and none under scroll', () => {
-  differential('overflow', (run) => {
-    for (const value of ['scroll', 'park'] as const) {
-      run(value, () => {
-        const p = provide({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: { overflow: value } });
-        for (let i = 0; i < 3; i += 1) act(() => p.now().create());
-        const parked = p.parked();
-        cleanup();
-        return parked.length;
-      });
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Park mode as the narrowed role
-// ---------------------------------------------------------------------------
-
-test('park capacity subtracts the reserved widths: a scroll root beside park panels leaves room for one at 1000 and two at 1500', () => {
-  const layout = (reservedWidths: readonly number[]) => computeRowLayout({ containerWidth: 1000, phoneWidth: 390, gap: 16, fixedItemCount: reservedWidths.length, liveWidths: [], reservedWidths }).maxLiveThatFit;
-  assert.equal(layout([390]), 1, '(968 - 390) / 406 = 1');
-  assert.equal(layout([390, 390]), 0, '(968 - 796) / 406 = 0, which the manager floors at 1');
-  const at = (containerWidth: number): Provided => {
-    const p = provide({ initialEntries: [scrollRoot()], containerWidth, workspaceDefaults: { overflow: 'park' } });
-    for (let i = 0; i < 3; i += 1) act(() => p.now().create());
-    return p;
-  };
-  const narrow = at(1000);
-  assert.equal(narrow.live().length, 2, 'the root and the newest park panel');
-  assert.equal(narrow.parked().length, 2);
-  cleanup();
-  const wide = at(1500);
-  assert.equal(wide.live().length, 3, '(1468 - 390) / 406 = 2 park panels beside the root');
-  assert.deepEqual(wide.parked(), [wide.ids()[1]!], 'the one parked is the oldest, never the opened one');
-});
-
-test('a scroll panel beside the park panels takes its width out of the budget, and the floor keeps one park panel live', () => {
-  const p = provide({ initialEntries: [scrollRoot(), made('s')], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
-  for (let i = 0; i < 2; i += 1) act(() => p.now().create());
-  const [, , first, second] = p.ids();
-  assert.deepEqual(p.live(), [ROOT, 's', second], 'reserved 390 + 390 leaves 172, room for none, so the floor of one stands');
-  assert.deepEqual(p.parked(), [first]);
-});
-
-test('at 1500 a scroll panel beside the root leaves room for one park panel, where the root alone leaves room for two', () => {
-  const beside = provide({ initialEntries: [scrollRoot(), made('s')], containerWidth: 1500, workspaceDefaults: { overflow: 'park' } });
-  for (let i = 0; i < 3; i += 1) act(() => beside.now().create());
-  assert.equal(beside.live().length, 3, 'root, s and one park panel: (1468 - 796) / 406 = 1');
-  cleanup();
-  const alone = provide({ initialEntries: [scrollRoot()], containerWidth: 1500, workspaceDefaults: { overflow: 'park' } });
-  for (let i = 0; i < 3; i += 1) act(() => alone.now().create());
-  assert.equal(alone.live().length, 3, 'root and two park panels: (1468 - 390) / 406 = 2');
-});
-
-test('with no park panel to park, a crowded row overflows and scrolls: no refusal and no park', () => {
-  const p = provide({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'scroll' } });
+test('a crowded row overflows and scrolls: no refusal and no park', () => {
+  const p = provide({ initialEntries: [scrollRoot()], containerWidth: 1000, workspaceDefaults: {} });
   for (let i = 0; i < 6; i += 1) act(() => p.now().create());
   assert.equal(p.live().length, 7);
   assert.deepEqual(p.parked(), []);
   assert.equal(p.now().rowScroll, true);
   assert.ok(p.now().rowNumbers.stripWidth > p.now().rowNumbers.windowWidth, 'the strip is wider than the window');
-});
-
-test('a park panel opened into a crowded scroll row stays live, and a scroll panel opened after it does not park it', () => {
-  const p = provide({ initialEntries: [scrollRoot(), made('s1'), made('s2')], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
-  act(() => p.now().create());
-  act(() => p.now().create({ title: 'second' }));
-  const [, , , first, second] = p.ids();
-  assert.deepEqual(p.parked(), [first], 'the oldest other park panel goes, never the one opened');
-  assert.ok(p.live().includes(second!));
-});
-
-test('a template asking overflow park on a parkable:false panel is a settings-conflict, the reverse is not', () => {
-  const forced = resolvePanelSettings({ template: { parkable: false, overflow: 'park' } });
-  assert.equal(forced.value.overflow, 'scroll');
-  assert.deepEqual(forced.conflicts.filter((c) => c.key === 'overflow').map((c) => [c.kind, c.rule]), [['forced', 'C1']]);
-  const reverse = resolvePanelSettings({ template: { parkable: true, overflow: 'scroll' } });
-  assert.deepEqual(reverse.conflicts, []);
 });
 
 // ---------------------------------------------------------------------------
@@ -267,25 +186,17 @@ test('parkExitTarget: a scrolling row exits one span from the rest, a row that n
 
 test('workspaceDefaults {}: a created entry carries its settings, scrolls, and takes listed and layer from the options', () => {
   const p = provide({ initialEntries: [legacyRoot()], containerWidth: 1000, workspaceDefaults: {} });
-  assert.equal(p.now().rowScroll, false, 'before any entry carries settings');
+  assert.equal(p.now().rowScroll, true, 'every row scrolls, before any entry carries settings too');
   act(() => p.now().create({ title: 'Tab', listed: false, layer: 'raised' }));
   const entry = p.now().entries[1]!;
   assert.ok(entry.settings !== undefined && effective(entry) === entry.settings, 'effective(entry) is the entry settings, by reference');
-  assert.equal(entry.settings.overflow, 'scroll');
+  assert.ok(!('overflow' in entry.settings), 'the removed overflow setting is not resolved');
   assert.equal(entry.key, entry.id);
   assert.equal(entry.listed, false);
   assert.equal(entry.layer, 'raised');
   assert.equal(entry.title, 'Tab');
   assert.deepEqual([entry.settings.listed, entry.settings.layer], [false, 'raised']);
   assert.equal(p.now().rowScroll, true);
-});
-
-test("workspaceDefaults {overflow: 'park'}: the created entries park at capacity as 0.1.0 does", () => {
-  const p = provide({ initialEntries: [legacyRoot()], containerWidth: 1000, workspaceDefaults: { overflow: 'park' } });
-  for (let i = 0; i < 3; i += 1) act(() => p.now().create());
-  assert.equal(p.now().entries[1]!.settings?.overflow, 'park');
-  assert.deepEqual(p.live(), [ROOT, p.ids()[3]]);
-  assert.equal(p.now().rowScroll, false);
 });
 
 test('workspaceDefaults on a restore: entries keep their saved live, anchor, slots, size and listed, and a permanent column stays a live fixed column', async () => {
@@ -313,7 +224,6 @@ test('workspaceDefaults on a restore: entries keep their saved live, anchor, slo
   assert.deepEqual([column!.live, column!.collapsible, column!.settings?.parkable], [true, false, false]);
   assert.equal(hidden!.live, false, 'a panel saved parked stays parked');
   assert.deepEqual(withDefaults.map((e) => e.anchor), without.map((e) => e.anchor));
-  assert.equal(wide!.settings?.overflow, 'scroll');
   assert.equal(wide!.key, undefined, 'a restored entry has no key; readers use its id');
 });
 
@@ -321,17 +231,13 @@ test('workspaceDefaults on a restore: entries keep their saved live, anchor, slo
 // The doc comments that promised parking
 // ---------------------------------------------------------------------------
 
-test("the four PanelsAPI comments that promised parking say it applies to a panel whose overflow is 'park'", () => {
+test('the four PanelsAPI comments that once promised parking no longer name overflow or a park for room', () => {
   const source = readFileSync(new URL('../hostApi.tsx', import.meta.url), 'utf8');
   const phrases = ['Appends a live panel', 'Make a panel live in place', 'Sets `id` to `slots`', 'Undo every close in `recentlyClosed`'];
   for (const phrase of phrases) {
     const at = source.indexOf(phrase);
     assert.ok(at > 0, `${phrase} is in hostApi.tsx`);
     const comment = source.slice(source.lastIndexOf('/**', at), source.indexOf('*/', at));
-    assert.match(comment, /overflow/, `the comment starting "${phrase}" names the overflow setting`);
+    assert.doesNotMatch(comment, /overflow|parkable one|parking the live/, `the comment starting "${phrase}" promises no park for room`);
   }
-});
-
-test('every overflow name this file owns has a completed differential', () => {
-  assert.deepEqual(differentialsCovered(), OWNED);
 });

@@ -98,7 +98,7 @@ test('panelRowSlotMotion: a slot enters one own width plus 16 beyond its rest, a
 function liveAfterBurst(containerWidth: number, count: number): number {
   let latest: ProvidedPanels | undefined;
   function Probe(): React.ReactElement {
-    latest = useProvidePanels(useSeededInput({ initialEntries: [root()], containerWidth, workspaceDefaults: { overflow: 'park' } }));
+    latest = useProvidePanels(useSeededInput({ initialEntries: [root()], containerWidth, workspaceDefaults: {} }));
     return React.createElement('output');
   }
   const mounted = mount(React.createElement(Probe));
