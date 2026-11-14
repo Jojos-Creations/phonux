@@ -97,7 +97,6 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   overflow: ['scroll', 'park'],
   revealOnScroll: ['edges', 'any', 'never'],
   edgeHold: ['off', 'left', 'right', 'both'],
-  resize: ['reveal', 'reflow'],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],
@@ -160,7 +159,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 58 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 57 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -873,7 +872,7 @@ test('removed settings: a layer that still names one is ignored, the panel keeps
   const log = mock.method(console, 'error', () => undefined);
   try {
     const keys = Object.keys(FIXED);
-    assert.equal(keys.length, 18);
+    assert.equal(keys.length, 19);
     const asked = Object.fromEntries(keys.map((key) => [key, 'asked']));
     for (const layer of ['workspace', 'template', 'instance'] as const) {
       const res = resolve({ [layer]: asSettings(asked) });
