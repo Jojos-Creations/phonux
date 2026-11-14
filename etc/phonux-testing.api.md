@@ -430,6 +430,7 @@ export interface PhonuxLabels {
     couldNotFullscreen: string;
     couldNotLoad: string;
     couldNotResize: string;
+    dotBarView: (first: number, last: number, total: number) => string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     fullscreen: string;

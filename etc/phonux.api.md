@@ -678,6 +678,8 @@ export interface PanelDots {
         readonly 'aria-valuemin': 0;
         readonly 'aria-valuemax': 100;
         readonly 'aria-valuenow': number;
+        readonly 'aria-valuetext': string;
+        readonly onKeyDown: (e: React_2.KeyboardEvent<HTMLElement>) => void;
     };
     selectDot(id: string): void;
     readonly shown: readonly string[];
@@ -1227,6 +1229,7 @@ export interface PhonuxLabels {
     couldNotFullscreen: string;
     couldNotLoad: string;
     couldNotResize: string;
+    dotBarView: (first: number, last: number, total: number) => string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     fullscreen: string;
@@ -1654,6 +1657,7 @@ export function usePanelDots(i: {
     entries: readonly WorkspaceRowEntry[];
     scroller: React_2.RefObject<HTMLElement | null>;
     ovalSide?: number;
+    labels?: Partial<PhonuxLabels>;
 }): PanelDots;
 
 // @public

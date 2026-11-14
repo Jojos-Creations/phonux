@@ -7,8 +7,9 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
-import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, watchEmblaRest, writeEmbla, type EmblaStrip } from './emblaRow.js';
+import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, emblaTargetOf, runsOnEmbla, subscribeEmblaRows, watchEmblaRest, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
+import { resolveLabels, type PhonuxLabels } from './labels.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** A press that moves this far across the bar drags the oval; a shorter one is a click. */
@@ -103,8 +104,9 @@ interface OvalDrag {
 }
 
 /** The dot bar on an Embla row, or null when `scroller` is not an Embla row that has drawn. Same shape as `usePanelDots`. @internal */
-export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; scroller: React.RefObject<HTMLElement | null>; ovalSide?: number }): PanelDots | null {
+export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; scroller: React.RefObject<HTMLElement | null>; ovalSide?: number; labels?: Partial<PhonuxLabels> }): PanelDots | null {
   const { entries, scroller, ovalSide = 0 } = i;
+  const dotBarView = resolveLabels(i.labels).dotBarView;
   const systemReduced = useReducedMotion();
   const configReduced = useReducedMotionConfig();
   const reduced = systemReduced === true || configReduced === true;
@@ -243,12 +245,30 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
     style: { touchAction: 'none', cursor },
     'data-dot-bar': '',
   };
+  // The panels in view by their places along the strip, 1-based: what the oval's value says.
+  const places = strip.layout.ids.flatMap((id, k) => (bar.shown.includes(id) ? [k + 1] : []));
   const ovalProps: PanelDots['ovalProps'] = {
     role: 'slider',
     tabIndex: 0,
     'aria-valuemin': 0,
     'aria-valuemax': 100,
     'aria-valuenow': bar.max <= 0 ? 0 : Math.round((clamp(emblaDrawnOf(embla)) / bar.max) * 100),
+    'aria-valuetext': places.length === 0 ? '' : dotBarView(places[0]!, places.at(-1)!, strip.layout.ids.length),
+    // The slider's keys move the row from the stop it is heading for, as the row's own arrow keys do (which stand aside for a slider).
+    onKeyDown: (e) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const last = embla.scrollSnapList().length - 1;
+      const at = nearestStop(embla, emblaTargetOf(embla));
+      const forward = e.key === 'ArrowRight' || e.key === 'ArrowUp';
+      const back = e.key === 'ArrowLeft' || e.key === 'ArrowDown';
+      const to = e.key === 'Home' ? 0 : e.key === 'End' ? last : forward ? Math.min(at + 1, last) : back ? Math.max(at - 1, 0) : null;
+      if (to === null || last < 0) return;
+      e.preventDefault();
+      if (drag.current !== null || embla.internalEngine().dragHandler.pointerDown()) return;
+      endEmblaWheel(embla);
+      watchEmblaRest(embla);
+      if (to !== at) glideEmbla(embla, to);
+    },
   };
   const dotProps = (id: string) => ({
     'data-dot': id,

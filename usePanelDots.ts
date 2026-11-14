@@ -6,6 +6,7 @@
 import * as React from 'react';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 import { useEmblaPanelDots } from './emblaDots.js';
+import type { PhonuxLabels } from './labels.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
 export interface PanelDots {
@@ -39,13 +40,19 @@ export interface PanelDots {
     readonly style: { readonly touchAction: 'none'; readonly cursor: string };
     readonly 'data-dot-bar': '';
   };
-  /** Spread on the oval: a focusable slider whose value is how far along the row the window is, 0 to 100. Give it an `aria-label`. */
+  /**
+   * Spread on the oval: a focusable slider whose value is how far along the row the window is, 0 to 100, and whose spoken value
+   * (`aria-valuetext`, the label `dotBarView`) names the panels in view. ArrowRight and ArrowUp step the row one stop on,
+   * ArrowLeft and ArrowDown one stop back, Home and End glide it to its ends. Give it an `aria-label`.
+   */
   readonly ovalProps: {
     readonly role: 'slider';
     readonly tabIndex: 0;
     readonly 'aria-valuemin': 0;
     readonly 'aria-valuemax': 100;
     readonly 'aria-valuenow': number;
+    readonly 'aria-valuetext': string;
+    readonly onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => void;
   };
   /** Spread on the dot of panel `id` (a button): it marks the dot for the bar and selects it on a keyboard activation. */
   dotProps(id: string): { readonly 'data-dot': string; readonly onClick: (e: React.MouseEvent<HTMLElement>) => void };
@@ -68,6 +75,8 @@ export function usePanelDots(i: {
   scroller: React.RefObject<HTMLElement | null>;
   /** How far the drawn oval reaches past the dots it encloses on each side, in px, so the cursor reads the oval as drawn. Default 0. */
   ovalSide?: number;
+  /** Labels over the English defaults; the bar reads `dotBarView`. */
+  labels?: Partial<PhonuxLabels>;
 }): PanelDots {
   return useEmblaPanelDots(i) ?? NO_DOTS;
 }
@@ -83,6 +92,6 @@ const NO_DOTS: PanelDots = {
   startOvalDrag: () => null,
   cursor: 'default',
   barProps: { onPointerDown: noop, onPointerMove: noop, onPointerUp: noop, onPointerLeave: noop, onPointerCancel: noop, onWheel: noop, style: { touchAction: 'none', cursor: 'default' }, 'data-dot-bar': '' },
-  ovalProps: { role: 'slider', tabIndex: 0, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': 0 },
+  ovalProps: { role: 'slider', tabIndex: 0, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': 0, 'aria-valuetext': '', onKeyDown: noop },
   dotProps: (id) => ({ 'data-dot': id, onClick: noop }),
 };

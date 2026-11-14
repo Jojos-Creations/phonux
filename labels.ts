@@ -58,6 +58,8 @@ export interface PhonuxLabels {
   couldNotResize: string;
   /** Said when the browser refused to grow the panel to fill the window. Default `Could not make this panel fullscreen`. */
   couldNotFullscreen: string;
+  /** The dot bar oval's spoken value: the places of the first and last panels the window shows, and how many panels the row has. Default `Panels <first> to <last> of <total>`, or `Panel <first> of <total>` for one. */
+  dotBarView: (first: number, last: number, total: number) => string;
 }
 
 const SIZE_NAMES = ['Phone', 'Fold', 'Tablet', 'Desktop', 'Ultrawide'] as const;
@@ -91,6 +93,7 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   fullscreen: 'Fullscreen',
   couldNotResize: 'Could not resize this panel',
   couldNotFullscreen: 'Could not make this panel fullscreen',
+  dotBarView: (first, last, total) => (first === last ? `Panel ${first} of ${total}` : `Panels ${first} to ${last} of ${total}`),
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */
