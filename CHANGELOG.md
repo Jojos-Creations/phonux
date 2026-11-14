@@ -1,136 +1,97 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-rc.7
+
+rc.7 replaces the panel row. From rc.6 to rc.7 the row is one continuous strip drawn by Embla Carousel 8.6
+(`embla-carousel` 8.6.0 and `wheel-gestures` 2.3.0 are new runtime dependencies, both MIT, pinned exactly):
+every panel has its slot on the strip, the window shows whole slots, and nothing parks for room any more. The
+settings that only meant something to parking are removed. Hosts that set none of them need no change.
 
 ### Changed
 
-- The View Size menu's current size (Fullscreen while the panel is fullscreen) is reachable but not pressable. It was the
-  `disabled` attribute, which took it out of the keyboard path, so a screen reader never said which size was current. It is
-  now `aria-disabled="true"` with `aria-pressed="true"` and `aria-current="true"`: the arrow keys, Home and End land on it,
-  and a press, Enter or Space does nothing (no resize, no fullscreen change, the menu stays open). It looks the same.
-  Fullscreen's accessible name now carries the host's `fullscreenShortcut` as its hover text does (`Fullscreen (Alt+Enter)`),
-  since the Tooltip no longer labels the entry through a wrapper.
-- `PanelHandle.move(by, 'code')` no longer scrolls the row: like `place` from code, it keeps the panels in view where they are on
-  screen and never anchors the view on the moved panel. A move with source `'person'` still follows the panel as its `scrollOnMove`
-  says. This is what lets a host carry the root across the row without the view jumping after it.
-- The default English labels say "space" where a person reads them: the create button is `New space` (was `Create new
-  workspace`), the name input is `Space name`, and a column names new workspaces `Space 1`, `Space 2`... (a workspace made
-  with no name is `Space`). Saved names are not rewritten; an older `Workspace N` stays and does not block a `Space N`.
-  APIs, ids (`workspace-N`) and data attributes are unchanged.
+- The row is one strip that rests on the slot grid. A mouse wheel or trackpad moves it 1:1 (no speed curve or
+  coast of its own); once the wheel is quiet 500 ms (150 ms after a momentum wheel) it rests on the stop ahead if
+  the gesture covered a quarter of the gap from the stop behind, else on that stop. It stops flat at both ends.
+  A mouse drag on the row's surface, the bare arrow keys, `stepRow`, `feedRowWheel` and the dot bar move the same
+  strip. While a wheel holds the row, no other input moves it back.
+- Pages wholly outside the window are `inert` (no focus, key or pointer; style them with `[data-row-slot][inert]`).
+  A page focused while cut comes into view; a newly opened page, a show or `panel.scrollTo()` glides the row to it.
+- A panel opened, closed, moved or resized left of the view, or a window resize, leaves what is on screen still: the
+  page at the window's left edge stays put in every frame.
+- A wide (multi-slot) page may rest with only part of it in the window at the edge; the stops are one per slot.
+  `tuning.chrome.fitVisibleMaxSlots` lays its header over the part shown.
+- The Workspace (root) panel is an ordinary page of the row: it scrolls with the strip and stays where it is put.
+  `panels.summonRoot()` moves it in the page order to the slot just outside the view and glides it in, as a
+  person's move the saved order keeps. `panels.rootView()` reads `'shown'` or `'away'`.
+- `tuning.maxLivePanels` counts every collapsible panel: a panel far from the window draws a same-width placeholder
+  instead of its content and mounts again when it comes near (`Workspace`'s new `rowNearSlots`, default 2). Fixed
+  columns and a panel being dragged stay loaded. With no cap every panel stays loaded.
+- `edgeHold` 'left' and 'right' keep the panel whole one gap beside the strip; 'both' scrolls with the strip until it
+  reaches the window's edge and sticks there.
+- The row's rest is saved with the panels once a person's move has stood still 150 ms, and a relaunch starts there.
+- `PanelsInput.onPanelRect` reports `moving` rects through a row scroll and a `settled` one where the panel rests.
+- `phonux/testing/row`'s `drag()` reorders on the strip (jsdom's unset margin now reads as 0px).
+- Drag to reorder edge-scrolls the strip at the window's edge; Escape returns the row and the order.
+- A size glide (View Size, a phone-model change) and Fullscreen ease the panel's real box, so content is laid out
+  at its drawn size on every frame (rc.6 scaled it).
+- `PanelHandle.move(by, 'code')` no longer scrolls the row; a `'person'` move still follows `scrollOnMove`.
+- The View Size menu is a popover of buttons that works by keyboard; its current size is `aria-disabled` and
+  `aria-current` instead of `disabled`, so a screen reader reaches it.
+- The default English labels say "space": `New space`, `Space name`, new workspaces `Space 1`, `Space 2`.
+  Saved names, ids and attributes are unchanged.
+- A row of hand-built 0.1.0 entries (no settings) scrolls like every other row and may draw at slightly different
+  widths: it no longer prices its panels beside the fixed columns.
 
 ### Added
 
-- `panels.subscribeMoves(listener)` and the `PanelMove` type: the listener hears `{ id, source }` once for every panel a completed
-  `move` or `place` changed, after the snapshot that shows it. `source` is `'person'` for a person's own gesture (a drag released in
-  the row, the grab handle's arrow keys, a row drop, a header button, a host call with source `'person'`) and `'code'` for a call
-  from code, so a host can tell a person's arrangement from its own moves. A panel carried along by the one that moved (anchored to
-  it) is reported after it with the same source.
-- `WorkspaceColumnHandle.reorderWorkspace(target, toIndex)`: moves a workspace to another place in the column and saves the
-  order. The current workspace stays current at its new index.
-- `tuning.chrome.fitVisibleMaxSlots` (whole number 1 to 64, default 2): while the window's edge cuts a panel 2 to that many slots
-  wide, its header and footer are laid across the part the window shows (left buttons at the shown left, right buttons at the
-  shown right, the middle centred between), following the row every frame and never narrower than one phone. The frame, picture,
-  border and glow are drawn as before; a panel filling the window is not affected. 1 turns it off. The row writes the two cuts as
-  custom properties on the slot, and `PanelHeader` and `PanelFooter` read them.
+- `usePanelDots`: the oval slider takes the keyboard (ArrowRight and ArrowUp one stop on, ArrowLeft and ArrowDown
+  one back, Home and End to the ends) and carries `aria-valuetext` from the new label `dotBarView`; the hook takes
+  an optional `labels` input. It works on any scroller with `data-row-scroller`, not only the Workspace's.
+- `panels.subscribeMoves(listener)` and `PanelMove`: `{ id, source }` for every panel a completed move or place
+  changed, `source` `'person'` or `'code'`.
+- `panels.rootView()`, `panels.summonRoot()` and the `RootView` type.
+- `PanelsAPI.closedByPerson` (optional): the closes the person made, for a host that draws its own undo notice.
+- `WorkspaceColumnHandle.reorderWorkspace(target, toIndex)`.
+- `tuning.chrome.fitVisibleMaxSlots` (1 to 64, default 2) and `tuning.chrome.where` (`'outside'` or `'inside'`),
+  with `CHROME_INSIDE_ATTRIBUTE`, `CHROME_SHOWN_ATTRIBUTE` and `PANEL_CHROME_INSET_PX`.
+- `PanelLoader` (`PanelLoaderProps`, `PanelLoadFailure`, `PANEL_LOAD_TIMEOUT_MS`, `PANEL_PLACEHOLDER_WINDOW_MS`)
+  and the labels `couldNotLoad` and `tryAgain`.
+- `packWorkspaceTiles` and `WorkspaceTileRow`.
+- A template's own `firstPressFocusOnly` overrides the workspace's for its panels.
 
 ### Fixed
 
-- A row a person moves is saved where it rests: a wheel, a press, a key or `stepRow` step, or the dot bar, once the row has
-  stood still for 150 ms, records the rest with the panels, and a relaunch starts the row there with no glide. Nothing wrote it
-  on the Embla row, so the place a person left the row was lost at every relaunch.
-- `edgeHold` works on the Embla row. 'left' and 'right' keep the panel whole one gap beside the strip, which is seen through the
-  slots that are left, so no page rests cut; 'both' scrolls with the strip until it reaches the window's edge and sticks there,
-  and the page under it is `inert`. The held panel was drawn off screen (and `inert`), cutting a page, and 'both' never stuck.
-- `PanelsInput.onPanelRect` reports a row scroll again: a key, wheel, drag, dot or code scroll sends `moving` reports that
-  follow the box as drawn and a `settled` one where the panel rests. It sent nothing on the Embla row, so a host's native view
-  over a panel stayed where it was.
-- `phonux/testing/row`: `drag()` reorders again. jsdom resolves an unset margin to an empty string, which the row's carousel read
-  as NaN, so the row had no stops and every drag's hop count was NaN. The testing DOM now resolves an unset margin to 0px, as a
-  browser does. A real browser was never affected.
-- The View Size menu's label draws in the theme's secondary text color, as intended; under MUI 9 it drew in the primary text color.
+- Every `<Panel>` survives Reduce Motion being turned on or off under `MotionConfig` (a hook was called
+  conditionally and React lost the panel's content).
+- A second `useProvidePanels` on an attached workspace no longer replaces the attached row's panel list.
+- Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel.
+- A restored panel keeps its saved width under `tuning.shrinkUnfocused`.
+- The View Size menu's label draws in the theme's secondary text color under MUI 9.
 
 ### Removed (breaking)
 
-- The old panel row ('own') is gone: Embla is the only row (owner ruling 2026-11-09, plan step 8d). Removed with it:
-  `Workspace`'s `rowEngine` prop, `useProvidePanels`' `rowEngine` input, `WorkspaceOptions.rowEngine`, and `usePanelDots`'
-  `rowNumbers` and `tuning` inputs. `feedRowWheel` stays (now in `feedRowWheel.ts`). Nothing parks for room or for
-  `tuning.maxLivePanels` any more; a host's own hide still parks.
-- The settings that only meant something to the parking engine are removed from the types, `PANEL_SETTINGS_CATALOG`, the
-  resolver and DESIGN.md (owner ruling 2026-11-14): `hideStickiness` (every hide holds until shown, as 'sticky' did),
-  `capacityReturn`, `revealOnScroll`, `tuning.gestureLockMs`, `tuning.returnTieBreak`, `tuning.dropTieBreak`, and the
-  `tuning.slide.glideEase` member (and the `GlideEase` type). A layer, `createWorkspace({ tuning })` or `configureTuning` that
-  still passes one is not refused: in development it logs one `console.warn` per key naming it and saying it was removed in
-  0.2.0 with the parking engine, and the value is ignored. A saved instance layer that carries one drops it with an
-  `invalid-saved-setting` note. TypeScript callers that name one get a type error.
-- The `overflow` panel setting and the `Overflow` type are removed (owner ruling 2026-11-14): every row is one scrolling
-  strip and no panel is parked for room, whatever its settings say. A layer that still names `overflow` is warned once in
-  development and ignored, as the other parking settings are; a saved instance layer drops it with an
-  `invalid-saved-setting` note. `tuning.maxLivePanels` now counts every collapsible panel, not only
-  former `overflow: 'park'` ones: under a cap a template-built panel far from the window unloads its content too (a fixed
-  column such as the root, and a panel being dragged, stay loaded). With no cap a template-built row loads every panel,
-  as before. A row of hand-built 0.1.0
-  entries (no settings) scrolls like every other row: it no longer prices its panels beside the fixed columns, so its
-  panels may draw at slightly different widths and its margin centers the strip. `rootStepsAside` and the parking helpers
-  behind it are gone; `RowNumbers.rowScroll` and `ProvidedPanels.rowScroll` are always true, `RowNumbers.parkLiveWidths`
-  is always empty and `computeRowNumbers`' `fixedItemCount` is ignored.
+- The old row and everything that parked for room. Removed settings, from the types, `PANEL_SETTINGS_CATALOG`, the
+  resolver and DESIGN.md: `overflow` (and the `Overflow` type), `hideStickiness` (every hide holds until shown, as
+  'sticky' did), `capacityReturn`, `revealOnScroll`, `resize` (and `PanelSizeBox`'s `reveal`), `tuning.gestureLockMs`,
+  `tuning.returnTieBreak`, `tuning.dropTieBreak` and `tuning.slide.glideEase` (and the `GlideEase` type). A layer,
+  `createWorkspace({ tuning })` or `configureTuning` that still passes one is not refused: in development it logs one
+  `console.warn` per key and the value is ignored; a saved instance layer drops it with an `invalid-saved-setting`
+  note. TypeScript callers that name one get a type error.
+- `usePanelDots`' `rowNumbers` and `tuning` inputs. `RowNumbers.rowScroll` and `ProvidedPanels.rowScroll` are always
+  true, `RowNumbers.parkLiveWidths` is always empty, and `computeRowNumbers`' `fixedItemCount` is ignored.
+- `rootStepsAside` and the parking helpers behind it.
 
-- The row follows a mouse wheel or trackpad 1:1 (the system already accelerates a wheel and gives a trackpad its momentum), with no speed curve and no coast of its own. When the wheel has been quiet 500 ms (150 ms after a momentum wheel) the row rests on the stop ahead if it covered at least a quarter of the gap from the stop behind, and otherwise returns to the stop behind; it never settles while the wheel goes on. A slow nudge no longer moves the row a whole page on, and a fast burst rests at most one stop past where the wheel left it (it was thrown two or three). Replaces the speed curve and coast (emblaWheelFeel.ts is removed); measured cases in docs/embla-row.md, "The wheel follows 1:1".
-- A mouse wheel or trackpad moves the row with no press of Embla's drag: each wheel moves Embla's target, the row is held for rebuilds until the wheel has been idle 500 ms, and it then rests on the first stop ahead of the scroll, as before. Embla's drag listens on the document only from a press, so no other input reaches the row during a gesture: a mouse move (even with no travel), a button release, a click, a right-click or a touch away from the row, or a right-click on it, moves the row back 0 px (a right-click on the row ran Embla's release to the nearest stop, and every listener Embla adds at a press was a way in). Behaviour change (owner ruling 2026-11-09, "just stop"): the wheel stops flat at the first and last page, with no stretch past the end and no spring back. A dot pressed, a panel focused or a key stepped during a gesture takes the row from where it is drawn (a dot press was ignored until 500 ms after the last wheel). A right or middle press on the row lets the gesture go on; a primary press stops the row where it is drawn and hands it to the drag it starts. `embla-carousel-wheel-gestures` is dropped; `wheel-gestures` 2.3.0 (its MIT normalizer, already installed under it) is a direct dependency.
-- While a mouse wheel's gesture holds the row (through pauses and the 500 ms after the last wheel), no input but the wheel reaches it: a person's `mouseup`, `touchmove` and `touchend` are stopped with the `mousemove` already stopped. A mouse button held on a panel since before the wheel and let go in a pause released Embla's drag to the nearest stop, against the scroll. A press inside the row still ends the hold where the row is drawn.
-- Behaviour change (owner ruling 2026-11-09): the Workspace (root) panel is an ordinary page of the row. `panels.summonRoot()` (the window bar's Workspace button) moves it in the page order to the slot just outside the view on the side it lies on (the left when on neither), as a person's move that the saved order keeps (one order commit), and the row then glides it in as it glides to any page; it stays where it landed. Pressed mid-glide it goes next to the view drawn at that moment and the glide turns to bring it in; mid-wheel the wheel's hold ends where the row is drawn first; under Reduce Motion it lands at once. With the root wholly in view it does nothing and returns false. `dismissRoot()` does nothing on Embla and returns false, and `rootView()` reads only `'shown'` or `'away'` there. Gone on Embla: the summon that took pages off the strip and its dismiss, the step-aside of the root beside a wide page, the step-away dismiss, and the summon's clip of the leaving page. A change kept by the row's view-keeping rule while a glide runs now shifts the glide in place instead of restarting it from rest.
-- A mouse wheel scrolled into the strip's start or end rests there. A pointer move during a wheel gesture's hold (a hand on the mouse, in a pause or just after the last notch) no longer jumps the row back to where the gesture began (it rested 3,248 px from the start it was scrolled to, 1,512 px in one frame), and a long grind past the start no longer rests one page inside it. Per-case numbers in docs/embla-row.md, "At the row's ends".
-- A wheel or trackpad that pauses or stops no longer drags the row back or wiggles it. A pause of a lifted finger (up to 500 ms, Chromium's wheel transaction) holds the row where the wheel left it and the next burst continues from there; at the end the row rests on the first stop ahead of the scroll, never one behind it; a trackpad's momentum tail moves the row 1:1 instead of Embla's flick; the row no longer runs 1-2 px past each burst and back. Measured on shaped streams: backward travel 2.8-24.2 px (10-15 frames, up to 7.5 px in one) at the tip, 0 now, in all eight cases. The cost: the row stands off the grid for 500 ms before it settles, and a stop just past a slot goes on to the next one.
-- A press during a wheel gesture's tail stops the row where it is drawn, so a reorder drag grabbed then no longer has the row glide 168 px under the held page, and a plain click settles it on a stop; `panel.scrollTo()` answers whether the Embla row moves (it read the old scroller, 0 on a strip); a scrollTo of the Workspace while it stands aside brings it back (it was dropped); `usePanelPresence` reads 'scrolledAway' for pages the window does not show, as on the own row.
-- A dismiss beside a wide page the view cut gives that view back (it rested on the page's left edge); `useRowFrameBand` measures the Embla window (it reported nothing on Embla); no parkable page past `maxLivePanels` loads before the window is measured (a restore loaded every page for one commit); a bare arrow with the panel in use out of view focuses the panel at the view's edge, as on the own row (it stepped the row).
-- A wheel or trackpad during a reorder drag is ignored (it engaged Embla's own drag beside the edge scroll: the row moved 480 px, the held page drifted 5-6 px off the pointer and the drop coasted a stop past the nearest one); a page's size box eases on the main thread with its neighbours' glides, so a painted frame no longer opens a gap beside a narrowing page (137 px in presented frames, 16 px now, one gap); a summon's root no longer leaves a band of the page behind the row while it slides in (212-228 px for about 10 frames, 16 px now): the page leaving its edge slot stays and is cut back from the root's side.
-- A page drawn wholly outside the window is `inert` (no focus, key or pointer; a host's styles can key on `[data-row-slot][inert]`), kept current on every drawn frame of a glide, wheel, drag, summon, reorder and dot press and cleared as soon as any part is drawn inside (0 wrong slot-frames in eight cases; e2515fc: none was ever inert). A newly opened page, a show or a host's `scrollTo` now brings the page into view on Embla (it moved nothing): a glide to the stop that shows it, from where the row is heading, at once under Reduce Motion, waiting for a held drag or wheel to let go.
-- Drag to reorder edge-scrolls the row: a page held at the window's edge with no mouse motion moves the row (917-958 px in 1 s, 0 still frames) with the page 0.01 px from the pointer; the release settles on the nearest stop and Escape returns the row and the order to where they were. A person's move (a drop, an arrow key on the grab strip) leaves the view where it is and brings the moved page into view if it left it; the dragged page is never unloaded. `@dnd-kit/sortable` was tried and rejected (its auto-scroll moved the Embla row 0 px).
-- A summon or dismiss pressed while the row glides now rests where it asks (it rested at slot 21 with the root never shown, or put the root at the wrong edge); under Reduce Motion the summon, dismiss, step-aside, arrow keys, focus reveal and a drag's release land at once instead of gliding; a far page closing no longer steps a returned root aside again; and a parking row loads what a glide brings into view before it enters (and where the glide is going), whatever `maxLivePanels` says, so a far dot press at a cap equal to the window's fit no longer draws a blank placeholder in view.
-- Width changes and maximize: a page that narrows in view at the strip's end, where the view cannot keep its left edge, now eases with the right end held (its left edge and the pages left of it glide one gap apart, on the size box's curve and start); on b2a749a the view jumped a slot and the page shrank over its neighbor. A page narrowed so the Workspace panel fits beside it again brings the root back sliding in over the edge with the page easing beside it (on b2a749a the root appeared under the page and the next page jumped 812 px). While a panel is maximized (growing, grown or shrinking back), wheels, arrow keys, drags and focus no longer move the row behind it, so the restore lands in the view it left (on b2a749a a wheel moved the row 406 px behind it).
-- `panels.summonRoot()` brings the Workspace panel into the far left or far right slot (the side it lies off) with the pages in view standing still; the pages between it and the view, and the one in that edge's slot, leave the strip for the summon only (nothing is saved), and `dismissRoot()` puts them back and restores the view. A step toward it keeps the summon; a scroll or a dot press carrying it out ends it with the pages returning out of view. A window or size change that leaves a wide page beside it cut steps it aside so the page shows whole; a step back or a wider window returns it. On 43bf248 a summon from the left left the root out of view, one from the right parked the pages in the saved list, a dismiss did not put them back, and the root never stepped aside.
-- The row is one strip: nothing parks for room or the cap, and a parkable panel `rowNearSlots` (new `Workspace` prop, default 2) or more slots from the view draws a same-width placeholder instead of its content, nearest first under `tuning.maxLivePanels`; a near panel keeps its state, a far one mounts again when it comes near.
-- Fixed: a second `useProvidePanels` on an attached workspace (one that fails with `already-attached`, such as the auto mount of a workspace created without `mount: false` that a page also renders itself) no longer replaces the attached row's panel list during its render; every view the row drew after that showed the unregistered-view fallback.
-- A change while a gesture or glide holds the row no longer drops it: a re-render no longer snaps a row pulled past its end back to 0, a panel closed or resized right of the view during a wheel stream no longer throws the row back 240 px and ends the gesture, a change left of the view mid-stream keeps the view still under the gesture, and a change mid-glide lands on the slot grid. Embla's own slide watcher is off; the row rebuilds Embla's stops itself when the markers or the window change.
-- `usePanelDots` on an Embla row reads the drawn strip: one dot per panel, the oval over the view, an oval drag that writes the row's position directly (0 px oval-to-pointer in a fast drag; Embla's eased drag, the proof's control, trails by 36 px), and a pointer held past the bar's visible end keeps the row moving.
-- The row runs on Embla Carousel 8.6 with its wheel-gestures plugin: the window holds whole slots, one invisible marker per slot is Embla's stop, and wheel, trackpad, a wheel handed in by `feedRowWheel`, a mouse drag on the row's surface and the bare arrow keys move one continuous strip that rests on the slot grid. The dot bar, Workspace summon, maximize, reorder and parking still assume the old row; see docs/embla-row.md. `tools/proof/embla-row-proof.ts` measures it headless.
-- A panel opened, closed, moved or resized left of the view, or a wide one clamped when the window narrows, no longer moves what is on screen: the row's scroll moves by as much as the first panel at the window's left edge moved, drawn in the same frame (it jumped 406 px with 25 frames cutting a panel when the window went from 1800 to 1000 px). `test/embla-row-keep-still.test.ts` checks it over random sequences of changes. The proof now reads the row's drawn position; the stalled frames it reported were Embla's fixed-step logical position, not the drawn row (`tools/proof/embla-wheel-trace.ts`).
-- A trackpad swipe moves the row as far as it travels. Travel now counts while a glide is in flight: every phone width of it steps once more, and that step glides over the time the swipe took to travel it, retargeting the glide in flight with its speed carried, so the row moves at the swipe's pace, about 1 px per px, and the last step still lands on a stop. Before, a swipe's momentum stepped nothing while a glide was in flight: a steady swipe moved 0.57 px per px and the row stood still on 138 of about 295 frames, and a wide panel passed one slot per landed glide. `useRowScrollGesture`'s `onStep` takes an optional second argument, `paceSec`.
-- A stepping row cuts what it draws one gap past its slot grid, not at it, on each side with no held group: the focused panel's glow fades out at the window's edge as it does between two panels. It stopped in a hard line at the panel's side, leaving dark bars beside a wide panel. No panel rests in that gap, so the margins still show none.
-- A summon works from either side. A root off to the right comes into the far right slot, and a wide panel in the last slot moves over and runs off the far edge, as on the left; it parked before. A step toward a summoned root leaves the summon standing. `panels.dismissRoot()`, or a step away, returns the row to the panels that were live when the summon came, so a panel a step toward the root swapped in parks again; it stayed, and the far end stayed parked. A dot or a scroll to a panel that carries a summoned root out returns what the summon parked.
-- A step judges the view by the slot grid (`gridEdgesOf`), not by the window less a gap: where the margin is wider than the gap, as at 1800 px, a panel in the margin counted as in view, so a step swapped a parked panel in where the row should have slid.
-- A root with no hold, scrolled out of the window, keeps its own dot outside the oval. It counted as always shown, so beside parked panels its dot rode the oval over a parked panel's dot.
-- The root can be summoned. `panels.rootView()` says whether it is `'shown'`, `'summoned'` or `'away'`; `panels.summonRoot()` brings it to the view's edge on the side it lies, parking the panels in that edge's slot while the rest of the view stands still; `panels.dismissRoot()`, or a step away from it, returns them. A wide panel in that slot moves over and runs off the far edge instead of parking. A press inside a host's `data-row-nav` element rests no panel, as the dot bar's does.
-- `RowRest` is exported as a type: `computeRowNumbers` takes it, so the API report could not be regenerated without it. The dot hook no longer clamps a drag itself; the claim it writes through already holds it to the row's range.
-- The dot bar is the row's ruler drawn small. `rowDots.ts` is gone; `rowBar.ts` places every dot at its panel's ruler position and the oval at the window's, so the oval's edge stays under a dragged pointer and dots no longer move as the row does. `PanelDots.dots` gains `riding` for a dot that keeps to the oval's end over the dots beneath it. Visible: the oval now hugs the slots a rest shows instead of overhanging them by the centering margin, and while the root rides, its home slot at the end of the bar is empty.
+### Migration
 
-- A window resized while a panel presses the root no longer leaps the root: the press is an offset from the root's rest, so a rest that moves carries it.
-- A slot's resting place is written once per commit by the row's drawing pass, as its `translate`; its move is measured from there. Nothing on screen changes; a host that read a slot's `transform` for its position should read its box.
-- A mouse wheel's notches each move the row one stop: an event at least 40 ms after the last and 40 px or more is a notch of its own, so four notches 60 or 120 ms apart go four stops instead of one, and they add to the glide in flight under `tuning.fastScroll`. A trackpad's stream is still one step; its momentum steps nothing while a glide is in flight. The gap is read from the browser's stamp on each event, not from when the page handles it, so a page that stalls and then handles a swipe's queued events one by one still reads one step. A stall long enough for the browser to merge a stream into a single event can still cost one extra step.
-- A stepping row no longer draws blank panels while a long glide runs: the cut at the slot grid's edge stands still on a new `data-row-window` element around the strip, where it had been rewritten each frame from the strip's position and trailed it on the compositor.
-- Locking a panel at the left edge no longer slides the strip's panels a slot to the right and back.
-- A restored panel keeps its saved width under `tuning.shrinkUnfocused`, instead of starting at one phone until it is next active.
-- The dot bar keeps a held panel's dot inside the oval, which grows to hold it, and a click on it takes the row back to the start. The oval sits over the panels the strip shows: a left hold had put it one slot too far left. `PanelDots.shown` lists the panels on screen.
-- `PanelsAPI.closedByPerson` lists the closes the person made, for a host that draws its own undo notice: a close from code stays in `recentlyClosed` and gives the person nothing to undo. It is optional, so a host's own 0.1.0-shaped `PanelsAPI` still compiles; read it as `closedByPerson ?? null`.
-- A panel's header and footer stay up when the pointer crosses the gap to them, at any speed.
-- `tuning.shrinkUnfocused` no longer rests panels when the row moves, by a step, a dot or the dot bar. A wide panel keeps its width, fades out across a left-held panel's gap as it slides past, and runs on to the window's right edge as it comes in. A row with a held panel draws its glides frame by frame, so the held panel stays still, and a step off the end of a row wider than its window brings in the next parked panel.
-- Holding Option (Alt) shows every panel's header and footer, whatever `tuning.chrome.mode` says.
-- `tuning.chrome.where` (`'outside'`, default, or `'inside'`) moves a panel's header and footer inside its frame, as frosted pills inset from its edges, and gives the row the room back. `mode` applies as it does outside, and a panel that scrolls also slides them off on a scroll down and back on any scroll up. A panel's root carries `CHROME_INSIDE_ATTRIBUTE` and the `--panel-chrome-inset` variable, which a scrolling view pads its content by (`PANEL_CHROME_INSET_PX`). `rowBottomReservePx` and `rowFootReserve` take the placement as a last argument.
-- A capture turned away while a panel is still loading runs when its `PanelLoader` uncovers it, so a tile never keeps a picture of the placeholder.
-- `PanelLoader` shows a placeholder from a panel's first frame until its `load` promise resolves. The host has 200ms to say what the placeholder shows, with a generic one otherwise. A failed or timed-out load ends in a view with Try again, and two new labels, `couldNotLoad` and `tryAgain`, name it.
-- The View Size menu is a pill across the panel with the panel's corners, and the current size is highlighted and disabled.
-- A stepping row draws whole panels in its slot grid and nothing beside it. No slot is hidden any more (a stale measured box once hid panels the window showed): the strip is clipped at the grid's edges from the row's numbers, a panel crossing an edge mid-move is cut there, and reach is judged from the numbers. A left or right `edgeHold` panel sits in the grid's first or last slot, inside the row's margin, with the strip's next panel one gap from it. `snapToStop` and a restored rest land only on stops that draw the panel whole. The flush end rest lives in one function (`flushEndRest`).
-- The View Size control works by keyboard. It opens as a popover of buttons, not a `role="menu"` holding buttons (which axe flagged as `aria-required-children`), so the trigger's `aria-haspopup` is now `dialog`. Focus lands on the first width, the arrow keys, Home and End move along the widths and Fullscreen, Tab stays inside, and Escape closes it and returns focus to the View Size button. It looks the same.
-- A template's own `firstPressFocusOnly` (boolean) overrides the workspace's `tuning.firstPressFocusOnly` for that template's panels, either way. Left out, the workspace value decides. `definePanel` refuses a non-boolean.
-- A size glide (Phone to Fold and back, any View Size pick, a phone-model change) eases the panel's real size, so its content is
-  laid out at the size it is drawn at on every frame: never stretched or squeezed, the frame's edge, corners and glow stay on the
-  moving edge, and a cover-fit picture keeps its centre as it shows more or less of itself. rc.6 scaled the content (stretched
-  until it landed); an earlier rc.7 build clipped content laid out at the larger size, which cut the frame's edge and glow at the
-  moving edge and jumped the picture to its new framing. The `resize` setting and `PanelSizeBox`'s `reveal` are removed: a
-  template that still names `resize` is told once and the value is ignored. **Migration:** drop `resize` and `reveal`.
-- Fullscreen (`usePanelMaximize`, the View Size menu's Fullscreen) grows and shrinks a panel by easing its real box from the
-  slot's to the window's, and its corner radius to square, no longer by a scale: the content is laid out at the drawn size on every
-  frame. It is still the page's own full-window view, not the browser's or the operating system's fullscreen.
-- Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel. Focus landing in such a portaled surface, which React counts as part of the row but the DOM does not, was taken for focus entering the row and moved to a panel, and the dialog's focus trap pulled it back, so the keys never got past the dialog's frame. The row now steers only focus that lands inside its own DOM.
+- Drop any of the removed settings above from templates, layers and `createWorkspace({ tuning })`; development
+  builds name each one still passed. Rows that relied on `overflow: 'park'` now scroll; use `tuning.maxLivePanels`
+  to cap loaded content.
+- Drop `resize` and `reveal`; drop `rowNumbers` and `tuning` from `usePanelDots` calls.
+- A host that draws a native view over a panel keeps using `onPanelRect`; it now fires during row scrolls.
+- A host that implements `PanelsAPI` itself needs no change: `closedByPerson` is optional; read it as
+  `closedByPerson ?? null`.
+- Styles that hid off-screen pages can key on `[data-row-slot][inert]`.
+- The design of the row is in DESIGN.md, "The row".
 
 ## 0.2.0-rc.6
 

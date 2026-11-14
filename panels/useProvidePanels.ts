@@ -363,7 +363,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const el = i.overflowContainerRef.current;
     const entry = panels.find((p) => p.id === id);
     if (el === null || entry === undefined || !rowNumbers.ids.includes(id) || effective(entry).scrollOnMove !== 'follow') return;
-    // A width change is the keep-still rule's (docs/embla-row.md step 5): the pages that do not change stay where they are.
+    // A width change is the keep-still rule's (DESIGN.md "The row", step 5): the pages that do not change stay where they are.
     if (sized) return;
     // "In view" is read off the strip Embla draws now.
     if (drawnInView(el, id)) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
