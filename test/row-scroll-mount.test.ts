@@ -9,7 +9,7 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { setRowOffset, rowOffsetOf } from './support/strip.js';
+import { setRowOffset, rowOffsetOf, rowGlideTargetOf, stubSlotBoxes } from './support/strip.js';
 import { act } from 'react';
 import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
@@ -225,3 +225,38 @@ function nearestShowing(m: MountedRow, title: string): number {
   return best;
 }
 
+
+/** The left on screen of the slot drawn for the panel titled `title`: the stubbed window starts at 16. */
+const slotLeftOf = (m: MountedRow, title: string): number => m.container.querySelector<HTMLElement>(`[data-row-slot][data-row-id="${idOfTitle(m, title)}"]`)!.getBoundingClientRect().left;
+
+/** A launch from the file `state` with `tuning.initialScroll` 'end', laid out at 1000: where its Embla row starts, and the file it saves. */
+async function launchFrom(state: WorkspaceState): Promise<{ m: MountedRow; at: number; glide: number | null; saves: WorkspaceState[] }> {
+  const { storage, saves, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning('end'));
+  await resolve(state);
+  stubSlotBoxes(m.container, 16);
+  await advanceFrames(32);
+  await flushSaves();
+  return { m, at: rowOffsetOf(m.container), glide: rowGlideTargetOf(m.container), saves };
+}
+
+test('a saved rest restores on relaunch: the Embla row starts at the panel and offset it names, with no glide, over initialScroll', async () => {
+  // The previous launch left the row with w2 at the window's left edge.
+  const file = savedOf(stepping(), { panel: 'w2', offset: 0 });
+  const first = await launchFrom(file);
+  assert.equal(first.glide, null, 'with no glide: the row is drawn there, not on its way');
+  assert.ok(first.at > 0, `the row starts at the saved rest, not at 0: ${first.at}`);
+  assert.equal(slotLeftOf(first.m, 'w2'), 16, 'w2 starts at the window: the stop the rest names');
+  // A launch that only restores writes nothing (its baseline is the file); any save it does make keeps the rest.
+  assert.ok(first.saves.every((s) => s.scroll?.offset === 0), JSON.stringify(first.saves.map((s) => s.scroll)));
+  cleanup();
+  // Relaunch from what the storage holds now: the row rests at the same panel again.
+  const again = await launchFrom(first.saves.at(-1) ?? file);
+  assert.equal(again.at, first.at, 'a relaunch from the saved file starts at the same stop');
+  assert.equal(slotLeftOf(again.m, 'w2'), 16);
+  assert.equal(again.glide, null);
+  cleanup();
+  // Control: with no saved rest, initialScroll 'end' takes the row to its end, which is not where the rest put it.
+  const none = await launchFrom(savedOf(stepping()));
+  assert.ok(none.at > first.at, `control: with no saved rest the row starts at its end (${none.at}), past the rest (${first.at})`);
+});

@@ -618,8 +618,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     };
     // Mount only: the container ref object never changes.
   }, []);
-  // `tuning.initialScroll`, once per mount: at the first commit after the restore settled with a row that has an entry and an Embla
-  // row to move, which starts there with no glide once it is measured. A saved rest takes its place; a wheel or a press first skips it.
+  // Where the row starts, once per mount: at the first commit after the restore settled with a row that has an entry and an Embla
+  // row to move, which starts there with no glide once it is measured. A saved rest wins: the stop `offset` phone widths (and gaps)
+  // from the left edge of the panel it names, as the previous launch left it. With none, `tuning.initialScroll`. A wheel or a press
+  // first skips both.
   const initialScrollDoneRef = useRef(false);
   useLayoutEffect(() => {
     const el = i.overflowContainerRef.current;
@@ -627,8 +629,18 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const embla = emblaOf(el);
     if (embla === undefined) return;
     initialScrollDoneRef.current = true;
+    if (touchedRef.current) return;
+    if (savedRest !== null) {
+      const rest = savedRest;
+      const step = i.phoneWidth + tuning.rowGap;
+      startEmblaAt(embla, (strip, max) => {
+        const k = strip.layout.ids.indexOf(rest.panel);
+        return k < 0 ? null : Math.min(strip.layout.lefts[k]! + rest.offset * step, max);
+      });
+      return;
+    }
     const where = tuning.initialScroll;
-    if (touchedRef.current || savedRest !== null || where === 'start') return;
+    if (where === 'start') return;
     const id = where === 'end' ? null : where === 'root' ? rootId : engineIdOf(where.panel);
     startEmblaAt(embla, (strip, max) => {
       if (id === null) return max;
