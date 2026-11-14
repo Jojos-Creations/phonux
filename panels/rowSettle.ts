@@ -5,7 +5,6 @@
 
 import { computeRowNumbers } from '../rowNumbers.js';
 import { panelWidthOf } from '../panelTiers.js';
-import type { WorkspaceTuning } from '../panelSettings.js';
 import { parksForRoom, type PanelWindow } from '../panelWindow.js';
 
 /** The workspace numbers a row is priced against. `maxLive` is null without a cap. */

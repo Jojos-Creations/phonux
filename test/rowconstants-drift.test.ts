@@ -84,13 +84,9 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.slide.closeExitSeconds, rowConstants.SLIDE_CLOSE_EXIT_SECONDS);
   assert.equal(t.hopFraction, rowConstants.HOP_FRACTION);
   assert.equal(t.saveQuietMs, rowConstants.SAVE_QUIET_MS);
-  assert.equal(t.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
   assert.equal(t.gestureQuietMs, rowConstants.GESTURE_QUIET_MS);
   assert.equal(t.slide.closeExitEase, rowConstants.CLOSE_EXIT_EASE);
-  assert.equal(t.slide.glideEase, rowConstants.GLIDE_EASE);
   assert.deepEqual({ ...rowConstants.ROW_LAYER_Z }, { BASE: 1, RAISED: 100, DRAGGED: 200 });
-  assert.equal(t.returnTieBreak, rowConstants.RETURN_TIE_BREAK);
-  assert.equal(t.dropTieBreak, rowConstants.DROP_TIE_BREAK);
   assert.equal(t.rowGesture, rowConstants.ROW_GESTURE);
   assert.equal(t.fastScroll, rowConstants.FAST_SCROLL);
   assert.equal(t.initialScroll, rowConstants.INITIAL_SCROLL);
@@ -125,8 +121,7 @@ test('rowConstants: no source file outside rowConstants.ts declares its own copy
   assert.deepEqual(offenders, []);
 });
 
-test('rowConstants: the gesture and the persistence hook default to the constants, which are the tuning defaults', () => {
-  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
+test('rowConstants: the persistence hook defaults to the constant, which is the tuning default', () => {
   assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, rowConstants.SAVE_QUIET_MS);
 });
 

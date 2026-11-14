@@ -1,7 +1,7 @@
 /**
- * The engine's reading of the visibility settings it owns: startVisibility, hideStickiness, capacityReturn and the
- * four timing keys. One differential per name through the real hook or pure function, then literal rows for the hold
- * map, the until-room threshold and the park and return orders, and a seeded property over measured rows.
+ * The engine's reading of the visibility settings it owns: startVisibility and the two timing keys (saveQuietMs and
+ * gestureQuietMs). One differential per name through the real hook or pure function, then literal rows for the hold
+ * map, the until-room threshold and the park order.
  * Rows are built the way a creation path will build them: appendPanel's skeleton, then applyTemplate over a
  * resolved layer. Widths: W(n) is the container width whose capacity beside History is n phone panels.
  */
@@ -13,11 +13,9 @@ import { act } from 'react';
 import { useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings, SettingNote, WorkspaceTuning } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
-import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { frameClock } from '../testingClock.js';
-import { panelWidthOf } from '../panelTiers.js';
-import { appendPanel, createRootPanel, leastRecentlyTouchedId, parkLevers, promoteToLive } from '../panelWindow.js';
+import { appendPanel, createRootPanel, leastRecentlyTouchedId, promoteToLive } from '../panelWindow.js';
 import { type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
@@ -25,16 +23,7 @@ import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, usePanelManagerWith, useSeededInput, type SeededOver } from './support/mount-harness.js';
 
 const ROOT = 'root';
-const OWNED = [
-  'startVisibility',
-  'hideStickiness',
-  'capacityReturn',
-  'tuning.saveQuietMs',
-  'tuning.gestureLockMs',
-  'tuning.gestureQuietMs',
-  'tuning.returnTieBreak',
-  'tuning.dropTieBreak',
-];
+const OWNED = ['startVisibility', 'tuning.saveQuietMs', 'tuning.gestureQuietMs'];
 
 /** The container width whose capacity beside the root column is `n` phone panels: 390 + n * (390 + 16) + 2 * 16. */
 const W = (n: number): number => 422 + 406 * n;
@@ -159,18 +148,6 @@ function provide(initialEntries: PanelWindow[], options: ProvideOptions = {}) {
   };
 }
 
-type Rng = () => number;
-function mulberry32(seed: number): Rng {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const pick = <T>(rng: Rng, items: readonly T[]): T => items[Math.floor(rng() * items.length)] as T;
 
 afterEach(() => {
   mock.timers.reset();
@@ -190,32 +167,6 @@ test('differential startVisibility: a panel opened into a full row parks the old
   differential('startVisibility', (run) => {
     run('live', () => outcome('live'));
     run('parked', () => outcome('parked'));
-  });
-});
-
-test('differential hideStickiness: a panel created parked stays parked when room opens under sticky and returns under until-room', () => {
-  const afterRoomOpens = (hideStickiness: 'sticky' | 'until-room'): string[] => {
-    const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(3));
-    e.open(park('c', { startVisibility: 'parked', hideStickiness }));
-    e.close('b');
-    return e.live();
-  };
-  differential('hideStickiness', (run) => {
-    run('sticky', () => afterRoomOpens('sticky'));
-    run('until-room', () => afterRoomOpens('until-room'));
-  });
-});
-
-test('differential capacityReturn: a panel parked for room comes back when room opens under auto and stays parked under manual', () => {
-  const afterRoomOpens = (capacityReturn: 'auto' | 'manual'): string[] => {
-    const e = mountEngine(row(rootEntry(), park('a', { capacityReturn }), park('b')), W(2));
-    e.open(park('c'));
-    e.close('c');
-    return e.live();
-  };
-  differential('capacityReturn', (run) => {
-    run('auto', () => afterRoomOpens('auto'));
-    run('manual', () => afterRoomOpens('manual'));
   });
 });
 
@@ -242,50 +193,6 @@ test('differential tuning.saveQuietMs: the workspace is saved at the configured 
   });
 });
 
-/**
- * Runs `steps` against a provider over [a b live, c d e parked at the right] with a wheel listener and a clock the test moves; returns
- * the live ids after. A wheel of one phone width plus the row gap (406) is exactly one step of travel; the clock the events are stamped from moves
- * only, so the quiet timer never fires and the events stay one gesture.
- */
-function clocked(tuning: { gestureLockMs: number }, steps: (wheel: (deltaX: number) => void, advance: (ms: number) => void, setLock: (ms: number) => void, live: () => string[]) => void, extra: (container: HTMLElement) => void = () => undefined): string[] {
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  extra(container);
-  // One ref object across renders, as a host's useRef gives: a new one would re-subscribe the listeners.
-  const ref = { current: container };
-  let clock = 1000;
-  mock.method(performance, 'now', () => clock);
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false }), park('d', {}, { live: false }), park('e', {}, { live: false })), { width: W(2), over: { overflowContainerRef: ref, tuning: { ...tuning, rowGesture: 'step' } } });
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const wheel = (deltaX: number): void => {
-    // The lock reads each event's own stamp, so the stamp comes from the clock the test moves.
-    const event = new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true });
-    Object.defineProperty(event, 'timeStamp', { value: clock });
-    act(() => void container.dispatchEvent(event));
-  };
-  steps(wheel, (ms) => void (clock += ms), (ms) => p.setOver({ overflowContainerRef: ref, tuning: { gestureLockMs: ms, rowGesture: 'step' } }), p.live);
-  const seen = p.live();
-  mock.timers.reset();
-  mock.restoreAll();
-  container.remove();
-  return seen;
-}
-
-function swipes(gestureLockMs: number): string[] {
-  return clocked({ gestureLockMs }, (wheel, advance) => {
-    wheel(406);
-    advance(50);
-    wheel(406);
-  });
-}
-
-test('differential tuning.gestureLockMs: a second step of travel 50 ms after the first acts under a 20 ms lock and is held back under an 80 ms lock', () => {
-  differential('tuning.gestureLockMs', (run) => {
-    run(20, () => swipes(20));
-    run(80, () => swipes(80));
-  });
-});
-
 /** Two same-direction swipes 120 ms apart, the second smaller: the live ids after both. The first starts a step; whether the second does too depends on whether 120 ms of silence ended the gesture. */
 function quietSwipes(gestureQuietMs: number): string[] {
   const container = document.createElement('div');
@@ -309,32 +216,7 @@ test('differential tuning.gestureQuietMs: a smaller swipe 120 ms after the first
   });
 });
 
-/** The id among q, x and p that the room returns, once they are parked one after another (q, then x, then p). */
-function returnedWith(tieBreak: 'latest-first' | 'earliest-first' | 'row-order'): string[] {
-  return threeParked(tieBreak).live().filter((id) => id === 'q' || id === 'x' || id === 'p');
-}
-
-test('differential tuning.returnTieBreak: with equal priorities the room returns the latest parked under latest-first and the oldest under earliest-first', () => {
-  differential('tuning.returnTieBreak', (run) => {
-    run('latest-first', () => returnedWith('latest-first'));
-    run('earliest-first', () => returnedWith('earliest-first'));
-  });
-});
-
-function droppedWith(dropTieBreak: 'leftmost' | 'rightmost'): string[] {
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c')), { width: W(3), over: { tuning: { dropTieBreak } } });
-  p.setWidth(W(2));
-  return p.parked();
-}
-
-test('differential tuning.dropTieBreak: a capacity drop among equal ranks parks the leftmost under leftmost and the rightmost under rightmost', () => {
-  differential('tuning.dropTieBreak', (run) => {
-    run('leftmost', () => droppedWith('leftmost'));
-    run('rightmost', () => droppedWith('rightmost'));
-  });
-});
-
-test('differential coverage: the names the differentials above completed are exactly the eight this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the ones this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
@@ -570,25 +452,16 @@ test('startVisibility parked on a fixed column is forced live by C1, so the pane
   assert.equal(entry.live, true);
 });
 
-test('a panel created parked and sticky is in panelList, held, parked, and not on the stack: room opening does not reveal it', () => {
+test('a panel created parked is in panelList, held, parked, and not on the stack: room opening does not reveal it', () => {
   const p = provide(row(rootEntry(), park('a')), { width: W(3) });
   assert.deepEqual(p.live(), ['a']);
   const e = mountEngine(row(rootEntry(), park('a')), W(3));
-  e.open(park('c', { startVisibility: 'parked', hideStickiness: 'sticky' }));
+  e.open(park('c', { startVisibility: 'parked' }));
   assert.deepEqual(e.parked(), ['c']);
   assert.deepEqual(e.held(), ['c:sticky']);
   e.setWidth(W(5));
   assert.deepEqual(e.parked(), ['c'], 'the first commit and a capacity rise do not reveal it');
   assert.equal(e.view().panels.find((q) => q.id === 'c')?.listed, true, 'it is listed, so it is in panelList');
-});
-
-test('a panel created parked under until-room is on the stack: it returns once the free slots exceed what its creation left', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(3));
-  e.open(park('c', { startVisibility: 'parked', hideStickiness: 'until-room' }));
-  assert.deepEqual(e.held(), ['c:1']);
-  assert.deepEqual(e.parked(), ['c'], 'not revealed by the first commit');
-  e.close('a');
-  assert.deepEqual(e.live(), ['b', 'c']);
 });
 
 test('created parked through useProvidePanels: a parked entry that a restore adds is held, so a roomy row leaves it parked', async () => {
@@ -602,40 +475,6 @@ test('created parked through useProvidePanels: a parked entry that a restore add
   assert.equal(p.ids().length, 2, 'control: the restore added the saved panel');
   assert.deepEqual(p.live(), [], 'the restored parked panel stays parked in a row with room');
   assert.equal(p.now().panelList.length, 1);
-});
-
-// ---------------------------------------------------------------------------
-// capacityReturn manual
-// ---------------------------------------------------------------------------
-
-test('capacityReturn manual: a panel parked for room is held like a sticky hide and does not return when room opens', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { capacityReturn: 'manual' }), park('b')), W(2));
-  e.open(park('c'));
-  assert.deepEqual(e.held(), ['a:sticky']);
-  e.close('c');
-  assert.deepEqual(e.live(), ['b'], 'room opened and a stayed parked');
-});
-
-test('capacityReturn manual: showing the panel returns it and drops the mark', () => {
-  const e = mountEngine(row(rootEntry(), park('a', { capacityReturn: 'manual' }), park('b')), W(2));
-  e.open(park('c'));
-  e.activate('a');
-  assert.deepEqual(e.held(), []);
-  assert.deepEqual(e.live(), ['a', 'c'], 'a is live and b, the lower index of the two tied, was parked for it');
-});
-
-test('capacityReturn auto is the default and the stack returns the panel when room opens', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
-  e.open(park('c'));
-  assert.deepEqual(e.held(), []);
-  e.close('c');
-  assert.deepEqual(e.live(), ['a', 'b']);
-});
-
-test('capacityReturn on a panel whose overflow is scroll is inert: it is parked and returned as an auto panel', () => {
-  const lever = parkLevers(made('s', { overflow: 'scroll', capacityReturn: 'manual' }));
-  assert.equal(lever.capacityReturn, 'auto');
-  assert.equal(parkLevers(park('p', { capacityReturn: 'manual' })).capacityReturn, 'manual');
 });
 
 // ---------------------------------------------------------------------------
@@ -701,54 +540,6 @@ test('a capacity drop parks the leftmost excess', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The return tie-break
-// ---------------------------------------------------------------------------
-
-/** Five panels where q, then x, then p are parked, in that order, then room for one: the park order differs from the row order and from its reverse. */
-function threeParked(tieBreak: 'latest-first' | 'earliest-first' | 'row-order' | undefined) {
-  const tuning = (dropTieBreak: 'leftmost' | 'rightmost') => ({ tuning: { dropTieBreak, ...(tieBreak === undefined ? {} : { returnTieBreak: tieBreak }) } });
-  const p = provide(row(rootEntry(), park('x'), park('y'), park('z'), park('p'), park('q')), { width: W(5), over: tuning('rightmost') });
-  p.setWidth(W(4));
-  p.setOver(tuning('leftmost'));
-  p.setWidth(W(3));
-  p.setOver(tuning('rightmost'));
-  p.setWidth(W(2));
-  assert.deepEqual(p.parked(), ['x', 'p', 'q'], 'control: parked q, then x, then p');
-  p.setWidth(W(3));
-  return p;
-}
-
-test('returnTieBreak latest-first: of three parked the most recently parked, p, returns', () => {
-  assert.deepEqual(threeParked('latest-first').parked(), ['x', 'q']);
-});
-// A panel returns only beside the drawn run, so the drawn panels stay one run of the list: of q, x, p only x and p touch y and z, and
-// q waits behind p. The tie-break chooses among those two.
-test('returnTieBreak earliest-first: of the parked panels beside the run, the oldest parked, x, returns', () => {
-  assert.deepEqual(threeParked('earliest-first').parked(), ['p', 'q']);
-});
-test('returnTieBreak earliest-first and row-order part ways when the panel later in the row was parked first', () => {
-  const tuning = (dropTieBreak: 'leftmost' | 'rightmost', tieBreak: 'earliest-first' | 'row-order') => ({ tuning: { dropTieBreak, returnTieBreak: tieBreak } });
-  const run = (tieBreak: 'earliest-first' | 'row-order'): string[] => {
-    const p = provide(row(rootEntry(), park('x'), park('y'), park('z'), park('p'), park('q')), { width: W(5), over: tuning('rightmost', tieBreak) });
-    p.setWidth(W(4));
-    p.setWidth(W(3));
-    p.setOver(tuning('leftmost', tieBreak));
-    p.setWidth(W(2));
-    assert.deepEqual(p.parked(), ['x', 'p', 'q'], 'control: parked q, then p, then x');
-    p.setWidth(W(3));
-    return p.parked();
-  };
-  assert.deepEqual(run('earliest-first'), ['x', 'q'], 'p was parked before x, and touches the run');
-  assert.deepEqual(run('row-order'), ['p', 'q'], 'x is earlier in the row');
-});
-test('returnTieBreak row-order: the panel earliest in the row, x, returns', () => {
-  assert.deepEqual(threeParked('row-order').parked(), ['p', 'q']);
-});
-test('returnTieBreak unset is latest-first', () => {
-  assert.deepEqual(threeParked(undefined).parked(), ['x', 'q']);
-});
-
-// ---------------------------------------------------------------------------
 // Notes and session-only holds
 // ---------------------------------------------------------------------------
 
@@ -807,10 +598,9 @@ test('a remount restores a parked panel parked, with no hold carried over', asyn
 // Timing tuning
 // ---------------------------------------------------------------------------
 
-test('the timing defaults are 500 ms and 30 ms, and a tuning left out takes them', async () => {
+test('the save default is 500 ms, and a tuning left out takes it', async () => {
   const { LIBRARY_TUNING_DEFAULTS } = await import('../panelSettings.js');
   assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, 500);
-  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, 30);
   assert.equal(await savesAfter(499), 0, 'not saved at 499 ms');
   assert.equal(await savesAfter(500), 1, 'saved at 500 ms');
 });
@@ -840,95 +630,4 @@ test('saveQuietMs is read at each arm: changing it between two changes retimes t
   assert.equal(saves.length, 1, 'the second save waits the new 700');
   act(() => mock.timers.tick(1));
   assert.equal(saves.length, 2);
-});
-
-test('gestureLockMs is read at each wheel event: changing it keeps the listeners and applies to the next step', () => {
-  let removed = 0;
-  const live = clocked(
-    { gestureLockMs: 100 },
-    (wheel, advance, setLock, now) => {
-      wheel(406);
-      advance(150);
-      wheel(406);
-      assert.deepEqual(now(), ['c', 'd'], 'two steps, 150 ms apart under a 100 ms lock');
-      setLock(600);
-      assert.equal(removed, 0, 'the new value did not tear the listeners down');
-      advance(150);
-      wheel(406);
-      assert.deepEqual(now(), ['c', 'd'], '150 ms after a step is inside the new 600 ms lock');
-      advance(450);
-      wheel(406);
-    },
-    (container) => {
-      const original = container.removeEventListener.bind(container);
-      container.removeEventListener = ((...args: Parameters<typeof original>) => {
-        removed += 1;
-        return original(...args);
-      }) as typeof container.removeEventListener;
-    },
-  );
-  assert.deepEqual(live, ['d', 'e'], '600 ms after the last step the lock is over');
-});
-
-// ---------------------------------------------------------------------------
-// S1: a seeded property over measured rows
-// ---------------------------------------------------------------------------
-
-/** The capacity computeRowLayout gives a row whose live set is `live`, with the same inputs the engine prices it from. */
-function capacityOf(live: readonly PanelWindow[], containerWidth: number): number {
-  const maxLiveWidth = computeMaxLiveWidth({ containerWidth, phoneWidth: 390, gap: 16, fixedItemCount: 1 });
-  const fit = computeRowLayout({ containerWidth, phoneWidth: 390, gap: 16, fixedItemCount: 1, liveWidths: live.map((p) => panelWidthOf(p, 390, maxLiveWidth)) }).maxLiveThatFit;
-  return Math.max(1, fit);
-}
-
-test('S1: over 500 seeded sequences on measured rows of park panels, the live parkable count never exceeds the capacity after a settled commit', () => {
-  const stickiness = ['sticky', 'until-room'] as const;
-  const slotCounts = [1, 1, 1, 2] as const;
-  let sequences = 0;
-  let checks = 0;
-  let operations = 0;
-  for (let seed = 1; seed <= 500; seed += 1) {
-    const rng = mulberry32(seed * 7919);
-    let counter = 0;
-    const fresh = (): PanelWindow =>
-      park(`s${counter++}`, {
-        capacityReturn: rng() < 0.25 ? 'manual' : 'auto',
-        hideStickiness: pick(rng, stickiness),
-        startVisibility: rng() < 0.15 ? 'parked' : 'live',
-        slots: pick(rng, slotCounts),
-      });
-    let width = W(1 + Math.floor(rng() * 5));
-    const e = mountEngine(row(rootEntry(), ...Array.from({ length: 2 + Math.floor(rng() * 4) }, fresh)), width);
-    const settled = (): void => {
-      const live = e.view().panels.filter((p) => p.collapsible && p.live);
-      assert.ok(live.length <= capacityOf(live, width), `seed ${seed}: ${live.length} live parkable panels exceed capacity ${capacityOf(live, width)} at width ${width}`);
-      checks += 1;
-    };
-    settled();
-    for (let step = 0; step < 8; step += 1) {
-      const panels = e.view().panels.filter((p) => p.collapsible);
-      const target = panels.length === 0 ? undefined : pick(rng, panels);
-      const op = pick(rng, ['open', 'open', 'close', 'activate', 'hold', 'release', 'scroll', 'width', 'resize'] as const);
-      if (op === 'open') e.open(fresh());
-      else if (op === 'width') {
-        width = W(1 + Math.floor(rng() * 5));
-        e.setWidth(width);
-      } else if (op === 'scroll') e.scroll(rng() < 0.5 ? 'left' : 'right');
-      else if (target !== undefined) {
-        if (op === 'close') e.close(target.id);
-        else if (op === 'activate') e.activate(target.id);
-        else if (op === 'hold') e.hold(target.id, pick(rng, stickiness));
-        else if (op === 'release') e.call((v) => v.manager.releaseHold(target.id));
-        else e.resize(target.id, pick(rng, [1, 2, 64] as const));
-      }
-      operations += 1;
-      settled();
-    }
-    e.unmount();
-    sequences += 1;
-  }
-  console.log(`sequences run: ${sequences}`);
-  assert.ok(sequences >= 500, `sequences run: ${sequences}`);
-  assert.ok(checks >= 500 * 9, `only ${checks} settled commits were checked`);
-  assert.ok(operations >= 500 * 8, `only ${operations} operations ran`);
 });

@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the scroll settings it owns: revealOnScroll, edgeHold, scrollOnOpen, scrollOnMove, tuning.rowGesture
+ * The engine's reading of the scroll settings it owns: edgeHold, scrollOnOpen, scrollOnMove, tuning.rowGesture
  * and tuning.initialScroll. One differential per name through the real hook and Workspace: the same scenario under
  * two values must give different outputs. The literal rows are in row-scroll-mount.test.ts and row-gesture.test.ts.
  */
@@ -18,28 +18,7 @@ afterEach(() => {
   cleanup();
 });
 
-const OWNED = ['revealOnScroll', 'edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll'];
-
-/** Whether the parked panel b sits live after one rightward swipe in a window that shows only the root (430 px). */
-async function revealedUnder(revealOnScroll: 'edges' | 'any' | 'never'): Promise<boolean> {
-  const m = mountRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll }, { live: false }), made('c')), 430, { tuning: { rowGesture: 'step' } });
-  m.wheel({ deltaX: 50 });
-  await advanceFrames(500);
-  const live = m.live().includes('b');
-  cleanup();
-  return live;
-}
-
-test('differential revealOnScroll: an engine-parked panel with a live panel beyond the window is reached under any and stepped past under edges', async () => {
-  const outcomes = new Map([
-    ['edges', await revealedUnder('edges')],
-    ['any', await revealedUnder('any')],
-  ]);
-  differential('revealOnScroll', (run) => {
-    run('edges', () => outcomes.get('edges'));
-    run('any', () => outcomes.get('any'));
-  });
-});
+const OWNED = ['edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll'];
 
 /** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, held by its host when held. */
 function drawnAt(edgeHold: PanelSettings['edgeHold']): 'held' | 'strip' | 'missing' {

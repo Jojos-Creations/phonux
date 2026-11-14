@@ -11,6 +11,7 @@ import { PANEL_SETTINGS_CATALOG, PanelManagerError } from '../index.js';
 import { FIXED, LIBRARY_TUNING_DEFAULTS, checkTuningLeaf, resolvePanelSettings } from '../panelSettings.js';
 import type { PanelSettingsLayers, ResolveOptions } from '../panelSettings.js';
 import { mergePatch } from '../settingsPatch.js';
+import { resolveWorkspaceTuning } from '../panelTuning.js';
 import type { CatalogName, HeaderButton, PanelSettings, PanelSettingsResolution, SettingConflict, SourceLayer } from '../index.js';
 
 // ---------------------------------------------------------------------------
@@ -92,10 +93,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   multiple: BOOL,
   maxInstances: ['unlimited', 1, 2, 50],
   startVisibility: ['live', 'parked'],
-  hideStickiness: ['sticky', 'until-room'],
-  capacityReturn: ['auto', 'manual'],
   overflow: ['scroll', 'park'],
-  revealOnScroll: ['edges', 'any', 'never'],
   edgeHold: ['off', 'left', 'right', 'both'],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
@@ -114,7 +112,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.firstPressFocusOnly', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.firstPressFocusOnly', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -159,7 +157,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 57 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 51 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -194,10 +192,8 @@ test("enumerations: a probe's refusal names the layer and key in its message too
   assert.match(error.message, /template\.overflow/);
 });
 
-test('enumerations: the five enumerated tuning leaves accept every member', () => {
+test('enumerations: the three enumerated tuning leaves accept every member', () => {
   const members: Record<string, readonly unknown[]> = {
-    returnTieBreak: ['latest-first', 'earliest-first', 'row-order'],
-    dropTieBreak: ['leftmost', 'rightmost'],
     rowGesture: ['step', 'off'],
     initialScroll: ['start', 'end', 'root', { panel: 'x' }],
     phoneHeight: ['fit', 'auto'],
@@ -209,7 +205,7 @@ test('enumerations: the five enumerated tuning leaves accept every member', () =
       executed += 1;
     }
   }
-  assert.equal(executed, 13);
+  assert.equal(executed, 8);
   for (const [leaf, bad] of [['rowGesture', 'swipe'], ['initialScroll', 'middle'], ['initialScroll', { panel: '' }]] as const) assert.equal(checkTuningLeaf(leaf, bad).problems[0]?.key, `tuning.${leaf}`, leaf);
 });
 
@@ -275,11 +271,6 @@ const RANGES: readonly RangeRow[] = [
   ['slide.closeExitEase', [0.4, 0, 1, 1], 'accept'],
   ['slide.closeExitEase', [1.01, 0, 1, 1], 'reject'],
   ['slide.closeExitEase', [0.4, 0, 1], 'reject'],
-  ['slide.glideEase', 'cubic-out', 'accept'],
-  ['slide.glideEase', 'linear', 'accept'],
-  ['slide.glideEase', 'easeIn', 'reject'],
-  ['slide.glideEase', [0, 0, 0.56, 1], 'accept'],
-  ['slide.glideEase', [-0.01, 0, 0.56, 1], 'reject'],
   ['slide.ease', [0.2, 0, 1], 'reject'],
   ['slide.ease', [-0.01, 0, 0.5, 1], 'reject'],
   ['slide.ease', [0, 0, 0.5, 1], 'accept'],
@@ -292,8 +283,6 @@ const RANGES: readonly RangeRow[] = [
   ['slide.ease', [0.2, -5, 0.5, 5], 'accept'],
   ['saveQuietMs', -1, 'reject'],
   ['saveQuietMs', 0, 'accept'],
-  ['gestureLockMs', -1, 'reject'],
-  ['gestureLockMs', 0, 'accept'],
   ['gestureQuietMs', 0, 'reject'],
   ['gestureQuietMs', 1, 'accept'],
   ['resizeSettleSlides', -0.1, 'reject'],
@@ -356,7 +345,7 @@ test('ranges: every (value, outcome) row is accepted or refused by the tuning le
     executed += 1;
   }
   assert.equal(executed, RANGES.length);
-  assert.equal(RANGES.length, 108);
+  assert.equal(RANGES.length, 101);
 });
 
 test('ranges: a refusal of a tuning member names the dotted key, and the numbers of the library defaults are inside their own ranges', () => {
@@ -470,11 +459,11 @@ test('cascade: the source map names the winner of each key, from every layer at 
     workspace: { scrollOnMove: 'none' },
     template: { layer: 'raised', closable: false },
     host: { title: 'From the view' },
-    instance: { closable: true, revealOnScroll: 'never' },
+    instance: { closable: true, edgeHold: 'left' },
     user: { slots: 2 },
   });
   assert.deepEqual(
-    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.revealOnScroll, res.source.slots, res.source.overflow],
+    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.edgeHold, res.source.slots, res.source.overflow],
     ['workspace', 'template', 'host', 'instance', 'instance', 'user', 'library'],
   );
 });
@@ -672,16 +661,6 @@ test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, ap
   assert.equal(rows.length, 4);
 });
 
-test('park levers: capacityReturn on a panel whose overflow resolves to scroll yields park-lever-inert, and none when overflow is park', () => {
-  const res = resolve({ template: { capacityReturn: 'manual' } });
-  assert.deepEqual(res.notes.map((n) => [n.code, n.key]), [['park-lever-inert', 'capacityReturn']]);
-  const parked = resolve({ template: { capacityReturn: 'manual', overflow: 'park' } });
-  assert.deepEqual(parked.notes, []);
-  assert.deepEqual(resolve().notes, [], 'a library lever is not a note');
-  const forcedScroll = resolve({ template: { parkable: false, overflow: 'park', capacityReturn: 'manual' } });
-  assert.deepEqual(forcedScroll.notes.map((n) => n.code), ['park-lever-inert'], 'overflow forced to scroll by C1 makes the lever inert');
-});
-
 // ---------------------------------------------------------------------------
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
@@ -737,9 +716,6 @@ test('scope: template keys at the instance or host layer are wrong-scope and app
 const WORKSPACE_TUNING_ASKS: ReadonlyArray<readonly [leaf: string, value: unknown]> = [
   ['rowGap', 8],
   ['saveQuietMs', 100],
-  ['gestureLockMs', 100],
-  ['returnTieBreak', 'row-order'],
-  ['dropTieBreak', 'rightmost'],
   ['rowGesture', 'off'],
   ['initialScroll', 'end'],
   ['chrome', { mode: 'hover-or-active' }],
@@ -760,7 +736,7 @@ test('scope: every tuning key throws at the workspace, template, host and instan
       executed += 1;
     }
   }
-  assert.equal(executed, 60);
+  assert.equal(executed, 48);
 });
 
 test('scope: a wrong-scope ask beside valid keys leaves the valid keys applied', () => {
@@ -989,7 +965,7 @@ function randomStack(rng: Rng): { layers: PanelSettingsLayers; options: ResolveO
   return { layers, options: { root: chance(rng, 0.15) } };
 }
 
-const NOTE_CODES = ['override-dropped', 'park-lever-inert', 'resizable-capped'];
+const NOTE_CODES = ['override-dropped', 'resizable-capped'];
 
 const coverage = { stacks: 0, roots: 0, withConflicts: 0, withNotes: 0, userParkableApplied: 0, userSlotsApplied: 0, rules: new Set<string>(), kinds: new Set<string>(), noteCodes: new Set<string>() };
 
@@ -1092,8 +1068,8 @@ test('property: the generator exercised every rule, every conflict kind, the roo
   assert.ok(coverage.stacks >= 1000, `${coverage.stacks} stacks were checked before this test`);
   assert.deepEqual([...coverage.rules].sort(), ['C1', 'C2', 'C4', 'C5']);
   assert.deepEqual([...coverage.kinds].sort(), ['forced', 'not-view-settable', 'wrong-scope']);
-  assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'park-lever-inert', 'resizable-capped']);
-  assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 200, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
+  assert.deepEqual([...coverage.noteCodes].sort(), ['override-dropped', 'resizable-capped']);
+  assert.ok(coverage.roots >= 100 && coverage.withConflicts >= 300 && coverage.withNotes >= 100, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
   assert.ok(coverage.userParkableApplied >= 20 && coverage.userSlotsApplied >= 100, JSON.stringify({ ...coverage, rules: undefined, kinds: undefined, noteCodes: undefined }));
 });
 
@@ -1108,4 +1084,33 @@ test('property: a fixed stack holding every layer is not mutated, even deeply fr
   const first = resolve(layers);
   assert.deepEqual(resolve(layers), first);
   assert.deepEqual(Object.keys(first.value.headerButtons).sort(), ['pin', 'size']);
+});
+
+// ---------------------------------------------------------------------------
+// Removed with the parking engine (owner ruling 2026-11-14): warned once per key, never thrown, the value ignored
+// ---------------------------------------------------------------------------
+
+test('removed with parking: each removed key and tuning leaf warns once by name, is ignored, and never throws', () => {
+  const warn = mock.method(console, 'warn', () => undefined);
+  try {
+    const removed = { hideStickiness: 'until-room', capacityReturn: 'manual', revealOnScroll: 'any' };
+    const res = resolve({ template: asSettings(removed) });
+    for (const key of Object.keys(removed)) assert.equal(key in res.value, false, `${key} is not in the resolved value`);
+    const tuning = resolveWorkspaceTuning({ gestureLockMs: 80, returnTieBreak: 'row-order', dropTieBreak: 'rightmost', slide: { durationSec: 1, glideEase: 'linear' } } as never);
+    for (const leaf of ['gestureLockMs', 'returnTieBreak', 'dropTieBreak']) assert.equal(leaf in tuning, false, `tuning.${leaf} is not in the resolved tuning`);
+    assert.equal('glideEase' in tuning.slide, false, 'slide.glideEase is dropped');
+    assert.equal(tuning.slide.durationSec, 1, 'the live member beside it still applies');
+    const messages = warn.mock.calls.map((c) => String(c.arguments[0]));
+    const named = ['hideStickiness', 'capacityReturn', 'revealOnScroll', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.slide.glideEase'];
+    for (const name of named) {
+      const mine = messages.filter((m) => m.includes(`'${name}'`));
+      assert.equal(mine.length, 1, `${name} warned once: ${JSON.stringify(messages)}`);
+      assert.match(mine[0]!, /removed in 0\.2\.0 with the parking engine/);
+    }
+    resolve({ template: asSettings(removed) });
+    resolveWorkspaceTuning({ gestureLockMs: 80 } as never);
+    assert.equal(warn.mock.callCount(), named.length, 'a second use of the same keys warns no more');
+  } finally {
+    warn.mock.restore();
+  }
 });

@@ -1,6 +1,6 @@
 /**
  * What the configure matrix reads: the class table as data, the rig every cell and probe mounts, the one helper each of
- * the catalog-name probes and 36 class cells goes through, and the catalog's names.
+ * the catalog-name probes and 28 class cells goes through, and the catalog's names.
  *
  * The table is written by hand from the status letters and defaults of the configure design and from each catalog
  * row's `on_configure` cell. Nothing in it is derived from the code under test.
@@ -24,11 +24,12 @@ export const CLASSES = ['NOW', 'NEXT', 'STATE', 'SCOPE'] as const;
 export type Cls = (typeof CLASSES)[number];
 
 /**
- * The nine statuses of the configure design: P pending, L live, K parked by the engine, H hidden (held), T the panel a turn's
- * action protects from being parked, C closed declared past the undo window, A closed anonymous, U closed inside the
- * undo window, F a second operation on the same panel in the same turn.
+ * The seven statuses of the configure design that the Embla row can reach: P pending, L live, H hidden (held), C closed
+ * declared past the undo window, A closed anonymous, U closed inside the undo window, F a second operation on the same
+ * panel in the same turn. The design's K (parked by the engine for room) and T (the panel a turn's action protects from
+ * being parked) left with the parking engine: the strip never runs out of room, so nothing is parked for it.
  */
-export const STATUSES = ['pending', 'live', 'parked', 'hidden', 'protected', 'closed-declared', 'closed-anonymous', 'undo-window', 'same-turn'] as const;
+export const STATUSES = ['pending', 'live', 'hidden', 'closed-declared', 'closed-anonymous', 'undo-window', 'same-turn'] as const;
 export type Status = (typeof STATUSES)[number];
 
 /**
@@ -59,21 +60,17 @@ export interface Cell {
    * undo-window instances count for the `multiple` on-to-off check only; `maxInstances` counts row entries.
    */
   counted?: boolean;
-  /** Protected only: the acted-on panel stays live whatever the configured value says. */
-  staysLive?: boolean;
 }
 
 const refused = (code: 'is-pending' | 'busy' | 'is-closed' | 'not-ready'): Cell => ({ outcome: { kind: 'refused', code }, evicts: 0, unmounts: 0, projection: 'none' });
 
-/** The 36 cells. Keys are written out; no row is computed from another. */
+/** The 28 cells. Keys are written out; no row is computed from another. */
 export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> = {
   // NOW: a button, a History row, a z-index or the row's price changes at this commit; nothing else moves.
   NOW: {
     pending: refused('is-pending'),
     live: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
-    parked: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
     hidden: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
-    protected: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null, staysLive: true },
     'closed-declared': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
     'closed-anonymous': refused('is-closed'),
     'undo-window': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
@@ -83,9 +80,7 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
   NEXT: {
     pending: refused('is-pending'),
     live: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none' },
-    parked: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none' },
     hidden: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none' },
-    protected: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', staysLive: true },
     'closed-declared': { outcome: { kind: 'stored-on-record' }, evicts: null, unmounts: 0, projection: null },
     'closed-anonymous': refused('is-closed'),
     'undo-window': { outcome: { kind: 'stored-on-record' }, evicts: null, unmounts: 0, projection: null },
@@ -95,9 +90,7 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
   STATE: {
     pending: refused('is-pending'),
     live: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
-    parked: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
     hidden: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null },
-    protected: { outcome: { kind: 'applied-now' }, evicts: 0, unmounts: 0, projection: null, staysLive: true },
     'closed-declared': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
     'closed-anonymous': refused('is-closed'),
     'undo-window': { outcome: { kind: 'stored-on-record' }, evicts: 0, unmounts: 0, projection: null },
@@ -108,9 +101,7 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
   SCOPE: {
     pending: refused('not-ready'),
     live: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true },
-    parked: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true },
     hidden: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true },
-    protected: { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true, staysLive: true },
     'closed-declared': { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true },
     'closed-anonymous': { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: false },
     'undo-window': { outcome: { kind: 'stored' }, evicts: 0, unmounts: 0, projection: 'none', counted: true },
@@ -120,8 +111,8 @@ export const CLASS_TABLE: Readonly<Record<Cls, Readonly<Record<Status, Cell>>>> 
 
 export const CATALOG_NAMES: readonly string[] = PANEL_SETTINGS_CATALOG.map((d) => d.name);
 
-/** The thirteen catalog names whose instance-door call is wrong-scope: three template keys, ten workspace-only tuning keys. */
-export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureLockMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels'];
+/** The eleven catalog names whose instance-door call is wrong-scope: three template keys, eight workspace-only tuning keys. */
+export const WRONG_SCOPE_NAMES: readonly string[] = ['hostCreatable', 'multiple', 'maxInstances', 'tuning.rowGap', 'tuning.saveQuietMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels'];
 
 const probesRun = new Set<string>();
 const cellsRun = new Set<string>();
@@ -391,9 +382,6 @@ export interface Arranged {
   configure: (patch: Record<string, unknown>) => ConfigureResult;
 }
 
-/** Five park-mode panels in a row that holds one beside the root: b is the one the engine has parked. */
-const PARK_IDS = ['a', 'b', 'c', 'd', 'e'] as const;
-
 /**
  * A mounted workspace with panel `b` (or the panel pending in the call) in `status`. `settings` is b's template layer.
  * Closed-past-the-window mocks setTimeout; the caller's afterEach resets it.
@@ -407,13 +395,6 @@ export async function arrange(status: Status, settings: PanelSettings = {}, work
       before?.();
       return r.h[id]!.configure(patch as never);
     });
-  if (status === 'parked' || status === 'protected') {
-    const r = await matrixRig({ ids: PARK_IDS, park: true, width: 1000, settings: { b: settings }, extra: [singleton, anonymous], workspace });
-    await r.settle();
-    assert.equal(r.state('b').status, 'parked', 'the engine parked b for room');
-    assert.equal(r.state('b').held, false, 'and it holds no hide');
-    return { r, id: 'b', configure: call(r, 'b') };
-  }
   const r = await roomy();
   switch (status) {
     case 'live':

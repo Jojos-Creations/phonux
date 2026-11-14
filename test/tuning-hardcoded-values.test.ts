@@ -5,9 +5,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
-import { cubicBezier } from 'motion/react';
 import { act } from 'react';
 import { DragToClose, LIBRARY_TUNING_DEFAULTS, OVERLAY_Z, ROW_LAYER_Z } from '../index.js';
 import { ALL_SLOTS } from '../rowConstants.js';
@@ -16,10 +14,8 @@ import type { SlideTuning } from '../index.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { PanelSlotContext, PanelVerticalDragContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning, type SlotTuning } from '../panelTuning.js';
-import { rowScrollerFor } from '../rowScroller.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
-import { mountRow, panelsOf } from './support/scroll-row.js';
 
 afterEach(() => cleanup());
 
@@ -111,41 +107,6 @@ test('closeExitEase: a button close takes the same leaf as a drag close, and the
   assert.deepEqual(exitOf({ ...LIBRARY_TUNING_DEFAULTS.slide, closeExitEase: [0.4, 0, 1, 1] }).ease, [0.4, 0, 1, 1]);
 });
 
-async function glidePositions(ease: SlideTuning['glideEase']): Promise<number[]> {
-  const el = document.createElement('div');
-  document.body.appendChild(el);
-  setRowOffset(el, 0);
-  rowScrollerFor(el).glideTo(1600, { durationSec: 1.6, instant: false, ease });
-  const seen: number[] = [];
-  let elapsed = 0;
-  for (const frames of [25, 25, 25]) {
-    await advanceFrames(frames * 16);
-    elapsed += frames;
-    seen.push(rowOffsetOf(el));
-  }
-  assert.equal(elapsed, 75);
-  el.remove();
-  return seen;
-}
-
-test("glideEase: 'cubic-out' is the curve the row always glided along, 1 - (1 - t)^3, measured at a quarter, a half and three quarters", async () => {
-  assert.equal(LIBRARY_TUNING_DEFAULTS.slide.glideEase, 'cubic-out');
-  const [a, b, c] = await glidePositions('cubic-out');
-  assert.ok(Math.abs(a! - 1600 * 0.578125) < 0.5, `t = 0.25 gave ${a}`);
-  assert.ok(Math.abs(b! - 1600 * 0.875) < 0.5, `t = 0.5 gave ${b}`);
-  assert.ok(Math.abs(c! - 1600 * 0.984375) < 0.5, `t = 0.75 gave ${c}`);
-});
-
-test("glideEase: 'linear' and a bezier tuple glide along their own curves, apart from slide.ease", async () => {
-  const [a, b] = await glidePositions('linear');
-  assert.ok(Math.abs(a! - 400) < 0.5 && Math.abs(b! - 800) < 0.5, `linear gave ${a}, ${b}`);
-  const [curved] = await glidePositions([0.2, 0, 0, 1]);
-  assert.ok(curved! > 400 && Math.abs(curved! - 1600 * 0.578125) > 20, `the slide curve gave ${curved}, which is neither linear nor cubic-out`);
-  assert.ok(Math.abs(curved! - 1600 * cubicBezier(0.2, 0, 0, 1)(0.25)) < 0.5, `a quarter of the way along [0.2, 0, 0, 1] is Motion's value for it, not ${curved}`);
-  const [skewed] = await glidePositions([0, 0.2, 1, 0]);
-  assert.ok(Math.abs(skewed! - 1600 * cubicBezier(0, 0.2, 1, 0)(0.25)) < 0.5, `[0, 0.2, 1, 0] keeps its four numbers in order, got ${skewed}`);
-});
-
 test('ROW_LAYER_Z: base 1, raised 100, dragged 200, frozen, the base tier at its deepest rank stays under raised, and every overlay sits above them', () => {
   assert.deepEqual({ ...ROW_LAYER_Z }, { BASE: 1, RAISED: 100, DRAGGED: 200 });
   assert.ok(ROW_LAYER_Z.BASE + 2 * Math.floor(ALL_SLOTS / 2) < ROW_LAYER_Z.RAISED - 1);
@@ -154,31 +115,4 @@ test('ROW_LAYER_Z: base 1, raised 100, dragged 200, frozen, the base tier at its
   assert.ok(Math.min(...Object.values(OVERLAY_Z)) > ROW_LAYER_Z.DRAGGED);
 });
 
-// The row's own glides (a step, a scrollTo and the settle after a resize) take the workspace's glideEase.
-const SLOW = (glideEase: SlideTuning['glideEase']): { slide: Partial<SlideTuning> } => ({ slide: { durationSec: 1.6, glideEase } });
-
-/** How far a glide has gone, as a fraction, a quarter of its duration after it started. */
-async function quarterOfGlide(start: (m: ReturnType<typeof mountRow>) => void, glideEase: SlideTuning['glideEase']): Promise<number> {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step', ...SLOW(glideEase) } });
-  const from = rowOffsetOf(m.container);
-  act(() => start(m));
-  const target = m.scroller.glideTarget();
-  assert.notEqual(target, null, 'control: a glide is under way');
-  await advanceFrames(25 * 16);
-  const fraction = (rowOffsetOf(m.container) - from) / (target! - from);
-  cleanup();
-  return fraction;
-}
-
-for (const [name, start] of [
-  ['a wheel step', (m: ReturnType<typeof mountRow>) => void m.container.dispatchEvent(new WheelEvent('wheel', { deltaX: 50, cancelable: true, bubbles: true }))],
-  ['scrollTo', (m: ReturnType<typeof mountRow>) => void m.latest().scrollTo('s3')],
-] as const) {
-  test(`glideEase: ${name} glides along the workspace's leaf`, async () => {
-    const linear = await quarterOfGlide(start, 'linear');
-    const cubic = await quarterOfGlide(start, 'cubic-out');
-    assert.ok(Math.abs(linear - 0.25) < 0.08, `linear covered ${linear}`);
-    assert.ok(cubic > 0.5, `cubic-out covered ${cubic}`);
-  });
-}
 

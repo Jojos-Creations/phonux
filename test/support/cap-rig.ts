@@ -21,10 +21,6 @@ export interface CapRigOptions {
   cap?: number | null;
   /** The measured container width; default 1280, 0 is unmeasured. */
   width?: number;
-  /** Every web panel's `capacityReturn`; default 'manual'. */
-  returns?: 'auto' | 'manual';
-  /** Every web panel's `revealOnScroll`; default 'never'. */
-  reveal?: 'edges' | 'any' | 'never';
   /** `tuning.rowGesture`; default 'step', so wheel and arrow keys act. */
   gesture?: 'step' | 'off';
   /** Draws a drag handle in every web panel, whose horizontal drop moves the panel one hop per step. */
@@ -100,7 +96,7 @@ function grabbable(id: string, settings: PanelSettings) {
 
 export async function capRig(o: CapRigOptions = {}): Promise<CapRig> {
   const ids = Array.from({ length: o.count ?? 7 }, (_, k) => `w${k + 1}`);
-  const settings: PanelSettings = { overflow: 'park', capacityReturn: o.returns ?? 'manual', revealOnScroll: o.reveal ?? 'never', ...o.settings };
+  const settings: PanelSettings = { overflow: 'park', ...o.settings };
   const template = (id: string) => {
     const own: PanelSettings = { ...settings, ...o.own?.[id] };
     return o.grab === true ? grabbable(id, own) : markerTemplate(id, { settings: own });

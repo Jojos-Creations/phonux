@@ -111,11 +111,9 @@ const swipe = async (m: MountedRow, deltaX: number): Promise<void> => {
   tick(400);
 };
 
-test('a History click (activate) brings a parked panel back under all three revealOnScroll values', () => {
-  for (const policy of ['edges', 'any', 'never'] as const) {
-    const m = mountRow(row(rootEntry(), made('b', { overflow: 'park', revealOnScroll: policy }, { live: false }), made('c')), narrow);
-    act(() => m.latest().activate('b'));
-    assert.ok(m.live().includes('b'), policy);
-    cleanup();
-  }
+test('a History click (activate) brings a parked panel back', () => {
+  const m = mountRow(row(rootEntry(), made('b', { overflow: 'park' }, { live: false }), made('c')), narrow);
+  act(() => m.latest().activate('b'));
+  assert.ok(m.live().includes('b'));
+  cleanup();
 });

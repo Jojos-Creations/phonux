@@ -33,18 +33,16 @@ async function heldRig(o: PinRigOptions = {}): Promise<PinRig> {
 
 const holdNotes = (r: PinRig): SettingNote[] => r.m.notes.filter((n) => n.code === 'hold-unlisted');
 
-test('a listed false configure of a held panel answers one hold-unlisted note and reports it once, whatever revealOnScroll is', async () => {
+test('a listed false configure of a held panel answers one hold-unlisted note and reports it once', async () => {
   const warn = mock.method(console, 'warn', () => undefined);
-  for (const reveal of ['edges', 'any', 'never'] as const) {
-    const r = await heldRig({ settings: { c: { revealOnScroll: reveal } } });
-    assert.equal(r.facts('c').listed, true, `${reveal}: c is listed before the call`);
-    const out = r.turn(() => r.h.c!.configure({ listed: false }));
-    const n = note(r.entry('c').id);
-    assert.deepEqual(out, answer(true, ['listed'], [n]), `${reveal}: the answer carries the note`);
-    assert.deepEqual(r.m.notes, [n], `${reveal}: onNote heard it once`);
-    assert.equal(r.facts('c').listed, false, `${reveal}: c left the list`);
-    cleanup();
-  }
+  const r = await heldRig();
+  assert.equal(r.facts('c').listed, true, 'c is listed before the call');
+  const out = r.turn(() => r.h.c!.configure({ listed: false }));
+  const n = note(r.entry('c').id);
+  assert.deepEqual(out, answer(true, ['listed'], [n]), 'the answer carries the note');
+  assert.deepEqual(r.m.notes, [n], 'onNote heard it once');
+  assert.equal(r.facts('c').listed, false, 'c left the list');
+  cleanup();
   assert.equal(warn.mock.callCount(), 0, 'a note is not a conflict, so console.warn stays silent');
 });
 
