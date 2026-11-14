@@ -13,7 +13,7 @@ import { cleanup, mount, withHost } from './support/mount-harness.js';
 afterEach(() => cleanup());
 
 const ui = (reducedMotion: 'user' | 'always' | 'never'): React.ReactElement =>
-  withHost(React.createElement(MotionConfig, { reducedMotion }, React.createElement(Panel, { title: 'History' }, React.createElement('p', { 'data-body': 'content' }, 'content'))));
+  withHost(React.createElement(MotionConfig, { reducedMotion }, React.createElement(Panel, { title: 'History', children: React.createElement('p', { 'data-body': 'content' }, 'content') })));
 
 test('a mounted Panel survives Reduce Motion turning on and off, and keeps its content', () => {
   const originalError = console.error;
