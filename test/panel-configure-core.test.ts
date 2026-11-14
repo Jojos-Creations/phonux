@@ -538,26 +538,28 @@ test('a state change planted between the call and the commit makes the updater r
 
 for (const kind of ['declared', 'anonymous'] as const) {
   test(`a state change planted between the call and the commit on ${kind === 'declared' ? 'a declared' : 'an anonymous'} panel: the patch applies to the entry the other update left, and the resolver and the entry agree`, async () => {
-    const ids = ['a', 'b', 'c', 'd', 'e'];
+    // The other update is a move of a neighbour past the panel, run from the note the configure raises before it commits: nothing
+    // parks for room on the Embla row, and the panel's own operations answer busy until the commit. The move rewrites the panel's
+    // anchor priority, so a commit from the entry the call saw would put the panel back where it was.
     let plant: (() => void) | undefined;
     const r = await pinRig({
-      ids,
-      width: 1000,
-      settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' } as PanelSettings])),
-      extra: [markerTemplate('m', { settings: { multiple: true, overflow: 'park' } })],
+      extra: [markerTemplate('m', { settings: { multiple: true } })],
       over: { onNote: () => plant?.() },
     });
     const anon = kind === 'anonymous' ? r.turn(() => r.ws.addPanel('m')) : undefined;
     await r.settle();
-    const id = anon === undefined ? 'e' : anon.id;
-    const handle = anon ?? r.h.e!;
-    assert.equal(r.entry(id).live, true, 'control: it is the live park panel');
-    plant = () => void r.h.a!.show();
+    const id = anon === undefined ? 'c' : anon.id;
+    const handle = anon ?? r.h.c!;
+    const order = r.order();
+    assert.deepEqual([order[1], order.at(-1)], ['a', id], 'control: a is first after the root and the panel is last');
+    plant = () => void r.h.a!.move(order.length - 2);
     const before = r.entry(id);
     const res = r.turn(() => handle.configure({ closable: false, resizable: true, maxSlots: 1 }));
     assert.deepEqual({ ok: (res as Done).ok, now: [...(res as Done).now] }, { ok: true, now: ['closable', 'resizable', 'maxSlots'] });
+    await r.settle();
     const after = r.entry(id);
-    assert.equal(after.live, false, 'control: the planted show of a parked neighbour parked it before the configure could commit');
+    assert.deepEqual(r.order(), [...order.filter((k) => k !== 'a'), 'a'], 'control: the planted move landed before the configure could commit');
+    assert.equal(after.anchor?.priority, before.anchor!.priority - 1, 'the entry keeps the priority the move left');
     assert.deepEqual([after.settings === before.settings, !after.settings!.closable, after.settings!.closable, after.settings!.maxSlots], [false, true, false, 1], 'the entry carries the configure');
     assert.deepEqual([handle.getSettings().value.closable, handle.getSettings().source.closable], [false, 'instance'], 'and the resolver reads the same');
     assert.equal((r.turn(() => handle.close('person')) as { code?: string }).code, 'not-closable', 'and the restriction holds: close() is refused');
