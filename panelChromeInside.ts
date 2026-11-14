@@ -61,7 +61,9 @@ function slide(el: HTMLElement, edge: -1 | 1, away: boolean, reduced: boolean): 
 
 /** Tracks scrolling under `root` while `inside`, and slides its header and footer. Returns the root's capture-phase scroll handler. */
 export function useChromeScrollAway(root: React.RefObject<HTMLElement | null>, inside: boolean): (event: React.UIEvent<HTMLElement>) => void {
-  const reduced = useReducedMotionConfig() === true || useReducedMotion() === true;
+  const configReduced = useReducedMotionConfig() === true;
+  const systemReduced = useReducedMotion() === true;
+  const reduced = configReduced || systemReduced;
   const [away, setAway] = React.useState(false);
   const held = useOptionHeld();
   const gone = away && !held;
