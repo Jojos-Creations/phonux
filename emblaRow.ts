@@ -62,7 +62,8 @@ export function emblaWindowOf(room: number, phoneWidth: number, gap: number, str
 /** Each slot marker's left in strip px: one per slot of a strip `stripWidth` wide, every `phoneWidth + gap`. @internal */
 export function slotMarkerLefts(stripWidth: number, phoneWidth: number, gap: number): number[] {
   const pitch = phoneWidth + gap;
-  const count = stripWidth <= 0 ? 0 : Math.max(1, Math.round((stripWidth + gap) / pitch));
+  // A phone width that is not a positive number gives no grid: no markers rather than an endless count.
+  const count = !(stripWidth > 0) || !(pitch > 0) || !Number.isFinite(stripWidth) ? 0 : Math.max(1, Math.round((stripWidth + gap) / pitch));
   return Array.from({ length: count }, (_, k) => k * pitch);
 }
 
