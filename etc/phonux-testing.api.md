@@ -532,10 +532,7 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    hideStickiness: 'sticky' | 'until-room';
-    capacityReturn: 'auto' | 'manual';
     overflow: Overflow;
-    revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
@@ -559,7 +556,6 @@ export type SlideTuning = {
     ease: readonly [number, number, number, number];
     closeExitSeconds: number;
     closeExitEase: CloseExitEase;
-    glideEase: GlideEase;
 };
 
 // @public
@@ -681,11 +677,8 @@ export type WorkspaceTuning = {
     rowTop?: number | null;
     phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
-    gestureLockMs?: number;
     gestureQuietMs?: number;
     resizeSettleSlides?: number;
-    returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
-    dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
     fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {

@@ -366,9 +366,6 @@ export function findPhoneModel(id: string): PhoneModel | undefined;
 export const GAP = 16;
 
 // @public
-export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
-
-// @public
 export interface GrabDragEnd {
     clientX: number;
     clientY: number;
@@ -1352,11 +1349,8 @@ export type ResolvedWorkspaceTuning = {
     rowTop: number | null;
     phoneHeight: 'fit' | 'auto';
     saveQuietMs: number;
-    gestureLockMs: number;
     gestureQuietMs: number;
     resizeSettleSlides: number;
-    returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
-    dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'off';
     fastScroll: 'coalesce' | 'jump';
     initialScroll: 'start' | 'end' | 'root' | {
@@ -1546,10 +1540,7 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    hideStickiness: 'sticky' | 'until-room';
-    capacityReturn: 'auto' | 'manual';
     overflow: Overflow;
-    revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
@@ -1585,7 +1576,6 @@ export type SlideTuning = {
     ease: readonly [number, number, number, number];
     closeExitSeconds: number;
     closeExitEase: CloseExitEase;
-    glideEase: GlideEase;
 };
 
 // @public
@@ -2052,7 +2042,6 @@ export interface WorkspaceRowEntry {
     readonly marker?: true;
     readonly settings?: {
         readonly hollowDot: boolean;
-        readonly revealOnScroll?: 'edges' | 'any' | 'never';
     };
     readonly slots?: number;
     readonly uid?: string;
@@ -2123,11 +2112,8 @@ export type WorkspaceTuning = {
     rowTop?: number | null;
     phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
-    gestureLockMs?: number;
     gestureQuietMs?: number;
     resizeSettleSlides?: number;
-    returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
-    dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
     fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {
