@@ -104,7 +104,12 @@ const ws = createWorkspace({
 });
 if (storedAtLaunch === null) for (const id of ids) ws.addPanel(id);
 
+// Commits of the proof's App: a step on a virtual clock waits for a change's commits to land before it lets time run on.
+let commits = 0;
 function App() {
+  React.useLayoutEffect(() => {
+    commits += 1;
+  });
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
   const [w, setW] = React.useState(0);
@@ -256,6 +261,7 @@ const frame = (t: number): void => {
 requestAnimationFrame(frame);
 
 (window as any).__g = {
+  commits: () => commits,
   engine: ENGINE,
   PITCH: PHONE + GAP,
   PHONE,

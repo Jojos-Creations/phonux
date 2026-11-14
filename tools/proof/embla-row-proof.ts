@@ -14,7 +14,8 @@
  *        the panel at the window's left edge stays put in every frame and no one-slot panel is cut.
  * gesture a change while a gesture or glide holds the row (the audit's cases): a re-render with no layout change while a drag pulls
  *        the row past its start leaves the drag going; a panel far right of the view closed or resized under a wheel stream moves
- *        the row back no more than the stream's own settle (control: the stream alone) and loses no motion; a panel left of the
+ *        the row back no more than the stream's own settle (control: the stream alone) and loses no motion (on the page's virtual
+ *        clock, a fixed 125 wheels, so load cannot change the input; once more with 150 ms of page time after the change); a panel left of the
  *        view narrowed while an arrow-key glide runs lands on the slot grid.
  * settle (runs with gesture, or alone with --only settle) a mouse wheel's bursts with 40/150/300/600 ms pauses, a spin and a spin
  *        paused, a trackpad swipe with its momentum tail (flagged and not), nudges of 6-80 px from a stop, notches stopping just past a
@@ -131,9 +132,10 @@ const failed: string[] = [];
 const empty: string[] = [];
 const out: Record<string, unknown> = { engine: ENGINE, failed, empty };
 
-async function open(slots: string, width = 1800, height = 900, extra = '', engine: string = ENGINE, ctxOpts: Record<string, unknown> = {}): Promise<{ page: Page; errors: string[]; close: () => Promise<void> }> {
+async function open(slots: string, width = 1800, height = 900, extra = '', engine: string = ENGINE, ctxOpts: Record<string, unknown> = {}, beforeLoad?: (page: Page) => Promise<void>): Promise<{ page: Page; errors: string[]; close: () => Promise<void> }> {
   const ctx = await browser.newContext({ viewport: { width, height }, ...ctxOpts });
   const page: Page = await ctx.newPage();
+  if (beforeLoad !== undefined) await beforeLoad(page);
   const errors: string[] = [];
   page.on('pageerror', (e: Error) => errors.push(e.message));
   const consoleErrors: string[] = [];
@@ -505,7 +507,7 @@ if (ONLY.has('gesture') && ENGINE === 'embla') {
   const mixed = ROWS.mixed;
   const frameMoves = (fr: any[]): number[] => fr.slice(1).map((f, k) => f.pos - fr[k].pos);
   // A drag pulls the row past its start; a re-render with no layout change (viewport +2 px) must leave it there and the drag going.
-  {
+  if (want('gesture.overscroll')) {
     const { page, errors, close } = await open(mixed);
     const win = await g(page, 'win');
     const x0 = win.left + 2 * 406 - 8;
@@ -531,43 +533,72 @@ if (ONLY.has('gesture') && ENGINE === 'embla') {
     if (errors.length > 0) failed.push(`gesture overscroll: page errors ${errors.join(' | ')}`);
     await close();
   }
-  // A steady wheel; 1 s in, a change right of the view. The control is the stream alone: its settle steps back a few px.
-  const midWheel = async (label: string, act: ((page: Page) => Promise<void>) | null): Promise<{ worstBack: number; moved: number; rest: number }> => {
-    const { page, errors, close } = await open(mixed);
+  // A steady wheel, 1 s in a change right of the view, on the page's virtual clock (Playwright's clock: timers, animation frames,
+  // performance.now): 125 trusted wheels of 12 px, one per 16 ms of page time, the change after the 63rd, then 2.2 s of page time to
+  // settle. Page time stands still while a wheel or the change is handled, so the run does not depend on the machine's load (a
+  // wall-clock stream sent fewer wheels under load, and its control and its change run got different input). `late` puts 150 ms of
+  // page time after the 63rd wheel, as a commit that holds the main thread does: the gesture's 90 ms wait runs out there and the
+  // stream that follows starts a new gesture. Each run is compared with its control (the same stream, the same gap, no change).
+  const STREAM = 125;
+  const STREAM_PX = 12;
+  const midWheel = async (label: string, act: ((page: Page) => Promise<void>) | null, late: boolean): Promise<{ worstBack: number; moved: number; rest: number; wheelsSeen: number }> => {
+    const { page, errors, close } = await open(mixed, 1800, 900, '', ENGINE, {}, async (p) => p.clock.install());
     await page.mouse.move(900, 400);
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await page.clock.runFor(100);
     await g(page, 'record');
-    const t0 = Date.now();
-    let acted = false;
-    while (Date.now() - t0 < 2000) {
-      await page.mouse.wheel(12, 0);
-      if (!acted && act !== null && Date.now() - t0 > 1000) { acted = true; await act(page); }
-      await sleep(16);
+    for (let k = 0; k < STREAM; k += 1) {
+      await page.mouse.wheel(STREAM_PX, 0);
+      if (k === 62 && act !== null) {
+        const before = await g(page, 'commits');
+        await act(page);
+        // The change's commits land in real time (React's scheduler runs on a message channel); page time waits for them.
+        let seen = before;
+        for (let quiet = 0, n = 0; quiet < 5 && n < 500; n += 1) {
+          await sleep(10);
+          const now = await g(page, 'commits');
+          quiet = now === seen && now > before ? quiet + 1 : 0;
+          seen = now;
+        }
+        if (seen === before) empty.push(`gesture ${label}: the change made no commit, so it proves nothing`);
+      }
+      await page.clock.runFor(k === 62 && late ? 150 : 16);
     }
-    await sleep(2200);
+    await page.clock.runFor(2200);
     const fr = await g(page, 'stop');
     const mv = frameMoves(fr);
     const rest = fr[fr.length - 1].pos;
     const max = await g(page, 'max');
-    const r = { worstBack: +Math.min(0, ...mv).toFixed(2), moved: +(rest - fr[0].pos).toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, 406, max) };
+    const r = { worstBack: +Math.min(0, ...mv).toFixed(2), moved: +(rest - fr[0].pos).toFixed(1), rest: +rest.toFixed(1), restOnGrid: onGrid(rest, 406, max), frames: fr.length, wheelsSeen: fr.reduce((t: number, f: any) => t + f.wheels, 0) };
     res[label] = r;
+    if (r.frames < STREAM || r.wheelsSeen !== STREAM) empty.push(`gesture ${label}: ${r.wheelsSeen} of ${STREAM} wheels seen over ${r.frames} frames, so the run proves nothing`);
     if (!r.restOnGrid) failed.push(`gesture ${label}: rest ${rest} off the grid`);
     if (errors.length > 0) failed.push(`gesture ${label}: page errors ${errors.join(' | ')}`);
     await close();
     return r;
   };
-  const ctl = await midWheel('wheelControl', null);
-  if (!(ctl.moved > 300)) empty.push(`gesture: the wheel stream alone moved ${ctl.moved} px, so the mid-stream checks prove nothing`);
-  for (const [label, act] of [
-    ['wheelCloseFarRight', async (page: Page) => { const ids: string[] = await g(page, 'ids'); await g(page, 'op', 'close', ids[ids.length - 1]); }],
-    ['wheelResizeFarRight', async (page: Page) => { const ids: string[] = await g(page, 'ids'); await g(page, 'op', 'setSlots', ids[ids.length - 1], 1); }],
-  ] as const) {
-    const r = await midWheel(label, act);
-    if (r.worstBack < Math.min(ctl.worstBack, 0) - 10) failed.push(`gesture ${label}: the row jumped back ${r.worstBack} px (the stream alone: ${ctl.worstBack})`);
-    if (Math.abs(r.moved - ctl.moved) > 0.5 * 406) failed.push(`gesture ${label}: the row moved ${r.moved} px, the stream alone ${ctl.moved}: the gesture was lost`);
+  for (const late of [false, true].filter((l) => want(l ? 'gesture.wheelStreamLate' : 'gesture.wheelStream'))) {
+    const tag = late ? 'Late' : '';
+    const ctl = await midWheel(`wheelControl${tag}`, null, late);
+    // The owner's rest rule (2026-11-11) on the input alone: 1500 px from 0 rests on the stop ahead, 1624. A late stream settles once
+    // at the gap (on the stop ahead of 756 px, 812) and goes on from where the settle's glide is drawn, so it may rest a stop further.
+    const ruled = ruleRest(STREAM * STREAM_PX, 1, 406, 40 * 406);
+    if (!(ctl.moved > 300)) empty.push(`gesture: the wheel stream alone moved ${ctl.moved} px, so the mid-stream checks prove nothing`);
+    else if (!late && Math.abs(ctl.moved - ruled) > 0.5) failed.push(`gesture wheelControl: the stream alone rests at ${ctl.moved}, the rest rule on its ${STREAM * STREAM_PX} px says ${ruled}`);
+    else if (late && (ctl.moved < ruled - 0.5 || ctl.moved > ruled + 406.5)) failed.push(`gesture wheelControlLate: the stream with a gap rests at ${ctl.moved}, want ${ruled} or one stop past it`);
+    for (const [label, act] of [
+      [`wheelCloseFarRight${tag}`, async (page: Page) => { const ids: string[] = await g(page, 'ids'); await g(page, 'op', 'close', ids[ids.length - 1]); }],
+      [`wheelResizeFarRight${tag}`, async (page: Page) => { const ids: string[] = await g(page, 'ids'); await g(page, 'op', 'setSlots', ids[ids.length - 1], 1); }],
+    ] as const) {
+      const r = await midWheel(label, act, late);
+      if (r.worstBack < Math.min(ctl.worstBack, 0) - 10) failed.push(`gesture ${label}: the row jumped back ${r.worstBack} px (the stream alone: ${ctl.worstBack})`);
+      // Same input, same page time: a change far right of the view leaves the gesture exactly as the stream alone ran it.
+      if (Math.abs(r.moved - ctl.moved) > 0.5) failed.push(`gesture ${label}: the row moved ${r.moved} px, the stream alone ${ctl.moved}: the gesture was lost`);
+    }
   }
   // From slot 5, a wheel stream; 1 s in, the 3-slot panel left of the view narrows to 2. The keep-still shift lands under the gesture:
   // a panel in view moves on screen only as the stream moves it (worst frame-to-frame move), and the gesture goes on.
-  {
+  if (want('gesture.wheelNarrowLeft')) {
     const { page, errors, close } = await open(mixed);
     await g(page, 'jumpToSlot', 5);
     await sleep(500);
@@ -599,7 +630,7 @@ if (ONLY.has('gesture') && ENGINE === 'embla') {
     await close();
   }
   // ArrowRight from slot 5, and 120 ms into the glide narrow the 3-slot panel left of the view: the glide lands on the grid.
-  {
+  if (want('gesture.midGlide')) {
     const { page, errors, close } = await open(mixed);
     await g(page, 'jumpToSlot', 5);
     await sleep(500);
