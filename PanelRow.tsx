@@ -38,7 +38,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaPlaceOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaPlaceOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaFastScroll, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 // A host may apply a person's move a task or two after the drop or key that asked for it; a note older than this was refused.
@@ -604,13 +604,14 @@ export function PanelRow({
   };
   useRowDraw(boxRef);
   // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
-  useEmblaRow(windowRef, boxRef, true, workspaceTuning.gestureQuietMs, React.useContext(AwayContext));
+  useEmblaRow(windowRef, boxRef, true, workspaceTuning.gestureQuietMs, React.useContext(AwayContext), workspaceTuning.rowGesture);
   React.useLayoutEffect(() => {
     const embla = windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
     const restop = lastStops.current !== null && lastStops.current !== stopsKey;
     // The markers or the window changed in this commit: Embla rebuilds its stops from them, and the row keeps the view (a shift)
     // from where it is drawn, a glide in flight included.
     if (embla !== undefined) setEmblaReduced(embla, reducedMotion);
+    if (embla !== undefined) setEmblaFastScroll(embla, workspaceTuning.fastScroll, rowTuning.slide.durationSec);
     if (embla !== undefined && (keeping || restop)) moveEmbla(embla, keeping ? keepTo - scrollNow : 0, restop);
     if (embla !== undefined) lastStops.current = stopsKey;
     if (moveNote !== undefined && changed) lastMove.current = moveNote.seq;
@@ -618,7 +619,8 @@ export function PanelRow({
     if (embla !== undefined && reorderNow !== null) {
       reorderNote.current = null;
       const k = layoutNow.ids.indexOf(reorderNow);
-      const to = k < 0 ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
+      const moved = present.find((p) => p.id === reorderNow);
+      const to = k < 0 || moved === undefined || effective(moved).scrollOnMove !== 'follow' ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
       if (to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
     }
     const before = lastLayout.current;
@@ -626,7 +628,8 @@ export function PanelRow({
       // A panel that grew past the window's edge comes whole into view, as a reordered one does.
       const k = layoutNow.ids.findIndex((id, i) => {
         const j = before.ids.indexOf(id);
-        return j >= 0 && layoutNow.widths[i]! > before.widths[j]! + 0.5;
+        const entry = present.find((p) => p.id === id);
+        return j >= 0 && layoutNow.widths[i]! > before.widths[j]! + 0.5 && entry !== undefined && effective(entry).scrollOnMove === 'follow';
       });
       const to = k < 0 ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
       if (to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);

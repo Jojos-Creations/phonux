@@ -31,7 +31,7 @@ import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import type { RootView } from '../panelManager.js';
-import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, whenEmblaFree, wholeInView } from '../emblaRow.js';
+import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, startEmblaAt, whenEmblaFree, wholeInView } from '../emblaRow.js';
 import { useWorkspacePersistence } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
 
@@ -473,7 +473,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   const shrinkUnfocusedRef = useRef(tuning.shrinkUnfocused);
   shrinkUnfocusedRef.current = tuning.shrinkUnfocused;
-  const { restoreSettled, dismiss, undismiss, isDismissed } = useWorkspacePersistence({
+  const { restoreSettled, dismiss, undismiss, isDismissed, scroll: savedRest } = useWorkspacePersistence({
     storage: core.storage,
     panels,
     setPanels,
@@ -600,6 +600,41 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const keys = new Set(panels.map(panelKey));
     dismiss(before.filter((p) => p.declared === true && !keys.has(panelKey(p)) && effective(p).afterClose === 'stay-closed').map(panelKey));
     undismiss([...keys]);
+  });
+
+  // A wheel or a press on the row before its start is applied: the person's own move wins over `tuning.initialScroll`.
+  const touchedRef = useRef(false);
+  useEffect(() => {
+    const el = i.overflowContainerRef.current;
+    if (el === null) return undefined;
+    const touch = (): void => {
+      touchedRef.current = true;
+    };
+    el.addEventListener('wheel', touch, { capture: true, passive: true });
+    el.addEventListener('pointerdown', touch, true);
+    return () => {
+      el.removeEventListener('wheel', touch, true);
+      el.removeEventListener('pointerdown', touch, true);
+    };
+    // Mount only: the container ref object never changes.
+  }, []);
+  // `tuning.initialScroll`, once per mount: at the first commit after the restore settled with a row that has an entry and an Embla
+  // row to move, which starts there with no glide once it is measured. A saved rest takes its place; a wheel or a press first skips it.
+  const initialScrollDoneRef = useRef(false);
+  useLayoutEffect(() => {
+    const el = i.overflowContainerRef.current;
+    if (initialScrollDoneRef.current || !restoreSettled || el === null || i.containerWidth === 0 || rowNumbers.ids.length === 0) return;
+    const embla = emblaOf(el);
+    if (embla === undefined) return;
+    initialScrollDoneRef.current = true;
+    const where = tuning.initialScroll;
+    if (touchedRef.current || savedRest !== null || where === 'start') return;
+    const id = where === 'end' ? null : where === 'root' ? rootId : engineIdOf(where.panel);
+    startEmblaAt(embla, (strip, max) => {
+      if (id === null) return max;
+      const k = strip.layout.ids.indexOf(id);
+      return k < 0 ? null : Math.min(strip.layout.lefts[k]!, max);
+    });
   });
 
   // Runs the pending request against this commit's numbers  // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.

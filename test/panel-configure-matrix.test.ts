@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import './support/jsdom-globals.js';
 import { ROW_LAYER_Z } from '../rowConstants.js';
 import { centerRank, slotZ } from '../rowSlotZ.js';
-import { rowOffsetOf } from './support/strip.js';
+import { advanceUntilRowRests, emblaWindowIn, rowGlideTargetOf, rowOffsetOf, stubSlotBoxes } from './support/strip.js';
 import { act, createElement } from 'react';
 import { LIBRARY_PANEL_DEFAULTS } from '../index.js';
 import type { ConfigureResult, HeaderButton, PanelSettings, WorkspaceStorage } from '../index.js';
@@ -17,7 +17,6 @@ import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { headerRig } from './support/header-rig.js';
 import { drag, release } from './support/drag-gesture.js';
-import { rowScrollerFor } from './support/workspace-row.js';
 import { slotTransform } from './support/strip.js';
 import {
   CATALOG_NAMES,
@@ -649,28 +648,33 @@ test('matrix:edgeHold', async () => {
 
 test('matrix:scrollOnOpen', async () => {
   probe('scrollOnOpen');
+  // The Embla row at 1000 shows two slots (796 px); panel k of [root a b c d e] starts at 406k, and the stops are 0, 406 ... 1624.
   const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
+  stubSlotBoxes(r.m.container, 16);
   await r.settle();
   assert.equal(rowOffsetOf(r.m.container), 0);
   assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'start' }))), { now: [], later: ['scrollOnOpen'], shadowed: [] });
   await r.settle();
   assert.equal(rowOffsetOf(r.m.container), 0, 'no scroll happens at configure');
   r.turn(() => r.h.c!.scrollTo());
-  await r.settle();
-  assert.equal(rowOffsetOf(r.m.container), 1218, "scrollTo() defaults to the setting: c's left edge 1320 less the 16 gap is 1304, and the nearest stop that shows c is 1218");
+  await advanceUntilRowRests(r.m.container);
+  assert.equal(rowOffsetOf(r.m.container), 1218, "scrollTo() defaults to the setting: c's left edge is 1218, a stop");
   done(r.turn(() => r.h.c!.configure({ scrollOnOpen: 'none' })));
   r.turn(() => r.h.a!.scrollTo('start'));
-  await r.settle();
+  await advanceUntilRowRests(r.m.container);
+  assert.equal(rowOffsetOf(r.m.container), 406, 'control: the row starts from a at the window left');
   r.turn(() => r.h.c!.scrollTo());
-  await r.settle();
-  assert.equal(rowOffsetOf(r.m.container), 812, "none: scrollTo() falls back to into-view: c's right edge 1710 less the 984 visible is 726, and the stop that shows c whole is 812");
+  await advanceUntilRowRests(r.m.container);
+  assert.equal(rowOffsetOf(r.m.container), 812, "none: scrollTo() falls back to into-view: from a's 406, c's right edge 1608 less the 796 window is 812");
   const hidden = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
+  r.m.unmount();
+  stubSlotBoxes(hidden.m.container, 16);
   hidden.turn(() => hidden.h.c!.hide());
   await hidden.settle();
   done(hidden.turn(() => hidden.h.c!.configure({ scrollOnOpen: 'start' })));
   assert.equal(rowOffsetOf(hidden.m.container), 0, 'K, H: stored, nothing scrolls');
   hidden.turn(() => hidden.h.c!.show());
-  await hidden.settle();
+  await advanceUntilRowRests(hidden.m.container);
   assert.equal(rowOffsetOf(hidden.m.container), 1218, 'the next show of the hidden panel reads it');
 });
 
@@ -678,6 +682,7 @@ test('matrix:scrollOnMove', async () => {
   probe('scrollOnMove');
   const grown = async (none: boolean): Promise<number> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e'], width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
+    stubSlotBoxes(r.m.container, 16);
     await r.settle();
     if (none) {
       assert.deepEqual(shape(r.turn(() => r.h.a!.configure({ scrollOnMove: 'none' }))), { now: [], later: ['scrollOnMove'], shadowed: [] });
@@ -685,7 +690,7 @@ test('matrix:scrollOnMove', async () => {
       assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls at configure');
     }
     r.turn(() => r.h.a!.setSlots(2));
-    await r.settle();
+    await advanceUntilRowRests(r.m.container);
     const at = rowOffsetOf(r.m.container);
     r.m.unmount();
     return at;
@@ -1097,16 +1102,19 @@ test('matrix:tuning.rowGap', async () => {
   const taken = await matrixRig();
   assert.deepEqual(taken.turn(() => [letter(taken.h.a!.hide()), letter(taken.ws.panels.configureTuning({ rowGap: 30 }))]), ['T', 'busy'], 'busy while any panel has a token');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowGap: 201 })), 'invalid-settings', 'outside 0 to 200 throws');
-  const parked = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], park: true, width: 1950, workspace: { tuning: { rowGap: 0 } } });
-  await parked.settle();
-  assert.equal(parked.live().filter((n) => n !== 'root').length, 4, 'park mode at gap 0 holds four beside the root');
-  done(parked.turn(() => parked.ws.panels.configureTuning({ rowGap: 40 })));
-  await parked.settle();
-  assert.equal(parked.live().filter((n) => n !== 'root').length, 3, 'a smaller capacity parks the fewest park panels');
   const unmeasured = await matrixRig({ width: 0 });
   const entries = unmeasured.m.latest().entries;
   done(unmeasured.turn(() => unmeasured.ws.panels.configureTuning({ rowGap: 40 })));
   assert.deepEqual([unmeasured.ws.tuning.rowGap, unmeasured.m.latest().entries === entries], [40, true], 'unmeasured: stored');
+  // The arrow keys step every row in the document: only this one is mounted.
+  for (const rig of [r, taken, unmeasured]) rig.m.unmount();
+  // Parking for room is gone with the old row; on the Embla row the gap prices each step: a phone and the gap.
+  const stepped = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f'], width: 1000, workspace: { tuning: { rowGap: 40 } } });
+  stubSlotBoxes(stepped.m.container, 16);
+  await stepped.settle();
+  act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })));
+  await advanceUntilRowRests(stepped.m.container);
+  assert.equal(rowOffsetOf(stepped.m.container), 430, 'an arrow key steps the row by 390 plus the gap of 40');
 });
 
 test('matrix:tuning.rowTop', async () => {
@@ -1262,25 +1270,27 @@ test('matrix:tuning.saveQuietMs', async () => {
 test('matrix:tuning.gestureQuietMs', async () => {
   probe('tuning.gestureQuietMs');
   await wrongScopeInEveryStatus({ tuning: { gestureQuietMs: 300 } }, 'tuning.gestureQuietMs');
-  const smallerSwipeActs = async (gestureQuietMs: number | undefined): Promise<boolean> => {
+  // On the Embla row the quiet time ends a wheel gesture's owner: a gesture whose first wheel held Option belongs to the content
+  // until the wheel has been quiet that long, so a plain wheel 120 ms later is still the content's under 150 ms and the row's under 100.
+  const plainWheelMovesRow = async (gestureQuietMs: number | undefined): Promise<boolean> => {
     const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
+    stubSlotBoxes(r.m.container, 16);
     await r.settle();
     mockWindow();
-    const scroller = rowScrollerFor(r.m.container);
     if (gestureQuietMs !== undefined) done(r.turn(() => r.ws.panels.configureTuning({ gestureQuietMs })));
-    const wheel = (deltaX: number): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
-    wheel(100);
-    const first = scroller.glideTarget();
+    const wheel = (deltaX: number, altKey: boolean): void => act(() => void emblaWindowIn(r.m.container)!.dispatchEvent(new WheelEvent('wheel', { deltaX, altKey, cancelable: true, bubbles: true })));
+    wheel(100, true);
+    const first = rowGlideTargetOf(r.m.container);
     act(() => mock.timers.tick(120));
-    wheel(50);
-    const second = scroller.glideTarget();
+    wheel(50, false);
+    const second = rowGlideTargetOf(r.m.container);
     mock.timers.reset();
     r.m.unmount();
-    assert.notEqual(first, null, 'control: the first swipe starts a glide');
-    return second !== first;
+    assert.equal(first, null, 'control: an Option wheel leaves the row to the content');
+    return second !== null;
   };
-  assert.equal(await smallerSwipeActs(undefined), false, 'under the default 150 ms a smaller swipe 120 ms later is a decaying tail');
-  assert.equal(await smallerSwipeActs(100), true, 'under 100 ms the same swipe is fresh and acts');
+  assert.equal(await plainWheelMovesRow(undefined), false, 'under the default 150 ms a plain wheel 120 ms after an Option wheel is still the content gesture');
+  assert.equal(await plainWheelMovesRow(100), true, 'under 100 ms the same wheel starts a fresh gesture, the row moves');
   const r = await matrixRig();
   await r.settle();
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ gestureQuietMs: 0 })), 'invalid-settings', 'a quiet time below 1 throws');
@@ -1290,18 +1300,19 @@ test('matrix:tuning.rowGesture', async () => {
   probe('tuning.rowGesture');
   await wrongScopeInEveryStatus({ tuning: { rowGesture: 'off' } }, 'tuning.rowGesture');
   const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], width: 1000 });
+  stubSlotBoxes(r.m.container, 16);
   await r.settle();
-  const scroller = rowScrollerFor(r.m.container);
-  const wheel = (): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX: 50, cancelable: true, bubbles: true })));
+  // A wheel over the row lands on the Embla row's window, where its wheel listener is.
+  const wheel = (): void => act(() => void emblaWindowIn(r.m.container)!.dispatchEvent(new WheelEvent('wheel', { deltaX: 50, cancelable: true, bubbles: true })));
   wheel();
-  assert.equal(scroller.glideTarget() !== null, true, 'before: step starts a glide on a swipe');
+  assert.equal(rowGlideTargetOf(r.m.container) !== null, true, 'before: step starts a glide on a swipe');
   await r.settle();
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'off' }))) }, { ok: true, changed: true, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
   assert.equal(r.live().length, 11, 'no panel moves');
   const at = rowOffsetOf(r.m.container);
   await r.settle();
   wheel();
-  assert.deepEqual([scroller.glideTarget(), rowOffsetOf(r.m.container)], [null, at], 'after the next render: off installs no listener, so a swipe does nothing');
+  assert.deepEqual([rowGlideTargetOf(r.m.container), rowOffsetOf(r.m.container)], [null, at], 'after the next render: off leaves the wheel to the page, so a swipe does nothing');
   assert.equal(thrownCode(() => r.ws.panels.configureTuning({ rowGesture: 'free' } as never)), 'invalid-settings', "'free' is not a gesture: it throws like any other value outside the set");
 });
 
@@ -1320,12 +1331,14 @@ test('matrix:tuning.initialScroll', async () => {
   await wrongScopeInEveryStatus({ tuning: { initialScroll: 'end' } }, 'tuning.initialScroll');
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
   const r = await matrixRig({ ids, width: 1000 });
+  stubSlotBoxes(r.m.container, 16);
   await r.settle();
   assert.equal(rowOffsetOf(r.m.container), 0, 'before: the strip starts at the left');
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ initialScroll: 'end' }))) }, { ok: true, changed: true, now: [], later: ['tuning.initialScroll'], shadowed: [], notes: [] });
   await r.settle();
   assert.equal(rowOffsetOf(r.m.container), 0, 'nothing scrolls now');
   const next = await matrixRig({ ids, width: 1000, workspace: { tuning: { initialScroll: 'end', rowGesture: 'step' } } });
+  stubSlotBoxes(next.m.container, 16);
   await next.settle();
   // The row's end is 4450 plus 86 of centering at each end, less the 968 window: 3654, the last stop.
   assert.equal(rowOffsetOf(next.m.container), 3654, 'a mount that reads end puts the strip at its farthest legal scroll');

@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
-import { emblaDrawnOf, emblaOf, endEmblaWheel, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
+import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
@@ -182,7 +182,7 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
     if (left >= at - 0.5 && left + width <= at + strip.windowWidth + 0.5) return;
     // A dot pressed during a wheel gesture takes the row from where it is drawn, as a key step does.
     endEmblaWheel(embla);
-    embla.scrollTo(nearestStop(embla, clamp(left + width / 2 - strip.windowWidth / 2)), reduced);
+    glideEmbla(embla, nearestStop(embla, clamp(left + width / 2 - strip.windowWidth / 2)));
   };
 
   const ovalAt = (x: number): boolean => x >= bar.oval.left && x <= bar.oval.left + bar.oval.width + 2 * ovalSide;

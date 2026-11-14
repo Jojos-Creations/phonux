@@ -159,6 +159,11 @@ export function markEmblaBuilt(embla: EmblaCarouselType): void {
  * @internal
  */
 export function moveEmbla(embla: EmblaCarouselType, shift: number, restop: boolean): void {
+  placeEmbla(embla, shift, restop);
+  // A rebuild may be the first that measures the row: a start waiting for it (`startEmblaAt`) runs now.
+  if (restop) runStart(embla);
+}
+function placeEmbla(embla: EmblaCarouselType, shift: number, restop: boolean): void {
   const e = embla.internalEngine();
   if (e.dragHandler.pointerDown() || wheelRuns.has(embla)) {
     if (Math.abs(shift) > 0.01) shiftEmbla(embla, shift);
@@ -198,6 +203,99 @@ export function setEmblaReduced(embla: EmblaCarouselType, on: boolean): void {
 }
 /** Whether the row `embla` moves runs under Reduce Motion. @internal */
 export const emblaReduced = (embla: EmblaCarouselType): boolean => reducedRows.has(embla);
+
+/** Each row's `tuning.fastScroll` and the slide time its fade takes, set by the row at each commit. */
+const fastScrolls = new WeakMap<EmblaCarouselType, { mode: 'coalesce' | 'jump'; durationSec: number }>();
+/** Records the row's `tuning.fastScroll` and its `slide.durationSec`, which `glideEmbla` reads. @internal */
+export function setEmblaFastScroll(embla: EmblaCarouselType, mode: 'coalesce' | 'jump', durationSec: number): void {
+  fastScrolls.set(embla, { mode, durationSec });
+}
+/** Each row's pending start (`tuning.initialScroll`): where it starts once Embla has measured it, unless a person got there first. */
+const starts = new WeakMap<EmblaCarouselType, (strip: EmblaStrip, max: number) => number | null>();
+/**
+ * Starts the row `embla` at the scroll px `where` answers from its strip and its furthest rest, once, with no glide: now when Embla
+ * has measured the row, else at its first build that has (a row laid out after its first commit). Dropped by a wheel or a press on
+ * the row before then, and skipped when a glide or a move already took the row from its start. Null from `where`: stays put. @internal
+ */
+export function startEmblaAt(embla: EmblaCarouselType, where: (strip: EmblaStrip, max: number) => number | null): void {
+  starts.set(embla, where);
+  runStart(embla);
+}
+function runStart(embla: EmblaCarouselType): void {
+  const where = starts.get(embla);
+  const strip = strips.get(embla.rootNode());
+  if (where === undefined || strip === undefined || boxWidthOf(embla) < 0.5) return;
+  starts.delete(embla);
+  if (Math.abs(emblaDrawnOf(embla)) > 0.5 || Math.abs(emblaTargetOf(embla)) > 0.5) return;
+  const to = where(strip, emblaMaxOf(embla));
+  if (to === null || to <= 0.5) return;
+  const stop = nearestStop(embla, Math.min(to, emblaMaxOf(embla)));
+  // Drawn there in this frame, so no frame shows the start; the jump then selects the stop.
+  writeEmbla(embla, stopPx(embla, stop));
+  embla.scrollTo(stop, true);
+}
+const fades = new WeakMap<EmblaCarouselType, { frame: number; stop: number }>();
+/** Ends a fade in flight on the row where it is, the row seen again: a wheel takes the row from there. */
+function stopFade(embla: EmblaCarouselType): void {
+  const fade = fades.get(embla);
+  if (fade === undefined) return;
+  fades.delete(embla);
+  const box = embla.containerNode();
+  (box.ownerDocument.defaultView ?? window).cancelAnimationFrame(fade.frame);
+  box.style.opacity = '';
+}
+/**
+ * Moves the row `embla` to stop `stop` the way a step, a dot or a scroll request does. A glide (a jump under Reduce Motion), except
+ * under `tuning.fastScroll` 'jump' when the move is more than a window from where the row is drawn: the row's box fades out, the row
+ * jumps unseen at the fade's midpoint, and fades back in, over the slide's time; nothing between is drawn. A fade in flight is
+ * retargeted, and any other move of the row (a press, a wheel, a drag) ends it at full opacity. @internal
+ */
+export function glideEmbla(embla: EmblaCarouselType, stop: number): void {
+  const fast = fastScrolls.get(embla);
+  const running = fades.get(embla);
+  if (running !== undefined) {
+    running.stop = stop;
+    return;
+  }
+  const windowWidth = strips.get(embla.rootNode())?.windowWidth ?? Number.POSITIVE_INFINITY;
+  const far = Math.abs(stopPx(embla, stop) - emblaDrawnOf(embla)) > windowWidth + 0.5;
+  if (reducedRows.has(embla) || fast?.mode !== 'jump' || !far || fast.durationSec <= 0) {
+    embla.scrollTo(stop, reducedRows.has(embla));
+    return;
+  }
+  const box = embla.containerNode();
+  const view = box.ownerDocument.defaultView ?? window;
+  const durationMs = fast.durationSec * 1000;
+  const start = view.performance.now();
+  let jumped = false;
+  const fade = { frame: 0, stop };
+  fades.set(embla, fade);
+  const end = (): void => {
+    fades.delete(embla);
+    box.style.opacity = '';
+  };
+  // A press, a wheel or a drag takes the row: the fade ends where it is, the row seen again.
+  embla.on('pointerDown', function off() {
+    embla.off('pointerDown', off);
+    if (fades.get(embla) === fade) stopFade(embla);
+  });
+  const tick = (): void => {
+    const t = Math.min(1, (view.performance.now() - start) / durationMs);
+    if (!jumped && t >= 0.5) {
+      jumped = true;
+      embla.scrollTo(fade.stop, true);
+    }
+    if (t >= 1) {
+      if (!jumped) embla.scrollTo(fade.stop, true);
+      end();
+      return;
+    }
+    box.style.opacity = String(Math.abs(1 - 2 * t));
+    fade.frame = view.requestAnimationFrame(tick);
+  };
+  box.style.opacity = '1';
+  fade.frame = view.requestAnimationFrame(tick);
+}
 
 /** A gesture that held the row let go: runs the rebuild a strip change made wait (see `moveEmbla`). @internal */
 export function releaseEmbla(embla: EmblaCarouselType): void {
@@ -242,15 +340,18 @@ export function maximizedIn(win: Element): boolean {
   return win.querySelector(`[${PANEL_ROOT_ATTRIBUTE}][popover]`) !== null;
 }
 
-/** The options the row runs Embla with: one stop per slot marker, a flick may pass several. @internal */
-export function emblaRowOptions(): EmblaOptionsType {
+/**
+ * The options the row runs Embla with: one stop per slot marker, a flick may pass several. `dragOn` is read at each press: false
+ * (`tuning.rowGesture` 'off') leaves the press to the page, so no drag or swipe moves the row. @internal
+ */
+export function emblaRowOptions(dragOn: () => boolean = () => true): EmblaOptionsType {
   return {
     align: 'start',
     containScroll: 'trimSnaps',
     slides: `:scope > [${EMBLA_SLOT_ATTRIBUTE}]`,
     skipSnaps: true,
     dragThreshold: 4,
-    watchDrag: (api, event) => !maximizedIn(api.rootNode()) && pressStartsRowDrag(event),
+    watchDrag: (api, event) => dragOn() && !maximizedIn(api.rootNode()) && pressStartsRowDrag(event),
     // The row rebuilds Embla itself (`moveEmbla`) when the markers or the window change: Embla's own watchers would rebuild on every
     // slot and drop-gap change in the box, back to the selected stop, dropping a gesture in progress.
     watchSlides: false,
@@ -538,7 +639,7 @@ export function showOnEmbla(embla: EmblaCarouselType, id: string, align: 'into-v
     const from = emblaTargetOf(embla);
     const stop = nearestStop(embla, emblaShowScroll(strip.layout.lefts[k]!, strip.layout.widths[k]!, from, strip.windowWidth, align, emblaMaxOf(embla)));
     if (Math.abs(stopPx(embla, stop) - from) <= 0.5) return;
-    embla.scrollTo(stop, reducedRows.has(embla));
+    glideEmbla(embla, stop);
   });
   return true;
 }
@@ -622,6 +723,7 @@ function wheelBy(embla: EmblaCarouselType, by: number, momentum: boolean): void 
   const e = embla.internalEngine();
   let run = wheelRuns.get(embla);
   if (run === undefined) {
+    stopFade(embla);
     const speed = -e.scrollBody.velocity();
     const at = emblaDrawnOf(embla);
     writeEmbla(embla, at);
@@ -734,9 +836,13 @@ export function holdEmbla(embla: EmblaCarouselType): { write(left: number): numb
  * one slot. `enabled` false tears it down.
  * @internal
  */
-export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxRef: React.RefObject<HTMLElement | null>, enabled: boolean, quietMs: number, awayStore?: AwayStore): void {
+export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxRef: React.RefObject<HTMLElement | null>, enabled: boolean, quietMs: number, awayStore?: AwayStore, gesture: 'step' | 'off' = 'step'): void {
   const quietRef = React.useRef(quietMs);
   quietRef.current = quietMs;
+  // `tuning.rowGesture`, read at each wheel and press: 'off' leaves wheels, drags and swipes to the page, and keeps the keys, the
+  // focus reveal and every move by code.
+  const gestureRef = React.useRef(gesture);
+  gestureRef.current = gesture;
   React.useLayoutEffect(() => {
     const win = windowRef.current;
     if (!enabled || win === null || awayStore === undefined) return undefined;
@@ -756,12 +862,13 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // size, a trackpad's momentum, and it cancels a sideways wheel (`preventWheelAction: 'x'`), so `feedRowWheel` reads it as taken.
     const wheels = WheelGestures({ preventWheelAction: 'x', reverseSign: false });
     const onWheel = (e: WheelEvent): void => {
+      starts.delete(embla);
       if (quiet !== null) clearTimeout(quiet);
       quiet = setTimeout(() => {
         owner = null;
       }, quietRef.current);
       if (owner === null) owner = e.altKey ? 'content' : 'row';
-      if (owner === 'content' || win.closest('[inert]') !== null || maximizedIn(win)) return;
+      if (owner === 'content' || gestureRef.current === 'off' || win.closest('[inert]') !== null || maximizedIn(win)) return;
       // A reorder drag's edge scroll is the one writer while it holds the row, and the own row refused every step under a drag's claim:
       // the wheel is ignored, and a sideways one is still kept from the content.
       if (heldRows.has(embla)) {
@@ -779,7 +886,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       wheelBy(embla, dx, s.isMomentum);
     });
     win.addEventListener('wheel', onWheel, { passive: false });
-    const embla = EmblaCarousel(win, { ...emblaRowOptions(), container: box });
+    const embla = EmblaCarousel(win, { ...emblaRowOptions(() => gestureRef.current !== 'off'), container: box });
     instances.set(win, embla);
     markEmblaBuilt(embla);
     // Embla's root runs its release on a contextmenu or a touchcancel even with no press of its own (the context-menu key, a
@@ -847,7 +954,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       const snaps = embla.scrollSnapList().length;
       const at = nearestStop(embla, emblaTargetOf(embla));
       const to = Math.min(Math.max(0, at + (direction === 'left' ? -1 : 1)), snaps - 1);
-      if (to !== at) embla.scrollTo(to, reducedRows.has(embla));
+      if (to !== at) glideEmbla(embla, to);
     };
     view.addEventListener('keydown', onKey);
     // A host's own chord (`stepRow`) steps this row as a bare arrow does, and not while a panel of it is lifted.
@@ -865,6 +972,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // it to whatever the press starts: Embla's own drag of the row (its release settles it), a reorder drag, or nothing, when the
     // release settles the row on the nearest stop. A right or middle press leaves the gesture going (its contextmenu is kept above).
     const onPress = (e: PointerEvent): void => {
+      starts.delete(embla);
       if (!e.isTrusted || e.button !== 0 || !endEmblaWheel(embla)) return;
       const settle = (): void => {
         view.removeEventListener('pointerup', settle, true);

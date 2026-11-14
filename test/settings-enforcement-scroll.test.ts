@@ -6,11 +6,12 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { advanceUntilRowRests, rowBoxOf, rowGlideTargetOf, rowOffsetOf, stubSlotBoxes } from './support/strip.js';
+import { advanceUntilRowRests, emblaWindowIn, rowBoxOf, rowGlideTargetOf, rowOffsetOf, stubSlotBoxes } from './support/strip.js';
 import { act } from 'react';
 import type { PanelSettings, WorkspaceTuning } from '../index.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { emblaOf } from '../emblaRow.js';
 import { made, mountRow, panelsOf, rootEntry, row } from './support/scroll-row.js';
 
 afterEach(() => {
@@ -104,23 +105,53 @@ test('differential tuning.rowGesture: step starts a glide on a swipe and off lea
   });
 });
 
-/** Whether the row faded during four quick mouse-wheel notches, 48 ms apart and each one stop on, under `fastScroll`. */
-async function fadedUnder(fastScroll: 'coalesce' | 'jump'): Promise<boolean> {
+/** Under rowGesture 'off': what a wheel, a press that would start a drag, an arrow key and a scrollTo each do to the row. */
+async function offKeeps(rowGesture: 'step' | 'off'): Promise<{ key: number; scrollTo: number; wheel: number | null; drag: boolean }> {
+  const m = mountRow(panelsOf(10), 1000, { tuning: { rowGesture } });
+  stubSlotBoxes(m.container, 16);
+  m.key('ArrowRight');
+  await advanceUntilRowRests(m.container);
+  const key = rowOffsetOf(m.container);
+  act(() => void m.latest().scrollTo('s9', 'start'));
+  await advanceUntilRowRests(m.container);
+  const scrollTo = rowOffsetOf(m.container);
+  m.wheel({ deltaX: -50 });
+  const glide = rowGlideTargetOf(m.container);
+  const wheel = glide === null ? null : Math.round(glide);
+  const win = emblaWindowIn(m.container)!;
+  const embla = emblaOf(win)!;
+  // Embla asks watchDrag at each press: a touch on the row's own surface starts a drag of the row unless the option refuses it.
+  const watch = embla.internalEngine().options.watchDrag;
+  const drag = (typeof watch === 'function' ? watch(embla, { type: 'touchstart', target: win } as never) : watch) === true;
+  cleanup();
+  return { key, scrollTo, wheel, drag };
+}
+
+test('tuning.rowGesture off stops the wheel and the drag of the row only: an arrow key and a scrollTo still move it', async () => {
+  assert.deepEqual(await offKeeps('step'), { key: 406, scrollTo: 3654, wheel: 3604, drag: true }, 'control: under step each of them moves the row');
+  assert.deepEqual(await offKeeps('off'), { key: 406, scrollTo: 3654, wheel: null, drag: false });
+});
+
+/**
+ * Under `fastScroll`: whether the row faded on a move of more than a window (a scrollTo of s9 from the start: 3654 px in a 796 px
+ * window), and where it came to rest. A wheel follows the person 1:1 on the Embla row, so the far move is a request, as a dot is.
+ */
+async function fadedUnder(fastScroll: 'coalesce' | 'jump'): Promise<{ faded: boolean; at: number }> {
   const m = mountRow(panelsOf(10), 1000, { tuning: { fastScroll } });
   stubSlotBoxes(m.container, 16);
   const strip = rowBoxOf(m.container)!;
-  m.wheel({ deltaX: 50 });
-  for (let k = 0; k < 3; k += 1) {
-    await advanceFrames(48);
-    m.wheel({ deltaX: 500 });
-  }
+  act(() => void m.latest().scrollTo('s9', 'start'));
   let darkest = 1;
-  for (let ms = 0; ms < 800; ms += 16) {
+  for (let ms = 0; ms < 1500; ms += 16) {
     await advanceFrames(16);
     darkest = Math.min(darkest, strip.style.opacity === '' ? 1 : Number(strip.style.opacity));
   }
+  await advanceUntilRowRests(m.container);
+  const at = rowOffsetOf(m.container);
+  const after = strip.style.opacity;
   cleanup();
-  return darkest < 0.5;
+  assert.equal(after, '', 'the row is seen again once it rests');
+  return { faded: darkest < 0.5, at };
 }
 
 test('differential tuning.fastScroll: coalesce glides the whole way and jump fades past a move of more than a window', async () => {
@@ -128,10 +159,10 @@ test('differential tuning.fastScroll: coalesce glides the whole way and jump fad
     ['coalesce', await fadedUnder('coalesce')],
     ['jump', await fadedUnder('jump')],
   ]);
-  assert.deepEqual([...outcomes.values()], [false, true]);
+  assert.deepEqual([...outcomes.values()], [{ faded: false, at: 3654 }, { faded: true, at: 3654 }]);
   differential('tuning.fastScroll', (run) => {
-    run('coalesce', () => outcomes.get('coalesce'));
-    run('jump', () => outcomes.get('jump'));
+    run('coalesce', () => outcomes.get('coalesce')!.faded);
+    run('jump', () => outcomes.get('jump')!.faded);
   });
 });
 
@@ -143,14 +174,19 @@ const initialOf = (initialScroll: NonNullable<WorkspaceTuning['initialScroll']>)
   return at;
 };
 
-test('differential tuning.initialScroll: start leaves the strip at 0 and end scrolls it to 3482', () => {
+test('differential tuning.initialScroll: start leaves the strip at 0 and end scrolls it to 3654', () => {
+  const outcomes = new Map([
+    ['start', initialOf('start')],
+    ['end', initialOf('end')],
+  ]);
+  assert.deepEqual([...outcomes.values()], [0, 3654]);
   differential('tuning.initialScroll', (run) => {
-    run('start', () => initialOf('start'));
-    run('end', () => initialOf('end'));
+    run('start', () => outcomes.get('start'));
+    run('end', () => outcomes.get('end'));
   });
 });
 
-test('differential coverage: the names the differentials above completed are exactly the five this entry owns', () => {
+test('differential coverage: the names the differentials above completed are exactly the six this entry owns', () => {
   assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
   assert.deepEqual(differentialsCovered(), [...OWNED].sort());
 });
