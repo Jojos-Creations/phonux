@@ -183,6 +183,21 @@ like any other panel: a drag passes the root or a permanent column, one hop per 
 drag is one way a panel ends up left of the root. After every `move` each panel's anchor is re-read from the
 row as it then stands -- see "The drag contract" in the next section.
 
+## The row runs on Embla Carousel
+
+The row is one strip on Embla Carousel 8.6 (`emblaRow.ts`, pinned: the row writes `internalEngine()`, guarded by
+`test/embla-internals-contract.test.ts`). The window is sized to whole slots; one invisible marker per slot is Embla's slide,
+so every slot edge is a stop, a wide panel's inner ones included. Wheel and trackpad (through wheel-gestures), a mouse drag on
+the row's surface, the bare arrow keys, the dot bar and moves by code all move that one strip; nothing parks for room, and
+`tuning.maxLivePanels` unloads far panels to placeholders of their width. A change of the strip keeps the view still
+(`keptScroll`), and a slot that moves on screen glides there.
+
+Where the row rests is saved with the panels: a person's move (a wheel the row owns, a primary press, a key or `stepRow` step, the
+dot bar) starts `watchEmblaRest`, which waits until the row has stood still for 150 ms with no glide, press, wheel gesture or
+drag hold, and the provider records the rest as `{ panel, offset }` (the first panel the window shows, and the offset from its
+left edge in phone widths and gaps). The persistence hook's debounced save writes it; a relaunch starts there with no glide,
+over `tuning.initialScroll`. A move by code is not recorded.
+
 ## Row order is anchor metadata: `{ panel, position, priority }`
 
 Every panel's place in the row comes from its own anchor, never from a fixed rule about the root. The root
@@ -388,44 +403,21 @@ A root with no `edgeHold` is a panel of the strip: the row's scroll carries it o
 
 ### Edge holds
 
-`edgeHold` ('off' by default, 'left', 'right' or 'both') keeps a panel at a row edge while the strip scrolls under it. A slot cannot
-be the sticky element: its `x` is a Motion transform, and a transform fights the sticky offset. So every held panel keeps its React
-place in the strip, wrapped in a `PanelHold` host that is sticky while the panel is held (see below). `rowNumbers.ts` takes the left
-and right holds out of the strip's widths and rests (`held`, `ids`, `leftOffsets`, `stops`), and `Workspace.tsx` draws two plain
-spacers in the scroller, as wide as the left and right groups, so the strip starts and ends where the groups do. Nothing is portaled.
+`edgeHold` ('off' by default, 'left', 'right' or 'both') keeps a panel in view while the row moves. Embla moves the strip by a
+transform on its container, so no slot can be a sticky element: a held slot is drawn against the strip instead. Every slot sits
+in a `PanelHold` host (`display: contents`) whether it is held or not, so a hold that starts or lets go never remounts the view.
 
-- A fixed hold sits in the slot grid, not at the window edge: the left group starts at `rowMarginLeft`, so the held panel is slot 0 and the strip's first panel is one gap after it; the right group ends `endPad` before the window's right edge.
-- The element's insets are its own: the left one `left: 0`, the right one `right: gap`. Chromium counts the scroller's padding inside a sticky
-  inset, so a `left: gap` on the left element pushes it a gap too far and it overlaps the strip.
-- The insets are `leftInset` (the group and its trailing gap) and `rightInset` (its leading gap and the group), so the strip starts at
-  `stripStart` and is seen through `stripWindow`. `maxScrollOf` and the stop grid count both, and `reservedWidths` keeps the held widths, so
-  capacity is priced beside them.
-- A held panel is never movable and never crossed: the neighbor walk stops at it, and the edge-scroll band is the strip's window.
-- The room rule: a candidate holds while the window keeps at least one phone of strip beside every hold, in row order. A candidate that
-  cannot fit lets go and scrolls with the strip. The holds stand only if the strip without them still overflows, so a row that would not
-  scroll releases them all.
-- 'both' stays in the strip at its strip place, so the layout is the same at every scroll. `rowNumbers.stuck` gives each admitted 'both'
-  panel its insets, in row order. `left` is the fixed left group plus one panel and gap for each 'both' panel before it; `right` is the
-  fixed right group and its gap plus one panel and gap for each 'both' panel after it. Scroll pins an earlier panel whenever it pins a
-  later one on the same edge, so each edge's stack runs in row order with the outermost panel nearest the window edge. A 'both' panel
-  with no room beside the others lets go like any release.
-- A held left or right panel is pinned by its own inset: `left` is its offset in the left group, and `right` is the right group's
-  inset less its offset and its width. Its spacer puts it at its group's place at scroll 0, so the group needs no portal.
-- `PanelHold` renders for every panel, held or not, so the React tree never changes when a hold starts or lets go. A held panel's host
-  is a zero-height flex line that starts at the scroller's content origin (minus the strip's start), holding a spacer and the panel's box,
-  which the row's drawing pass moves every frame to where a sticky box with those insets would sit (the strip moves by a transform, so
-  `position: sticky` has nothing to stick to). An unheld panel's host is `display: contents`. The line spans the whole content, and the
-  pass keeps the box inside it.
-- The row's drawing pass (`rowDraw.ts`, called from `PanelRow`) is the one place that draws from where the strip is. The grid's cut is a
-  `clip-path` on `data-row-window`, the strip's parent, written once per commit: the grid's edges stand still in the window while the
-  strip moves under them, and a cut written each frame from the strip's position trails a strip the compositor draws, which left blank
-  panels on a long glide. The held boxes' clamp, the cut and fade of a strip panel beside a held one, and which panels the window does
-  not reach are written per frame from the same scroll; a row with a held or stuck panel asks the scroller for a `sameFrame` listener,
-  which makes the frame loop draw the strip, so those writes and the strip are one curve.
-- A panel's view is mounted once and kept, whether it is held left, right or both, and whether the hold starts or lets go (checked in
-  `test/edge-hold-chromium.test.ts`, which counts mounts and keeps the DOM node across window resizes that release and admit a hold).
-- Open: WebKit and Firefox are not verified.
-- WebKit is not verified: sticky inside an `overflow-x` scroller is the fragile case, and the Chromium proof is `test/edge-hold-chromium.test.ts`.
+- `rowNumbers.ts` takes a left or right hold out of the strip (`held`, `leftInset`, `rightInset`, `stripWindow`); the hold applies
+  only while the row overflows. `PanelRow` sizes the Embla window to the whole slots of `stripWindow` and gives it the groups'
+  widths as margins, so the strip's stops are the window's own and no page rests cut. The window's clip reaches over the groups.
+- The host carries a left or right hold's x in the window (`data-hold-at`: the group ends one gap before the window, or starts
+  one gap after it), or a 'both' panel's insets from the window's edges (`data-hold-stick`, the 'both' panels stacked on that
+  edge included).
+- `drawHeldSlots` (`emblaRow.ts`) writes those slots' `translate` against where Embla draws the strip, with the row's draw pass
+  and on every frame the row moves (it runs at the top of `markAwaySlots`): a held slot at its x, a 'both' slot at its rest in
+  the strip clamped between its insets. `rowDraw.ts` leaves held slots to it.
+- A held or stuck slot is never marked `inert` and gets no chrome cut; a page a stuck panel covers whole is marked `inert`, as a
+  page past the window's edge is. The focus reveal and a press's reveal skip held and stuck slots: they are always in view.
 
 ### Scrolling to a panel
 
@@ -1831,7 +1823,8 @@ while it moves. phonux reports boxes and owns no native view; `PanelsInput.onPan
 
 Each `PanelRowSlot` runs its own frame loop (`createRectReporter` in `panelChrome.ts`) only while its slot is moving:
 its own slide (Motion's start and completion, `onAnimationStart`/`onAnimationComplete`), a drag or resize of its panel
-(the store's marks), a row scroll (`RowScroller.subscribe`, which fires on each write and on native scroll), or a drawn
+(the store's marks), a row scroll (`subscribeEmblaRows`: Embla's draws, direct writes and stop changes, with the strip's
+translate read from where Embla draws it), or a drawn
 width. Each change reports `moving`; once nothing is moving and the box has stood still for a frame, one `settled`
 reports the box it stopped at. A slot that mounts at rest reports one `settled`. The loop never runs at rest.
 
