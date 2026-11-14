@@ -66,7 +66,7 @@ export interface UsePanelManagerResult {
   /**
    * The row gesture: 'right' brings the first parked panel after the rightmost live one and parks the LEFTMOST live
    * one ('left' mirrors), then parks more on that side until the row settles, never an acted-on panel. Does nothing,
-   * with no `setPanels`, when nothing is parked on that side or when that panel's `revealOnScroll` is 'never'.
+   * with no `setPanels`, when nothing is parked on that side.
    * `keep` (a dragged panel) is never parked. True when a panel came in.
    */
   scrollRow: (direction: 'left' | 'right', keep?: string) => boolean;
@@ -124,7 +124,7 @@ export interface PanelManagerOptions {
   capParkedRef?: { current: string[] };
   /** Receives each note the engine raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** Only `rowGap`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` are read here. */
+  /** Only `rowGap` and `maxLivePanels` are read here. */
   tuning?: WorkspaceTuning;
   /** What the panel's settings resolve to over those layers with no person's layer at all; without it nothing can be reset. */
   resolveDefaults?: (entry: PanelWindow) => PanelSettingsResolution;
@@ -145,8 +145,8 @@ export function usePanelManager(
   rootId: string,
   options?: PanelManagerOptions,
 ): UsePanelManagerResult {
-  const returnTieBreak: NonNullable<WorkspaceTuning['returnTieBreak']> = options?.tuning?.returnTieBreak ?? RETURN_TIE_BREAK;
-  const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
+  const returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order' = RETURN_TIE_BREAK;
+  const dropTieBreak: 'leftmost' | 'rightmost' = DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
   const env: RowEnv = { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, dropTieBreak };
@@ -563,7 +563,7 @@ export function usePanelManager(
       for (let k = from; k >= 0 && k < sized.length; k += side === 'left' ? -1 : 1) {
         const p = sized[k]!;
         if (toPark.has(p.id)) return undefined;
-        if (!isPresent(p) && p.marker !== true && effective(p).revealOnScroll !== 'never' && parksForRoom(p)) return p;
+        if (!isPresent(p) && p.marker !== true && parksForRoom(p)) return p;
       }
       return undefined;
     };
@@ -668,7 +668,7 @@ export function usePanelManager(
     const byCap = capParkedRef.current;
     capParkedRef.current = [];
     // A panel added parked is held per its own setting, unless the cap parked it before its row was shown; a hold whose panel is gone (clearAll wipes without a close) is dropped.
-    for (const p of panels) if (p.collapsible && !p.live && !before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld(p.id, effective(p).hideStickiness);
+    for (const p of panels) if (p.collapsible && !p.live && !before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld(p.id, 'sticky');
     for (const id of heldRef.current.keys()) if (!panels.some((p) => p.id === id)) releaseHold(id);
     const capParked = byCap.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
     if (capParked.length > 0) recordPark(capParked, { kind: 'capacity' });

@@ -3,7 +3,7 @@
  * each slot reads.
  */
 import * as React from 'react';
-import { LIBRARY_TUNING_DEFAULTS, checkTuningLeaf } from './panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS, checkTuningLeaf, removedTuningLeaf } from './panelSettings.js';
 import type { ResolvedWorkspaceTuning, WorkspaceTuning } from './panelSettings.js';
 
 /** The height in px the Workspace's scroll container leaves for the row (its padding taken out); 0 until measured, and always in an environment that does no layout. */
@@ -37,6 +37,7 @@ export function resolveWorkspaceTuning(tuning: WorkspaceTuning | undefined): Res
     out[leaf] = accepted === undefined ? fallback : OBJECT_LEAVES.has(leaf) ? { ...(fallback as object), ...(accepted as object) } : accepted;
   }
   if (tuning.shrinkOutOfView !== undefined) checkTuningLeaf('shrinkOutOfView', tuning.shrinkOutOfView);
+  for (const leaf of Object.keys(tuning)) if ((tuning as Record<string, unknown>)[leaf] !== undefined) removedTuningLeaf(leaf);
   const resolved = frozenCopy(out) as unknown as ResolvedWorkspaceTuning;
   RESOLVED.add(resolved);
   return resolved;

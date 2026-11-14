@@ -15,7 +15,7 @@ export interface RowEnv {
   readonly gap: number;
   readonly fixedColumnCount: number;
   readonly maxLive: number | null;
-  readonly dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']>;
+  readonly dropTieBreak: 'leftmost' | 'rightmost';
 }
 
 /** Live and parkable for room: the panels whose count and widths the capacity governs. */

@@ -148,7 +148,7 @@ test('class law: a NOW key changes only the fields it names', async () => {
 test('class law: an equal patch is changed false and commits nothing', async () => {
   const r = await pinRig();
   r.turn(() => r.h.b!.configure({ scrollOnOpen: 'center' }));
-  const seen = watch(r, () => [r.h.b!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({}), r.h.b!.configure({ hideStickiness: null })]);
+  const seen = watch(r, () => [r.h.b!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({}), r.h.b!.configure({ toggleWhenClosed: null })]);
   for (const res of seen.out) assert.deepEqual({ ...done(res) }, { ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] });
   sameEntries(seen.before, seen.after);
   assert.equal(seen.renders, 0);
@@ -198,7 +198,7 @@ const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'movable', { movable: false }],
   ['NOW', 'title', { title: 'Renamed' }],
   ['NEXT', 'scrollOnOpen', { scrollOnOpen: 'center' }],
-  ['NEXT', 'hideStickiness', { hideStickiness: 'until-room' }],
+  ['NEXT', 'toggleWhenClosed', { toggleWhenClosed: 'reopen' }],
   ['STATE', 'maxSlots', { maxSlots: 2 }],
 ];
 
@@ -516,13 +516,13 @@ test('an anonymous closed instance answers is-closed to configure, inside the wi
 
 test('a configure that raises a runtime note carries it in the result and reports it once', async () => {
   const r = await pinRig();
-  const lever = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
-  assert.deepEqual([...lever.notes], [{ code: 'park-lever-inert', key: 'capacityReturn', message: "capacityReturn: only a panel whose overflow is 'park' is ever parked for room, so this has no effect here" }]);
-  assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert']);
-  const second = done(r.turn(() => r.h.c!.configure({ capacityReturn: 'manual' })));
-  assert.deepEqual(second.notes.map((n) => n.code), ['park-lever-inert']);
-  assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert', 'park-lever-inert']);
-  const again = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
+  const lever = done(r.turn(() => r.h.b!.configure({ resizable: true, maxSlots: 1 })));
+  assert.deepEqual([...lever.notes], [{ code: 'resizable-capped', key: 'maxSlots', message: 'maxSlots: resizable is set by the instance layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots too' }]);
+  assert.deepEqual(r.m.notes.map((n) => n.code), ['resizable-capped']);
+  const second = done(r.turn(() => r.h.c!.configure({ resizable: true, maxSlots: 1 })));
+  assert.deepEqual(second.notes.map((n) => n.code), ['resizable-capped']);
+  assert.deepEqual(r.m.notes.map((n) => n.code), ['resizable-capped', 'resizable-capped']);
+  const again = done(r.turn(() => r.h.b!.configure({ resizable: true, maxSlots: 1 })));
   assert.deepEqual([again.changed, [...again.notes]], [false, []]);
   assert.equal(r.m.notes.length, 2, 'an equal patch raises nothing more');
 });
@@ -531,7 +531,7 @@ test('a state change planted between the call and the commit makes the updater r
   let plant: (() => void) | undefined;
   const r = await pinRig({ over: { onNote: () => plant?.() } });
   plant = () => r.provided().clearAll();
-  const res = r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' }));
+  const res = r.turn(() => r.h.b!.configure({ resizable: true, maxSlots: 1 }));
   assert.deepEqual([res.ok, (res as Done).notes.length], [true, 1], 'control: the note ran the planted hook');
   assert.deepEqual(r.order(), ['root']);
 });
@@ -608,7 +608,7 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['live', 'live', { listed: false }, ['listed'], [], []],
   ['live', 'live', { layer: 'raised' }, ['layer'], [], []],
   ['live', 'live', { scrollOnOpen: 'center' }, [], ['scrollOnOpen'], []],
-  ['live', 'live', { hideStickiness: 'until-room' }, [], ['hideStickiness'], []],
+  ['live', 'live', { toggleWhenClosed: 'reopen' }, [], ['toggleWhenClosed'], []],
   ['live', 'live', { closable: false, scrollOnOpen: 'center' }, ['closable'], ['scrollOnOpen'], []],
   ['live', 'live', { maxSlots: 2 }, ['maxSlots'], [], []],
   ['live', 'live', { parkable: false }, ['parkable'], [], []],
@@ -625,7 +625,7 @@ test('getSettings after a configure deep-equals the resolver over the patched la
   const slot = { icon: 'i', label: 'X', onClick: () => undefined };
   const cases: [string, Record<string, unknown>][] = [
     ['a NOW key', { closable: false, title: 'Eve' }],
-    ['a NEXT key', { scrollOnOpen: 'center', hideStickiness: 'until-room' }],
+    ['a NEXT key', { scrollOnOpen: 'center', toggleWhenClosed: 'reopen' }],
     ['a STATE key', { maxSlots: 2 }],
     ['a slot', { headerButtons: { x: slot } }],
   ];
@@ -645,14 +645,14 @@ test('getSettings after a configure deep-equals the resolver over the patched la
 });
 
 test('null removes the key and the cascade\'s value and source come back: library, workspace and template', async () => {
-  const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } }, workspace: { defaults: { hideStickiness: 'until-room' } } });
+  const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } }, workspace: { defaults: { toggleWhenClosed: 'reopen' } } });
   const read = (key: string): [unknown, string | undefined] => {
     const s = r.h.b!.getSettings();
     return [(s.value as unknown as Record<string, unknown>)[key], s.source[key]];
   };
   const rows: [string, Record<string, unknown>, Record<string, unknown>, [unknown, string], [unknown, string], [unknown, string]][] = [
     ['scrollOnOpen', { scrollOnOpen: 'center' }, { scrollOnOpen: null }, ['start', 'template'], ['center', 'instance'], ['start', 'template']],
-    ['hideStickiness', { hideStickiness: 'sticky' }, { hideStickiness: null }, ['until-room', 'workspace'], ['sticky', 'instance'], ['until-room', 'workspace']],
+    ['toggleWhenClosed', { toggleWhenClosed: 'ignore' }, { toggleWhenClosed: null }, ['reopen', 'workspace'], ['ignore', 'instance'], ['reopen', 'workspace']],
     ['scrollOnMove', { scrollOnMove: 'none' }, { scrollOnMove: null }, ['follow', 'library'], ['none', 'instance'], ['follow', 'library']],
   ];
   for (const [key, set, unset, was, during, back] of rows) {

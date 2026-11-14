@@ -1684,12 +1684,12 @@ covers only what a panel author can use.
 ### Who reads each setting
 
 Set by the reference app: `title`, `multiple`, `hostCreatable`, `restoreVisibility`, `startVisibility`, `overflow`,
-`capacityReturn`, `revealOnScroll`, `showWhenClosed`, `placeOnAdd`, `listed`, `layer`, `slots`, `resizable`, `movable`,
+`showWhenClosed`, `placeOnAdd`, `listed`, `layer`, `slots`, `resizable`, `movable`,
 `crossable`, `closable`, `headerButtons`, `hollowDot`, `edgeHold`, `enterFrom` and `exitTo`. The second known consumer is not
 in this repository, so only these are proven in use.
 
 Read by a verb or a view patch: `parkable`, `slots`, `maxSlots`, `movable`, `crossable`,
-`hideStickiness`, `startVisibility`, `placeOnAdd`, `placeOnShow`, `scrollOnOpen`, `showWhenClosed`,
+`startVisibility`, `placeOnAdd`, `placeOnShow`, `scrollOnOpen`, `showWhenClosed`,
 `toggleWhenClosed`, `afterClose`, `enterFrom`, `clearable` (`clearAll`) and `maxInstances` (`configureTemplate`).
 
 ### The capability flags limit a person's gestures
@@ -1740,18 +1740,18 @@ overridden silently, with source `forced`. A conflict carries `key`, `layer`, `k
 key or a workspace-only tuning key at the instance or host layer, ignored) and `not-view-settable` (a key a view may
 not set, at the host layer, ignored).
 
-Notes never throw: `park-lever-inert` when a layer sets the park lever `capacityReturn` on a panel that resolves to `overflow: 'scroll'`, `override-dropped` when the person's fixed column would be wider than one slot, `max-instances-moot` when `configureTemplate` names `maxInstances`
+Notes never throw: `override-dropped` when the person's fixed column would be wider than one slot, `max-instances-moot` when `configureTemplate` names `maxInstances`
 on a template that resolves to `multiple: false`, `hold-unlisted` when a hold lands on an unlisted panel (a hide, or a
 panel added or restored parked; through `onNote`, once per panel) and when a `configure` call leaves a held panel
 unlisted (`{ listed: false }`, or a `null` that restores an unlisted derived value, also while a flip of `parkable`
-waits; in `ConfigureResult.notes` and through `onNote`, once per call, whatever the panel's `revealOnScroll`; none when
+waits; in `ConfigureResult.notes` and through `onNote`, once per call; none when
 the same call shows the panel or is refused), and `invalid-saved-setting` for each key a lenient resolve dropped.
 
 ### Who may set what
 
 The `doors` of a descriptor name the configure call that accepts the key: `instance` (`configure(id)`), `template`
 (`configureTemplate`: `hostCreatable`, `multiple`, `maxInstances`) and `tuning` (`configureTuning`). These tuning
-leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`,
+leaves are workspace-only (`rowGap`, `saveQuietMs`, `gestureQuietMs`, `resizeSettleSlides`, `rowGesture`,
 `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`); these are per panel and also workspace-wide (`dragToClose`, `slide`, `hopFraction`, `edgeScroll`).
 A workspace-only leaf at the template layer throws, at the instance or host layer it is a `wrong-scope` conflict, and
 any tuning key in the workspace defaults throws. A view's own door, the host layer, accepts only `title`, `listed`,
@@ -1834,10 +1834,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `maxInstances` | integer >= 1, unlimited (template scope) | unlimited | SCOPE (configureTemplate). Raising it or null: ok. Lowering below the instances that exist: instance-limit with the count; no instance is closed. Moot without multiple (a note). |
 | `listed` | true, false | derived: parkable | NOW. L, T, K, H: the panel appears in or leaves panelList at this commit; its slot and state do not change. false on a hidden panel whose hold the gesture cannot release leaves it showable by code only (note). |
 | `startVisibility` | live, parked | live | NEXT. Governs panels created after the commit; every existing panel keeps its state. C: used by the next open(). C1: parked on a fixed column is settings-conflict. |
-| `hideStickiness` | sticky, until-room | sticky | NEXT. Governs hides after the commit. A hidden panel keeps the hold it has; configure shows nothing. K: unaffected. L, T: the next hide() uses the new value. |
-| `capacityReturn` | auto, manual | auto | NEXT. Governs parks decided after the commit. A panel on the stack stays returnable; one already held stays held; no reveal. |
 | `overflow` | scroll, park | scroll for every panel built through the cascade (a template, workspace defaults, a Host-bag create, or a restore inside a workspace; C1: scroll for a fixed column); a hand-built 0.1.0 entry in a row with no workspace defaults: park | NEXT. Read at the next park decision. L: park->scroll protects it from then on; scroll->park makes it eligible; nothing parks, returns or scrolls at configure. K, H: stored; a K panel already on the stack still returns. C1: park on a fixed column is settings-conflict. |
-| `revealOnScroll` | edges, any, never | edges | NEXT. Read by the next gesture. K: edges->any makes an engine-parked panel reachable. H: edges and any reach it. Nothing is revealed by configure. |
 | `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; a `both` panel (one per row) leaves for the edge the scroll takes it past. It lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
 | `scrollOnOpen` | into-view, start, center, none | into-view | NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none). |
 | `scrollOnMove` | follow, none | follow | NEXT. Read by the next move, place, setSlots or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure. |
@@ -1856,15 +1853,12 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.rowTop` | integer px 0 to 400, or null (workspace only) | null (the default room) | NOW (configureTuning only). The room above the row, which the mount uses for the row's top padding and the phone fit alike; taken as given, so a value under 40 px (a panel header and its gap) can push headers off the top of the screen. Null keeps the default room, never less than 40 px. Outside 0-400 throws. |
 | `tuning.phoneHeight` | 'fit', 'auto' (workspace only) | 'fit' | NOW (configureTuning only). Under `phoneFit: 'fit'`, 'auto' makes the frame as tall as the row's room and the width still fits. Other values throw. |
 | `tuning.dragToClose` | object: distanceFraction [0.05, 1], minDistancePx >= 8, flickMinDistancePx >= 8, flickVelocity >= 100, cancelVelocity <= -50 (workspace only) | 0.25, 80, 40, 700, -300 (DRAG_CLOSE) | NEXT (configureTuning only). Judges only panels whose template sets `verticalDrag: true`. Read at the next release; a drag in flight is judged by the values current at release. Leaves merge. The direction lock, rest time, velocity window and snap-back spring are constants in rowConstants.ts. |
-| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers), glideEase ('cubic-out', 'linear' or four numbers) (workspace only) | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn', 'cubic-out' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE, GLIDE_EASE) | NEXT (configureTuning only). Read at the next enter, exit, close or scroll; animations running keep their timing. The edge-scroll drag settle and a header dot click glide along `glideEase`. |
+| `tuning.slide` | object: durationSec [0, 10], ease (four numbers, x1 and x2 in [0,1]), closeExitSeconds [0, 5], closeExitEase ('easeIn', 'easeOut', 'easeInOut', 'linear' or four numbers) (workspace only) | 0.6, [0.4, 0, 0.2, 1], 0.18, 'easeIn' (SLOT_TRANSITION, DRAG_CLOSE.exitSeconds, CLOSE_EXIT_EASE) | NEXT (configureTuning only). Read at the next enter, exit, close or scroll; animations running keep their timing. The edge-scroll drag settle and a header dot click glide along `glideEase`. |
 | `tuning.hopFraction` | number in (0, 1] (workspace only) | 0.5 | NEXT (configureTuning only). Read by the dragged panel's view at its next release. Outside (0, 1] throws. |
 | `tuning.edgeScroll` | object: zonePx integer [8, 200], maxPxPerSec integer [100, 5000], reducedStepMs integer [100, 5000] (workspace only) | 48, 900, 500 (the numbers live in rowConstants.ts) | NEXT (configureTuning only). Read at the next drag start; a drag in flight keeps its numbers. Leaves merge. |
 | `tuning.saveQuietMs` | integer ms >= 0 (workspace only) | 500 | NEXT (configureTuning only). A timer already armed keeps its deadline; the next arm uses the new value. Session-only. |
-| `tuning.gestureLockMs` | integer ms >= 0 (workspace only) | 30 | NEXT (configureTuning only). A lock already armed keeps its remaining time. Session-only. |
 | `tuning.gestureQuietMs` | integer ms >= 1 (workspace only) | 150 | NEXT (configureTuning only). A quiet timer already running keeps its length; the next wheel event arms the new one. Session-only. |
 | `tuning.resizeSettleSlides` | number [0, 10], multiplies slide.durationSec (workspace only) | 1/3 | NOW (configureTuning only). 0 settles at once. A settle timer already running keeps its length; the next width change arms the new one. Session-only. |
-| `tuning.returnTieBreak` | latest-first, earliest-first, row-order (workspace only) | latest-first | NEXT (configureTuning only). Read at the next stack walk; nothing returns now. The return for room takes only panels beside the drawn run; the return after a close does not check it. |
-| `tuning.dropTieBreak` | leftmost, rightmost (workspace only) | leftmost | NEXT (configureTuning only). Read at the next capacity drop or resize; nothing parks now. |
 | `tuning.rowGesture` | step, off (workspace only) | step | NEXT (configureTuning only). The listener set is re-read at the next render; a gesture in flight finishes; no panel moves. Session-only. |
 | `tuning.fastScroll` | coalesce, jump (workspace only) | coalesce | NEXT (configureTuning only). Read at the next step or dot; a glide in flight finishes; no panel moves. Session-only. |
 | `tuning.initialScroll` | start, end, root, { panel: PanelId } (workspace only) | start (the library default) | NEXT (configureTuning only). Read at the next mount; nothing scrolls now. Session-only. |
@@ -2371,7 +2365,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureLockMs`, `gestureQuietMs`, `resizeSettleSlides`, `returnTieBreak`, `dropTieBreak`, `rowGesture`, `fastScroll`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`, `firstPressFocusOnly`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureQuietMs`, `resizeSettleSlides`, `rowGesture`, `fastScroll`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`, `firstPressFocusOnly`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 

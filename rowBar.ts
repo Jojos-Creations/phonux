@@ -63,7 +63,7 @@ function rulerOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], slotsOf: 
     const w = widthOf.get(e.id);
     if (heldRight.some((h) => h.id === e.id)) continue;
     if (w !== undefined) items.push(item(e.id, slotsOf(w), true));
-    else if (e.live === false && e.marker !== true && e.settings?.revealOnScroll !== 'never') items.push(item(e.id, Math.max(1, Math.round(e.slots ?? 1)), false));
+    else if (e.live === false && e.marker !== true) items.push(item(e.id, Math.max(1, Math.round(e.slots ?? 1)), false));
   }
   for (const id of widthOf.keys()) if (!items.some((p) => p.id === id) && !heldRight.some((h) => h.id === id)) items.push(item(id, slotsOf(widthOf.get(id)!), true));
   for (const h of heldRight) items.push(item(h.id, slotsOf(h.width), true));

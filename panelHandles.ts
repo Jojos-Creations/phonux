@@ -23,7 +23,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   getState(): PanelState & { readonly params: P | undefined };
   /** Brings the panel into view: a parked one comes back, a live one out of view is scrolled to, a closed one reopens when its `showWhenClosed` says so. */
   show(source?: 'code' | 'person'): PanelResult;
-  /** Parks the panel and holds it parked as its `hideStickiness` says. */
+  /** Parks the panel and holds it parked until it is shown. */
   hide(source?: 'code' | 'person'): PanelResult;
   /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
   toggleVisibility(source?: 'code' | 'person'): PanelResult;

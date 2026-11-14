@@ -47,7 +47,7 @@ interface HiddenCandidate {
   liveBefore: number;
   /** True when a person hid it and it stays hidden until shown. */
   held: boolean;
-  /** Its `revealOnScroll`. */
+  /** Which steps may reveal it. */
   policy: 'edges' | 'any' | 'never';
 }
 

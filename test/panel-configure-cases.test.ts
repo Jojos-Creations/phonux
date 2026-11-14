@@ -193,19 +193,6 @@ test('case B2: placeOnAdd changed on a live panel moves nothing', async () => {
   assert.equal(r.entry('b').anchor === entries.find((p) => p.id === r.entry('b').id)!.anchor, true, "b's anchor is the object it was");
 });
 
-test('case B3: hideStickiness sticky to until-room on a hidden panel leaves it hidden with the hold it has', async () => {
-  const r = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 1700 });
-  await r.settle();
-  r.turn(() => r.h.b!.hide());
-  await r.settle();
-  assert.deepEqual([r.state('b').status, r.state('b').held], ['parked', true]);
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ hideStickiness: 'until-room' }))), { now: [], later: ['hideStickiness'], shadowed: [] });
-  assert.deepEqual([r.state('b').status, r.state('b').held], ['parked', true], 'still hidden, hold unchanged');
-  r.turn(() => r.h.a!.close());
-  await r.settle();
-  assert.equal(r.state('b').status, 'parked', 'room opening does not return a panel that was hidden under the sticky hold');
-});
-
 const ZONE = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx;
 const QUARTER = ZONE / 4;
 

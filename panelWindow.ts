@@ -189,9 +189,8 @@ export function parksForRoom(p: PanelWindow | PanelRowEntry): boolean {
 }
 
 /** The park levers of `p`: its own `capacityReturn` when its `overflow` is 'park', 'auto' otherwise, because a panel the row never parks for room has no lever to pull. @internal */
-export function parkLevers(p: PanelWindow): Pick<FixedBehaviour, 'evictionRank' | 'returnPriority'> & Pick<ResolvedPanelSettings, 'capacityReturn'> {
-  const s = effective(p);
-  return { evictionRank: FIXED.evictionRank, returnPriority: FIXED.returnPriority, capacityReturn: s.overflow === 'park' ? s.capacityReturn : 'auto' };
+export function parkLevers(_p: PanelWindow): Pick<FixedBehaviour, 'evictionRank' | 'returnPriority'> & { capacityReturn: 'auto' | 'manual' } {
+  return { evictionRank: FIXED.evictionRank, returnPriority: FIXED.returnPriority, capacityReturn: 'auto' };
 }
 
 /**
@@ -227,13 +226,13 @@ export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'ri
 }
 
 /** Whether a step may bring `p` in: parked, not the marker, and not one the page keeps out of scrolling. */
-const revealable = (p: PanelWindow): boolean => !isPresent(p) && p.marker !== true && effective(p).revealOnScroll !== 'never';
+const revealable = (p: PanelWindow): boolean => !isPresent(p) && p.marker !== true;
 
 /**
  * The parked panel a step toward `direction` brings in, or null: the one nearest the drawn parkable panels beyond that end of
  * them, so a run of steps reaches each panel in the order the row lists them and never one past a nearer one. Only when nothing
  * is parked beyond that end does a panel parked between two drawn ones come in, on the side nearer its place as the dot bar
- * draws it, so every panel is still reachable. A panel whose `revealOnScroll` is 'never' is passed over.
+ * draws it, so every panel is still reachable.
  * @internal
  */
 export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {

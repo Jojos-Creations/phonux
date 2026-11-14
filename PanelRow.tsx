@@ -28,7 +28,7 @@ import { RowDropContext, dropParts, partShifts, useRowDrop, type Neighbor, type 
 import { maxScrollOf, type RowNumbers } from './rowNumbers.js';
 import { panelWidthOf } from './panelTiers.js';
 import { fitSlots, slotWidth } from './rowConstants.js';
-import { ROW_LAYER_Z } from './rowConstants.js';
+import { GLIDE_EASE, ROW_LAYER_Z } from './rowConstants.js';
 import { SlotRanksContext, useSlotRanks } from './rowSlotZ.js';
 import { useRowDraw } from './rowDraw.js';
 import { AwayContext } from './panelAway.js';
@@ -393,7 +393,7 @@ export function PanelRow({
           },
         };
   // A row that fits its window still drags to its edges: there the band swaps hidden panels in rather than scrolling.
-  const dragScroll: DragScroll = { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll: rowScroll ? maxScroll : 0, stops: rowScroll ? stops : [], settleStops: rowScroll && rowNumbers !== undefined ? rowNumbers.stops : [], settleSec: rowTuning.slide.durationSec, settleEase: rowTuning.slide.glideEase, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0, ...barrier, cycle: binding.cycle };
+  const dragScroll: DragScroll = { mode: FIXED.scrollOnDrag, zonePx: rowTuning.edgeScroll.zonePx, maxPxPerSec: rowTuning.edgeScroll.maxPxPerSec, reducedStepMs: rowTuning.edgeScroll.reducedStepMs, maxScroll: rowScroll ? maxScroll : 0, stops: rowScroll ? stops : [], settleStops: rowScroll && rowNumbers !== undefined ? rowNumbers.stops : [], settleSec: rowTuning.slide.durationSec, settleEase: GLIDE_EASE, insetLeft: rowNumbers?.leftInset ?? 0, insetRight: rowNumbers?.rightInset ?? 0, ...barrier, cycle: binding.cycle };
   // A horizontal drag's live hop count. Only the slots' drawn positions follow it; the order changes at the drop.
   const [dragging, setDragging] = React.useState<{ id: string; steps: number } | null>(null);
   // A dragged panel that left the row (closed by other means) takes its preview with it.

@@ -186,18 +186,10 @@ function appendFromTemplate(
   });
 }
 
-/** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
-function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<WorkspaceTuning, 'saveQuietMs' | 'gestureLockMs' | 'returnTieBreak' | 'dropTieBreak'>> {
+/** The timing leaf of `tuning`, at its library default when unset or unusable. */
+function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<WorkspaceTuning, 'saveQuietMs'>> {
   const ms = (value: number | undefined, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback);
-  const defaults = LIBRARY_TUNING_DEFAULTS;
-  const returnTieBreak = tuning?.returnTieBreak;
-  const dropTieBreak = tuning?.dropTieBreak;
-  return {
-    saveQuietMs: ms(tuning?.saveQuietMs, defaults.saveQuietMs),
-    gestureLockMs: ms(tuning?.gestureLockMs, defaults.gestureLockMs),
-    returnTieBreak: returnTieBreak === 'earliest-first' || returnTieBreak === 'row-order' ? returnTieBreak : defaults.returnTieBreak,
-    dropTieBreak: dropTieBreak === 'rightmost' ? dropTieBreak : defaults.dropTieBreak,
-  };
+  return { saveQuietMs: ms(tuning?.saveQuietMs, LIBRARY_TUNING_DEFAULTS.saveQuietMs) };
 }
 
 /** A scroll the row owes after a commit; one is pending at a time and the last recorded wins. */
@@ -401,7 +393,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     onNote: i.onNote,
     keepLiveRef,
     capParkedRef,
-    tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
+    tuning: { rowGap: tuning.rowGap, maxLivePanels: tuning.maxLivePanels },
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
   });
@@ -820,7 +812,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (!settings.parkable) return refused('not-parkable', `panel '${panelKey(target)}' is a fixed column and cannot be parked`);
       if (target.live && FIXED.hideWhenLast === 'refuse' && wouldEmptyRow([engineId])) return refused('would-empty-row', `panel '${panelKey(target)}' is the last one the row shows`);
       const token = gate.take([engineId], 'hide')!;
-      const changed = holdPanel(engineId, settings.hideStickiness);
+      const changed = holdPanel(engineId, 'sticky');
       gate.release(token);
       return accepted(changed);
     },
@@ -914,7 +906,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const hiding = gate.take(hideIds, 'hide')!;
       const showing = gate.take(showIds, 'other')!;
       const changed = swapPanels(
-        leaving.map((p) => ({ id: p.id, stickiness: effective(p).hideStickiness })),
+        leaving.map((p) => ({ id: p.id, stickiness: 'sticky' as const })),
         show.map(({ engineId, place }) => (place === undefined ? { id: engineId } : { id: engineId, place })),
       );
       gate.release(hiding);

@@ -143,7 +143,6 @@ export type {
   ChromeTuning,
   CloseExitEase,
   FadeEase,
-  GlideEase,
   DragToCloseTuning,
   SlideTuning,
   EdgeScrollTuning,
