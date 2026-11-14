@@ -1306,7 +1306,11 @@ test('matrix:tuning.rowGesture', async () => {
   const wheel = (): void => act(() => void emblaWindowIn(r.m.container)!.dispatchEvent(new WheelEvent('wheel', { deltaX: 50, cancelable: true, bubbles: true })));
   wheel();
   assert.equal(rowGlideTargetOf(r.m.container) !== null, true, 'before: step starts a glide on a swipe');
-  await r.settle();
+  // The wheel gesture settles on a real 90 ms timer once the wheel stops, then glides to its stop: wait for both, however busy the machine.
+  await act(async () => {
+    await new Promise((done) => setTimeout(done, 200));
+  });
+  await advanceUntilRowRests(r.m.container);
   assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ rowGesture: 'off' }))) }, { ok: true, changed: true, now: [], later: ['tuning.rowGesture'], shadowed: [], notes: [] });
   assert.equal(r.live().length, 11, 'no panel moves');
   const at = rowOffsetOf(r.m.container);
