@@ -38,17 +38,25 @@ const SIZE_KEYS = ['phone', 'fold', 'tablet', 'desktop', 'ultrawide'] as const;
 const ICON = { color: 'inherit' } as const;
 const STOP_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
 
-/** Arrow keys, Home and End step focus along the group's enabled buttons without wrapping; the disabled current size takes no focus. */
+/** Arrow keys, Home and End step focus along all of the group's buttons without wrapping, the current size included. */
 function stepFocus(event: React.KeyboardEvent<HTMLElement>): void {
   if (!STOP_KEYS.includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  const stops = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled)')];
+  const stops = [...event.currentTarget.querySelectorAll<HTMLElement>('button')];
   const at = stops.indexOf(event.target as HTMLElement);
   if (at < 0) return;
   event.preventDefault();
   const to = event.key === 'Home' ? 0 : event.key === 'End' ? stops.length - 1 : at + (event.key === 'ArrowRight' ? 1 : -1);
   stops[Math.min(Math.max(to, 0), stops.length - 1)]?.focus({ preventScroll: true });
 }
-const ENTRY = { color: 'text.primary', '&.Mui-disabled': { color: 'primary.contrastText', bgcolor: 'primary.main' } } as const;
+// The current size keeps focus, so a screen reader can say which size it is, but takes no press: it is marked aria-disabled, not
+// disabled, and drawn highlighted the same whether hovered or not.
+const ENTRY = {
+  color: 'text.primary',
+  '&[aria-disabled="true"], &[aria-disabled="true"]:hover': { color: 'primary.contrastText', bgcolor: 'primary.main', cursor: 'default' },
+} as const;
+/** The props that mark an entry as the size the panel has now: reachable and read as current, but not pressable. */
+const currentProps = (current: boolean) =>
+  current ? ({ 'aria-pressed': true, 'aria-current': true, 'aria-disabled': true, disableTouchRipple: true } as const) : ({ 'aria-pressed': false } as const);
 
 /** Whether the control draws anything in this slot, so `Panel` leaves its header's placeholder alone when it does not. */
 export const drawsSizeControl = (slot: PanelSlotValue | undefined): boolean =>
@@ -69,7 +77,8 @@ export interface PanelSizeControlProps {
 /**
  * The width control of the panel the call is made in, for its header. It draws nothing outside a row, nor for a panel that is
  * not resizable or may take fewer than two slots. The menu offers the widths up to five phones that `maxSlots` allows and the
- * window fits, with the panel's current size highlighted and disabled, then Fullscreen. Focus lands on the first width that is not the current size when it opens, the arrow keys move along the widths, and focus goes back to the button when Escape closes it or a width is picked.
+ * window fits, with the panel's current size highlighted, then Fullscreen. The current size (Fullscreen while the panel is fullscreen)
+ * takes focus and reads as pressed, current and unavailable, and picking it does nothing. Focus lands on the first width that is not the current size when it opens, the arrow keys, Home and End move along every entry, and focus goes back to the button when Escape closes it or a width is picked.
  * @public
  */
 export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys, onRefused }: PanelSizeControlProps = {}): React.JSX.Element | null {
@@ -102,7 +111,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const own = summary.savedSlots ?? summary.slots ?? 1;
   const isCurrent = (slots: number): boolean => !maximize.maximized && (summary.slots ?? 1) === slots;
   const widths = Array.from({ length: limit }, (_, i) => i + 1);
-  // Focus opens on the first width that takes it: the current size is disabled, and with no other width it is Fullscreen.
+  // Focus opens on the first width that is not the current size, and with no other width on Fullscreen.
   const firstWidth = widths.find((slots) => !isCurrent(slots));
   const close = (): void => {
     refocus.current = true;
@@ -148,47 +157,43 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
               const current = isCurrent(slots);
               return (
                 <Tooltip key={slots} title={labels.sizeName(slots)}>
-                  {/* The span keeps the hover text on the current size, which is disabled. */}
-                  <span>
-                    <IconButton
-                      size="small"
-                      data-view-size={SIZE_KEYS[slots - 1]}
-                      autoFocus={slots === firstWidth}
-                      aria-label={labels.sizeName(slots)}
-                      aria-pressed={current}
-                      disabled={current}
-                      onClick={() => {
-                        close();
-                        if (maximize.maximized) maximize.toggle();
-                        if (!handle.setSlots(slots, 'person').ok) refused('resize');
-                      }}
-                      sx={ENTRY}
-                    >
-                      {icons.size(slots)}
-                    </IconButton>
-                  </span>
+                  <IconButton
+                    size="small"
+                    data-view-size={SIZE_KEYS[slots - 1]}
+                    autoFocus={slots === firstWidth}
+                    aria-label={labels.sizeName(slots)}
+                    {...currentProps(current)}
+                    onClick={() => {
+                      // The size the panel has already: a press, Enter or Space changes nothing and leaves the menu open.
+                      if (current) return;
+                      close();
+                      if (maximize.maximized) maximize.toggle();
+                      if (!handle.setSlots(slots, 'person').ok) refused('resize');
+                    }}
+                    sx={ENTRY}
+                  >
+                    {icons.size(slots)}
+                  </IconButton>
                 </Tooltip>
               );
             })}
             <Tooltip title={fullscreenLabel}>
-              <span>
-                <IconButton
-                  size="small"
-                  data-view-fullscreen=""
-                  autoFocus={firstWidth === undefined}
-                  aria-label={labels.fullscreen}
-                  {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}
-                  aria-pressed={maximize.maximized}
-                  disabled={maximize.maximized}
-                  onClick={() => {
-                    close();
-                    maximize.toggle();
-                  }}
-                  sx={ENTRY}
-                >
-                  {icons.fullscreen}
-                </IconButton>
-              </span>
+              <IconButton
+                size="small"
+                data-view-fullscreen=""
+                autoFocus={firstWidth === undefined}
+                aria-label={labels.fullscreen}
+                {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}
+                {...currentProps(maximize.maximized)}
+                onClick={() => {
+                  if (maximize.maximized) return;
+                  close();
+                  maximize.toggle();
+                }}
+                sx={ENTRY}
+              >
+                {icons.fullscreen}
+              </IconButton>
             </Tooltip>
           </Box>
         </Box>
