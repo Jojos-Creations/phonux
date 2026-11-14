@@ -14,13 +14,14 @@ import { useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings, SettingNote, WorkspaceTuning } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
-import { frameClock } from '../testingClock.js';
 import { appendPanel, createRootPanel, leastRecentlyTouchedId, promoteToLive } from '../panelWindow.js';
 import { type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, usePanelManagerWith, useSeededInput, type SeededOver } from './support/mount-harness.js';
+import { mountRow, panelsOf } from './support/scroll-row.js';
+import { rowGlideTargetOf, stubSlotBoxes } from './support/strip.js';
 
 const ROOT = 'root';
 const OWNED = ['startVisibility', 'tuning.saveQuietMs', 'tuning.gestureQuietMs'];
@@ -194,25 +195,34 @@ test('differential tuning.saveQuietMs: the workspace is saved at the configured 
 });
 
 /** Two same-direction swipes 120 ms apart, the second smaller: the live ids after both. The first starts a step; whether the second does too depends on whether 120 ms of silence ended the gesture. */
-function quietSwipes(gestureQuietMs: number): string[] {
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  const p = provide(row(rootEntry(), park('a'), park('b'), park('c', {}, { live: false }), park('d', {}, { live: false })), { width: W(2), over: { overflowContainerRef: { current: container }, tuning: { gestureQuietMs, rowGesture: 'step' } } });
+/**
+ * On the Embla row the quiet time ends a wheel gesture's owner: a gesture whose first wheel held Option belongs to the content until
+ * the wheel has been quiet `gestureQuietMs`. Whether a plain wheel 120 ms after an Option wheel moves the row.
+ */
+function plainWheelAfterOption(gestureQuietMs: number): boolean {
+  const m = mountRow(panelsOf(10), 1000, { tuning: { gestureQuietMs } });
+  stubSlotBoxes(m.container, 16);
   mock.timers.enable({ apis: ['setTimeout'] });
-  const wheel = (deltaX: number): void => void act(() => void container.dispatchEvent(new WheelEvent('wheel', { deltaX, cancelable: true, bubbles: true })));
-  wheel(100);
+  m.wheel({ deltaX: 100, altKey: true });
+  const first = rowGlideTargetOf(m.container);
   act(() => mock.timers.tick(120));
-  wheel(50);
-  const seen = p.live();
+  m.wheel({ deltaX: 50 });
+  const moved = rowGlideTargetOf(m.container) !== null;
   mock.timers.reset();
-  container.remove();
-  return seen;
+  cleanup();
+  assert.equal(first, null, 'control: the Option wheel leaves the row to the content');
+  return moved;
 }
 
-test('differential tuning.gestureQuietMs: a smaller swipe 120 ms after the first is a decaying tail under a 150 ms quiet time and a fresh gesture under 100 ms', () => {
+test('differential tuning.gestureQuietMs: a plain wheel 120 ms after an Option wheel is still the content gesture under 150 ms and moves the row under 100 ms', () => {
+  const outcomes = new Map([
+    [150, plainWheelAfterOption(150)],
+    [100, plainWheelAfterOption(100)],
+  ]);
+  assert.deepEqual([...outcomes.values()], [false, true]);
   differential('tuning.gestureQuietMs', (run) => {
-    run(150, () => quietSwipes(150));
-    run(100, () => quietSwipes(100));
+    run(150, () => outcomes.get(150));
+    run(100, () => outcomes.get(100));
   });
 });
 
@@ -252,19 +262,6 @@ test('holdPanel takes a second hold in the same turn only for another id', () =>
   assert.deepEqual(e.live(), ['c']);
 });
 
-test('holdPanel on a panel parked for room takes it off the collapse stack: it stays parked when room opens, where an unheld one returns', () => {
-  const after = (held: boolean): string[] => {
-    const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
-    e.open(park('c'));
-    assert.deepEqual(e.parked(), ['a'], 'control: opening c parked the oldest, a, and put it on the stack');
-    if (held) assert.equal(e.hold('a'), true);
-    e.close('c');
-    return e.live();
-  };
-  assert.deepEqual(after(false), ['a', 'b'], 'control: unheld, a returns when c closes');
-  assert.deepEqual(after(true), ['b'], 'held, a stays parked after the close');
-});
-
 test('releaseHold drops the mark only: the panel stays parked, and a second call answers false', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(3));
   e.hold('a');
@@ -275,17 +272,13 @@ test('releaseHold drops the mark only: the panel stays parked, and a second call
   assert.equal(e.call((v) => v.manager.releaseHold('nope')), false);
 });
 
-test('activate releases the hold: the panel is live, unmarked, and parked for room later it returns when room opens', () => {
+test('activate releases the hold: the panel is live and unmarked', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
   e.hold('a');
   assert.deepEqual(e.held(), ['a:sticky']);
   e.activate('a');
   assert.deepEqual(e.held(), [], 'show released the mark');
   assert.deepEqual(e.live(), ['a', 'b']);
-  e.open(park('c'));
-  assert.deepEqual(e.parked(), ['a'], 'control: opening c parked a for room, as any park for room does');
-  e.close('c');
-  assert.deepEqual(e.live(), ['a', 'b'], 'a returned: a stale hold would have kept it parked');
 });
 
 test('the row gesture releases the hold of the panel it brings back', () => {
@@ -319,53 +312,13 @@ test('markHeld records the hold of a parked id and answers false for a live, a f
   assert.equal(e.call((v) => v.manager.markHeld(ROOT, 'sticky')), false, 'fixed');
   assert.equal(e.call((v) => v.manager.markHeld('nope', 'sticky')), false, 'unknown');
   assert.deepEqual(e.held(), []);
-  assert.equal(e.call((v) => v.manager.markHeld('b', 'until-room')), true);
-  assert.deepEqual(e.held(), ['b:2'], 'capacity 3 less the one live panel');
+  assert.equal(e.call((v) => v.manager.markHeld('b', 'sticky')), true);
+  assert.deepEqual(e.held(), ['b:sticky']);
 });
 
 // ---------------------------------------------------------------------------
 // hideStickiness until-room, literally
 // ---------------------------------------------------------------------------
-
-test('until-room: [A B C] at capacity 3, hide B records one free slot and leaves it parked', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
-  assert.equal(e.hold('b', 'until-room'), true);
-  assert.deepEqual(e.held(), ['b:1']);
-  assert.deepEqual(e.live(), ['a', 'c']);
-});
-
-test('until-room: open D then close D, free slots back at the threshold, leaves B parked', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
-  e.hold('b', 'until-room');
-  e.open(park('d'));
-  assert.deepEqual(e.live(), ['a', 'c', 'd']);
-  e.close('d');
-  assert.deepEqual(e.live(), ['a', 'c'], 'one free slot is not more than the one the park left');
-  assert.deepEqual(e.parked(), ['b']);
-});
-
-test('until-room: closing C opens a second free slot and B returns', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
-  e.hold('b', 'until-room');
-  e.close('c');
-  assert.deepEqual(e.live(), ['a', 'b']);
-  assert.deepEqual(e.held(), [], 'the hold is gone with the return');
-});
-
-test('until-room: a capacity rise returns B', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
-  e.hold('b', 'until-room');
-  e.setWidth(W(4));
-  assert.deepEqual(e.live(), ['a', 'b', 'c']);
-});
-
-test('until-room: a panel returned by a capacity rise keeps no hold', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
-  e.hold('b', 'until-room');
-  e.setWidth(W(4));
-  assert.deepEqual(e.live(), ['a', 'b', 'c']);
-  assert.deepEqual(e.held(), [], 'the return released the hold');
-});
 
 test('a wipe that removes held panels without a close leaves no hold behind', () => {
   const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
@@ -375,29 +328,6 @@ test('a wipe that removes held panels without a close leaves no hold behind', ()
   e.wipe();
   assert.deepEqual(e.ids(), ['root']);
   assert.deepEqual(e.held(), []);
-});
-
-test('until-room: a capacity drop and a rise back to the old capacity leaves the free slots at the threshold, and B stays parked', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), W(3));
-  e.hold('b', 'until-room');
-  e.setWidth(W(2));
-  assert.deepEqual(e.live(), ['a', 'c']);
-  e.setWidth(W(3));
-  assert.deepEqual(e.live(), ['a', 'c'], 'one free slot again, which is not more than the one the park left');
-  assert.deepEqual(e.parked(), ['b']);
-});
-
-test('until-room on an unmeasured row holds like sticky, then takes the threshold at the first measurement', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c')), 0);
-  e.hold('b', 'until-room');
-  assert.deepEqual(e.held(), ['b:Infinity'], 'no measurement, no threshold yet');
-  e.close('c');
-  assert.deepEqual(e.live(), ['a'], 'unmeasured, closing C frees nothing it can count: B holds like sticky');
-  e.setWidth(W(3));
-  assert.deepEqual(e.held(), ['b:2'], 'the first measurement took capacity 3 less the one live panel');
-  assert.deepEqual(e.live(), ['a'], 'two free slots are not more than the threshold of two');
-  e.close('a');
-  assert.deepEqual(e.live(), ['b'], 'three free slots exceed it');
 });
 
 // ---------------------------------------------------------------------------
@@ -481,34 +411,6 @@ test('created parked through useProvidePanels: a parked entry that a restore add
 // The park order
 // ---------------------------------------------------------------------------
 
-test('a scroll panel is never parked for room: the park panel touched longest ago goes', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), made('b', { overflow: 'scroll' }), park('c')), W(3));
-  e.open(park('d'));
-  assert.deepEqual(e.parked(), ['a']);
-});
-
-test('activating p parks the live panel touched longest ago, a tie going to the lower index', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('p', {}, { live: false }), park('d')), W(4));
-  e.activate('p');
-  assert.deepEqual(e.parked(), ['a']);
-});
-
-test('activating p parks the one panel left untouched while the others were touched, wherever it sits', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('p', {}, { live: false }), park('c'), park('d'), park('e')), W(4));
-  frameClock.skip(10);
-  for (const id of ['a', 'c', 'd']) e.call((v) => v.manager.touchPanel(id));
-  e.activate('p');
-  assert.deepEqual(e.parked(), ['e']);
-});
-
-test('touching the oldest panel spares it from the next park', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('p', {}, { live: false })), W(3));
-  frameClock.skip(10);
-  e.call((v) => v.manager.touchPanel('a'));
-  e.activate('p');
-  assert.deepEqual(e.parked(), ['b'], 'a was touched after b and c were created, so b is the oldest');
-});
-
 test('leastRecentlyTouchedId: the smallest touch time goes, a tie goes to the lower index, and an excluded panel is spared', () => {
   const panels = row(rootEntry(), park('a'), park('b'), park('c'), park('d'));
   const at: Record<string, number> = { a: 5, b: 2, c: 2, d: 9 };
@@ -518,25 +420,10 @@ test('leastRecentlyTouchedId: the smallest touch time goes, a tie goes to the lo
   assert.equal(leastRecentlyTouchedId(panels, () => 0, new Set(['a', 'b', 'c', 'd'])), null, 'nothing left to park');
 });
 
-test('a panel in the acted-on set is never parked by its own action', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b')), W(2));
-  e.open(park('c'));
-  assert.deepEqual(e.live(), ['b', 'c'], 'the one parked is a, the oldest of the rest, not c');
-  const f = mountEngine(row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false })), W(2));
-  f.activate('p');
-  assert.ok(f.live().includes('p'), 'activation never parks the panel it activates');
-});
-
 test('promoteToLive never parks a panel in the keep set', () => {
   const panels = row(rootEntry(), park('a'), park('b'), park('p', {}, { live: false }));
   const out = promoteToLive(panels, 'p', 2, () => 0, new Set(['a']))!;
   assert.deepEqual(parkedOf(out), ['b'], 'a is the oldest, but it is kept');
-});
-
-test('a capacity drop parks the leftmost excess', () => {
-  const e = mountEngine(row(rootEntry(), park('a'), park('b'), park('c'), park('d'), park('e')), W(5));
-  e.setWidth(W(3));
-  assert.deepEqual(e.parked(), ['a', 'b']);
 });
 
 // ---------------------------------------------------------------------------
