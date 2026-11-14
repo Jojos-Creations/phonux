@@ -79,6 +79,21 @@ export type ConfigureResult =
 /** Who an operation is for: code, which leaves the person's arrangement alone, or a person's own gesture, which records it. @internal */
 export type PanelOpSource = 'code' | 'person';
 
+/**
+ * One panel a completed move or place changed, and who the change was for.
+ * @public
+ */
+export type PanelMove = {
+  /** The id of the panel that moved. */
+  readonly id: PanelId;
+  /**
+   * `'person'` for a person's own gesture, which the saved arrangement keeps: a drag or the arrow keys on a grab handle, a row drop, a header
+   * button, a host call with source `'person'`, the deprecated host `move` and `reanchor`, and the root's summon on an Embla row. `'code'` for a
+   * `move`, `place` or row drop called with source `'code'`, which leaves the person's arrangement as it was.
+   */
+  readonly source: 'code' | 'person';
+};
+
 /** An accepted operation. @internal */
 export const accepted = (changed: boolean): PanelResult => ({ ok: true, changed });
 
@@ -153,6 +168,13 @@ export interface PanelManager {
   getSnapshot(): PanelSnapshot;
   /** Calls `l` when the workspace changes; returns a function that stops the calls. */
   subscribe(l: () => void): () => void;
+  /**
+   * Calls `l` once for every panel a completed `move` or `place` changed (its place in the row or what it is anchored to), the person's gestures included, after the
+   * snapshot that shows the change is published. A panel carried along by the one that moved (one anchored to it, such as a panel it
+   * opened) is reported too, with the same source, after it. An operation that is refused, changes nothing, or whose panel leaves the row
+   * before the change is drawn reports nothing; a park, show, close, open or resize is not a move. Returns a function that stops the calls.
+   */
+  subscribeMoves(l: (move: PanelMove) => void): () => void;
 }
 
 /** The manager over `source`. @internal */
@@ -174,5 +196,6 @@ export function makePanelManager(source: ReadSource): PanelManager {
     familyOf: (id) => source.familyOf(id),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),
+    subscribeMoves: (l) => source.subscribeMoves(l),
   };
 }

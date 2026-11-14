@@ -821,6 +821,7 @@ export interface PanelManager {
     resetLayout(target: PanelId | 'all'): ResetResult;
     rootView(): RootView;
     subscribe(l: () => void): () => void;
+    subscribeMoves(l: (move: PanelMove) => void): () => void;
     summonRoot(): boolean;
     swap(show: readonly (PanelId | {
         id: PanelId;
@@ -848,6 +849,12 @@ export interface PanelMaximize {
     readonly phase: MaximizePhase;
     toggle(): boolean;
 }
+
+// @public
+export type PanelMove = {
+    readonly id: PanelId;
+    readonly source: 'code' | 'person';
+};
 
 // @public
 export interface PanelPresence {

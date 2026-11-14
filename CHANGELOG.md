@@ -14,6 +14,11 @@
 
 ### Added
 
+- `panels.subscribeMoves(listener)` and the `PanelMove` type: the listener hears `{ id, source }` once for every panel a completed
+  `move` or `place` changed, after the snapshot that shows it. `source` is `'person'` for a person's own gesture (a drag released in
+  the row, the grab handle's arrow keys, a row drop, a header button, a host call with source `'person'`) and `'code'` for a call
+  from code, so a host can tell a person's arrangement from its own moves. A panel carried along by the one that moved (anchored to
+  it) is reported after it with the same source.
 - `WorkspaceColumnHandle.reorderWorkspace(target, toIndex)`: moves a workspace to another place in the column and saves the
   order. The current workspace stays current at its new index.
 - `tuning.chrome.fitVisibleMaxSlots` (whole number 1 to 64, default 2): while the window's edge cuts a panel 2 to that many slots

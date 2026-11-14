@@ -453,7 +453,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // The commit that draws the move snaps the slots it moves: they are all out of the view, and the root must stand at its new
       // place before the glide brings it in.
       noteEmblaMove(now.el, rootId);
-      reorderPanel(rootId, at - from, true);
+      if (reorderPanel(rootId, at - from, true)) core.noteMove(rootId, 'person');
     }
     requestScroll({ id: rootId, kind: 'move', align: 'into-view', forced: true, fresh: false });
   };
@@ -870,6 +870,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
+      if (changed) core.noteMove(engineId, source);
       // A move by code leaves the view where it is, as a place by code does: only a person's own move follows the panel.
       if (changed && source === 'person') followPanel(engineId);
       else if (changed && i.overflowContainerRef.current !== null) noteEmblaPlace(i.overflowContainerRef.current, engineId);
@@ -884,6 +885,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = placeAt(engineId, value, source === 'person');
+      if (changed) core.noteMove(engineId, source);
       // A place by code (a reorder rule, a restore) leaves the view where it is: only a person's own place follows the panel.
       if (changed && source === 'person') followPanel(engineId);
       else if (changed && i.overflowContainerRef.current !== null) noteEmblaPlace(i.overflowContainerRef.current, engineId);
@@ -927,6 +929,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = target.live ? placeAt(engineId, value, source === 'person') : landAt(engineId, value, source === 'person');
+      if (changed) core.noteMove(engineId, source);
       if (changed) scrollForShow(engineId);
       gate.release(token);
       return accepted(changed);
@@ -1053,7 +1056,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       raw(
         (id: string, _direction: 'left' | 'right') => [id],
         'other',
-        (id, direction) => void reorderPanel(id, direction),
+        (id, direction) => {
+          // The person's arrangement records it, so it reports as the person's.
+          if (reorderPanel(id, direction)) core.noteMove(id, 'person');
+        },
       ),
     ),
     setSlots: named(
@@ -1077,6 +1083,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         (id: string, _anchor: AnchorRequest) => [id],
         'other',
         (id, anchor) => {
+          const sketch = reanchorPanel(panels, id, anchor, rootId);
+          const anchorOf = (row: readonly PanelWindow[]): string => JSON.stringify(row.find((p) => p.id === id)?.anchor ?? null);
+          if (sketch.map((p) => p.id).join(' ') !== panels.map((p) => p.id).join(' ') || anchorOf(sketch) !== anchorOf(panels)) core.noteMove(id, 'person');
           setPanels((prev) => {
             const next = reanchorPanel(prev, id, anchor, rootId);
             return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), rootId);
