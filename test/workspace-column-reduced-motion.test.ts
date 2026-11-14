@@ -1,8 +1,9 @@
 /**
- * Under Reduce Motion the column snaps to the workspace it moves to: the cell track carries no transition, so it sits at the
+ * Under Reduce Motion the column snaps to the workspace it moves to: the cells carry no transition, so the new one sits at the
  * new place in the frame the move is drawn.
  */
 import { afterEach, test } from 'node:test';
+import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
 import { rigCleanup, until } from './support/auto-rig.js';
@@ -34,7 +35,7 @@ function reduceMotion(on: boolean): void {
   for (const listener of [...reduced.listeners]) listener();
 }
 
-test('Reduce Motion snaps: no transition on the track, and it sits at the new workspace', async () => {
+test('Reduce Motion snaps: no transition on the cells, and the new workspace sits in view', async () => {
   reduceMotion(true);
   const c = createWorkspaceColumn({});
   act(() => {
@@ -45,8 +46,10 @@ test('Reduce Motion snaps: no transition on the track, and it sits at the new wo
   await until('three cells', () => document.querySelectorAll('[data-workspace-cell]').length === 3);
   await new Promise((r) => setTimeout(r, 30));
   act(() => void c.scrollTo(2));
-  const track = document.querySelector<HTMLElement>('[data-workspace-cell]')!.parentElement!;
-  await until('the track moved', () => track.style.transform === 'translateY(-200%)');
-  await until('no transition', () => track.style.transition === 'none');
+  const cell = (i: number): HTMLElement => document.querySelectorAll<HTMLElement>('[data-workspace-cell]')[i]!;
+  await until('the new workspace is in view', () => cell(2).style.transform === 'translateY(0%)');
+  await until('the old one left above', () => cell(0).style.transform === 'translateY(-100%)');
+  assert.equal(cell(2).style.transition, 'none', 'the workspace arrived at does not slide');
+  assert.equal(cell(0).style.transition, 'none', 'the workspace left does not slide');
   act(() => c.dispose());
 });

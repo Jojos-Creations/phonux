@@ -249,31 +249,36 @@ test('focus moves into the cell that arrives when it was inside the one left', a
 test('without Reduce Motion the column glides to the new workspace', async () => {
   const c = await three();
   act(() => void c.scrollTo(2));
-  const track = cells()[0]!.parentElement!;
-  await until('the track moved', () => track.style.transform === 'translateY(-200%)');
-  assert.equal(track.style.transition, `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`);
+  const glide = `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`;
+  await until('the new workspace is in view', () => cells()[2]!.style.transform === 'translateY(0%)');
+  assert.equal(cells()[2]!.style.transition, glide, 'the workspace arrived at glides in');
+  assert.equal(cells()[0]!.style.transform, 'translateY(-100%)', 'the workspace left stands above');
+  assert.equal(cells()[0]!.style.transition, glide, 'and glides out');
+  assert.equal(cells()[1]!.style.transition, 'none', 'the one passed over does not move through view');
 });
 
-test('a workspace added or removed above the current one moves the track without a slide, and the next move still glides', async () => {
+test('a workspace added or removed above the current one moves nothing in view, and the next move still glides', async () => {
   const c = await three();
   const glide = `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`;
   act(() => void c.scrollTo(1));
-  const track = cells()[0]!.parentElement!;
-  await until('at the middle workspace', () => track.style.transform === 'translateY(-100%)');
   const shown = c.workspaces[1]!;
+  const cellOf = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${id}"]`)!;
+  await until('at the middle workspace', () => cellOf(shown.id).style.transform === 'translateY(0%)');
   let added: ReturnType<WorkspaceColumnHandle['addWorkspace']> | undefined;
   act(() => void (added = c.addWorkspace({ index: 0 })));
   await until('four cells', () => cells().length === 4);
   assert.equal(c.workspaces[2], shown, 'the same workspace is current');
-  assert.equal(track.style.transform, 'translateY(-200%)');
-  assert.equal(track.style.transition, 'none', 'an index shift jumps');
+  assert.equal(cellOf(shown.id).style.transform, 'translateY(0%)', 'an index shift leaves the current workspace in view');
+  assert.equal(cellOf(added!.id).style.transform, 'translateY(-100%)', 'the added one stands above');
+  assert.equal(cellOf(added!.id).style.transition, 'none', 'and does not slide there');
   act(() => c.removeWorkspace(added!));
   await until('three cells', () => cells().length === 3);
-  assert.equal(track.style.transform, 'translateY(-100%)');
-  assert.equal(track.style.transition, 'none', 'a removal above jumps too');
+  assert.equal(cellOf(shown.id).style.transform, 'translateY(0%)', 'a removal above leaves it in view too');
   act(() => void c.scrollTo(2));
-  await until('moved down', () => track.style.transform === 'translateY(-200%)');
-  assert.equal(track.style.transition, glide, 'a change of workspace still glides');
+  const next = c.workspaces[2]!;
+  await until('moved down', () => cellOf(next.id).style.transform === 'translateY(0%)');
+  assert.equal(cellOf(next.id).style.transition, glide, 'a change of workspace still glides');
+  assert.equal(cellOf(shown.id).style.transform, 'translateY(-100%)', 'the one left stands above');
 });
 
 // ---------------------------------------------------------------------------
@@ -420,8 +425,8 @@ test('the bottom band holds a 24 px button', () => {
 test('a column drawn before its saved workspace is read lands on it without a slide, and glides after that', async () => {
   const seen: { transform: string; transition: string }[] = [];
   const watch = new MutationObserver(() => {
-    const track = cells()[0]?.parentElement;
-    if (track) seen.push({ transform: track.style.transform, transition: track.style.transition });
+    const saved = document.querySelector<HTMLElement>('[data-workspace-cell][data-workspace-id="c1"]');
+    if (saved) seen.push({ transform: saved.style.transform, transition: saved.style.transition });
   });
   watch.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
   const stored = memoryColumnStorage({ version: 1, workspaces: [{ id: 'a1', name: 'One' }, { id: 'b1', name: 'Two' }, { id: 'c1', name: 'Three' }], current: 'c1' });
@@ -433,13 +438,13 @@ test('a column drawn before its saved workspace is read lands on it without a sl
   assert.equal(c.status, 'loading', 'positive control: the column is drawn before the saved list is read');
   read();
   await until('ready', () => c.status === 'ready');
-  const track = (): HTMLElement => cells()[0]!.parentElement!;
-  await until('placed on the saved workspace', () => track().style.transform === 'translateY(-200%)');
+  const cellOf = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${id}"]`)!;
+  await until('placed on the saved workspace', () => cellOf('c1').style.transform === 'translateY(0%)');
   watch.disconnect();
-  const landed = seen.find((s) => s.transform === 'translateY(-200%)');
+  const landed = seen.find((s) => s.transform === 'translateY(0%)');
   assert.ok(landed, 'positive control: the move onto the saved workspace was observed');
   assert.equal(landed.transition, 'none', 'the first placement does not slide');
   act(() => void c.scrollTo(0));
-  await until('the track moved', () => track().style.transform === 'translateY(0%)' || track().style.transform === 'translateY(0)');
-  assert.equal(track().style.transition, `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`, 'a later move glides');
+  await until('the first workspace is in view', () => cellOf('a1').style.transform === 'translateY(0%)');
+  assert.equal(cellOf('a1').style.transition, `transform ${SLIDE_DURATION_SEC}s cubic-bezier(${SLIDE_EASE.join(',')})`, 'a later move glides');
 });

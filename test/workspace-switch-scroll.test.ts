@@ -37,10 +37,11 @@ async function switchTo(reducedMotion: MotionConfigProps['reducedMotion'] | unde
   const ui = React.createElement(WorkspaceColumn, { column, children: () => React.createElement('div', null, 'panels') });
   const mounted = mount(reducedMotion === undefined ? ui : React.createElement(MotionConfig, { reducedMotion }, ui));
   await advanceFrames(50);
-  const track = mounted.container.querySelector<HTMLElement>('[data-workspace-cell]')!.parentElement!;
+  // Each cell moves on its own: the one arrived at carries the switch's motion.
+  const arrived = (): HTMLElement => mounted.container.querySelectorAll<HTMLElement>('[data-workspace-cell]')[2]!;
   act(() => void column.scrollTo(2));
   await advanceFrames(1);
-  const out = { transition: track.style.transition, transform: track.style.transform };
+  const out = { transition: arrived().style.transition, transform: arrived().style.transform };
   column.dispose();
   return out;
 }
@@ -48,13 +49,13 @@ async function switchTo(reducedMotion: MotionConfigProps['reducedMotion'] | unde
 test('MotionConfig always: the switch snaps in its first frame', async () => {
   const { transition, transform } = await switchTo('always');
   assert.equal(transition, 'none');
-  assert.equal(transform, 'translateY(-200%)');
+  assert.equal(transform, 'translateY(0%)');
 });
 
 test('MotionConfig user with the system query off: the switch slides', async () => {
   const { transition, transform } = await switchTo('user');
   assert.match(transition, /^transform [\d.]+s cubic-bezier\(/);
-  assert.equal(transform, 'translateY(-200%)');
+  assert.equal(transform, 'translateY(0%)');
 });
 
 test('no MotionConfig with the system query off: the switch slides', async () => {
