@@ -108,7 +108,7 @@ test('getSnapshot is reference-equal until something changes and its keys are ex
   assert.equal(w.panels.getSnapshot(), again, 'nothing changed, so the snapshot is the same object');
 });
 
-test('each PanelState has exactly the twelve keys in order, with engineId and index null for a pending panel', () => {
+test('each PanelState has exactly the twelve keys in order, with engineId and index null for a pending panel, and a panel in the row adds slots', () => {
   const w = createWorkspace({ mount: false, templates: [markerTemplate('k')] });
   const h = w.addPanel('k');
   const pending = h.getState();
@@ -118,7 +118,8 @@ test('each PanelState has exactly the twelve keys in order, with engineId and in
   assert.equal(pending.index, null);
   mountWorkspace(w);
   const live = h.getState();
-  assert.deepEqual(Object.keys(live), KEYS_OF_STATE);
+  assert.deepEqual(Object.keys(live), [...KEYS_OF_STATE, 'slots']);
+  assert.equal(live.slots, 1);
   assert.equal(typeof live.engineId, 'string');
   assert.equal(live.index, 0);
 });

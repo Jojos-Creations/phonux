@@ -69,6 +69,7 @@ const VALUE_EXPORTS = [
   'Workspace',
   'WorkspacePanel',
   'WorkspaceTrash',
+  'packWorkspaceTiles',
   'useProvidePanels',
   'feedRowWheel',
   'reorderStepsForOffset',
@@ -145,7 +146,7 @@ const VALUE_EXPORTS = [
   'withSlotChanges',
 ].sort();
 
-test('the phonux barrel exports exactly the 127 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 128 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 
