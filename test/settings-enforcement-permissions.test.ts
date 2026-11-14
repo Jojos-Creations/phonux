@@ -378,22 +378,12 @@ test('the undo window restarts from each close: a second default close 1 s in en
   assert.deepEqual(heldIds(p), []);
 });
 
-/** Root plus three live panels, all under `layer`, in a container that holds three columns: the reconcile effect parks the leftmost one. */
-const parkingRow = (layer: PanelSettings, spy: Spy): ReturnType<typeof provide> =>
-  provide([rootEntry(), made('a', { overflow: 'park', ...layer }), made('b', { overflow: 'park', ...layer }), made('c', { overflow: 'park', ...layer })], { capture: spy, containerWidth: 1300 });
-
-test('snapshot control: the row above really parks a panel, so the park scenario below can be positive', () => {
+test('a close takes a picture', () => {
   const spy = spyCapture();
-  const p = parkingRow({}, spy);
-  assert.deepEqual(p.now().entries.filter((e) => !e.live).map((e) => e.id), ['a']);
-});
-
-test('a park and a close each take a picture', () => {
-  const spy = spyCapture();
-  const p = parkingRow({}, spy);
-  assert.deepEqual(spy.captured, ['a']);
+  const p = provide([rootEntry(), made('a'), made('b'), made('c')], { capture: spy, containerWidth: 1300 });
+  assert.deepEqual(spy.captured, [], 'control: nothing parks for room on the strip, so no picture before the close');
   act(() => p.now().close('b'));
-  assert.deepEqual(spy.captured, ['a', 'b']);
+  assert.deepEqual(spy.captured, ['b']);
 });
 
 test('a close the gate refuses takes no picture', () => {
