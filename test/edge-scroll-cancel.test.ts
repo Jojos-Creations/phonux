@@ -7,17 +7,15 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
+import { emblaHeld, emblaOf } from '../emblaRow.js';
+import { advanceUntilRowRests, emblaWindowIn, rowGlideTargetOf, rowOffsetOf, stubSlotBoxes } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelReorderSteps } from '../index.js';
 import type { DragHandleProps, PanelSettings } from '../index.js';
-import { LIBRARY_TUNING_DEFAULTS, resolvePanelSettings } from '../panelSettings.js';
-import { PanelSlotContext, PanelVerticalDragContext, type DragScroll, type PanelSlotValue } from '../panelSlotContext.js';
-import { slotTuning } from '../panelTuning.js';
-import { edgeScrollStep } from '../edgeScroll.js';
-import { rowScrollerFor } from '../rowScroller.js';
-import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
+import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
+import { PanelVerticalDragContext } from '../panelSlotContext.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { made, mountRow, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
@@ -32,12 +30,23 @@ afterEach(async () => {
 const ends: Array<{ id: string; offset: number; hops: number }> = [];
 const closes: string[] = [];
 let lastHandle: DragHandleProps | undefined;
+/** Whether the grab bars offer a reorder: a host can take it away mid-drag, which takes the row's edge numbers from the drag. */
+const reorderSwitch = { on: true, listeners: new Set<() => void>() };
+const setReorder = (on: boolean): void => {
+  reorderSwitch.on = on;
+  for (const l of reorderSwitch.listeners) l();
+};
+const subscribeReorder = (l: () => void): (() => void) => {
+  reorderSwitch.listeners.add(l);
+  return () => void reorderSwitch.listeners.delete(l);
+};
 function CancelBox({ id }: { id: string }): React.ReactElement {
   const steps = usePanelReorderSteps();
+  const reorderOn = React.useSyncExternalStore(subscribeReorder, () => reorderSwitch.on);
   // The close tests below drag down, which a row allows only under a template's verticalDrag.
   const box = React.createElement(DragToClose, {
     onClose: () => void closes.push(id),
-    reorder: { onDragEnd: (offset: number) => void ends.push({ id, offset, hops: steps(offset) }) },
+    ...(reorderOn ? { reorder: { onDragEnd: (offset: number) => void ends.push({ id, offset, hops: steps(offset) }) } } : {}),
     children: (handle) => {
       lastHandle = handle;
       return React.createElement('div', { 'data-handle': id, onPointerDown: handle.onPointerDown }, 'grab');
@@ -89,95 +98,65 @@ async function dragTo(m: MountedRow, at: number): Promise<void> {
   await moveTo(at);
   await frames(1);
 }
-/** The row after `n` held frames of the default speed from `from`, by the loop's own repeated additions. */
-function walked(n: number, from = 0): number {
-  let scrollLeft = from;
-  for (let frame = 0; frame < n; frame += 1) scrollLeft += edgeScrollStep({ speed: EDGE.maxPxPerSec, dtMs: FRAME_MS, scrollLeft, maxScroll: MAX_SCROLL });
-  return scrollLeft;
-}
 /**
- * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0 to MAX_SCROLL. 86, half of (968 + 16) % 406, before and
+ * The row's stops: the one-phone grid (390 + the 16 gap apart) from 0 to the strip's end. 86, half of (968 + 16) % 406, before and
  * after the strip centers the whole slots the window shows at every stop.
  */
 const STOPS = Array.from({ length: 10 }, (_, k) => 406 * k);
-/** True when a fresh claim can be taken, giving it back at once. */
-function claimFree(m: MountedRow): boolean {
-  const claim = m.scroller.claim();
-  claim?.release();
-  return claim !== null;
-}
-
-test('a glide in flight goes on to its target at the pointer-down on the grab bar: a press must not leave the row between two stops', async () => {
+test('a press on a grab bar mid-glide keeps the pressed panel: the row rests on the stop that shows it whole, never between two stops', async () => {
   const m = mountCancelRow();
-  assert.equal(m.scroller.glideTo(2000, { durationSec: 1, instant: false, ease: 'cubic-out' }), true);
-  await frames(10);
+  await frames(30);
+  // Lays the Embla row out, so the glide is Embla's and rowOffsetOf reads where it draws the row.
+  stubSlotBoxes(m.container, 0);
+  await frames(30);
+  assert.equal(rowOffsetOf(m.container), 0, 'control: the row starts at its first stop');
+  act(() => void m.latest().scrollTo('s8'));
+  const target = rowGlideTargetOf(m.container);
+  assert.ok(target !== null && target > 406, `a glide is in flight toward s8 (${String(target)})`);
+  await frames(6);
   const mid = rowOffsetOf(m.container);
-  assert.ok(mid > 0 && mid < 2000, `mid-glide at ${mid}`);
-  await press(handleOf(m), 500);
-  assert.equal(m.scroller.glideTarget(), 2000);
-  await frames(90);
-  assert.equal(rowOffsetOf(m.container), 2000);
+  assert.ok(mid > 0 && mid < target, `mid-glide at ${mid}`);
+  // A person presses a grab bar they can see: the first panel wholly in the window mid-glide.
+  const win = emblaWindowIn(m.container)!.getBoundingClientRect();
+  const slotOf = (id: string): HTMLElement => handleOf(m, id).closest<HTMLElement>('[data-row-slot]')!;
+  const whole = (id: string): boolean => {
+    const r = slotOf(id).getBoundingClientRect();
+    return r.left >= win.left - 0.5 && r.right <= win.right + 0.5;
+  };
+  const seen = Array.from({ length: 10 }, (_, k) => `s${k + 1}`).find(whole);
+  assert.ok(seen, 'control: a whole panel is in the window mid-glide');
+  const at = slotOf(seen).getBoundingClientRect().left + 100;
+  await press(handleOf(m, seen), at);
+  await advanceUntilRowRests(m.container);
+  const rest = rowOffsetOf(m.container);
+  assert.ok(STOPS.includes(rest), `the row rests on a stop (${rest})`);
+  assert.ok(rest < target, `the glide toward s8 gave way to the press (${rest} short of ${target})`);
+  assert.equal(whole(seen), true, `the pressed panel ${seen} is still whole in the window`);
+  await liftAt(at);
 });
 
-/** A DragToClose alone in a marked scroller whose slot's drag scroll the caller can change. */
-function mountAlone(dragScroll: DragScroll | undefined) {
-  const slot = (value: DragScroll | undefined): PanelSlotValue => ({
-    ...resolvePanelSettings().value,
-    collapsible: true,
-    neighborWidths: { left: [], right: [] },
-    tuning: slotTuning(LIBRARY_TUNING_DEFAULTS),
-    dragScroll: value,
-  });
-  const ui = (value: DragScroll | undefined): React.ReactElement =>
-    React.createElement(
-      PanelSlotContext.Provider,
-      { value: slot(value) },
-      React.createElement(
-        'div',
-        { 'data-row-scroller': '' },
-        React.createElement(DragToClose, {
-          reorder: { onDragEnd: (offset: number) => void ends.push({ id: 'alone', offset, hops: 0 }) },
-          children: (handle) => {
-            lastHandle = handle;
-            return React.createElement('div', { 'data-handle': 'alone', onPointerDown: handle.onPointerDown }, 'grab');
-          },
-        }),
-      ),
-    );
-  const mounted = mount(ui(dragScroll));
-  const scroller = mounted.container.querySelector<HTMLElement>('[data-row-scroller]')!;
-  scroller.getBoundingClientRect = () => RECT;
-  return { mounted, ui, scroller, handle: mounted.container.querySelector('[data-handle]')! };
-}
-const EDGE_ON: DragScroll = { mode: 'edge', zonePx: EDGE.zonePx, maxPxPerSec: EDGE.maxPxPerSec, reducedStepMs: EDGE.reducedStepMs, maxScroll: MAX_SCROLL, stops: [], settleStops: [], settleSec: 0.4, settleEase: 'cubic-out' };
-
-test('the row ceasing to scroll mid-hold gives the claim back and the row stops where it is', async () => {
-  ends.length = 0;
-  const alone = mountAlone(EDGE_ON);
-  const rowScroller = rowScrollerFor(alone.scroller);
-  await press(alone.handle, 960);
-  await moveTo(1000);
+test('the drag losing the row mid-hold (its reorder taken away) gives the Embla row back and the row settles on the nearest stop', async () => {
+  setReorder(true);
+  const m = mountCancelRow();
   await frames(30);
-  const held = rowScroller.scrollLeft();
-  assert.ok(held > 0);
-  assert.equal(rowScroller.claimHeld(), true);
-  alone.mounted.rerender(alone.ui(undefined));
-  assert.equal(rowScroller.claimHeld(), false, 'rowScroll turned false');
+  stubSlotBoxes(m.container, 0);
   await frames(30);
-  assert.equal(rowScroller.scrollLeft(), held);
-  await liftAt(1000);
+  const win = emblaWindowIn(m.container)!;
+  const right = win.getBoundingClientRect().right;
+  const rowHeld = (): boolean => emblaHeld(emblaOf(win)!);
+  await dragTo(m, right - EDGE.zonePx / 4);
+  await frames(30);
+  const held = rowOffsetOf(m.container);
+  assert.ok(held > 0, `control: the edge hold scrolled the row (${held})`);
+  assert.equal(rowHeld(), true, 'the drag holds the row');
+  act(() => setReorder(false));
+  assert.equal(rowHeld(), false, 'the hold is given back with the reorder');
+  const at = rowOffsetOf(m.container);
+  await advanceUntilRowRests(m.container);
+  const rest = rowOffsetOf(m.container);
+  assert.ok(STOPS.includes(rest) && Math.abs(rest - at) <= 203, `the row settles on the stop nearest where it was (${at} -> ${rest}), never between two`);
+  await frames(30);
+  assert.equal(rowOffsetOf(m.container), rest, 'and no longer moves under the held pointer');
+  await liftAt(right - EDGE.zonePx / 4);
+  setReorder(true);
 });
-
-/** A row whose offset moves are counted: `writes` rises on every notify that finds the offset changed. */
-function countWrites(m: MountedRow): { writes: () => number; value: () => number } {
-  const scroller = rowScrollerFor(m.container);
-  let writes = 0;
-  let value = scroller.scrollLeft();
-  scroller.subscribe(() => {
-    if (scroller.scrollLeft() === value) return;
-    writes += 1;
-    value = scroller.scrollLeft();
-  });
-  return { writes: () => writes, value: () => value };
-}
-
