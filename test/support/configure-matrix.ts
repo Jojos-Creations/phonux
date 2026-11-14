@@ -15,7 +15,7 @@ import type { CaptureTrigger, ConfigureResult, PanelHandle, PanelResult, PanelSe
 import { useFrameClaim } from '../../panelFrameClaim.js';
 import { panelKey } from '../../panelSettings.js';
 import { createFakeHost } from '../../fakeHost.js';
-import { rowOffsetOf } from './strip.js';
+import { emblaWindowIn, rowOffsetOf, stubSlotBoxes } from './strip.js';
 import { advanceFrames, mount, panelsInput, withHost } from './mount-harness.js';
 import { FRAME_MS } from './jsdom-globals.js';
 import { flush, mountWorkspace, rowEntries, type MountedWorkspace } from './workspace-row.js';
@@ -515,5 +515,17 @@ export async function heldScroll(r: MatrixRig, id: string, x: number): Promise<n
   return gained;
 }
 
-export const HALF_ZONE_POINTER = EDGE_WINDOW - LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx / 2;
+/**
+ * Lays the Embla row of `r` out and answers the pointer x half the default zone inside the Embla window's right edge: the band a
+ * drag's edge hold reads is the window's own edge, not the container's.
+ */
+export async function halfZonePointer(r: MatrixRig): Promise<number> {
+  stubSlotBoxes(r.m.container, 16);
+  await r.settle();
+  const win = emblaWindowIn(r.m.container);
+  assert.ok(win, 'the Embla window rendered');
+  const right = win.getBoundingClientRect().right;
+  assert.ok(right > 0 && right < EDGE_WINDOW, `control: the window's right edge (${right}) is laid out inside the container`);
+  return right - LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx / 2;
+}
 export { LIBRARY_TUNING_DEFAULTS };

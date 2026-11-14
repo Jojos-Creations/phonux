@@ -18,6 +18,7 @@ import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 import { slotTransform } from './support/strip.js';
+import { differential, differentialsCovered } from './support/differential.js';
 
 const ROOT = 'root';
 const OWNED = ['exitTo', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo'];
@@ -164,3 +165,29 @@ async function exitScale(b: PanelSettings, tuning: WorkspaceTuning = {}): Promis
   return scale;
 }
 
+
+test('differential exitTo: the resolved setting decides whether a leaving slot shrinks', async () => {
+  const scales = { left: await exitScale({ exitTo: 'left' }), shrink: await exitScale({ exitTo: 'shrink' }) };
+  assert.ok(scales.left === 1 && scales.shrink > 0 && scales.shrink < 1, `control: left slides at full size and shrink is part way down (${JSON.stringify(scales)})`);
+  differential('exitTo', (run) => {
+    for (const value of ['left', 'shrink'] as const) run(value, () => scales[value]);
+  });
+});
+
+test("differential tuning.defaultEnterFrom: the workspace's default decides how a panel at auto enters", () => {
+  differential('tuning.defaultEnterFrom', (run) => {
+    for (const value of ['auto', 'top'] as const) run(value, () => enterStart({}, { defaultEnterFrom: value }));
+  });
+});
+
+test("differential tuning.defaultExitTo: the workspace's default decides how a panel at auto leaves", async () => {
+  const scales = { auto: await exitScale({}, { defaultExitTo: 'auto' }), shrink: await exitScale({}, { defaultExitTo: 'shrink' }) };
+  differential('tuning.defaultExitTo', (run) => {
+    for (const value of ['auto', 'shrink'] as const) run(value, () => scales[value]);
+  });
+});
+
+test('every name this file owns has a completed differential', () => {
+  assert.ok(differentialsCovered().length > 0, 'no differential completed, so the equality below would prove nothing');
+  assert.deepEqual(differentialsCovered(), [...OWNED].sort());
+});

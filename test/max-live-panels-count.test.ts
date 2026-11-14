@@ -13,7 +13,9 @@ import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { capRig, liveRightOfRoot, rowOf } from './support/cap-rig.js';
+import { differential } from './support/differential.js';
 import { markerTemplate } from './support/workspace-row.js';
+import { EMBLA_UNLOADED_ATTRIBUTE } from '../emblaRow.js';
 
 afterEach(() => cleanup());
 
@@ -93,3 +95,32 @@ test('unmeasured row: the render probe does see a row that holds more than N whe
 /** The first committed row that holds a panel besides History. */
 const firstWithPanels = (commits: readonly string[]): string | undefined => commits.find((row) => row !== 'root');
 
+
+// ---------------------------------------------------------------------------
+// On the Embla row: the cap bounds how many far panels stay loaded
+// ---------------------------------------------------------------------------
+
+/** The row as drawn: each panel's name, `-` after one drawn as a placeholder (its content unloaded). */
+const drawnOf = (r: Awaited<ReturnType<typeof capRig>>): string => {
+  const slots = [...r.m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
+  const names = rowOf(r.provided().entries).split(' ');
+  assert.equal(slots.length, names.length, 'control: one strip slot per panel on the row');
+  return slots.map((slot, k) => `${names[k]}${slot.querySelector(`[${EMBLA_UNLOADED_ATTRIBUTE}]`) !== null ? '-' : ''}`).join(' ');
+};
+
+test('differential tuning.maxLivePanels: ten panels in one window keep three far panels loaded under a cap of 3 and one under a cap of 1', async () => {
+  const drawn = new Map<number | null, string>();
+  for (const cap of [null, 1, 3] as const) {
+    const r = await capRig({ count: 10, cap, width: 1280 });
+    await r.settle();
+    assert.equal(r.row(), 'root w1 w2 w3 w4 w5 w6 w7 w8 w9 w10', `cap ${String(cap)}: every panel keeps its slot on the strip, none parks`);
+    drawn.set(cap, drawnOf(r));
+    cleanup();
+  }
+  assert.equal(drawn.get(null), 'root w1 w2 w3 w4 w5- w6- w7- w8- w9- w10-', 'control: with the key unset the panels in view and two past the edge load');
+  differential('tuning.maxLivePanels', (run) => {
+    run(1, () => drawn.get(1));
+    run(3, () => drawn.get(3));
+  });
+  assert.deepEqual([drawn.get(1), drawn.get(3)], ['root w1 w2 w3- w4- w5- w6- w7- w8- w9- w10-', 'root w1 w2 w3 w4- w5- w6- w7- w8- w9- w10-'], 'the cap counts the shown panels first and never unloads one in view');
+});

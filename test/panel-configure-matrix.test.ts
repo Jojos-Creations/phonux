@@ -22,7 +22,7 @@ import {
   CATALOG_NAMES,
   CLASSES,
   CLASS_TABLE,
-  HALF_ZONE_POINTER,
+  halfZonePointer,
   LIBRARY_TUNING_DEFAULTS,
   STATUSES,
   arrange,
@@ -1232,6 +1232,7 @@ test('matrix:tuning.edgeScroll', async () => {
   await wrongScopeInEveryStatus({ tuning: { edgeScroll: { zonePx: 12 } } }, 'tuning.edgeScroll');
   const quarter = LIBRARY_TUNING_DEFAULTS.edgeScroll.zonePx / 4;
   const r = await dragRig();
+  const HALF_ZONE_POINTER = await halfZonePointer(r);
   assert.equal((await heldScroll(r, 's1', HALF_ZONE_POINTER)) > 0, true, 'before: half the default zone from the edge scrolls');
   assert.deepEqual(shape(r.turn(() => r.ws.panels.configureTuning({ edgeScroll: { zonePx: quarter } }))), { now: [], later: ['tuning.edgeScroll'], shadowed: [] });
   assert.equal(await heldScroll(r, 's2', HALF_ZONE_POINTER), 0, 'after: a quarter-zone band leaves the same pointer outside it');
@@ -1388,25 +1389,32 @@ test('matrix:tuning.resizeSettleSlides', async () => {
 test('matrix:tuning.maxLivePanels', async () => {
   probe('tuning.maxLivePanels');
   await wrongScopeInEveryStatus({ tuning: { maxLivePanels: 2 } }, 'tuning.maxLivePanels');
-  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd'], park: true, width: 4000 });
+  // On the Embla row every panel keeps its slot; the cap bounds how many far parkable panels stay loaded (`-`: a placeholder).
+  const r = await matrixRig({ ids: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], park: true, width: 1280 });
+  const drawn = (): string => {
+    const slots = [...r.m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
+    const names = r.order();
+    assert.equal(slots.length, names.length, 'control: one strip slot per panel');
+    return slots.map((slot, k) => `${names[k]}${slot.querySelector('[data-row-unloaded]') !== null ? '-' : ''}`).join(' ');
+  };
   await r.settle();
-  assert.equal(r.live().join(' '), 'root a b c d', 'before: no cap, and the window holds every panel');
-  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 2 }))) }, { ok: true, changed: true, now: ['tuning.maxLivePanels'], later: [], shadowed: [], notes: [] });
+  assert.equal(drawn(), 'root a b c d e- f- g- h-', 'before: no cap, the panels in view and two past the edge load');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: 1 }))) }, { ok: true, changed: true, now: ['tuning.maxLivePanels'], later: [], shadowed: [], notes: [] });
   await r.settle();
-  assert.equal(r.live().join(' '), 'root c d', 'the two leftmost park at this commit');
-  assert.equal(r.ws.tuning.maxLivePanels, 2);
+  assert.equal(drawn(), 'root a b c- d- e- f- g- h-', 'the far panels unload at this commit; the ones in view stay loaded');
+  assert.equal(r.live().join(' '), 'root a b c d e f g h', 'nothing parks: the cap unloads, it does not hide');
+  assert.equal(r.ws.tuning.maxLivePanels, 1);
   for (const bad of [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY, '3', true]) {
     assert.equal(thrownCode(() => r.ws.panels.configureTuning({ maxLivePanels: bad } as never)), 'invalid-settings', `${String(bad)} throws`);
   }
-  assert.equal(r.ws.tuning.maxLivePanels, 2, 'a refused value changes nothing');
-  assert.equal(r.live().join(' '), 'root c d');
+  assert.equal(r.ws.tuning.maxLivePanels, 1, 'a refused value changes nothing');
   done(r.turn(() => r.ws.panels.configureTuning({ maxLivePanels: null })));
   await r.settle();
   assert.equal(r.ws.tuning.maxLivePanels, null);
-  assert.equal(r.live().join(' '), 'root a b c d', 'null removes the cap and the parked pair returns');
+  assert.equal(drawn(), 'root a b c d e- f- g- h-', 'null removes the cap and the near pair loads again');
   const unmeasured = await matrixRig({ ids: ['a', 'b', 'c'], park: true, width: 0 });
   done(unmeasured.turn(() => unmeasured.ws.panels.configureTuning({ maxLivePanels: 1 })));
-  assert.deepEqual([unmeasured.ws.tuning.maxLivePanels, unmeasured.live().join(' ')], [1, 'root c'], 'unmeasured: applies at once');
+  assert.deepEqual([unmeasured.ws.tuning.maxLivePanels, unmeasured.live().join(' ')], [1, 'root a b c'], 'unmeasured: applies at once and parks nothing');
 });
 
 test('matrix:slots', async () => {

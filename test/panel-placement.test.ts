@@ -493,6 +493,21 @@ test('show: a panel placed by placeOnShow is not recorded as a person override -
   assert.equal(after.settings!.placeOnShow, 'row-start');
 });
 
+test('differential placeOnShow: the resolved setting decides where activate lands a hidden panel', () => {
+  differential('placeOnShow', (run) => {
+    for (const value of ['in-place', 'row-start'] as const) {
+      run(value, () => {
+        const provider = provide([fixed(ROOT), made('A'), made('B', { placeOnShow: value }, { live: false })]);
+        assert.deepEqual(provider.flags(), ['H', 'A', 'B~'], 'control: B starts hidden and stays hidden until shown');
+        act(() => provider.now().activate('B'));
+        const out = provider.flags();
+        cleanup();
+        return out;
+      });
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The enter side on the return, reveal and undo paths, and the updaters' re-read of the latest row
 // ---------------------------------------------------------------------------

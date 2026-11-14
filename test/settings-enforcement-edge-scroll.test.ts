@@ -1,13 +1,13 @@
 /**
  * The engine's reading of the setting that decides how a held drag scrolls the row: tuning.edgeScroll. A
- * differential through the real slot context: the same drag, the pointer half a default zone inside the right
- * edge, under two values must scroll the row differently. The literal rows are in
+ * differential through the real slot context: the same drag, the pointer half a default zone inside the Embla
+ * window's right edge, under two values must scroll the row differently. The literal rows are in
  * edge-scroll-pure.test.ts and edge-scroll-drag.test.ts.
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
+import { emblaWindowIn, rowOffsetOf, stubSlotBoxes } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose } from '../index.js';
@@ -29,8 +29,6 @@ afterEach(async () => {
 const OWNED = ['tuning.edgeScroll'];
 const EDGE = LIBRARY_TUNING_DEFAULTS.edgeScroll;
 const WINDOW = 1000;
-/** Half the default zone inside the right edge: full-ramp speed halved under the defaults. */
-const POINTER = WINDOW - EDGE.zonePx / 2;
 
 registerTestView('enforce-edge-view', ({ panel }) =>
   React.createElement(DragToClose, {
@@ -45,20 +43,29 @@ function pointer(type: 'pointerdown' | 'pointermove' | 'pointerup', x: number): 
   return event;
 }
 
-/** How far the row scrolls in 50 held frames, the pointer at `POINTER`, under the workspace `tuning`. */
+/** How far the row scrolls in 50 held frames, the pointer half a default zone inside the Embla window's right edge, under the workspace `tuning`. */
 async function scrolledUnder(tuning: WorkspaceTuning): Promise<number> {
   const entries = row(rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`, {}, { view: 'enforce-edge-view' })));
   const m = mountRow(entries, WINDOW, { tuning });
   Object.defineProperty(m.container, 'clientWidth', { value: WINDOW, configurable: true });
   m.container.getBoundingClientRect = () => ({ left: 0, right: WINDOW, top: 0, bottom: 700, width: WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) });
+  // Lays the Embla row out, so the drag's edge hold moves the row Embla draws and rowOffsetOf reads it.
+  await advanceFrames(30 * FRAME_MS);
+  stubSlotBoxes(m.container, 16);
+  await advanceFrames(30 * FRAME_MS);
+  const win = emblaWindowIn(m.container);
+  assert.ok(win, 'the Embla window rendered');
+  // The band is the Embla window's edge, not the container's: the pointer sits half a default zone inside it.
+  const at0 = win.getBoundingClientRect().right - EDGE.zonePx / 2;
+  assert.ok(at0 < WINDOW, `control: the window's right edge (${at0 + EDGE.zonePx / 2}) is inside the container`);
   const handle = m.container.querySelector('[data-handle="s1"]');
   assert.ok(handle, 'the grab bar rendered');
-  await act(async () => void handle.dispatchEvent(pointer('pointerdown', POINTER - 40)));
-  await act(async () => void document.dispatchEvent(pointer('pointermove', POINTER)));
+  await act(async () => void handle.dispatchEvent(pointer('pointerdown', at0 - 40)));
+  await act(async () => void document.dispatchEvent(pointer('pointermove', at0)));
   await advanceFrames(FRAME_MS);
   await advanceFrames(50 * FRAME_MS);
   const at = rowOffsetOf(m.container);
-  await act(async () => void document.dispatchEvent(pointer('pointerup', POINTER)));
+  await act(async () => void document.dispatchEvent(pointer('pointerup', at0)));
   await advanceFrames(30 * FRAME_MS);
   cleanup();
   return at;
