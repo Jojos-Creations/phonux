@@ -18,10 +18,12 @@ afterEach(() => cleanup());
 
 const rect = (left: number, width: number): DOMRect => ({ left, right: left + width, top: 0, bottom: 700, width, height: 700, x: left, y: 0, toJSON: () => ({}) });
 
-function rowWithBar(labels?: Parameters<typeof usePanelDots>[0]['labels']): { m: MountedRow; bar: () => PanelDots; oval: () => HTMLElement } {
+function rowWithBar(labels?: Parameters<typeof usePanelDots>[0]['labels'], bareShell = false): { m: MountedRow; bar: () => PanelDots; oval: () => HTMLElement } {
   const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
   m.container.getBoundingClientRect = () => rect(0, 1000);
   stubSlotBoxes(m.container, 16);
+  // A host's own shell around PanelRow carries only the documented data-row-scroller, not the Workspace's engine mark.
+  if (bareShell) m.container.removeAttribute('data-row-engine');
   let latest: PanelDots | undefined;
   const scroller = { current: m.container as HTMLElement };
   function Bar(): React.ReactElement {
@@ -107,4 +109,21 @@ test('the oval\'s spoken value names the panels in view by their places, and fol
 test('the spoken value is a label a host can replace', () => {
   const { oval } = rowWithBar({ dotBarView: (first, last, total) => `${first}-${last}/${total}` });
   assert.equal(oval().getAttribute('aria-valuetext'), '1-2/6');
+});
+
+test('a scroller without the Workspace\'s data-row-engine mark still gets its dots and its keys', async () => {
+  const { m, bar, oval } = rowWithBar(undefined, true);
+  assert.equal(m.container.hasAttribute('data-row-engine'), false, 'the mark is gone');
+  assert.ok(m.container.hasAttribute('data-row-scroller'), 'the scroller is the element with data-row-scroller, as the doc says');
+  assert.equal(bar().dots.length, 6);
+  assert.equal(oval().getAttribute('aria-valuetext'), 'Panels 1 to 2 of 6');
+  press(oval(), 'ArrowRight');
+  assert.equal(rowGlideTargetOf(m.container), 406);
+  await advanceUntilRowRests(m.container);
+});
+
+test('control: the same scroller with the mark gives the same bar', () => {
+  const { m, bar } = rowWithBar();
+  assert.equal(m.container.getAttribute('data-row-engine'), 'embla');
+  assert.equal(bar().dots.length, 6);
 });

@@ -15,7 +15,7 @@ import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
 import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
-/** On the container of a row that runs on Embla. The old row's own wheel, touch and key listeners stand aside for it. @internal */
+/** On the Workspace's row container, always 'embla'. Nothing in the library reads it. @internal */
 export const ROW_ENGINE_ATTRIBUTE = 'data-row-engine';
 /** On each slot marker: an empty box one phone wide, at its slot's place in the strip. @internal */
 export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
@@ -35,11 +35,6 @@ export const RowNearContext = React.createContext<number>(ROW_NEAR_SLOTS);
 
 /** On the placeholder an Embla row draws for a panel whose content it unloaded: the slot keeps its width and place. @internal */
 export const EMBLA_UNLOADED_ATTRIBUTE = 'data-row-unloaded';
-
-/** Whether the row whose container is `container` runs on Embla. @internal */
-export function runsOnEmbla(container: Element): boolean {
-  return container.getAttribute(ROW_ENGINE_ATTRIBUTE) === 'embla';
-}
 
 /** The window an Embla row is seen through, in px. @internal */
 export interface EmblaWindow {

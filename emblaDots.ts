@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
-import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, emblaTargetOf, runsOnEmbla, subscribeEmblaRows, watchEmblaRest, writeEmbla, type EmblaStrip } from './emblaRow.js';
+import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, emblaTargetOf, subscribeEmblaRows, watchEmblaRest, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
 import { resolveLabels, type PhonuxLabels } from './labels.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
@@ -124,7 +124,7 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
     [],
   );
   const el = scroller.current;
-  const embla = el !== null && runsOnEmbla(el) ? emblaOf(el) : undefined;
+  const embla = el === null ? undefined : emblaOf(el);
   const strip = el === null || embla === undefined ? undefined : emblaStripOf(el);
   if (embla === undefined || strip === undefined) return null;
   const hollowOf = (id: string): boolean => entries.find((e) => e.id === id)?.settings?.hollowDot === true;
