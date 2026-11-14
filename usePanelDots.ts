@@ -9,15 +9,15 @@ import { useEmblaPanelDots } from './emblaDots.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
 export interface PanelDots {
-  /** Each panel's dot in track px, at its place on the row's ruler: the drawn panels and the parked ones a scroll can bring in. `hollow` is the panel setting `hollowDot`. `riding` marks the dot of a panel that stays on screen as the row moves: it keeps to the oval's end and lies over the dots beneath it, so draw it on top. */
-  readonly dots: readonly { readonly id: string; readonly left: number; readonly width: number; readonly hollow: boolean; readonly riding: boolean }[];
+  /** Each panel's dot in track px, at its place along the row's strip, in the order the strip draws them. `hollow` is the panel setting `hollowDot`. */
+  readonly dots: readonly { readonly id: string; readonly left: number; readonly width: number; readonly hollow: boolean }[];
   /** The window oval in track px, over the dots of the panels on screen. */
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
   readonly width: number;
-  /** The ids of the panels on screen now, in px of the row and not of the bar: those held at an edge, and those the strip's window shows. */
+  /** The ids of the panels the row's window shows now, wholly or in part. */
   readonly shown: readonly string[];
-  /** Centers the panel `id` in the window. A row that parks steps until the panel is as near the center as the panels beside it allow, bringing a parked one in on the way. Does nothing while a drag holds the row. */
+  /** Glides the row to the rest nearest to centring the panel `id`, when it is not wholly in view already. Does nothing while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
   startOvalDrag(): { drag(dx: number): void; end(): void } | null;
@@ -25,10 +25,9 @@ export interface PanelDots {
   readonly cursor: string;
   /**
    * Spread on the element that holds the dots and the oval. A press that begins on the oval and moves past a few px drags it; any
-   * other press selects the dot it began on. The pointer is captured, so the drag follows it off the bar. On a row that cannot scroll, the oval
-   * moves with the pointer and the row steps each time the oval passes half a dot, bringing in hidden panels; on release the oval
-   * settles over the panels on screen. A drag carried past a scrolling row's end steps it one stop per dot it travels. A wheel over
-   * the bar, either axis, steps the row too, and the oval follows each step.
+   * other press selects the dot it began on. The pointer is captured, so the drag follows it off the bar. The row moves with the
+   * oval, one dot of travel to one slot, and on release glides to the nearest rest; a pointer held at the bar's visible end keeps
+   * the row moving. A wheel over the bar, either axis, steps the row one slot, and the oval follows each step.
    */
   readonly barProps: {
     readonly onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;

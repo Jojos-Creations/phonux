@@ -1,5 +1,5 @@
 /**
- * The model's adapter against the arithmetic it replaces, over random rows: the same panels, holds, window, gap and rest through
+ * The model's adapter against the arithmetic it replaces, over random rows: the same panels, holds, window and gap through
  * legacyRowNumbers and computeRowNumbers must give equal numbers, field by field. Inputs are whole pixels: the two compute the same
  * sums in a different order, which is bit-equal for integers and not for fractions. With fractional inputs the two can differ in the
  * last bits, and a row within those bits of fitting the window may count as overflowing in one and not the other; the app's phone width,
@@ -28,7 +28,6 @@ interface Row {
   gap: number;
   container: number;
   whole: boolean;
-  rest: { lead: number; tail: number; head: number } | null;
 }
 
 const rowArb: fc.Arbitrary<Row> = fc.record({
@@ -48,7 +47,6 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
   gap: fc.constantFrom(0, 8, 16, 24),
   container: fc.oneof({ weight: 1, arbitrary: fc.constant(0) }, { weight: 1, arbitrary: fc.integer({ min: 1, max: 420 }) }, { weight: 14, arbitrary: fc.integer({ min: 420, max: 1900 }) }),
   whole: fc.integer({ min: 0, max: 3 }).map((n) => n > 0),
-  rest: fc.oneof({ weight: 3, arbitrary: fc.constant(null) }, { weight: 1, arbitrary: fc.record({ lead: fc.nat(2), tail: fc.nat(2), head: fc.nat(2) }) }),
 });
 
 // The first panel is the held one most often: a hold on any other panel is a case the model does not express.
@@ -59,7 +57,7 @@ function inputsOf(r: Row, distinct = r.panels.length) {
     const column = p.pinned && !r.scroll ? { ...entry, collapsible: false } : entry;
     return p.live || (p.pinned && r.scroll) ? column : { ...column, live: false };
   });
-  return { entries, phoneWidth: r.phone, containerWidth: r.container, gap: r.gap, wholePanels: r.whole, rest: r.rest };
+  return { entries, phoneWidth: r.phone, containerWidth: r.container, gap: r.gap, wholePanels: r.whole };
 }
 
 const kinds: Record<string, number> = {};
@@ -79,13 +77,13 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
       if (viaModel) {
         seen(old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
       } else {
-        seen(r.container === 0 ? 'fallback:unmeasured' : old.stuck.length > 0 ? 'fallback:both' : old.held.some((h) => h.side === 'right') ? 'fallback:right' : r.rest !== null ? 'fallback:rest' : 'fallback:other');
+        seen(r.container === 0 ? 'fallback:unmeasured' : old.stuck.length > 0 ? 'fallback:both' : old.held.some((h) => h.side === 'right') ? 'fallback:right' : 'fallback:other');
       }
       assert.deepEqual(now, old);
     }),
     { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 3000) },
   );
-  const thin = ['model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right', 'fallback:rest'].filter((k) => (kinds[k] ?? 0) < 20);
+  const thin = ['model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right'].filter((k) => (kinds[k] ?? 0) < 20);
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
   assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 3000), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));

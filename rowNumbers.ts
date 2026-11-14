@@ -6,7 +6,6 @@
 import { isPresent, type PanelRowEntry } from './panelRowEntry.js';
 import { drawnSlotsOf, panelWidthOf } from './panelTiers.js';
 import { layoutOf, type RowModel } from './rowModel.js';
-import type { RowRest } from './rowRest.js';
 
 /** What `computeRowNumbers` returns: one row's measurements, derived from its entries and never stored. @public */
 export interface RowNumbers {
@@ -71,8 +70,6 @@ export interface RowNumbers {
   stepStops: readonly number[];
   /** For each stop, the drawn entries it shows: the index of its first one and one past its last. Same order as `stops`. */
   stopSpans: readonly { first: number; end: number }[];
-  /** The blank a rest leaves before the first collapsible panel, in px; `leftOffsets` already hold it. Absent reads as none. */
-  leadPx?: number;
   /** The space after the strip: on a stepping row that overflows, the same centering space as before it, so the last rest centers too; else 0. */
   endPad: number;
   /** Set for the commit a hold starts or lets go, or a step swaps panels: how far the strip's kept panels moved in strip px. The row takes it into its offset so nothing on screen moves. */
@@ -98,8 +95,6 @@ export function computeRowNumbers(i: {
   fixedItemCount?: number;
   /** True for a row whose gesture is 'step': the row then rests on the one-phone grid, `stops`. Default false. */
   wholePanels?: boolean;
-  /** The blanks a row rests with: a strip that fits draws them, one that overflows ignores them. Default none. */
-  rest?: RowRest | null;
 }): RowNumbers {
   return rowNumberSources.model(i) ?? legacyRowNumbers(i);
 }
@@ -136,14 +131,7 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
     running += width + i.gap;
   }
   const overflows = measured && panelsWidth > stripWindow;
-  // A rest's blanks count as strip, so the margin stays the full row's and the always-shown columns do not move.
-  const rest = !overflows && measured ? (i.rest ?? null) : null;
-  const slotPx = i.phoneWidth + i.gap;
-  const firstCollapsible = rest === null ? -1 : strip.findIndex((x) => x.p.collapsible);
-  if (rest !== null && firstCollapsible >= 0) for (let k = firstCollapsible; k < leftOffsets.length; k += 1) leftOffsets[k] = leftOffsets[k]! + rest.lead * slotPx;
-  const headPx = (rest?.head ?? 0) * slotPx;
-  if (headPx > 0) for (let k = 0; k < leftOffsets.length; k += 1) leftOffsets[k] = leftOffsets[k]! + headPx;
-  const stripWidth = panelsWidth + headPx + (rest === null ? 0 : (rest.lead + rest.tail) * slotPx);
+  const stripWidth = panelsWidth;
   const stepping = i.wholePanels === true && overflows;
   // A stepping row centers the whole slots at every rest, the ends included: the window's leftover past its whole slots is split
   // into a space before the strip and one after it. Any other overflowing row is flush at both ends. A strip that fits centers
@@ -166,12 +154,12 @@ export function legacyRowNumbers(i: Parameters<typeof computeRowNumbers>[0]): Ro
   const stepStops = stops;
   const stopSpans = stops.map((at) => spanAt(at, widths, leftOffsets, rowMarginLeft, stripWindow));
   const reservedWidths = [...present.flatMap((_, k) => (admittedKs.has(k) ? [] : [allWidths[k]!])), ...admitted.map((a) => allWidths[a.k]!)];
-  return { rowScroll: true, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths: [], stops, stepStops, stopSpans, endPad, ...(rest !== null && rest.lead > 0 ? { leadPx: rest.lead * slotPx } : {}) };
+  return { rowScroll: true, windowWidth, stripWidth, rowMarginLeft, ids, widths, leftOffsets, held, stuck, leftInset, rightInset, stripStart: leftInset + rowMarginLeft, stripWindow, maxLiveWidth, reservedWidths, parkLiveWidths: [], stops, stepStops, stopSpans, endPad };
 }
 
 /**
  * The row's numbers read off the position model, or null for a row the model does not express: an unmeasured window, a scrolling row
- * whose window is narrower than a phone, a hold that is not on the first panel, and a scrolling row that fits and rests with blanks. A right hold on the first panel is read as
+ * whose window is narrower than a phone, and a hold that is not on the first panel. A right hold on the first panel is read as
  * the panel docked in the last slot, so the model is given it last. `computeRowNumbers` then answers with the older arithmetic. @internal
  */
 export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): RowNumbers | null {
@@ -200,7 +188,6 @@ export function rowNumbersViaModel(i: Parameters<typeof computeRowNumbers>[0]): 
   };
   const reordered = layoutOf(model);
   const overflows = reordered.stripPx > windowWidth;
-  if (!overflows && i.rest != null) return null;
   // Only a row that overflows holds: a row that fits gives the hold back, as it always has.
   // A hold that is not in effect leaves the panel where the entries have it, so the row is laid out in entry order again.
   const l = right && !(overflows && reordered.heldRight !== null) ? layoutOf({ ...model, panels, heldRight: null }) : reordered;

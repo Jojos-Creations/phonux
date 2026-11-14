@@ -360,12 +360,11 @@ requestAnimationFrame(frame);
   },
   dotRect: (id: string) => { const b = document.querySelector<HTMLElement>(`[data-dot="${id}"]`)!.getBoundingClientRect(); return { left: b.left, width: b.width, top: b.top }; },
   easedOval: (on: boolean) => { (globalThis as any).__ovalMove = on ? easeEmbla : writeEmbla; },
-  // The window bar's Workspace button: summon, dismiss, and where the root stands.
+  // The window bar's Workspace button: summon, and where the root stands.
   openExtra: () => ws.addPanel('x'),
   extraIds: () => latest.entries.filter((e: any) => e.view === 'x').map((e: any) => e.id),
   inertIds: () => [...document.querySelectorAll<HTMLElement>('[data-row-slot][inert]')].map((el) => el.dataset.rowId!),
   summon: () => ws.panels.summonRoot(),
-  dismiss: () => ws.panels.dismissRoot(),
   rootView: () => ws.panels.rootView(),
   // A host's panel.scrollTo(), and its answer.
   scrollTo: (name: string, align?: string) => { const h = name === ROOT ? undefined : ws.panels.list().find((x: any) => x.templateId === name); if (h !== undefined) return h.scrollTo(align as any); return name === ROOT ? latest.scrollTo(ws.rootId, align) : 'no handle'; },

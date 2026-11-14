@@ -84,10 +84,8 @@ export interface ReadSource {
   swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult;
   /** Where the root stands in the view. */
   rootView(): RootView;
-  /** Brings the root to the view's edge. */
+  /** Brings the root into the view. */
   summonRoot(): boolean;
-  /** Sends a summoned root back. */
-  dismissRoot(): boolean;
   /** Patches one panel's settings, for a panel's own caller or for its view. */
   configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
   /** Patches the template-scope settings of a template. */

@@ -1,5 +1,5 @@
 /**
- * The dot bar on an Embla row (`Workspace rowEngine="embla"`): one dot per panel along the strip, and the oval over the panels the
+ * The dot bar of the row: one dot per panel along the strip, and the oval over the panels the
  * window shows, both one linear map of the strip read from where Embla draws it this frame. Dragging the oval writes the row's
  * position directly, so the oval stays under the pointer; holding the pointer at the bar's visible end keeps the row moving by
  * time. Internal: `usePanelDots` returns this on an Embla row.
@@ -24,7 +24,7 @@ const WHEEL_QUIET_MS = 200;
 
 /** The bar of an Embla row at `scroll`, in track px. @internal */
 export interface EmblaBar {
-  dots: { id: string; left: number; width: number; hollow: boolean; riding: boolean }[];
+  dots: { id: string; left: number; width: number; hollow: boolean }[];
   oval: { left: number; width: number };
   width: number;
   /** Ids of the panels the window shows at `scroll`. */
@@ -44,7 +44,7 @@ export function emblaBarOf(strip: EmblaStrip, scroll: number, hollowOf: (id: str
   const max = Math.max(0, stripWidth - windowWidth);
   const at = Math.min(Math.max(scroll, 0), max);
   const dots = layout.ids
-    .map((id, k) => ({ id, left: tidy(scale * layout.lefts[k]!), width: tidy(Math.max(0, scale * (layout.widths[k]! + gap) - DOT_GAP_PX)), hollow: hollowOf(id), riding: false }))
+    .map((id, k) => ({ id, left: tidy(scale * layout.lefts[k]!), width: tidy(Math.max(0, scale * (layout.widths[k]! + gap) - DOT_GAP_PX)), hollow: hollowOf(id) }))
     .sort((a, b) => a.left - b.left);
   const shown = layout.ids.filter((_, k) => Math.min(layout.lefts[k]! + layout.widths[k]!, at + windowWidth) - Math.max(layout.lefts[k]!, at) > 1);
   return {

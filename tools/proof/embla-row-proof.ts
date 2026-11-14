@@ -1324,21 +1324,20 @@ if (ONLY.has('summon') && ENGINE === 'embla') {
       if (s.scrollToRootX === null || s.scrollToRootX < -0.5 || s.scrollToRootX > 3 * PITCH + 0.5) fail('stays', `scrollTo(root) left it at ${s.scrollToRootX}`);
     }
     if (want('summon.inView')) {
-      // With the root wholly in view the button does nothing: no move, no order commit; dismissRoot is nothing special either.
+      // With the root wholly in view the button does nothing: no move, no order commit.
       await g(page, 'jumpToSlot', 12);
       await sleep(600);
       const c0 = await g(page, 'orderChanges');
       const pos0 = await g(page, 'pos');
       await g(page, 'record');
       const ret = await g(page, 'summon');
-      const dis = await g(page, 'dismiss');
       await sleep(1000);
       const fr = await g(page, 'stop');
-      const iv = { rootView: await g(page, 'rootView'), returned: ret, dismissed: dis, frames: fr.length, moved: +Math.max(0, ...fr.map((f: any) => Math.abs(f.pos - pos0))).toFixed(1), orderCommits: (await g(page, 'orderChanges')) - c0, order: (await g(page, 'order')).join() };
+      const iv = { rootView: await g(page, 'rootView'), returned: ret, frames: fr.length, moved: +Math.max(0, ...fr.map((f: any) => Math.abs(f.pos - pos0))).toFixed(1), orderCommits: (await g(page, 'orderChanges')) - c0, order: (await g(page, 'order')).join() };
       res.inView = iv;
       if (iv.frames < 10) empty.push('summon inView: too few frames recorded');
       if (iv.rootView !== 'shown') empty.push(`summon inView: the root was ${iv.rootView}, so this proved nothing`);
-      if (iv.returned !== false || iv.dismissed !== false || iv.moved > 0.5 || iv.orderCommits !== 0 || iv.order !== orderWith(13)) fail('inView', `summon ${iv.returned}, dismiss ${iv.dismissed}, the row moved ${iv.moved} px, ${iv.orderCommits} order commits`);
+      if (iv.returned !== false || iv.moved > 0.5 || iv.orderCommits !== 0 || iv.order !== orderWith(13)) fail('inView', `summon ${iv.returned}, the row moved ${iv.moved} px, ${iv.orderCommits} order commits`);
     }
     if (errors.length > 0) fail('fromLeft', `page errors ${errors.join(' | ')}`);
     await close();

@@ -389,7 +389,6 @@ const CORES = new WeakMap<WorkspaceHandle, Core>();
 export interface RootSummonSink {
   view(): RootView;
   summon(): boolean;
-  dismiss(): boolean;
 }
 
 interface Core {
@@ -856,7 +855,6 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     swap: (show, hide) => swapPanels(show, hide),
     rootView: () => summonSink?.view() ?? 'shown',
     summonRoot: () => summonSink?.summon() ?? false,
-    dismissRoot: () => summonSink?.dismiss() ?? false,
     configure: (id, patch, caller) => configureOne(id, patch, caller),
     configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
     configureTuning: (patch) => configureTuningOne(patch),

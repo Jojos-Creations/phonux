@@ -424,7 +424,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (known) requestOpen(id);
   };
 
-  // The root on a strip (Embla) is an ordinary page  // The root on a strip (Embla) is an ordinary page (owner ruling 2026-11-09): it scrolls with the row and stays where it is put. A
+  // The root is an ordinary page of the strip: it scrolls with the row and stays where it is put. A
   // summon moves it in the page order to the slot just outside the view, on the side it lies on (`emblaSummonMove`), as a person's
   // move that the order records, and the row's glide then brings it in, as a scroll to any page does. Nothing is undone later.
   const stripNow = (): { el: HTMLElement; layout: { ids: readonly string[]; lefts: readonly number[]; widths: readonly number[] }; windowWidth: number; at: number } | null => {
@@ -481,9 +481,6 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   /** Moves a root that is out of the view to the slot just outside it and glides it in. False when there is nothing to do. */
   const summonRoot = (): boolean => stripSummonRoot();
-
-  /** Nothing is undone: the root stays where the summon put it, as any page stays where it was moved. Always false. */
-  const dismissRoot = (): boolean => false;
 
   const shrinkUnfocusedRef = useRef(tuning.shrinkUnfocused);
   shrinkUnfocusedRef.current = tuning.shrinkUnfocused;
@@ -596,7 +593,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return () => core.bindCycle(undefined);
   });
   useLayoutEffect(() => {
-    core.bindSummon({ view: rootView, summon: summonRoot, dismiss: dismissRoot });
+    core.bindSummon({ view: rootView, summon: summonRoot });
     return () => core.bindSummon(undefined);
   });
   useLayoutEffect(() => {

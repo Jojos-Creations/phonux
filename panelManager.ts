@@ -101,11 +101,11 @@ export const accepted = (changed: boolean): PanelResult => ({ ok: true, changed 
 export const refused = (code: PanelRefusal, message: string): PanelResult => ({ ok: false, code, message });
 
 /**
- * Where the root panel stands: `'shown'` in the view, `'summoned'` brought there by `summonRoot`, `'away'` out of it. On a row with
- * `rowEngine="embla"` a summoned root is an ordinary page, so it reads `'shown'` or `'away'`, never `'summoned'`.
+ * Where the root panel stands: `'shown'` wholly in the view, `'away'` out of it or cut by the window's edge. The root is an
+ * ordinary page of the row, so a root `summonRoot` brought in reads `'shown'` like any page in view.
  * @public
  */
-export type RootView = 'shown' | 'summoned' | 'away';
+export type RootView = 'shown' | 'away';
 
 /**
  * Every panel of a workspace by id, as handles that can also operate on it, with the calls that configure panels, templates and the workspace's tuning and reset a layout.
@@ -143,22 +143,15 @@ export interface PanelManager {
    * leave the row empty.
    */
   swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide?: readonly PanelId[]): PanelResult;
-  /** Where the root panel stands: in the view, summoned there, or out of it. A row that is not on screen reads as 'shown'. */
+  /** Where the root panel stands: wholly in the view, or out of it. A row that is not on screen reads as 'shown'. */
   rootView(): RootView;
   /**
-   * Brings the root panel, out of the view, to the view's edge on the side it lies: the panels in that edge's slot park, and return when the root goes.
-   * A wide panel in that slot moves over instead, and runs off the far edge. False when the root is already in view.
-   *
-   * With `rowEngine="embla"` the root is an ordinary page: the summon moves it in the page order to the slot just outside the view on
-   * the side it lies on (the left when on neither), as a person's move that the saved order keeps, and the row then glides it in as it
-   * glides to any page. Nothing parks, nothing is undone later, and it stays where it landed. False when it is already wholly in view.
+   * Brings the root panel into the view when it is out of it. The root is an ordinary page of the row: the summon moves it in the
+   * page order to the slot just outside the view on the side it lies on (the left when on neither), as a person's move that the
+   * saved order keeps, and the row then glides it in as it glides to any page. Nothing is undone later: it stays where it landed.
+   * False when it is already wholly in view.
    */
   summonRoot(): boolean;
-  /**
-   * Sends a summoned root back out and returns what it parked. False when no summon stands; a step of the row away from the root does the same.
-   * With `rowEngine="embla"` there is nothing to undo: it does nothing and returns false.
-   */
-  dismissRoot(): boolean;
   /**
    * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).
    * Empty when the row holds no panel `id`: a pending, closed or unknown panel has no family.
@@ -192,7 +185,6 @@ export function makePanelManager(source: ReadSource): PanelManager {
     swap: (show, hide = []) => source.swap(show, hide),
     rootView: () => source.rootView(),
     summonRoot: () => source.summonRoot(),
-    dismissRoot: () => source.dismissRoot(),
     familyOf: (id) => source.familyOf(id),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),

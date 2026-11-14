@@ -213,7 +213,6 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
-    rest?: RowRest | null;
 }): RowNumbers;
 
 // @public
@@ -668,7 +667,6 @@ export interface PanelDots {
         readonly left: number;
         readonly width: number;
         readonly hollow: boolean;
-        readonly riding: boolean;
     }[];
     readonly oval: {
         readonly left: number;
@@ -807,7 +805,6 @@ export interface PanelManager {
     configureTuning(patch: {
         [K in keyof WorkspaceTuning]?: WorkspaceTuning[K] | null;
     }): ConfigureResult;
-    dismissRoot(): boolean;
     familyOf(id: PanelId): readonly PanelId[];
     get<P extends JsonValue = JsonValue>(id: PanelId): PanelHandle<P> | undefined;
     getSnapshot(): PanelSnapshot;
@@ -1365,7 +1362,7 @@ export type ResolvedWorkspaceTuning = {
 };
 
 // @public
-export type RootView = 'shown' | 'summoned' | 'away';
+export type RootView = 'shown' | 'away';
 
 // @public
 export const ROW_ID_ATTRIBUTE = "data-row-id";
@@ -1424,7 +1421,6 @@ export interface RowNumbers {
         offset: number;
     }[];
     ids: readonly string[];
-    leadPx?: number;
     leftInset: number;
     leftOffsets: readonly number[];
     maxLiveWidth: number;
@@ -1453,13 +1449,6 @@ export interface RowNumbers {
 
 // @public
 export function rowPanelIdOf(target: EventTarget | null): string | null;
-
-// @public
-export interface RowRest {
-    readonly head?: number;
-    readonly lead: number;
-    readonly tail: number;
-}
 
 // @public
 export type ScrollAlign = 'into-view' | 'start' | 'center';
