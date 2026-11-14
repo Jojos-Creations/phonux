@@ -532,6 +532,7 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
  * @internal
  */
 export function markAwaySlots(win: Element): number {
+  drawHeldSlots(win);
   const view = win.getBoundingClientRect();
   const store = awayStores.get(win);
   const strip = strips.get(win);
@@ -542,16 +543,21 @@ export function markAwaySlots(win: Element): number {
   const cuts: [HTMLElement, { left: number; right: number }][] = [];
   let sum = 0;
   let k = 0;
-  for (const slot of win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)) {
+  const all = [...win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)];
+  // A strip slot that a stuck 'both' panel covers whole is out of sight, as one past the window's edge is.
+  const covers = all.filter((slot) => holdOf(slot)?.hasAttribute(HOLD_STICK_ATTRIBUTE) === true).map((slot) => slot.getBoundingClientRect());
+  for (const slot of all) {
     const r = slot.getBoundingClientRect();
+    const hold = holdOf(slot);
+    const held = hold !== null && (hold.hasAttribute(HOLD_AT_ATTRIBUTE) || hold.hasAttribute(HOLD_STICK_ATTRIBUTE));
     k += 1;
     sum += k * r.left + r.width;
     if (strip !== undefined) {
       const slots = Math.round((r.width + strip.gap) / strip.pitch);
       const follows = !lifted && slots >= 2 && slots <= strip.chromeFollowSlots;
-      cuts.push([slot, follows ? chromeCutOf(r.left, r.width, view.left, view.right, strip.pitch - strip.gap) : NO_CUT]);
+      cuts.push([slot, follows && !held ? chromeCutOf(r.left, r.width, view.left, view.right, strip.pitch - strip.gap) : NO_CUT]);
     }
-    const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
+    const away = !held && r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5 || covers.some((c) => r.left >= c.left - 0.5 && r.right <= c.right + 0.5));
     if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
     const id = slot.dataset.rowId;
     if (id !== undefined) {
@@ -564,6 +570,37 @@ export function markAwaySlots(win: Element): number {
   return sum;
 }
 const awayStores = new WeakMap<Element, AwayStore>();
+
+/** On a slot's hold host: a left or right hold's x in the row's window, in px; the slot is drawn there whatever the row's scroll. @internal */
+export const HOLD_AT_ATTRIBUTE = 'data-hold-at';
+/** On a slot's hold host: an edgeHold 'both' panel, drawn at its place in the strip but kept `left right` px inside the window's edges. @internal */
+export const HOLD_STICK_ATTRIBUTE = 'data-hold-stick';
+const holdOf = (slot: Element): Element | null => slot.parentElement?.closest('[data-row-hold]') ?? null;
+/** Whether `slot` is drawn by `drawHeldSlots` rather than at its rest in the strip. @internal */
+export const isHeldSlot = (slot: Element): boolean => {
+  const hold = holdOf(slot);
+  return hold !== null && (hold.hasAttribute(HOLD_AT_ATTRIBUTE) || hold.hasAttribute(HOLD_STICK_ATTRIBUTE));
+};
+/**
+ * Draws the held slots of the row rooted on `win` against where Embla draws the strip this frame: a left or right hold at its x in
+ * the window, a 'both' panel at its rest moved back inside the window's edges. Run with the row's draw and every frame it moves.
+ * @internal
+ */
+export function drawHeldSlots(win: Element): void {
+  const embla = instances.get(win);
+  const at = embla === undefined ? 0 : emblaDrawnOf(embla);
+  const windowWidth = Number.parseFloat((win as HTMLElement).style.width) || 0;
+  for (const hold of win.querySelectorAll<HTMLElement>(`[${HOLD_AT_ATTRIBUTE}],[${HOLD_STICK_ATTRIBUTE}]`)) {
+    const slot = hold.querySelector<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`);
+    if (slot === null) continue;
+    const [left = 0, right = 0] = (hold.getAttribute(HOLD_STICK_ATTRIBUTE) ?? '').split(' ').map(Number);
+    const x = hold.hasAttribute(HOLD_AT_ATTRIBUTE)
+      ? Number(hold.getAttribute(HOLD_AT_ATTRIBUTE))
+      : Math.min(Math.max(Number(slot.dataset.rowSlot) - at, left), Math.max(left, windowWidth - right - (Number.parseFloat(slot.style.width) || 0)));
+    const translate = `${Math.round((at + x) * 100) / 100}px`;
+    if (slot.style.translate !== translate) slot.style.translate = translate;
+  }
+}
 const NO_CUT = { left: 0, right: 0 } as const;
 
 /**
@@ -1009,7 +1046,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // A panel focused while partly out of the window comes into it: Embla moves only for slides, and its slides are the markers.
     const onFocus = (e: FocusEvent): void => {
       const slot = (e.target as Element | null)?.closest<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`);
-      if (slot == null || !box.contains(slot) || maximizedIn(win)) return;
+      if (slot == null || !box.contains(slot) || isHeldSlot(slot) || maximizedIn(win)) return;
       const to = revealScroll(Number(slot.dataset.rowSlot) || 0, slot.offsetWidth, emblaScrollOf(embla), box.offsetWidth);
       if (to === null) return;
       endEmblaWheel(embla);

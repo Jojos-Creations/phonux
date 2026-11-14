@@ -41,7 +41,7 @@ const rowOf = (entries: PanelWindow[], rootId: string): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 /** The row root: the parent of the panel's hold line, which every panel has (the host is `display: contents` unless held). */
-const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold-line]')!.parentElement!;
+const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold]')!.parentElement!;
 const slotIds = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);
 const xOf = (container: HTMLElement, id: string): number => {
   const slot = slotOf(container, id);

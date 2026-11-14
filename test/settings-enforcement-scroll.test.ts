@@ -25,7 +25,7 @@ const OWNED = ['edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 
 function drawnAt(edgeHold: PanelSettings['edgeHold']): 'held' | 'strip' | 'missing' {
   const m = mountRow(row(rootEntry(), made('b', { edgeHold }), made('c'), made('d')), 1000);
   const slot = rowBoxOf(m.container)?.querySelector<HTMLElement>('[data-row-id="b"]') ?? null;
-  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.hasAttribute('data-hold-left') ? 'held' : 'strip';
+  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.hasAttribute('data-hold-at') ? 'held' : 'strip';
   cleanup();
   return where;
 }

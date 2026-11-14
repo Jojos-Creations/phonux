@@ -72,10 +72,12 @@ test('two both panels stack: each host is pinned at its stacked inset, and neith
   const hostOf = (id: string) => slotOf(m.container, id)!.closest<HTMLElement>('[data-row-hold]');
   const outer = hostOf(entries[1]!.id);
   const inner = hostOf(entries[3]!.id);
-  assert.equal(outer?.dataset.holdLeft, `${stuck[0]!.left}px`, 'the outer panel is pinned at the window edge');
-  assert.equal(inner?.dataset.holdLeft, `${stuck[1]!.left}px`, 'the inner panel is pinned a panel and a gap in');
-  assert.equal(inner?.dataset.holdLeft, '406px');
-  assert.equal(outer?.dataset.holdRight, `${stuck[0]!.right}px`);
+  // Each host carries the insets it keeps from the window's left and right edges (a stuck panel's right inset less the gap the old
+  // scrollport kept: the Embla window ends at its last slot).
+  assert.equal(outer?.dataset.holdStick, `${stuck[0]!.left} ${stuck[0]!.right - 16}`, 'the outer panel is pinned at the window edge');
+  assert.equal(inner?.dataset.holdStick, `${stuck[1]!.left} ${stuck[1]!.right - 16}`, 'the inner panel is pinned a panel and a gap in');
+  assert.equal(inner?.dataset.holdStick, '406 0');
+  assert.equal(outer?.dataset.holdStick, '0 406');
   const first = [counted.get(entries[1]!.id), counted.get(entries[3]!.id)];
   assert.ok(first.every((n) => n !== undefined), 'both views mounted');
   m.rerender(300);
