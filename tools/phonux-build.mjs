@@ -87,8 +87,9 @@ if (!('sideEffects' in srcPkg)) fail("source package.json is missing 'sideEffect
 
 // Registry-page fields come from the source manifest, never from a literal here. The source keeps `private: true`
 // so the .ts-pointing folder cannot be published by accident; only dist/package.json is publishable.
-const REQUIRED_METADATA = ['description', 'license'];
-const OPTIONAL_METADATA = ['repository', 'homepage', 'bugs', 'keywords', 'author'];
+// repository is required: npm refuses a provenance publish whose repository.url does not match the source repo.
+const REQUIRED_METADATA = ['description', 'license', 'repository'];
+const OPTIONAL_METADATA = ['homepage', 'bugs', 'keywords', 'author'];
 for (const field of REQUIRED_METADATA) {
   if (!srcPkg[field]) fail(`source package.json is missing '${field}', which a published manifest needs`);
 }
