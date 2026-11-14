@@ -12,7 +12,6 @@ import { act } from 'react';
 import { Workspace, useProvidePanels, GAP } from '../index.js';
 import type { PanelWindow, ProvidedPanels } from '../index.js';
 import { DRAG_CLOSE } from '../dragToClose.js';
-import { computeRowLayout } from '../panelRowLayout.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { reorderStepsForOffset } from '../panelWindow.js';
 import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';

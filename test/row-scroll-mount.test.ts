@@ -12,7 +12,7 @@ import './support/jsdom-globals.js';
 import { setRowOffset, rowOffsetOf } from './support/strip.js';
 import { act } from 'react';
 import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
-import { LIBRARY_PANEL_DEFAULTS, LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
+import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { rowScrollerFor } from '../rowScroller.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';

@@ -8,7 +8,7 @@ import './support/jsdom-globals.js';
 import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
-import { Workspace, createWorkspace } from '../index.js';
+import { Workspace } from '../index.js';
 import { resizeSettleDelayMs, useResizeSettled } from '../Workspace.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';

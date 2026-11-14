@@ -14,7 +14,6 @@ import type { PanelRowDrop, PanelResult, ViewWorkspace } from '../index.js';
 import { landPanelIn } from '../workspaceCore.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
-import { drag, release } from './support/drag-gesture.js';
 import { ROW_LAYER_Z } from '../rowConstants.js';
 import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';

@@ -13,7 +13,7 @@ import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { centerRank, OPEN_Z, slotZ } from '../rowSlotZ.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
-import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
+import { cleanup, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 
 const ROOT = 'root';

@@ -8,14 +8,11 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { setRowOffset, rowOffsetOf } from './support/strip.js';
-import * as React from 'react';
 import { act } from 'react';
-import { MotionConfig } from 'motion/react';
 import type { PanelWindow } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { frameClock } from './support/jsdom-globals.js';
-import { computeRowNumbers, maxScrollOf, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 

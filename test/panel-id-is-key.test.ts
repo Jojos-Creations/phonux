@@ -5,7 +5,6 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
 import { createWorkspace, definePanel, useActivePanel, usePanelActive } from '../index.js';

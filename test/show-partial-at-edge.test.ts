@@ -7,10 +7,8 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { setRowOffset, rowOffsetOf } from './support/strip.js';
-import { moverOf } from '../slotMover.js';
-import { act } from 'react';
-import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { setRowOffset } from './support/strip.js';
+import { cleanup } from './support/mount-harness.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 import { gridEdgesOf, slotCutAt, type RowNumbers } from '../rowNumbers.js';

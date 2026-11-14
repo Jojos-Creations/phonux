@@ -15,7 +15,6 @@ import { fitPhone, PHONE_FIT_MARGIN, type PhoneFitInput } from '../phoneFit.js';
 import { PHONE_FIT_MAX, PHONE_FIT_MIN } from '../rowConstants.js';
 import { differential } from './support/differential.js';
 import { resize, rigCleanup, slots, track, until, win } from './support/auto-rig.js';
-import { stripMarginOf } from './support/strip.js';
 
 afterEach(rigCleanup);
 

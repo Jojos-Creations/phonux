@@ -12,7 +12,6 @@ import { flushSync } from 'react-dom';
 import { PanelManagerError, createWorkspace, useProvidePanels } from '../index.js';
 import type { PanelSettings, WorkspaceHandle, WorkspaceState, WorkspaceStorage } from '../index.js';
 import { LIBRARY_PANEL_DEFAULTS } from '../panelSettings.js';
-import { rowScrollerFor } from '../rowScroller.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { viewContextOf } from '../workspaceCore.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';

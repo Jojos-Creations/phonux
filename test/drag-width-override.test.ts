@@ -9,7 +9,6 @@ import './support/jsdom-globals.js';
 import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
-import { MotionConfig } from 'motion/react';
 import { PanelSizeBox, usePanelResizing } from '../index.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act } from 'react';
 import { cleanup, advanceFrames } from './support/mount-harness.js';
-import { made, mountRow, rootEntry, row, ROOT } from './support/scroll-row.js';
+import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 import { setRowOffset } from './support/strip.js';
 import { slotTransform } from './support/strip.js';
 

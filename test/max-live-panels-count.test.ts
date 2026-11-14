@@ -11,7 +11,6 @@ import * as React from 'react';
 import { createWorkspace, useProvidePanels } from '../index.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import type { PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
-import { differential, differentialsCovered } from './support/differential.js';
 import { cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { capRig, liveRightOfRoot, rowOf } from './support/cap-rig.js';
 import { markerTemplate } from './support/workspace-row.js';

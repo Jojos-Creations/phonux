@@ -14,7 +14,7 @@ import { movePanel, reanchorPanel } from '../panelWindow.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { hydrateWorkspaceState, type WorkspaceState } from '../workspaceState.js';
 import { bindingOf, type EngineOps } from '../workspaceCore.js';
-import { advanceFrames, cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow, seededWorkspace } from './support/mount-harness.js';
+import { cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow, seededWorkspace } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 import { slotTransform } from './support/strip.js';
 

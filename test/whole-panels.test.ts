@@ -7,13 +7,12 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
 import { workspaceShellStyle } from '../Workspace.js';
-import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { cleanup } from './support/mount-harness.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 
 afterEach(() => {

@@ -51,7 +51,9 @@ function GenericPlaceholder({ windowMs, still }: { windowMs: number; still: bool
   React.useEffect(() => {
     if (still) return undefined;
     const pulses = [...(box.current?.children ?? [])].map((el) => el.animate?.([{ opacity: 1 }, { opacity: 0.45 }, { opacity: 1 }], { duration: PULSE_MS, delay: windowMs, iterations: Infinity, easing: 'ease-in-out' }));
-    return () => pulses.forEach((pulse) => pulse?.cancel());
+    return () => {
+      for (const pulse of pulses) pulse?.cancel();
+    };
   }, [windowMs, still]);
   return (
     <Box

@@ -13,7 +13,6 @@ import { memoryWorkspaceStorage } from '../fakeHost.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { flush, mountWorkspace, type MountedWorkspace } from './support/workspace-row.js';
-import { settle } from './support/workspace-launch.js';
 import { resolvePanelSettings } from '../panelSettings.js';
 import { refusedWith } from './support/configure-matrix.js';
 import { slotTransform } from './support/strip.js';

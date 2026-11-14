@@ -9,7 +9,6 @@ import * as React from 'react';
 import { Workspace } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { cleanup, mount, withHost } from './support/mount-harness.js';
-import { mountRow, panelsOf } from './support/scroll-row.js';
 
 afterEach(() => cleanup());
 

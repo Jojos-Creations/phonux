@@ -12,7 +12,7 @@ import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelHandle, PanelResult, PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { advanceFrames, cleanup, mount, useSeededInput } from './support/mount-harness.js';
 import { SLIDE_DURATION_SEC } from '../rowConstants.js';
-import { differential, differentialsCovered } from './support/differential.js';
+import { differential } from './support/differential.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 import { brief, fire, rig, TRIGGERS, type Rig } from './support/ops-rig.js';
 

@@ -6,27 +6,17 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
 import type { ConfigureResult } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag } from './support/drag-gesture.js';
 import { slotTransform } from './support/strip.js';
 import {
-  EDGE_WINDOW,
-  HALF_ZONE_POINTER,
   LIBRARY_TUNING_DEFAULTS,
   dragRig,
   done,
-  heldScroll,
-  hold,
   letter,
-  lift,
   matrixRig,
-  matrixTemplate,
-  mockWindow,
-  pressAndMove,
   refusedWith,
-  soft,
   viewLog,
   type MatrixRig,
 } from './support/configure-matrix.js';

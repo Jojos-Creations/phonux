@@ -7,15 +7,11 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { act } from 'react';
-import { Workspace, createWorkspace, useProvidePanels, usePanelTuning } from '../index.js';
-import type { PanelWindow, ProvidedPanels, WorkspaceHandle, WorkspaceTuning } from '../index.js';
-import { computeMaxLiveWidth, computeRowLayout } from '../panelRowLayout.js';
-import { panelRowSlotMotion } from '../PanelRowSlot.js';
-import { workspaceShellStyle } from '../Workspace.js';
-import { cleanup, mount, withHost, useSeededInput, StaticRow, plainTemplate } from './support/mount-harness.js';
+import { Workspace, createWorkspace, useProvidePanels } from '../index.js';
+import type { PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
+import { cleanup, mount, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 import { slotTransform } from './support/strip.js';

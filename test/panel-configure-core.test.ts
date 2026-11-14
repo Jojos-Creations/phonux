@@ -5,7 +5,6 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
 import { act, createElement, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import type { ConfigureResult, HeaderButton, PanelHandle, PanelResult, PanelSettings, PanelSummary } from '../index.js';

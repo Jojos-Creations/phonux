@@ -3,9 +3,9 @@
  * the live range's edge, once per burst. Each pin is a behavior a later change may flip; a flipped pin is renamed,
  * never deleted.
  */
-import { test, afterEach, mock } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { frameClock } from './support/jsdom-globals.js';
+import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { useProvidePanels } from '../index.js';
@@ -14,8 +14,6 @@ import type { PanelSettings, PanelWindow, ProvidedPanels } from '../index.js';
 import { applyTemplate } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { appendPanel, createRootPanel } from '../panelWindow.js';
-import { computeRowNumbers } from '../rowNumbers.js';
-import { rowScrollerFor } from '../rowScroller.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { cleanup, mount, usePanelManagerWith, useSeededInput } from './support/mount-harness.js';
 

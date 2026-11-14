@@ -7,7 +7,6 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { stripMarginOf } from './support/strip.js';
-import { act } from 'react';
 import { workspaceShellStyle, type WorkspaceShellStyleInput } from '../Workspace.js';
 import { PANEL_TRANSITION } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';

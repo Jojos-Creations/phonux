@@ -7,7 +7,6 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { act } from 'react';
 import type { PanelWindow, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, StaticRow, withHost } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';

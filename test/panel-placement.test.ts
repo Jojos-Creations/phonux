@@ -17,7 +17,7 @@ import { computeRowOrder, deriveAnchorsFromOrder } from '../panelRowOrder.js';
 import { applyTemplate } from '../panelSettings.js';
 import type { AddPlacement } from '../panelSettings.js';
 import { anchorPanel, appendPanel, createRootPanel, sideOfLiveRange, type AnchorRequest } from '../panelWindow.js';
-import { differential, differentialsCovered } from './support/differential.js';
+import { differential } from './support/differential.js';
 import { advanceFrames, cleanup, mount, withHost, useSeededInput, type SeedOptions } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 

@@ -11,7 +11,6 @@ import { act } from 'react';
 import { DragToClose, useHost, usePanelReorderSteps } from '../index.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
-import { SLIDE_DURATION_SEC } from '../rowConstants.js';
 import { ROW_LAYER_Z } from '../rowConstants.js';
 import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
