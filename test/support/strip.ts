@@ -37,7 +37,7 @@ export function rowGlideTargetOf(container: HTMLElement): number | null {
   const embla = win === null ? undefined : emblaOf(win);
   if (embla === undefined) return rowScrollerFor(container).glideTarget();
   const target = emblaTargetOf(embla);
-  return Math.abs(target - emblaDrawnOf(embla)) > 0.5 ? target : null;
+  return Math.abs(target - emblaDrawnOf(embla)) > 0.5 ? target + 0 : null;
 }
 
 /**
