@@ -617,11 +617,13 @@ export function PanelRow({
     }
     const before = lastLayout.current;
     if (embla !== undefined && before !== null && lastWindow.current === emblaWindow.width) {
-      // A panel that grew past the window's edge comes whole into view, as a reordered one does.
+      // A panel that grew past the window's edge comes whole into view, as a reordered one does. Only one the window showed: a panel
+      // that grew wholly outside it keeps the view still, as any change out of view does.
       const k = layoutNow.ids.findIndex((id, i) => {
         const j = before.ids.indexOf(id);
         const entry = present.find((p) => p.id === id);
-        return j >= 0 && layoutNow.widths[i]! > before.widths[j]! + 0.5 && entry !== undefined && effective(entry).scrollOnMove === 'follow';
+        const shown = j >= 0 && before.lefts[j]! + before.widths[j]! > drawnScrollNow + 0.5 && before.lefts[j]! < drawnScrollNow + emblaWindow.width - 0.5;
+        return shown && layoutNow.widths[i]! > before.widths[j]! + 0.5 && entry !== undefined && effective(entry).scrollOnMove === 'follow';
       });
       const to = k < 0 ? null : revealScroll(layoutNow.lefts[k]!, layoutNow.widths[k]!, emblaTargetOf(embla), emblaWindow.width);
       if (to !== null) embla.scrollTo(nearestStop(embla, Math.min(Math.max(0, to), stripMax)), reducedMotion);
