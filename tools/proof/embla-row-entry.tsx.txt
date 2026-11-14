@@ -34,6 +34,12 @@ const BAR = q.get('bar') === null ? null : Number(q.get('bar'));
 const GRAB = q.get('grab') === '1';
 // rootMove=1: the root may be moved by a person (settings movable), still not crossable unless rootCross=1.
 const ROOT_MOVE = q.get('rootMove') === '1';
+// `hold=left|right|both`: the root's edgeHold. `store=1`: the workspace saves to and loads from localStorage, so a reload in the same
+// browser context is a relaunch from the saved file.
+const HOLD = q.get('hold');
+const STORE = q.get('store') === '1';
+const STORE_KEY = 'embla-row-proof-workspace';
+const storedAtLaunch = STORE ? localStorage.getItem(STORE_KEY) : null;
 // bg=1: a magenta page, so a slot that paints nothing (an unloaded placeholder in view) shows as magenta in a captured frame.
 if (q.get('bg') === '1') document.body.style.background = '#ff00ff';
 // Each view's mounts, and a setter for a piece of React state it holds: state survives only while the view stays mounted.
@@ -90,12 +96,13 @@ function RootView() {
 // mount: false, as the app passes: this page renders the row itself. Without it the auto mount renders a second row that fails to attach.
 const ws = createWorkspace({
   mount: false,
-  root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}) } as any }),
+  root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}), ...(HOLD === null ? {} : { edgeHold: HOLD }) } as any }),
   // `x`: a page opened later, any number of times (`__g.openExtra()`), one slot wide, drawn as the others are.
   templates: [...ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })), definePanel({ id: 'x', view: ExtraView as any, settings: { title: 'x', multiple: true } as any })],
   tuning: { rowGesture: 'step', rowGap: GAP, ...(CAP === null ? {} : { maxLivePanels: CAP }) } as any,
+  ...(STORE ? { storage: { load: async () => (storedAtLaunch === null ? null : JSON.parse(storedAtLaunch)), save: (state: unknown) => localStorage.setItem(STORE_KEY, JSON.stringify(state)) } } : {}),
 });
-for (const id of ids) ws.addPanel(id);
+if (storedAtLaunch === null) for (const id of ids) ws.addPanel(id);
 
 function App() {
   const ref = React.useRef<HTMLDivElement>(null);
@@ -374,6 +381,7 @@ requestAnimationFrame(frame);
   // Panels by their template's name (p1.., root): the list's order, a name's engine id, and every slot drawn now with its left on
   // screen (window px) and width.
   // What the list keeps (and saves): every panel's live flag. A summon is drawn only, so it changes none.
+  stored: () => localStorage.getItem(STORE_KEY),
   saved: () => latest.panelList.filter((p: any) => p.live === false).map((p: any) => p.id),
   order: () => latest.entries.map((e: any) => (e.id === ws.rootId ? ROOT : e.view)),
   idOf: (name: string) => (name === ROOT ? ws.rootId : latest.entries.find((e: any) => e.view === name)?.id),

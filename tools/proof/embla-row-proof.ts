@@ -16,13 +16,14 @@
  *        the row past its start leaves the drag going; a panel far right of the view closed or resized under a wheel stream moves
  *        the row back no more than the stream's own settle (control: the stream alone) and loses no motion; a panel left of the
  *        view narrowed while an arrow-key glide runs lands on the slot grid.
- * settle (runs with gesture, or alone with --only settle) a mouse wheel's bursts with 80/150/300/600 ms pauses, a spin and a spin
- *        paused, a trackpad swipe with its momentum tail (flagged and not), nudges of 80-120 px from a stop, and slow notches stopping
- *        just past and just before a stop: the row moves 1.0 px per wheel px, never settles while the wheel goes on (pauses under
- *        500 ms), never moves against the scroll while the wheel holds it, and rests by the owner's rule (ahead once the gesture covered
- *        a quarter of the gap from the stop behind, else back on that stop; written out again here, not read from the row), so a return
- *        moves it back under a quarter of a gap and a burst rests at most one gap past where its input left the row; a burst that starts
- *        in a settle's glide takes the glide's speed on (no brake, no lurch); settled within 1.8 s.
+ * settle (runs with gesture, or alone with --only settle) a mouse wheel's bursts with 40/150/300/600 ms pauses, a spin and a spin
+ *        paused, a trackpad swipe with its momentum tail (flagged and not), nudges of 6-80 px from a stop, notches stopping just past a
+ *        stop by under and over a touch and just before one, and two bursts with a lift inside the wait: the row moves 1.0 px per wheel
+ *        px, never settles while the wheel goes on (wheels under 90 ms apart, 60 after a momentum wheel), never moves against the scroll
+ *        while the wheel holds it, and rests by the owner's rule of 2026-11-11 (ahead once the gesture covered a touch, 2%, of the gap
+ *        from the stop behind, else back on that stop; written out again here, not read from the row), so a return moves it back under
+ *        a touch and a gesture rests at most one gap past where its input left the row; a burst that starts in a settle's glide takes
+ *        the glide's speed on (no brake, no lurch); settled within 1.8 s.
  *        The ends (settle.end*, settle.midHand): from mid-strip on a row of 25, notch bursts into the start or the end and on past it,
  *        by real (trusted) wheels with the hand's 1 px pointer moves or handed in; per frame the drawn row, Embla's location and
  *        target: the row rests at the end it was scrolled into, stops flat there (owner ruling 2026-11-09: no stretch past it, no
@@ -64,6 +65,11 @@
  *        grid, and carries the Workspace out; under Reduce Motion it lands at once; opened while a mouse drag holds the row, the row
  *        stays under the pointer until the release and then shows the page; opened mid-glide, it rests showing it on the grid.
  *
+ * shots  screenshots at deviceScaleFactor 1 to look at, each with the numbers that say what it should show: the root held 'left'
+ *        and held 'both' after three ArrowRight steps (the row at slot 3, the root whole in the window, no one-slot page cut), the row
+ *        after a relaunch from its saved file (a reload in the same browser context, resting where the person left it, not gliding),
+ *        and a 6 px wheel nudge at rest (back on its stop).
+ *
  * Every check is in the JSON it prints, with `failed` listing what broke. Exits 1 when a check failed and 2 when a run recorded no
  * frames or no motion, so a run that proved nothing never reads as a pass. Screenshots go to --out; look at them.
  */
@@ -82,7 +88,7 @@ const arg = (name: string): string | undefined => {
 // The old row is gone (step 8d): `--engine` is accepted for old runners and ignored.
 const ENGINE = 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open,shots').split(','));
 // `--cases a,b` runs only the named cases of a section (a case's name is in its `want(...)`); every case runs without it.
 const CASES = arg('cases')?.split(',');
 const want = (name: string): boolean => CASES === undefined || CASES.includes(name);
@@ -142,8 +148,12 @@ async function open(slots: string, width = 1800, height = 900, extra = '', engin
 const g = (page: Page, fn: string, ...args: unknown[]): Promise<any> => page.evaluate(([f, a]: [string, unknown[]]) => (window as any).__g[f](...a), [fn, args]);
 const onGrid = (p: number, pitch: number, max: number): boolean => Math.abs(p - max) <= 0.5 || Math.abs(p / pitch - Math.round(p / pitch)) * pitch <= 0.5;
 // The owner's rest rule for a wheel gesture moving `dir` from `from`, on the slot grid and the row's end: the stop ahead once it
-// covered a quarter of the gap from the stop behind, else the stop behind.
-const BACK = 0.25;
+// covered a touch (2%) of the gap from the stop behind, else the stop behind. Owner ruling 2026-11-11 ("always slide to the farther
+// slot in one fluid animation"), which replaced the quarter-of-a-gap rule and the 500 ms wait.
+const BACK = 0.02;
+// How long the row waits after a wheel before it settles: 90 ms, 60 after a momentum wheel (the row's own numbers, written out again).
+const WAIT_MS = 90;
+const WAIT_MOMENTUM_MS = 60;
 function ruleRest(from: number, dir: number, pitch: number, max: number): number {
   const stops = [...Array.from({ length: Math.ceil(max / pitch - 0.001) }, (_, k) => k * pitch), max];
   const on = stops.find((x) => Math.abs(x - from) <= 0.5);
@@ -621,7 +631,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
   const NOTCH = 40;
   const notches = (n: number, from: number, gap = 30): [number, number, boolean?][] => Array.from({ length: n }, (_, k) => [from + k * gap, NOTCH] as [number, number]);
   // Bursts of six notches 30 ms apart (one finger stroke, 240 px), then `pause` ms with the finger lifted, five times: the bursts end
-  // 240, 480, 720, 960 and 1200 px in, on both sides of the stops at 406, 812 and 1218.
+  // 240, 480, 720, 960 and 1200 px in, on both sides of the stops at 406, 812 and 1218. A pause under the 90 ms wait keeps one
+  // gesture; a longer one settles each burst on the stop ahead (240 px is well over a touch), and the next starts in or after its glide.
   const bursts = (pause: number): [number, number, boolean?][][] => Array.from({ length: 5 }, (_, b) => notches(6, b * (150 + pause)));
   // A trackpad: a slow swipe the finger stops before lifting (ramp, plateau, ease out), 150 ms to reposition, then a swipe lifted while
   // moving, whose momentum tail decays by 0.9 a frame (the plugin's momentum range) to under half a px.
@@ -640,30 +651,37 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       [...b.map((d, k): Wheel => [startB + k * f, d]), ...tail.map((d, k): Wheel => (flagged ? [startB + (b.length + k) * f, d, true] : [startB + (b.length + k) * f, d]))],
     ];
   };
-  // `mouse`: the row waits 500 ms after the last wheel; `trackpad`: 150 ms after a momentum wheel. The last field, where one is given,
-  // is where the case must rest, in slots, worked out by hand from the rule.
+  // `mouse` / `trackpad`: how the wheels are sent (on timers, or each in its animation frame). The last field, where one is given, is
+  // where the case must rest, in slots, worked out by hand from the rule (only where no glide's carried speed decides it).
   type Kind = 'mouse' | 'trackpad';
-  const fine = (n: number): Wheel[] => Array.from({ length: n }, (_, k) => [k * 150, 10] as Wheel);
+  const fine = (n: number): Wheel[] => Array.from({ length: n }, (_, k) => [k * 30, 2] as Wheel);
   const CASES_SETTLE: [string, Wheel[][], Kind, number?][] = [
-    ['notch80', bursts(80), 'mouse', 3],
-    ['notch150', bursts(150), 'mouse', 3],
-    ['notch300', bursts(300), 'mouse', 3],
-    // Pauses past 500 ms: each burst is its own gesture, and each after the first starts in the last one's settle glide.
-    ['notch600', bursts(600), 'mouse'],
-    ['spin', [notches(12, 0, 16)], 'mouse', 1],
-    ['spinPaused', [notches(10, 0, 16), notches(10, 144 + 150, 16)], 'mouse', 2],
+    // A 40 ms lift: one gesture of 1200 px, 388 px past 812, rests on 1218.
+    ['notch40', bursts(40), 'mouse', 3],
+    // 150 ms: each burst its own gesture, each after the first starting in the last one's settle glide (where it rests depends on the
+    // speed it takes on, so the rule is checked on where the last gesture left the row).
+    ['notch150', bursts(150), 'mouse'],
+    // 300 and 600 ms: each burst starts at or near rest on a stop and moves 240 px, so each rests one stop on: slot 5.
+    ['notch300', bursts(300), 'mouse', 5],
+    ['notch600', bursts(600), 'mouse', 5],
+    // 480 px in one gesture: 74 px past 406, rests on 812.
+    ['spin', [notches(12, 0, 16)], 'mouse', 2],
+    ['spinPaused', [notches(10, 0, 16), notches(10, 144 + 150, 16)], 'mouse'],
     ['trackpad', trackpad(true), 'trackpad'],
     ['trackpadGuessed', trackpad(false), 'trackpad'],
-    // Nudges from the stop at 0 (the gap is 406 px, a quarter 101.5): 80 px and 100 px return to it, 110 px and 120 px rest ahead.
-    ['nudge80', [notches(2, 0, 150)], 'mouse', 0],
-    ['nudge100', [fine(10)], 'mouse', 0],
-    ['nudge110', [fine(11)], 'mouse', 1],
-    ['nudge120', [notches(3, 0, 150)], 'mouse', 1],
-    // 21 and 19 slow notches: 840 px, 28 px past the stop at 812 (returns to it), and 760 px, 354 px past 406 (rests on 812).
-    ['justPast', [notches(21, 0, 150)], 'mouse', 2],
-    ['justBefore', [notches(19, 0, 150)], 'mouse', 2],
-    // Two runs of slow notches with the finger lifted 400 ms between them (inside the 500 ms wait): one gesture, 800 px.
-    ['slowPaused', [notches(10, 0, 150), notches(10, 1350 + 400, 150)], 'mouse', 2],
+    // Nudges from the stop at 0, one gesture each (the gap is 406 px, a touch 8.12): 6 px and 8 px return to it, 10 px and 80 px rest
+    // ahead.
+    ['nudge6', [[[0, 3], [30, 3]]], 'mouse', 0],
+    ['nudge8', [fine(4)], 'mouse', 0],
+    ['nudge10', [fine(5)], 'mouse', 1],
+    ['nudge80', [notches(2, 0, 30)], 'mouse', 1],
+    // Notches 30 ms apart: 818 px, 6 past the stop at 812 (returns to it); 830 px, 18 past it (rests on 1218); 760 px, 354 past 406
+    // (rests on 812).
+    ['justPast', [[...notches(20, 0), [600, 18]]], 'mouse', 2],
+    ['pastTouch', [[...notches(20, 0), [600, 30]]], 'mouse', 3],
+    ['justBefore', [notches(19, 0)], 'mouse', 2],
+    // Two bursts of ten notches with the finger lifted 50 ms between them (inside the 90 ms wait): one gesture, 800 px, rests on 812.
+    ['liftInside', [notches(10, 0), notches(10, 270 + 50)], 'mouse', 2],
   ];
   for (const [label, groups, kind, slot] of CASES_SETTLE) {
     if (!want(`settle.${label}`)) continue;
@@ -680,7 +698,9 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     const landing: number | null = await g(page, 'landing');
     writeFileSync(join(OUT, `settle-${label}-frames.json`), JSON.stringify({ events, sent, landing, frames: fr.map((f: any) => ({ t: +f.t.toFixed(1), pos: +f.pos.toFixed(2), tgt: f.tgt === null ? null : +f.tgt.toFixed(2), held: f.held, wheels: f.wheels, pd: f.pd, pm: f.pm, pu: f.pu, press: f.emblaPress })) }));
     const start = fr[0].pos;
-    // Each burst: the row's move from the last frame before its first wheel to the first frame 80 ms after its last, against its input.
+    const waitAfter = (k: number): number => (events[k]![2] === true ? WAIT_MOMENTUM_MS : WAIT_MS);
+    // Each run of bursts the row reads as one gesture (each lift under the wait): the row's move from the last frame before its first
+    // wheel to the first frame 80 ms after its last, against its input.
     // A burst that starts in a settle's glide must take it on without a jump: the row's speed over the three frames after the burst's
     // first wheel against the three before, when those three are the glide's own (not held). A stop where drawn drops it to what one
     // wheel gives from rest; a lurch to the glide's target trebles it.
@@ -688,7 +708,16 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     const ratios: number[] = [];
     const fromGlide: number[] = [];
     const resumed: [number, number][] = [];
+    const runs: Wheel[][] = [];
+    let at = 0;
     for (const grp of groups) {
+      const firstAt = sent.sent[at]!;
+      const prevAt = at === 0 ? Number.NEGATIVE_INFINITY : sent.sent[at - 1]!;
+      if (runs.length > 0 && firstAt - prevAt < waitAfter(at - 1) - 20) runs[runs.length - 1]!.push(...grp);
+      else runs.push([...grp]);
+      at += grp.length;
+    }
+    for (const grp of runs) {
       const first = sent.sent[k0]!;
       const last = sent.sent[k0 + grp.length - 1]!;
       k0 += grp.length;
@@ -702,22 +731,23 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
       }
       ratios.push(+((after.pos - before.pos) / grp.reduce((n, [, d]) => n + d, 0)).toFixed(3));
     }
-    // Frames between two wheels closer than the row's wait must all be held: a settle there is one inside the gesture.
-    const wait = kind === 'trackpad' ? 150 : 500;
+    // Frames between two wheels closer than the row's wait (after the first of them) must all be held: a settle there is one inside
+    // the gesture. Gaps within 20 ms of the wait count neither way (a timer's jitter decides them).
+    const wait = WAIT_MS;
     let settledInside = 0;
     let settledBetween = 0;
     for (let k = 1; k < sent.sent.length; k += 1) {
       const a = sent.sent[k - 1]!;
       const b = sent.sent[k]!;
       const free = fr.filter((f: any) => f.t > a + 20 && f.t < b && !f.held).length;
-      if (b - a < wait - 20) settledInside += free;
-      else settledBetween += free;
+      if (b - a < waitAfter(k - 1) - 20) settledInside += free;
+      else if (b - a > waitAfter(k - 1) + 20) settledBetween += free;
     }
     const rest = fr[fr.length - 1].pos;
     const furthest = Math.max(...fr.map((f: any) => f.pos));
     const lastSent = sent.sent[sent.sent.length - 1]!;
     const unsettled = [...fr].reverse().find((f: any) => Math.abs(f.pos - rest) > 0.5);
-    const single = sent.sent.every((t, k) => k === 0 || t - sent.sent[k - 1]! < 500);
+    const single = sent.sent.every((t, k) => k === 0 || t - sent.sent[k - 1]! < waitAfter(k - 1) - 20);
     const inputEnd = Math.min(max, start + input);
     const steps = backSteps(fr, 1);
     const r = {
@@ -747,15 +777,15 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (single && rest > inputEnd + PITCH + 0.5) failed.push(`settle ${label}: rests at ${r.rest}, more than one gap past ${inputEnd}, where the input left the row`);
     for (const [k, x] of ratios.entries()) if (!fromGlide.includes(k) && Math.abs(x - 1) > 0.05) failed.push(`settle ${label}: a burst moved the row ${x} px per wheel px (${ratios.join(', ')}), not 1`);
     if (settledInside > 0) failed.push(`settle ${label}: the row settled in ${settledInside} frames inside the gesture (between wheels under ${wait} ms apart)`);
-    if (label === 'notch600' && settledBetween === 0) empty.push(`settle ${label}: no settle between bursts 600 ms apart, so the inside-the-gesture check proves nothing`);
+    if ((label === 'notch150' || label === 'notch600') && settledBetween === 0) empty.push(`settle ${label}: no settle between bursts past the wait, so the inside-the-gesture check proves nothing`);
     if (steps.heldBackPx > 0.5) failed.push(`settle ${label}: the row moved ${steps.heldBackPx} px against the scroll in one frame while the wheel held it`);
-    if (steps.worstReturnPx >= BACK * PITCH + 0.5) failed.push(`settle ${label}: a settle moved the row back ${steps.worstReturnPx} px, a quarter of a gap or more`);
+    if (steps.worstReturnPx >= BACK * PITCH + 0.5) failed.push(`settle ${label}: a settle moved the row back ${steps.worstReturnPx} px, a touch (2% of a gap) or more`);
     // No brake (the glide's speed dropped to what one wheel gives from rest) and no lurch (past the glide's speed and the spin's own).
     const heldStep = Math.max(0, ...fr.slice(1).map((f: any, k: number) => (f.held && fr[k].held ? f.pos - fr[k].pos : 0)));
     for (const [b, a] of resumed) if (a > Math.max(1.5 * b + 12, heldStep) || a < 0.6 * b - 3) failed.push(`settle ${label}: a burst resumed the gesture mid-glide with a jump: ${b} px a frame before its first wheel, ${a} px after (three-frame means)`);
-    if (label === 'notch600' && resumed.length === 0) empty.push(`settle ${label}: no burst started in a settle's glide`);
-    if (fr.length < 30 || furthest - start < 50) empty.push(`settle ${label}: the stream moved the row ${r.moved} px (furthest ${r.furthest}) in ${fr.length} frames, so the checks prove nothing`);
-    if (ratios.length !== groups.length) empty.push(`settle ${label}: ${ratios.length} of ${groups.length} bursts were measured`);
+    if (label === 'notch150' && resumed.length === 0) empty.push(`settle ${label}: no burst started in a settle's glide`);
+    if (fr.length < 30 || furthest - start < Math.min(50, input / 2)) empty.push(`settle ${label}: the stream moved the row ${r.moved} px (furthest ${r.furthest}) in ${fr.length} frames, so the checks prove nothing`);
+    if (ratios.length !== runs.length) empty.push(`settle ${label}: ${ratios.length} of ${runs.length} gestures were measured`);
     if (!r.restOnGrid) failed.push(`settle ${label}: rest ${r.rest} off the grid`);
     if (r.settleMs > 1800) failed.push(`settle ${label}: still moving ${r.settleMs} ms after the last wheel`);
     if (errors.length > 0) failed.push(`settle ${label}: page errors ${errors.join(' | ')}`);
@@ -768,9 +798,11 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
   // Without it the wheels are handed in (feedRowWheel) and no pointer moves. `root`: where the Workspace stands (0: the strip's first
   // page, as it opens; 'far': moved to the other end). Per frame: the drawn row, Embla's location and target. The check: the row rests
   // at the end the scroll carried it into, and never moves back against the scroll.
-  // `pauses` in turn between bursts: under 500 ms the whole scroll is one held gesture; 600 ms settles it between bursts.
-  const ONE = [80, 300, 150, 450];
-  const SOME = [80, 300, 150, 600];
+  // `pauses` in turn between bursts: under the 90 ms wait two bursts are one held gesture; longer settles it between them. INSIDE
+  // keeps the whole scroll one gesture, so mid-strip its travel is the whole input.
+  const ONE = [40, 300, 150, 450];
+  const SOME = [40, 300, 150, 600];
+  const INSIDE = [40, 50, 40];
   // `act`: the hand's action, a 1 px move unless said: 'move0' a move with no travel, 'up' a bare mouse button release (a button held
   // on a panel since before the wheel), 'downOut' a click away from the row, 'menuIn' / 'menuOut' a right-click on the row (a panel)
   // or away from it, 'touchOut' a touch moving away from the row. `late`: one more 700 ms after the last notch, while the row settles.
@@ -778,7 +810,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
   type EndCase = { dir: 1 | -1; from: number; bursts: number; pauses: number[]; mouse: boolean; inPauses: boolean; rootFar?: boolean; act?: Act; late?: boolean };
   // The trusted event each action must be seen to deliver, or the case proves nothing.
   const ACT_EVENT: Record<Act, string> = { move1: 'mousemove', move0: 'mousemove', up: 'mouseup', downOut: 'mousedown', menuIn: 'contextmenu', menuOut: 'contextmenu', touchOut: 'touchmove' };
-  const FAMILY = (act: Act): EndCase => ({ dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, act, late: true });
+  const FAMILY = (act: Act): EndCase => ({ dir: -1, from: 16, bursts: 4, pauses: INSIDE, mouse: true, inPauses: true, act, late: true });
   const CASES_END: [string, EndCase][] = [
     ['endLeftFeed', { dir: -1, from: 8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
     ['endRightFeed', { dir: 1, from: -8, bursts: 18, pauses: SOME, mouse: false, inPauses: false }],
@@ -788,8 +820,8 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     ['endLeftRootFar', { dir: -1, from: 8, bursts: 18, pauses: ONE, mouse: true, inPauses: false, rootFar: true }],
     // Ground on past the end long enough for the plugin's own rubber band (it damps its pointer back, then ends its gesture).
     ['endLeftLong', { dir: -1, from: 2, bursts: 30, pauses: [0], mouse: true, inPauses: false }],
-    ['midHand', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true }],
-    ['midUp', { dir: -1, from: 16, bursts: 4, pauses: SOME, mouse: true, inPauses: true, act: 'up' }],
+    ['midHand', { dir: -1, from: 16, bursts: 4, pauses: INSIDE, mouse: true, inPauses: true }],
+    ['midUp', { dir: -1, from: 16, bursts: 4, pauses: INSIDE, mouse: true, inPauses: true, act: 'up' }],
     ['famMove0', FAMILY('move0')],
     ['famMove1', FAMILY('move1')],
     ['famUp', FAMILY('up')],
@@ -918,7 +950,7 @@ if ((ONLY.has('gesture') || ONLY.has('settle')) && ENGINE === 'embla') {
     if (r.heldStrayTargetPx > 0.5) failed.push(`settle ${label}: while the wheel held the row, Embla's target moved ${r.heldStrayTargetPx} px in a frame with no wheel`);
     if (label.startsWith('end') && r.restFromEndPx > 0.5) failed.push(`settle ${label}: scrolled into the end at ${r.end}, rests at ${r.rest} (${r.restFromEndPx} px from it)`);
     if (steps.heldBackPx > 0.5) failed.push(`settle ${label}: the row moved ${steps.heldBackPx} px back into the strip against the scroll in one frame while the wheel held it`);
-    if (steps.worstReturnPx >= BACK * PITCH + 0.5) failed.push(`settle ${label}: a settle moved the row back into the strip ${steps.worstReturnPx} px, a quarter of a gap or more`);
+    if (steps.worstReturnPx >= BACK * PITCH + 0.5) failed.push(`settle ${label}: a settle moved the row back into the strip ${steps.worstReturnPx} px, a touch (2% of a gap) or more`);
     if (r.heldTargetBackPx > 50) failed.push(`settle ${label}: while the wheel held the row, Embla's target stepped ${r.heldTargetBackPx} px against the scroll in one frame`);
     if (r.heldFrames < 10) empty.push(`settle ${label}: the wheel held the row in ${r.heldFrames} frames`);
     if (r.drawnPastEndPx > 0.5) failed.push(`settle ${label}: drawn ${r.drawnPastEndPx} px past the end (the wheel stops flat there)`);
@@ -1510,7 +1542,7 @@ if (ONLY.has('width') && ENGINE === 'embla') {
   const visibleAt = (f: any): string[] => Object.entries(f.drawn as Record<string, { x: number; w: number }>).filter(([, v]) => v.x > -v.w + 1 && v.x < f.winW - 1).sort((a, b) => a[1].x - b[1].x).map(([id]) => id);
   // One width change, measured per frame: `still` are pages that must not move on screen, `page` the one changing, `edge` the edge of it
   // that moves; pages after it in view must stay one gap from its drawn right edge (no blank, no overlap).
-  const measure = (label: string, fr: any[], o: { still: string[]; page: string; edge: 'left' | 'right' | null; followers: string[]; pitch: number; max: number; restAt?: number }): Record<string, unknown> => {
+  const measure = (label: string, fr: any[], o: { still: string[]; page: string; edge: 'left' | 'right' | null; followers: string[]; pitch: number; max: number; restAt?: number; whole?: boolean }): Record<string, unknown> => {
     const first = fr[0];
     const last = fr[fr.length - 1];
     const worstStill = Math.max(0, ...o.still.flatMap((id) => fr.map((f: any) => Math.abs((f.drawn[id]?.x ?? Number.NaN) - first.drawn[id].x))));
@@ -1545,6 +1577,8 @@ if (ONLY.has('width') && ENGINE === 'embla') {
     Object.assign(r, { posWorstBack: +posBack.toFixed(2) });
     if (posBack < -1) fail(label, `the row stepped back ${posBack.toFixed(1)} px under the change`);
     if (o.restAt !== undefined && Math.abs(last.pos - o.restAt) > 0.5) fail(label, `rests at ${last.pos.toFixed(1)}, not ${o.restAt}`);
+    const restBox = last.drawn[o.page];
+    if (o.whole === true && (restBox === undefined || restBox.x < -0.5 || restBox.x + restBox.w > last.winW + 0.5)) fail(label, `rests with ${o.page} not whole in the window (${restBox === undefined ? 'not drawn' : `${restBox.x} to ${restBox.x + restBox.w} of ${last.winW}`})`);
     if (fr.length < 20) empty.push(`width ${label}: ${fr.length} frames`);
     if (Math.abs(r.edgeTravel) < 100) empty.push(`width ${label}: the page's ${o.edge ?? 'width'} moved ${r.edgeTravel} px, so this proved nothing`);
     if (worstStill > 0.5) fail(label, `a page in view that is not changing moved ${worstStill.toFixed(1)} px`);
@@ -1581,7 +1615,10 @@ if (ONLY.has('width') && ENGINE === 'embla') {
   };
   // Strip: root, p1 (1), p2 (1), p3 (2), p4 (1), p5 (3), p6 (1), p7 (1), p8 (2), p9..p12 (1); a window of four slots.
   // At slot 2 the view is p2, p3, p4.
-  await run('growInView', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p4'), 2), { still: ['p2', 'p3'], page: 'p4', edge: 'right', followers: [] });
+  // p4, the last page in view, grows past the window's right edge: the row glides one stop to show it whole (owner ruling 2026-11-11,
+  // "a panel that grows past the window edge is glided whole into view"), so nothing in view stands still; its width grows one way,
+  // p3 keeps one gap from it, and it rests whole at slot 3.
+  await run('growInView', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p4'), 2), { still: [], page: 'p4', edge: null, followers: ['p3'], restAt: 3 * 406, whole: true });
   await run('shrinkInView', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p3'), 1), { still: ['p2'], page: 'p3', edge: 'right', followers: ['p4'] });
   await run('growLeftEdge', 2, async (page, id) => g(page, 'op', 'setSlots', await id('p2'), 2), { still: [], page: 'p2', edge: 'right', followers: ['p3'] });
   // At the strip's end (17 slots, rest 13: p9..p12) the strip cannot keep the left edge: a shrink in view holds the right end, the
@@ -2662,6 +2699,100 @@ if (ONLY.has('open') && ENGINE === 'embla') {
     await close();
   }
   out.open = res;
+}
+
+if (ONLY.has('shots') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  // Every slot's drawn box on the page (not the strip's window, which a hold narrows), and the strip window's own box.
+  const boxes = (page: Page): Promise<{ win: { x: number; w: number }; slots: Record<string, { x: number; w: number }> }> => page.evaluate(() => {
+    const w = document.querySelector('[data-row-embla-window]')!.getBoundingClientRect();
+    const slots: Record<string, { x: number; w: number }> = {};
+    for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+      const b = el.getBoundingClientRect();
+      slots[el.querySelector('[data-box]')?.getAttribute('data-box') ?? el.dataset.rowId!] = { x: +b.left.toFixed(1), w: +b.width.toFixed(1) };
+    }
+    return { win: { x: +w.left.toFixed(1), w: +w.width.toFixed(1) }, slots };
+  });
+  const DPR1 = { deviceScaleFactor: 1 };
+  const steps3 = async (page: Page): Promise<void> => {
+    await page.mouse.click(900, 5);
+    for (let k = 0; k < 3; k += 1) {
+      await page.keyboard.press('ArrowRight');
+      await sleep(900);
+    }
+    await sleep(600);
+  };
+  // One-slot pages wholly in the page's view but cut by the strip's window, at rest: none may be (the page under a 'both' hold is
+  // covered by the root and out of sight, so it is not counted).
+  const cutInWindow = (b: Awaited<ReturnType<typeof boxes>>, under: string | null): string[] => Object.entries(b.slots).filter(([id, v]) => id !== 'root' && id !== under && v.w < 400 && v.x + v.w > b.win.x + 1 && v.x < b.win.x + b.win.w - 1 && (v.x < b.win.x - 0.5 || v.x + v.w > b.win.x + b.win.w + 0.5)).map(([id]) => id);
+  for (const side of (process.env.HOLD_SIDES?.split(',') ?? ['left', 'both']) as ('left' | 'right' | 'both')[]) {
+    if (!want(`shots.hold-${side}`)) continue;
+    const { page, errors, close } = await open(ROWS.narrow, 1800, 900, `&hold=${side}`, ENGINE, DPR1);
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    const before = await boxes(page);
+    await page.screenshot({ path: join(OUT, `shots-hold-${side}-start.png`) });
+    if (process.env.DUMP) res[`hold-${side}-up`] = await page.evaluate(() => { const out: string[] = []; const hit = document.elementFromPoint(400, 400); out.push(`hit ${hit?.tagName} ${hit?.getAttribute('data-box') ?? hit?.getAttribute('data-row-id') ?? hit?.className}`); const root = document.querySelector<HTMLElement>('[data-row-id="root"]')!; for (const el of [root.firstElementChild as HTMLElement, root, ...(() => { const a: HTMLElement[] = []; let e = document.querySelector<HTMLElement>('[data-row-embla-window]'); for (let k = 0; k < 5 && e !== null; k += 1) { a.push(e); e = e.parentElement; } return a; })()]) { if (el === null) continue; const c = getComputedStyle(el); const b = el.getBoundingClientRect(); out.push(`${el.tagName} ${el.getAttribute('data-row-id') ?? ''} ${[...el.attributes].filter((x) => x.name.startsWith('data-')).map((x) => x.name).join(',')} box ${b.left.toFixed(0)},${b.width.toFixed(0)} disp=${c.display} jc=${c.justifyContent} ml=${c.marginLeft} pl=${c.paddingLeft} ov=${c.overflow} vis=${c.visibility} op=${c.opacity} clip=${c.clipPath.slice(0, 60)} tf=${c.transform.slice(0, 40)} z=${c.zIndex}`); } return out; });
+    if (process.env.DUMP) res[`hold-${side}-dom`] = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-row-hold], [data-row-embla-window], [data-row-slot]')].slice(0, 8).map((el) => { const b = el.getBoundingClientRect(); return `${el.tagName} ${[...el.attributes].map((a) => `${a.name}=${a.value.slice(0, 160)}`).join(' ')} | box ${b.left.toFixed(0)},${b.width.toFixed(0)} z=${getComputedStyle(el).zIndex} pos=${getComputedStyle(el).position}`; }));
+    await steps3(page);
+    const after = await boxes(page);
+    const pos = await g(page, 'pos');
+    await page.screenshot({ path: join(OUT, `shots-hold-${side}-3-steps.png`) });
+    const root = after.slots.root;
+    const under = side === 'both' ? (Object.entries(after.slots).find(([id, v]) => id !== 'root' && root !== undefined && Math.abs(v.x - root.x) < 1)?.[0] ?? null) : null;
+    const cut = cutInWindow(after, under);
+    res[`hold-${side}`] = { pos: +pos.toFixed(1), rootBefore: before.slots.root, rootAfter: root, window: after.win, under, cut };
+    if (Math.abs(pos - 3 * PITCH) > 0.5) failed.push(`shots hold ${side}: after three steps the row is at ${pos}, not ${3 * PITCH}`);
+    if (root === undefined || root.x < -0.5 || root.x + root.w > 1800.5) failed.push(`shots hold ${side}: the held root is not whole on the page (${JSON.stringify(root)})`);
+    if (side === 'left' && (before.slots.root === undefined || root === undefined || Math.abs(root.x - before.slots.root.x) > 0.5)) failed.push(`shots hold left: the held root moved from ${before.slots.root?.x} to ${root?.x}`);
+    if (cut.length > 0) failed.push(`shots hold ${side}: one-slot pages cut by the window at rest: ${cut.join(', ')}`);
+    if (errors.length > 0) failed.push(`shots hold ${side}: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  if (want('shots.relaunch')) {
+    const { page, errors, close } = await open(ROWS.narrow, 1800, 900, '&store=1', ENGINE, DPR1);
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    await steps3(page);
+    await sleep(1000);
+    const left = await g(page, 'pos');
+    const stored = JSON.parse((await g(page, 'stored')) ?? 'null');
+    await page.reload();
+    await page.waitForFunction(() => (window as any).__g?.ready(), undefined, { timeout: 15000 });
+    await nextFrame(page);
+    const first = await g(page, 'pos');
+    await sleep(800);
+    const again = await g(page, 'pos');
+    const target = await g(page, 'target');
+    await page.screenshot({ path: join(OUT, 'shots-relaunch-saved-rest.png') });
+    res.relaunch = { left: +left.toFixed(1), savedScroll: stored?.scroll ?? null, firstFrame: +first.toFixed(1), rest: +again.toFixed(1), target };
+    if (Math.abs(left - 3 * PITCH) > 0.5) failed.push(`shots relaunch: three steps left the row at ${left}, not ${3 * PITCH}`);
+    if (stored?.scroll === undefined) empty.push('shots relaunch: the saved file holds no rest, so the relaunch proves nothing');
+    if (Math.abs(again - left) > 0.5 || Math.abs(first - left) > 0.5) failed.push(`shots relaunch: the relaunch drew the row at ${first} and rests at ${again}, not where it was left (${left})`);
+    if (errors.length > 0) failed.push(`shots relaunch: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  if (want('shots.nudge')) {
+    const { page, errors, close } = await open(ROWS.narrow, 1800, 900, '', ENGINE, DPR1);
+    const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+    await g(page, 'jumpToSlot', 2);
+    await sleep(500);
+    await page.mouse.move(900, 400);
+    await g(page, 'record');
+    await page.mouse.wheel(6, 0);
+    await sleep(1500);
+    const fr = await g(page, 'stop');
+    const furthest = Math.max(...fr.map((f: any) => f.pos));
+    const rest = fr[fr.length - 1].pos;
+    await page.screenshot({ path: join(OUT, 'shots-wheel-nudge-at-rest.png') });
+    const b = await boxes(page);
+    const cut = cutInWindow(b, null);
+    res.nudge = { furthest: +furthest.toFixed(1), rest: +rest.toFixed(1), cut };
+    if (furthest - 2 * PITCH < 2) empty.push(`shots nudge: the 6 px wheel moved the row only to ${furthest}, so it proves nothing`);
+    if (Math.abs(rest - 2 * PITCH) > 0.5) failed.push(`shots nudge: a 6 px nudge from ${2 * PITCH} rests at ${rest}, not back on its stop`);
+    if (cut.length > 0) failed.push(`shots nudge: one-slot pages cut at rest: ${cut.join(', ')}`);
+    if (errors.length > 0) failed.push(`shots nudge: page errors ${errors.join(' | ')}`);
+    await close();
+  }
+  out.shots = res;
 }
 
 await browser.close();
