@@ -91,11 +91,87 @@ test('rcBranchProblem: a checkout ahead of its rc branch passes', async () => {
   });
 });
 
-test('rcBranchProblem: a missing rc branch is a failure that proved nothing, never a pass', async () => {
+test('rcBranchProblem: a missing rc branch on an origin with no main is a failure that proved nothing, never a pass', async () => {
   const { rcBranchProblem } = await load(RC_FILE);
   scratchRepos(({ clone }) => {
-    assert.match(rcBranchProblem({ version: '0.2.0-rc.8', cwd: clone }) ?? '', /could not fetch origin rc8 .*this proved nothing/);
+    assert.match(rcBranchProblem({ version: '0.2.0-rc.8', cwd: clone }) ?? '', /could not fetch origin main .*this proved nothing/);
   });
+});
+
+/** An origin with only `main`, one commit, and a clone of it: a candidate cut straight from main, with no rc branch. */
+function mainOnlyRepos(run: (repos: { origin: string; clone: string }) => void): void {
+  const root = mkdtempSync(join(tmpdir(), 'phonux-rc-main-'));
+  try {
+    const origin = join(root, 'origin');
+    git(root, 'init', '-q', '-b', 'main', origin);
+    writeFileSync(join(origin, 'a.txt'), 'a\n');
+    git(origin, 'add', 'a.txt');
+    git(origin, 'commit', '-q', '-m', 'Start main');
+    const clone = join(root, 'clone');
+    git(root, 'clone', '-q', origin, clone);
+    run({ origin, clone });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const offMain = (clone: string): void => {
+  writeFileSync(join(clone, 'c.txt'), 'c\n');
+  git(clone, 'add', 'c.txt');
+  git(clone, 'commit', '-q', '-m', 'A commit main does not have');
+};
+
+test('rcBranchProblem: with no rc branch, a commit on origin main passes, as the publish workflow publishes main commits', async () => {
+  const { rcBranchProblem, rcBranchStatus } = (await load(RC_FILE)) as Module & { rcBranchStatus: (o: { version: string; cwd: string }) => { problem: string | null; summary: string } };
+  mainOnlyRepos(({ clone }) => {
+    assert.equal(rcBranchProblem({ version: '0.2.0-rc.7', cwd: clone }), null);
+    assert.match(rcBranchStatus({ version: '0.2.0-rc.7', cwd: clone }).summary, /origin has no rc7, and HEAD \([0-9a-f]{7}\) is on origin\/main/);
+  });
+});
+
+test('rcBranchProblem: with no rc branch, a commit that is not on origin main fails and says why', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ clone }) => {
+    offMain(clone);
+    assert.match(rcBranchProblem({ version: '0.2.0-rc.7', cwd: clone }) ?? '', /origin has no branch rc7, and HEAD \([0-9a-f]{7}\) is not on origin\/main/);
+  });
+});
+
+test('rcBranchProblem: once origin main takes the commit, the same checkout passes', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ origin, clone }) => {
+    offMain(clone);
+    assert.notEqual(rcBranchProblem({ version: '0.2.0-rc.7', cwd: clone }), null);
+    git(origin, 'pull', '-q', '--ff-only', clone, 'main');
+    assert.equal(rcBranchProblem({ version: '0.2.0-rc.7', cwd: clone }), null);
+  });
+});
+
+test('rcBranchProblem: an origin it cannot reach is a failure that proved nothing', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ clone }) => {
+    assert.match(rcBranchProblem({ version: '0.2.0-rc.7', cwd: clone, remote: 'nowhere' }) ?? '', /could not list nowhere's branches .*this proved nothing/);
+  });
+});
+
+test('rcBranchProblem: a scratch copy that skips the on-main test passes the off-main checkout, so that case can fail', async () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'phonux-rc-copy-'));
+  try {
+    const source = readFileSync(RC_FILE, 'utf8');
+    const edited = source.replace('if (ancestor.status === 0) return', 'if (ancestor.status !== null) return');
+    assert.notEqual(edited, source, 'the planted edit must change the text');
+    const copy = join(scratch, 'phonux-rc-branch.mjs');
+    writeFileSync(copy, edited);
+    const real = (await load(RC_FILE)).rcBranchProblem;
+    const planted = (await load(copy)).rcBranchProblem;
+    mainOnlyRepos(({ clone }) => {
+      offMain(clone);
+      assert.notEqual(real({ version: '0.2.0-rc.7', cwd: clone }), null);
+      assert.equal(planted({ version: '0.2.0-rc.7', cwd: clone }), null);
+    });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 test('rcBranchProblem: a version with no rc branch is not compared', async () => {
@@ -107,7 +183,7 @@ test('rcBranchProblem: a scratch copy that never reports missing commits passes 
   const scratch = mkdtempSync(join(tmpdir(), 'phonux-rc-copy-'));
   try {
     const source = readFileSync(RC_FILE, 'utf8');
-    const edited = source.replace("if (missing.out === '') return null;", 'return null;');
+    const edited = source.replace("if (missing.out === '') return {", 'if (missing.out !== null) return {');
     assert.notEqual(edited, source, 'the planted edit must change the text');
     const copy = join(scratch, 'phonux-rc-branch.mjs');
     writeFileSync(copy, edited);
