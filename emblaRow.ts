@@ -581,6 +581,8 @@ export const isHeldSlot = (slot: Element): boolean => {
   const hold = holdOf(slot);
   return hold !== null && (hold.hasAttribute(HOLD_AT_ATTRIBUTE) || hold.hasAttribute(HOLD_STICK_ATTRIBUTE));
 };
+/** Where `drawHeldSlots` last drew a held slot, in px from the strip's origin; null for a slot drawn at its rest. @internal */
+export const heldRestOf = (slot: HTMLElement): number | null => (isHeldSlot(slot) ? Number.parseFloat(slot.style.translate) || 0 : null);
 /**
  * Draws the held slots of the row rooted on `win` against where Embla draws the strip this frame: a left or right hold at its x in
  * the window, a 'both' panel at its rest moved back inside the window's edges. Run with the row's draw and every frame it moves.

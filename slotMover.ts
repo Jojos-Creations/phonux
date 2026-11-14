@@ -5,7 +5,7 @@
  * on a style of the same property does not run on the compositor.
  */
 
-import { isHeldSlot } from './emblaRow.js';
+import { heldRestOf } from './emblaRow.js';
 import { cubicBezier } from 'motion/react';
 import { sharedStartTime } from './rowClock.js';
 
@@ -158,7 +158,7 @@ export interface ScreenBox {
 function motionOf(el: HTMLElement, stripX: () => number): { dx: number; dy: number; scale: number } {
   const pose = moverOf(el)?.pose();
   // A held slot is drawn against the strip each frame (drawHeldSlots): its translate, not its rest, is where it is.
-  const rest = isHeldSlot(el) ? Number.parseFloat(el.style.translate) || 0 : Number(el.dataset.rowSlot) || 0;
+  const rest = heldRestOf(el) ?? (Number(el.dataset.rowSlot) || 0);
   return { dx: stripX() + rest + (pose?.x ?? 0), dy: pose?.y ?? 0, scale: pose?.scale ?? 1 };
 }
 
