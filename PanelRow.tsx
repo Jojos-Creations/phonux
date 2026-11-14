@@ -480,7 +480,7 @@ export function PanelRow({
   // Before the window is measured it is drawn the whole strip wide: load only the cap's nearest then, not every page for one commit.
   const windowKnown = Number.isFinite(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY);
   const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && p.collapsible && (workspaceTuning.maxLivePanels !== null || p.settings === undefined)), was: loadedRef.current, ahead, toward });
+    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && !heldById.has(id) && !(rowNumbers?.stuck.some((st) => st.id === id) ?? false) && present.some((p) => p.id === id && p.collapsible && (workspaceTuning.maxLivePanels !== null || p.settings === undefined)), was: loadedRef.current, ahead, toward });
   // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
   const loadedNow = emblaNow === undefined ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow);
   loadedRef.current = loadedNow;
@@ -580,7 +580,7 @@ export function PanelRow({
           {/* The ONE place useViewState's ambient panel id is set, so a view's own useViewState(key,
               initial) call needs no id argument. */}
           {/* Every panel resizes through this one box, so a view that draws a bare Panel glides like any other. */}
-          {!loadedNow.has(p.id) ? (
+          {!loadedNow.has(p.id) && !sticky ? (
             <div {...{ [EMBLA_UNLOADED_ATTRIBUTE]: '' }} style={{ width: '100%', height: '100%' }} />
           ) : (
             <SizeBox>

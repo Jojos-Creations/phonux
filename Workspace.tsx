@@ -305,10 +305,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // Each edge element is a plain spacer as wide as its group, so the strip starts after the left one and ends before the right one.
   // The held panels themselves sit in the strip and are positioned by the row's drawing pass (rowDraw.ts), so these hold no content.
   // An edge element exists only while a panel is held there, so a row that holds nothing renders exactly as it did.
-  const holdsLeft = rowNumbers?.held.some((h) => h.side === 'left') === true;
-  const holdsRight = rowNumbers?.held.some((h) => h.side === 'right') === true;
-  const leftEdgeStyle = { width: `${rowNumbers?.leftInset ?? 0}px`, flexShrink: 0 } as const;
-  const rightEdgeStyle = { width: `${rowNumbers?.rightInset ?? 0}px`, flexShrink: 0 } as const;
   return (
     <AnnounceContext.Provider value={announce}>
     <PhoneSizeContext.Provider value={phoneSize}>
@@ -346,7 +342,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
         {beforeRow}
         {/* Outside the strip: the strip's transform would make a fixed overlay inside it fixed to the strip. */}
         <OverlaySlot name="dialog" />
-        {holdsLeft ? <div data-row-edge="left" style={leftEdgeStyle} /> : null}
         {/* The row's scroller owns the strip's transform: its centering margin and its offset are one translate. The transform
             makes the strip one stacking context, so it takes the slots' own base layer, or a later positioned sibling would cover them. */}
         {/* An Embla row has no strip for the row scroller to find: Embla moves the box inside it, which the row draws centered. */}
@@ -361,7 +356,6 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           <RowNearContext.Provider value={rowNearSlots}>{children}</RowNearContext.Provider>
         </motion.div>
         </div>
-        {holdsRight ? <div data-row-edge="right" style={rightEdgeStyle} /> : null}
       </Box>
       </RowHeightContext.Provider>
 

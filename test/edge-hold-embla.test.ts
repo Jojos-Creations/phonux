@@ -92,3 +92,12 @@ test('control, no edgeHold: the root scrolls out of the window like any page', a
   assert.ok(slotOf(m, ROOT).hasAttribute('inert'), 'and marked out of sight');
   assert.equal(shownPages(m).length, 4);
 });
+
+test("edgeHold 'left': the held panel draws its own view at every rest, never the unloaded placeholder, however far the row scrolls", async () => {
+  const { m } = await mounted('left');
+  for (const n of [0, 3, 20]) {
+    if (n > 0) await stepRight(m, n);
+    assert.ok(slotOf(m, ROOT).querySelector('[data-row-unloaded]') === null, `after ${n} more steps the held panel is drawn, not unloaded`);
+  }
+  assert.ok(rowOffsetOf(m.container) > 0, 'the row moved');
+});

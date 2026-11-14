@@ -2745,6 +2745,12 @@ if (ONLY.has('shots') && ENGINE === 'embla') {
     if (root === undefined || root.x < -0.5 || root.x + root.w > 1800.5) failed.push(`shots hold ${side}: the held root is not whole on the page (${JSON.stringify(root)})`);
     if (side === 'left' && (before.slots.root === undefined || root === undefined || Math.abs(root.x - before.slots.root.x) > 0.5)) failed.push(`shots hold left: the held root moved from ${before.slots.root?.x} to ${root?.x}`);
     if (cut.length > 0) failed.push(`shots hold ${side}: one-slot pages cut by the window at rest: ${cut.join(', ')}`);
+    // The root and the strip's window together are centred in the page (four slots, 1608 px, from 96), and the root paints itself
+    // (no unloaded placeholder where it is drawn).
+    const span = side === 'left' ? [root?.x ?? Number.NaN, after.win.x + after.win.w] : side === 'right' ? [after.win.x, (root?.x ?? Number.NaN) + (root?.w ?? 0)] : [after.win.x, after.win.x + after.win.w];
+    if (Math.abs(span[0]! - 96) > 0.5 || Math.abs(span[1]! - 1704) > 0.5) failed.push(`shots hold ${side}: the row is drawn from ${span[0]} to ${span[1]}, not centred from 96 to 1704`);
+    const painted = await page.evaluate(() => { const r = document.querySelector('[data-row-id="root"]')!; const b = r.getBoundingClientRect(); const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return hit !== null && r.contains(hit) && hit.closest('[data-row-unloaded]') === null; });
+    if (!painted) failed.push(`shots hold ${side}: the held root is not what is painted where it is drawn (unloaded, or covered)`);
     if (errors.length > 0) failed.push(`shots hold ${side}: page errors ${errors.join(' | ')}`);
     await close();
   }
