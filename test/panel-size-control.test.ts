@@ -102,7 +102,7 @@ test('Fullscreen\'s accessible name carries the shortcut its hover text shows, a
   const full = document.querySelector<HTMLButtonElement>('[data-view-fullscreen]')!;
   assert.equal(full.getAttribute('aria-label'), 'Fullscreen (Alt+Enter)', 'the name a screen reader reads names the chord');
   assert.equal(full.getAttribute('aria-keyshortcuts'), 'Alt+Enter');
-  assert.equal(full.closest('span'), null, 'no wrapper around the entry');
+  assert.ok(full.closest('span') === null, 'no wrapper around the entry');
   assert.deepEqual(widths().map((b) => b.getAttribute('aria-label')), ['Phone', 'Fold', 'Tablet', 'Desktop'], 'a width has no chord, so its name is its hover text');
   cleanup();
   const plain = refusingSlot();
