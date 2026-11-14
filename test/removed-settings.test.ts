@@ -38,8 +38,8 @@ const REMOVED = Object.keys(FROZEN);
 
 /** The settings that stay: what the app sets, what a verb or a view patch reads, and the two template and clear-all readers. */
 const KEPT = [
-  'multiple', 'hostCreatable', 'hollowDot', 'restoreVisibility', 'overflow', 'capacityReturn', 'revealOnScroll', 'edgeHold', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
-  'parkable', 'slots', 'maxSlots', 'movable', 'crossable', 'hideStickiness', 'startVisibility', 'placeOnAdd', 'placeOnShow', 'scrollOnOpen', 'showWhenClosed', 'toggleWhenClosed', 'afterClose', 'enterFrom', 'exitTo',
+  'multiple', 'hostCreatable', 'hollowDot', 'restoreVisibility', 'overflow', 'edgeHold', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
+  'parkable', 'slots', 'maxSlots', 'movable', 'crossable', 'startVisibility', 'placeOnAdd', 'placeOnShow', 'scrollOnOpen', 'showWhenClosed', 'toggleWhenClosed', 'afterClose', 'enterFrom', 'exitTo',
   'clearable', 'maxInstances',
 ];
 

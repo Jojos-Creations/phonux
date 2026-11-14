@@ -76,7 +76,7 @@ test('parked panels get dots at their places on the ruler, and the oval sits ove
   assert.equal(bar.width, 202);
   near(bar.oval.left, 90, 'the oval sits over the drawn dots, past the parked ones on the left');
   assert.deepEqual([...bar.parked], ['p0', 'p1', 'p3']);
-  assert.equal(barOf(numbers(), [entry('x', { live: false, marker: true }), entry('y', { live: false, settings: { revealOnScroll: 'never' } }), ...abc], 0).dots.length, 3, 'control: a marker and a panel that never reveals have no dot');
+  assert.equal(barOf(numbers(), [entry('x', { live: false, marker: true }), ...abc], 0).dots.length, 3, 'control: a marker has no dot');
 });
 
 test('an always-shown panel the rest have moved away from rides the oval over the dots beneath it, and those dots keep their places', () => {
