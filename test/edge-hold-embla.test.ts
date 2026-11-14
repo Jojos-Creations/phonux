@@ -101,3 +101,39 @@ test("edgeHold 'left': the held panel draws its own view at every rest, never th
   }
   assert.ok(rowOffsetOf(m.container) > 0, 'the row moved');
 });
+
+/** Where `slot` shows on screen across the row, its clip applied: null when the clip hides it whole. */
+function shownSpan(slot: HTMLElement): { left: number; right: number } | null {
+  const r = slot.getBoundingClientRect();
+  const clip = slot.style.clipPath;
+  if (clip === '') return { left: r.left, right: r.right };
+  const m = /^polygon\((-?[\d.]+)px [^,]+, (-?[\d.]+)px /.exec(clip);
+  assert.ok(m !== null, `a clip the check can read: ${clip}`);
+  const left = r.left + Math.max(0, Number(m[1]));
+  const right = r.left + Math.min(r.width, Number(m[2]));
+  return right - left <= 0.5 ? null : { left, right };
+}
+
+for (const side of ['left', 'right', 'both'] as const) {
+  test(`edgeHold '${side}': a page drawn under the held panel is hidden there, header and all, so nothing of it shows through`, async () => {
+    const { m } = await mounted(side);
+    for (const n of [3, 1]) {
+      await stepRight(m, n);
+      const held = rectOf(m, ROOT);
+      const under = m.latest().entries.filter((p) => {
+        if (p.id === ROOT) return false;
+        const r = rectOf(m, p.id);
+        return r.right > held.left + 0.5 && r.left < held.right - 0.5;
+      });
+      // Not vacuous: some page is drawn where the held panel is, or this proves nothing.
+      assert.ok(under.length > 0, `after ${n} more steps a page is drawn under the held panel (${JSON.stringify(held)})`);
+      for (const p of m.latest().entries) {
+        if (p.id === ROOT) continue;
+        const shown = shownSpan(slotOf(m, p.id));
+        if (shown === null) continue;
+        assert.ok(shown.right <= held.left + 0.5 || shown.left >= held.right - 0.5, `after ${n} more steps ${p.id} shows at ${shown.left}..${shown.right} under the held panel at ${held.left}..${held.right}`);
+      }
+      assert.ok(slotOf(m, ROOT).style.clipPath === '', 'the held panel itself is not cut');
+    }
+  });
+}

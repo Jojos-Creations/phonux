@@ -537,15 +537,21 @@ export function markAwaySlots(win: Element): number {
   const seen = new Set<string>();
   // Written after every slot is read, so a write never forces the next read to lay the row out again.
   const cuts: [HTMLElement, { left: number; right: number }][] = [];
+  const hidden: [HTMLElement, string][] = [];
   let sum = 0;
   let k = 0;
   const all = [...win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)];
   // A strip slot that a stuck 'both' panel covers whole is out of sight, as one past the window's edge is.
   const covers = all.filter((slot) => holdOf(slot)?.hasAttribute(HOLD_STICK_ATTRIBUTE) === true).map((slot) => slot.getBoundingClientRect());
+  // Every held or stuck panel as drawn this frame: a strip slot passing under one is hidden there, its header too (the window's cut
+  // reaches over a left or right hold, and a 'both' panel is inside the window).
+  const holds = all.filter((slot) => isHeldSlot(slot)).map((slot) => slot.getBoundingClientRect());
+  const middle = (view.left + view.right) / 2;
   for (const slot of all) {
     const r = slot.getBoundingClientRect();
     const hold = holdOf(slot);
     const held = hold !== null && (hold.hasAttribute(HOLD_AT_ATTRIBUTE) || hold.hasAttribute(HOLD_STICK_ATTRIBUTE));
+    hidden.push([slot, held ? '' : heldCoverClip(r.left, r.width, holds, middle, Number.parseFloat(slot.style.width) || r.width)]);
     k += 1;
     sum += k * r.left + r.width;
     if (strip !== undefined) {
@@ -563,7 +569,32 @@ export function markAwaySlots(win: Element): number {
   }
   store?.retain(seen);
   for (const [slot, cut] of cuts) writeChromeCut(slot, cut);
+  for (const [slot, clip] of hidden) if (slot.style.clipPath !== clip) slot.style.clipPath = clip;
   return sum;
+}
+const FAR = 100000;
+/**
+ * The clip that hides the part of a strip slot drawn `slotLeft`, `width` px wide (on screen) under the held or stuck panels drawn at
+ * `holds`: a panel at the window's left half hides the slot from its left end to the panel's right edge, one at the right half from the
+ * panel's left edge to the slot's right end. Elsewhere it cuts nothing (a focus halo past the slot still shows). '' when no held panel
+ * covers any of it. `ownWidth` is the slot's own layout width, which its clip is written in.
+ * @internal
+ */
+export function heldCoverClip(slotLeft: number, width: number, holds: readonly { left: number; right: number }[], middle: number, ownWidth = width): string {
+  if (width <= 0.5) return '';
+  const slotRight = slotLeft + width;
+  let left = 0;
+  let right = 0;
+  for (const c of holds) {
+    if (c.right <= slotLeft + 0.5 || c.left >= slotRight - 0.5) continue;
+    if ((c.left + c.right) / 2 < middle) left = Math.max(left, Math.min(width, c.right - slotLeft));
+    else right = Math.max(right, Math.min(width, slotRight - c.left));
+  }
+  if (left <= 0.5 && right <= 0.5) return '';
+  const scale = ownWidth / width;
+  const from = left <= 0.5 ? -FAR : Math.round(left * scale * 100) / 100;
+  const to = right <= 0.5 ? ownWidth + FAR : Math.round((width - right) * scale * 100) / 100;
+  return `polygon(${from}px ${-FAR}px, ${to}px ${-FAR}px, ${to}px ${FAR}px, ${from}px ${FAR}px)`;
 }
 const awayStores = new WeakMap<Element, AwayStore>();
 

@@ -65,8 +65,9 @@
  *        grid, and carries the Workspace out; under Reduce Motion it lands at once; opened while a mouse drag holds the row, the row
  *        stays under the pointer until the release and then shows the page; opened mid-glide, it rests showing it on the grid.
  *
- * shots  screenshots at deviceScaleFactor 1 to look at, each with the numbers that say what it should show: the root held 'left'
- *        and held 'both' after three ArrowRight steps (the row at slot 3, the root whole in the window, no one-slot page cut), the row
+ * shots  screenshots at deviceScaleFactor 1 to look at, each with the numbers that say what it should show: the root held 'left',
+ *        'right' and 'both' after three ArrowRight steps (the row at slot 3, the root whole in the window, no one-slot page cut, and
+ *        the root's header band drawn pixel for pixel as the root alone draws it, so no page under it shows through), the row
  *        after a relaunch from its saved file (a reload in the same browser context, resting where the person left it, not gliding),
  *        and a 6 px wheel nudge at rest (back on its stop).
  *
@@ -2725,7 +2726,45 @@ if (ONLY.has('shots') && ENGINE === 'embla') {
   // One-slot pages wholly in the page's view but cut by the strip's window, at rest: none may be (the page under a 'both' hold is
   // covered by the root and out of sight, so it is not counted).
   const cutInWindow = (b: Awaited<ReturnType<typeof boxes>>, under: string | null): string[] => Object.entries(b.slots).filter(([id, v]) => id !== 'root' && id !== under && v.w < 400 && v.x + v.w > b.win.x + 1 && v.x < b.win.x + b.win.w - 1 && (v.x < b.win.x - 0.5 || v.x + v.w > b.win.x + b.win.w + 0.5)).map(([id]) => id);
-  for (const side of (process.env.HOLD_SIDES?.split(',') ?? ['left', 'both']) as ('left' | 'right' | 'both')[]) {
+  // The held root's header band, as wide as its slot, from the top of what it draws above its slot (the header lies over the slot's
+  // top edge) down to the top of its view, as a PNG of the page at deviceScaleFactor 1.
+  const heldBand = async (page: Page): Promise<{ box: { x: number; y: number; w: number; h: number }; png: Buffer }> => {
+    const box = await page.evaluate(() => {
+      const slot = document.querySelector('[data-row-slot][data-row-id="root"]')!;
+      const s = slot.getBoundingClientRect();
+      const v = document.querySelector('[data-box="root"]')!.getBoundingClientRect();
+      let top = s.top;
+      for (const el of slot.querySelectorAll('*')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) top = Math.min(top, r.top);
+      }
+      return { x: Math.round(s.left), y: Math.round(top), w: Math.round(s.width), h: Math.max(0, Math.round(v.top - top)) };
+    });
+    const png = box.h > 0 ? await page.screenshot({ clip: { x: box.x, y: box.y, width: box.w, height: box.h } }) : Buffer.alloc(0);
+    return { box, png };
+  };
+  // Pixels that differ by more than 8 in any channel between two PNGs of one size, decoded in a blank page of the same browser.
+  const diffPixels = async (page: Page, a: Buffer, b: Buffer): Promise<{ changed: number; total: number }> => {
+    if (a.length === 0 || b.length === 0) return { changed: 0, total: 0 };
+    const blank = await page.context().newPage();
+    try {
+      return await blank.evaluate(async ([x, y]: [string, string]) => {
+        const [p, q] = await Promise.all([x, y].map(async (b64) => {
+          const bm = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+          const c = new OffscreenCanvas(bm.width, bm.height).getContext('2d')!;
+          c.drawImage(bm, 0, 0);
+          return { w: bm.width, h: bm.height, d: c.getImageData(0, 0, bm.width, bm.height).data };
+        }));
+        if (p.w !== q.w || p.h !== q.h) return { changed: p.w * p.h, total: p.w * p.h };
+        let changed = 0;
+        for (let i = 0; i < p.d.length; i += 4) if (Math.abs(p.d[i]! - q.d[i]!) > 8 || Math.abs(p.d[i + 1]! - q.d[i + 1]!) > 8 || Math.abs(p.d[i + 2]! - q.d[i + 2]!) > 8) changed += 1;
+        return { changed, total: p.w * p.h };
+      }, [a.toString('base64'), b.toString('base64')] as [string, string]);
+    } finally {
+      await blank.close();
+    }
+  };
+  for (const side of (process.env.HOLD_SIDES?.split(',') ?? ['left', 'right', 'both']) as ('left' | 'right' | 'both')[]) {
     if (!want(`shots.hold-${side}`)) continue;
     const { page, errors, close } = await open(ROWS.narrow, 1800, 900, `&hold=${side}`, ENGINE, DPR1);
     const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
@@ -2737,6 +2776,18 @@ if (ONLY.has('shots') && ENGINE === 'embla') {
     const after = await boxes(page);
     const pos = await g(page, 'pos');
     await page.screenshot({ path: join(OUT, `shots-hold-${side}-3-steps.png`) });
+    // Nothing of a page drawn under the held root shows through it, its header least of all (the strip's cut reaches over a left or
+    // right hold, and a 'both' panel is inside the window): the root's header band is drawn exactly as the root alone draws it, with
+    // every other slot hidden for a moment. (A hit test cannot see this: a page under the root is inert, so no point ever hits it.)
+    const bandAfter = await heldBand(page);
+    await page.evaluate(() => { for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]:not([data-row-id="root"])')) el.style.visibility = 'hidden'; });
+    const bandAlone = await heldBand(page);
+    await page.evaluate(() => { for (const el of document.querySelectorAll<HTMLElement>('[data-row-slot]:not([data-row-id="root"])')) el.style.visibility = ''; });
+    const under0 = Object.entries(after.slots).filter(([id, v]) => id !== 'root' && after.slots.root !== undefined && v.x < after.slots.root.x + after.slots.root.w - 0.5 && v.x + v.w > after.slots.root.x + 0.5).map(([id]) => id);
+    const bandDiff = await diffPixels(page, bandAlone.png, bandAfter.png);
+    res[`hold-${side}-through`] = { pagesDrawnUnder: under0, band: bandAfter.box, bandDiffPx: bandDiff };
+    if (under0.length === 0 || bandAfter.box.h < 4 || bandDiff.total === 0) empty.push(`shots hold ${side}: no page is drawn under the held root after three steps (${under0.length} pages, band ${bandAfter.box.h} px), so the see-through check proves nothing`);
+    if (bandDiff.changed > 0) failed.push(`shots hold ${side}: the root's header band shows ${bandDiff.changed} of ${bandDiff.total} px that the root alone does not draw (a header scrolled under it shows through)`);
     const root = after.slots.root;
     const under = side === 'both' ? (Object.entries(after.slots).find(([id, v]) => id !== 'root' && root !== undefined && Math.abs(v.x - root.x) < 1)?.[0] ?? null) : null;
     const cut = cutInWindow(after, under);
