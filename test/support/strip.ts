@@ -22,10 +22,18 @@ export function stripMarginOf(within: Element): number {
   return x + (row === null ? 0 : rowScrollerFor(row).scrollLeft());
 }
 
-/** The row's offset: where Embla draws the row (its box's translate), or on the old row the strip's transform. */
-export function rowOffsetOf(container: HTMLElement): number {
+/** The Embla row in `container` once `stubSlotBoxes` has laid it out; without a layout Embla's position means nothing (0, or NaN with no stops). */
+function laidOutEmblaIn(container: HTMLElement) {
   const win = emblaWindowIn(container);
-  const embla = win === null ? undefined : emblaOf(win);
+  return win === null || !stubbed.has(win) ? undefined : emblaOf(win);
+}
+
+/**
+ * The row's offset: where Embla draws the row (its box's translate) once `stubSlotBoxes` has laid it out. Otherwise the old row's
+ * scroller, which tests that drive `m.scroller` directly still read: that scroller no longer draws the Embla row.
+ */
+export function rowOffsetOf(container: HTMLElement): number {
+  const embla = laidOutEmblaIn(container);
   if (embla === undefined) return rowScrollerFor(container).scrollLeft();
   // To 0.01 px: Embla calls a glide at rest within 0.001 px of its stop and never snaps the last fraction (811.999 for 812).
   return Math.round(emblaDrawnOf(embla) * 100) / 100 + 0;
@@ -33,8 +41,7 @@ export function rowOffsetOf(container: HTMLElement): number {
 
 /** Where a glide in flight takes the row: Embla's target while it differs from where the row is drawn, else null; the old row's glide target. */
 export function rowGlideTargetOf(container: HTMLElement): number | null {
-  const win = emblaWindowIn(container);
-  const embla = win === null ? undefined : emblaOf(win);
+  const embla = laidOutEmblaIn(container);
   if (embla === undefined) return rowScrollerFor(container).glideTarget();
   const target = emblaTargetOf(embla);
   return Math.abs(target - emblaDrawnOf(embla)) > 0.5 ? target + 0 : null;
@@ -58,8 +65,7 @@ export async function advanceUntilRowRests(container: HTMLElement, capMs = 5000)
 
 /** Puts the row at `left` at once, as a person or the browser moving it would. */
 export function setRowOffset(container: HTMLElement, left: number): void {
-  const win = emblaWindowIn(container);
-  const embla = win === null ? undefined : emblaOf(win);
+  const embla = laidOutEmblaIn(container);
   if (embla !== undefined) {
     act(() => writeEmbla(embla, left));
     return;
