@@ -4,13 +4,11 @@
  * it is arithmetic. One differential per name, then the defaults, the workspace-only scope, the range rules, and the
  * interfaces a host calls.
  */
-import { test, afterEach, mock } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { stripMarginOf } from './support/strip.js';
 import * as React from 'react';
 import { MotionConfig } from 'motion/react';
-import { act } from 'react';
 import {
   DragToClose,
   LIBRARY_TUNING_DEFAULTS,
@@ -197,37 +195,44 @@ test('differential tuning.chrome: an idle panel keeps its header drawn under alw
   });
 });
 
-/** Whether the row's centering margin glides when a panel joins, `waitMs` after the width changed, under the given leaf. */
+/**
+ * Whether the row's vertical centering glides when the phone's height changes, `waitMs` after a jump of the window's width, under
+ * the given leaf. The Embla row centers its strip sideways by flex, so nothing there glides; the margin that does is the top one,
+ * set from the row's room (`heightBudget`, as autoMount passes it) and the phone's height. A window jump lands with no motion until
+ * the room has held still for `resizeSettleSlides` slide durations (useWindowJump), so a change inside that wait snaps.
+ */
 async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Promise<boolean> {
-  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const workspace = createWorkspace({ mount: false, tuning: { resizeSettleSlides } });
-  const at = (liveWidths: number[], width: number): React.ReactElement =>
+  const at = (phoneHeight: number, width: number): React.ReactElement =>
     withHost(
       React.createElement(Workspace, {
         overflowContainerRef: React.createRef<HTMLDivElement>(),
         rowRef: React.createRef<HTMLDivElement>(),
         containerWidth: width,
+        heightBudget: 1000,
         phoneWidth: 390,
+        phoneHeight,
         fixedColumnCount: 1,
-        liveWidths,
+        liveWidths: [],
         workspace,
         children: React.createElement('i'),
       } as never),
     );
-  const margin = (m: ReturnType<typeof mount>): number => stripMarginOf(m.container);
-  const m = mount(at([], 1000));
-  m.rerender(at([], 1200));
-  act(() => mock.timers.tick(waitMs));
+  const top = (m: ReturnType<typeof mount>): number => Number.parseFloat(m.container.querySelector<HTMLElement>('[data-row-embla-strip]')!.style.marginTop);
+  const m = mount(at(700, 1000));
   await advanceFrames(2000);
-  const start = margin(m);
-  m.rerender(at([390], 1200));
+  // 200 px at once: a jump (120 px or more), not a hand drag.
+  m.rerender(at(700, 1200));
+  await advanceFrames(waitMs);
+  const start = top(m);
+  m.rerender(at(500, 1200));
   await advanceFrames(32);
-  const mid = margin(m);
+  const mid = top(m);
   await advanceFrames(2000);
-  const end = margin(m);
+  const end = top(m);
   m.unmount();
-  mock.timers.reset();
-  assert.notEqual(start, end, 'control: the margin does move when a panel joins');
+  assert.equal(start, 150, 'control: the row starts centered in its room, (1000 - 700) / 2');
+  assert.equal(end, 250, 'control: the margin does move when the phone shrinks, to (1000 - 500) / 2');
   return mid !== start && mid !== end;
 }
 
@@ -333,7 +338,11 @@ function motionPropsOf(el: Element, key: string): Record<string, unknown> {
 let boxWidth = 390;
 for (const name of ['tune-size', 'tune-size-own', 'snap-size', 'snap-size-r']) registerTestView(name, () => React.createElement(PanelSizeBox, { width: boxWidth, height: 700, children: React.createElement('i') }));
 
-/** How long, in ms, the first size box in what `render` draws takes to land at `to` px after `boxWidth` grows from 390 to 780. */
+/**
+ * How long, in ms, the first size box in what `render` draws takes to land at `to` px after `boxWidth` grows from 390 to 780. The
+ * box eases its real width (01b744a), so a glide's commit draws it at the width it starts from and a snap's at `to`; no scale draws
+ * it on any frame.
+ */
 async function sizeGlideMs(render: () => React.ReactElement, to = 780): Promise<number> {
   boxWidth = 390;
   const mounted = mount(render());
@@ -341,12 +350,13 @@ async function sizeGlideMs(render: () => React.ReactElement, to = 780): Promise<
   mounted.rerender(render());
   const box = mounted.container.querySelector<HTMLElement>('[data-panel-size-box]')!;
   let frames = 0;
-  assert.equal(box.style.width, `${to}px`, 'laid out at the new width in the commit');
-  // The glide draws a scale until it lands.
-  while (box.style.transform !== '' && frames < 200) {
+  assert.ok(box.style.width === '390px' || box.style.width === `${to}px`, `the commit draws the box at its start or its landing width, not ${box.style.width}`);
+  while (box.style.width !== `${to}px` && frames < 200) {
+    assert.equal(box.style.transform, '', 'laid out at the size it is drawn at: no scale');
     await advanceFrames(16);
     frames += 1;
   }
+  assert.equal(box.style.width, `${to}px`, 'the box lands at its new width');
   mounted.unmount();
   boxWidth = 390;
   return frames * 16;
