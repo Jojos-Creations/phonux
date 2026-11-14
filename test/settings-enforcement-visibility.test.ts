@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
-import { useProvidePanels } from '../index.js';
+import { createWorkspace, definePanel, useProvidePanels } from '../index.js';
 import type { PanelSettings, PanelWindow, ProvidedPanels, ResolvedPanelSettings, SettingNote, WorkspaceTuning } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { deriveAnchorsFromOrder } from '../panelRowOrder.js';
@@ -19,7 +19,8 @@ import { type UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { usePanelClosing, type UsePanelClosingResult } from '../panels/usePanelClosing.js';
 import { projectWorkspaceState, type WorkspaceState, type WorkspaceStorage } from '../workspaceState.js';
 import { differential, differentialsCovered } from './support/differential.js';
-import { cleanup, mount, usePanelManagerWith, useSeededInput, type SeededOver } from './support/mount-harness.js';
+import { cleanup, mount, panelsInput, usePanelManagerWith, useSeededInput, type SeededOver } from './support/mount-harness.js';
+import { plainTemplate } from './support/seed-workspace.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 import { rowGlideTargetOf, stubSlotBoxes } from './support/strip.js';
 
@@ -311,6 +312,8 @@ test('markHeld records the hold of a parked id and answers false for a live, a f
   assert.equal(e.call((v) => v.manager.markHeld('a', 'sticky')), false, 'live');
   assert.equal(e.call((v) => v.manager.markHeld(ROOT, 'sticky')), false, 'fixed');
   assert.equal(e.call((v) => v.manager.markHeld('nope', 'sticky')), false, 'unknown');
+  assert.deepEqual(e.held(), ['b:sticky'], 'a panel already hidden when the row mounts is held from the first commit');
+  e.call((v) => v.manager.releaseHold('b'));
   assert.deepEqual(e.held(), []);
   assert.equal(e.call((v) => v.manager.markHeld('b', 'sticky')), true);
   assert.deepEqual(e.held(), ['b:sticky']);
@@ -392,6 +395,38 @@ test('a panel created parked is in panelList, held, parked, and not on the stack
   e.setWidth(W(5));
   assert.deepEqual(e.parked(), ['c'], 'the first commit and a capacity rise do not reveal it');
   assert.equal(e.view().panels.find((q) => q.id === 'c')?.listed, true, 'it is listed, so it is in panelList');
+});
+
+test('a real host: a panel added hidden before the row mounts, one created hidden after, and one hidden by hand all stay hidden while the row settles', async () => {
+  const ws = createWorkspace({
+    mount: false,
+    root: plainTemplate(ROOT),
+    templates: [definePanel({ id: 'quiet', view: () => null, settings: { startVisibility: 'parked', overflow: 'park', multiple: true } }), plainTemplate('loud')],
+  });
+  ws.addPanel('quiet', { id: 'q1' });
+  const l1 = ws.addPanel('loud', { id: 'l1', settings: { overflow: 'park' } });
+  const named = (panels: readonly PanelWindow[]): PanelWindow[] => panels.map((p) => ({ ...p, id: p.key ?? p.id }));
+  let latest: ProvidedPanels | undefined;
+  function Probe({ containerWidth }: { containerWidth: number }): React.ReactElement {
+    latest = useProvidePanels(panelsInput({ workspace: ws, containerWidth }));
+    return React.createElement('output');
+  }
+  const m = mount(React.createElement(Probe, { containerWidth: W(3) }));
+  await act(async () => {});
+  const now = (): ProvidedPanels => {
+    assert.ok(latest, 'the probe never rendered');
+    return latest;
+  };
+  assert.deepEqual(idsOf(named(now().entries)).sort(), ['l1', 'q1', ROOT].sort(), 'control: both declared panels are on the row');
+  assert.deepEqual(parkedOf(named(now().entries)), ['q1'], 'the panel declared hidden is still hidden after mount');
+  act(() => void ws.addPanel('quiet', { id: 'q2' }));
+  await act(async () => {});
+  act(() => void l1.hide('person'));
+  await act(async () => {});
+  m.rerender(React.createElement(Probe, { containerWidth: W(5) }));
+  await act(async () => {});
+  assert.deepEqual(parkedOf(named(now().entries)).sort(), ['l1', 'q1', 'q2'], 'none pops back: not on a later commit, not when the row grows');
+  assert.deepEqual(liveOf(named(now().entries)), [], 'control: nothing on the row is live but the root');
 });
 
 test('created parked through useProvidePanels: a parked entry that a restore adds is held, so a roomy row leaves it parked', async () => {

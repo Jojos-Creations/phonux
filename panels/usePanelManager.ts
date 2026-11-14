@@ -653,7 +653,9 @@ export function usePanelManager(
    * finds nothing to drop while a cap is set: the render above has settled the row. A RISE reveals from the top of
    * `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
    */
-  const committedRef = useRef(panels);
+  // Empty before the first commit, so a panel that is already hidden when the row first mounts counts as added hidden
+  // and gets its hold like any later one; seeded with `panels`, the reconcile below would take its slot back at once.
+  const committedRef = useRef<readonly PanelWindow[]>([]);
   useEffect(() => {
     capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
     // `settledKeeping` parks inside a state update, where no call-time code sees which panels it chose: the
