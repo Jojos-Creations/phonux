@@ -5,6 +5,7 @@
  * on a style of the same property does not run on the compositor.
  */
 
+import { isHeldSlot } from './emblaRow.js';
 import { cubicBezier } from 'motion/react';
 import { sharedStartTime } from './rowClock.js';
 
@@ -145,18 +146,6 @@ export function createSlotMover(el: HTMLElement, start: SlotPose): SlotMover {
   return mover;
 }
 
-const holdShifts = new WeakMap<Element, number>();
-
-/** Records the sideways shift a held panel's host draws it with. @internal */
-export function setHoldShift(holdBox: Element, px: number): void {
-  holdShifts.set(holdBox, px);
-}
-
-/** The shift last recorded for a held panel's host; 0 for one never held. @internal */
-export function holdShiftOf(holdBox: Element): number {
-  return holdShifts.get(holdBox) ?? 0;
-}
-
 /** A box on screen, in px. @internal */
 export interface ScreenBox {
   readonly x: number;
@@ -168,9 +157,9 @@ export interface ScreenBox {
 /** Everything that moves a slot without laying it out again: the strip's translate, a held panel's shift, the slot's rest and its pose. */
 function motionOf(el: HTMLElement, stripX: () => number): { dx: number; dy: number; scale: number } {
   const pose = moverOf(el)?.pose();
-  const hold = el.closest('[data-row-hold]');
-  const rest = Number(el.dataset.rowSlot) || 0;
-  return { dx: stripX() + (hold === null ? 0 : (holdShifts.get(hold) ?? 0)) + rest + (pose?.x ?? 0), dy: pose?.y ?? 0, scale: pose?.scale ?? 1 };
+  // A held slot is drawn against the strip each frame (drawHeldSlots): its translate, not its rest, is where it is.
+  const rest = isHeldSlot(el) ? Number.parseFloat(el.style.translate) || 0 : Number(el.dataset.rowSlot) || 0;
+  return { dx: stripX() + rest + (pose?.x ?? 0), dy: pose?.y ?? 0, scale: pose?.scale ?? 1 };
 }
 
 const originXOf = (el: HTMLElement): number => {

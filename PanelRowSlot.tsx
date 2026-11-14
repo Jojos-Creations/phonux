@@ -12,6 +12,8 @@ import { OPEN_Z, SlotRanksContext, slotZ } from './rowSlotZ.js';
 import { HostMissingProviderError } from './hostApi.js';
 import { LandingContext, useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { emblaDrawnOf, emblaHeld, emblaOf, emblaTargetOf, subscribeEmblaRows } from './emblaRow.js';
+import { EMBLA_WINDOW_ATTRIBUTE } from './rowDom.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
 /**
@@ -381,11 +383,19 @@ export function PanelRowSlot({
   React.useLayoutEffect(() => {
     const node = el.current;
     if (node === null) return;
-    const row = closestRowScroller(node);
-    const rowMoving = (): boolean => row !== null && (rowScrollerFor(row).glideTarget() !== null || rowScrollerFor(row).claimHeld());
+    // The Embla row is read at each call: it is built after its slots' first layout effects.
+    const win = node.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
+    const emblaNow = () => (win === null ? undefined : emblaOf(win));
+    const rowMoving = (): boolean => {
+      const embla = emblaNow();
+      return embla !== undefined && (Math.abs(emblaTargetOf(embla) - emblaDrawnOf(embla)) > 0.5 || emblaHeld(embla));
+    };
     const rep = createRectReporter(node, {
       id: () => live.current.panelId,
-      stripX: () => (row === null ? 0 : rowScrollerFor(row).stripX()),
+      stripX: () => {
+        const embla = emblaNow();
+        return embla === undefined ? 0 : -emblaDrawnOf(embla);
+      },
       moving: () => {
         const { chrome: store, panelId: id } = live.current;
         const held = store !== undefined && id !== undefined && (store.dragging() === id || store.resizing() === id);
@@ -393,7 +403,8 @@ export function PanelRowSlot({
       },
     });
     reporter.current = rep;
-    const unsubscribeRow = row === null ? () => {} : rowScrollerFor(row).subscribe(kickRect);
+    // Embla's draws, writes and stop changes notify every row: a row scroll by key, wheel, drag, dot or code reports the box.
+    const unsubscribeRow = win === null ? () => {} : subscribeEmblaRows(kickRect);
     rep.kick();
     return () => {
       unsubscribeRow();
