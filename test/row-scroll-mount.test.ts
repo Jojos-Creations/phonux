@@ -9,7 +9,8 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { setRowOffset, rowOffsetOf, rowGlideTargetOf, stubSlotBoxes } from './support/strip.js';
+import { setRowOffset, rowOffsetOf, rowGlideTargetOf, stubSlotBoxes, advanceUntilRowRests } from './support/strip.js';
+import { emblaStripOf } from '../emblaRow.js';
 import { act } from 'react';
 import type { PanelSettings, PanelWindow, ProvidedPanels, WorkspaceTuning } from '../index.js';
 import { LIBRARY_TUNING_DEFAULTS } from '../panelSettings.js';
@@ -178,53 +179,105 @@ function scrollStorage(): { storage: WorkspaceStorage; saves: WorkspaceState[]; 
 /** The row mounted with `entries` as its seed (History only, so the file supplies the rest) and the storage given. */
 const loadedRow = (storage: WorkspaceStorage, tuning: Parameters<typeof mountScrollRow>[2], width = 1000, seed: PanelWindow[] = [rootEntry()]): MountedRow => mountScrollRow(seed, width, { storage, workspaceDefaults: {}, ...tuning });
 
+/** The Embla row of `m` laid out by the stub (its window at 16 on screen) and given time to start and draw. */
+async function layOut(m: MountedRow): Promise<void> {
+  stubSlotBoxes(m.container, 16);
+  await advanceFrames(32);
+}
+
+/** A launch from the file `state`, laid out at `width`: `before` runs between the mount and the load's answer. */
+async function launch(state: WorkspaceState, o: { initialScroll?: NonNullable<WorkspaceTuning['initialScroll']>; width?: number; before?: (m: MountedRow) => void } = {}): Promise<{ m: MountedRow; saves: WorkspaceState[] }> {
+  const { storage, saves, resolve } = scrollStorage();
+  const m = loadedRow(storage, stepTuning(o.initialScroll ?? 'start'), o.width ?? 1000);
+  o.before?.(m);
+  await resolve(state);
+  await layOut(m);
+  return { m, saves };
+}
+
 test('a wheel before a marker restores settles leaves the row where the wheel put it', async () => {
-  const { storage, resolve } = scrollStorage();
-  const m = loadedRow(storage, stepTuning());
-  act(() => void m.container.dispatchEvent(new Event('wheel', { bubbles: true })));
-  await resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
-  assert.equal(rowOffsetOf(m.container), 0);
+  const file = savedOf(stepping(), { panel: 'p3', offset: 0 });
+  const wheeled = await launch(file, { before: (m) => void m.container.dispatchEvent(new Event('wheel', { bubbles: true })) });
+  assert.equal(rowOffsetOf(wheeled.m.container), 0);
+  cleanup();
+  // Control: the same file with no wheel first starts the laid-out row at the marker.
+  const plain = await launch(file);
+  assert.ok(rowOffsetOf(plain.m.container) > 0, `control: the marker moves the row (${rowOffsetOf(plain.m.container)})`);
 });
 
 test('a malformed marker is dropped with a note, not thrown, and the restore reads as with no marker', async () => {
   for (const scroll of [{ panel: 7, offset: 0 }, { panel: 'p3', offset: 'far' }]) {
-    const { storage, resolve } = scrollStorage();
-    const m = loadedRow(storage, stepTuning());
-    await resolve(savedOf(stepping(), scroll));
+    const { m } = await launch(savedOf(stepping(), scroll));
     assert.equal(m.latest().entries.length, 11, 'the file still restores its ten panels beside History');
     assert.equal(rowOffsetOf(m.container), 0, JSON.stringify(scroll));
     assert.ok(m.notes.some((n) => n.code === 'invalid-saved-setting' && n.key === 'scroll'), JSON.stringify(m.notes));
     cleanup();
   }
+  // Control: a well-formed marker on the same laid-out row does move it.
+  const { m } = await launch(savedOf(stepping(), { panel: 'p3', offset: 0 }));
+  assert.ok(rowOffsetOf(m.container) > 0, 'control: a good marker starts the row past 0');
+  assert.ok(!m.notes.some((n) => n.code === 'invalid-saved-setting'), 'control: and raises no note');
 });
 
+/** Whether the slot of the panel titled `title` is drawn whole inside the Embla row's window (at 16 on screen). */
+function wholeOnScreen(m: MountedRow, title: string): boolean {
+  const slot = m.container.querySelector<HTMLElement>(`[data-row-slot][data-row-id="${idOfTitle(m, title)}"]`)!.getBoundingClientRect();
+  const width = emblaStripOf(m.container)!.windowWidth;
+  return slot.left >= 16 - 0.5 && slot.right <= 16 + width + 0.5;
+}
+
 test('a window resized between launches lands on a stop that shows the marker panel', async () => {
-  const { storage, resolve } = scrollStorage();
-  const m = loadedRow(storage, stepTuning(), 1100);
-  await resolve(savedOf(stepping(), { panel: 'p3', offset: 0 }));
-  const n = m.latest().rowNumbers;
-  const k = n.stops.indexOf(rowOffsetOf(m.container));
-  assert.ok(k >= 0, 'on a stop');
-  const idx = n.ids.indexOf(idOfTitle(m, 'p3'));
-  assert.ok(n.stopSpans[k]!.first <= idx && idx < n.stopSpans[k]!.end, 'the stop shows panel 3');
+  const { m } = await launch(savedOf(stepping(), { panel: 'p3', offset: 0 }), { width: 1100 });
+  assert.equal(rowGlideTargetOf(m.container), null, 'on a stop, not on its way');
+  assert.ok(wholeOnScreen(m, 'p3'), `p3 is shown whole at ${rowOffsetOf(m.container)}`);
+  cleanup();
+  // Control: with no marker the row starts at 0, where p3 is not shown whole.
+  const none = await launch(savedOf(stepping()), { width: 1100 });
+  assert.ok(!wholeOnScreen(none.m, 'p3'), 'control: at the start p3 is out of view');
+});
+
+test('a person who moves the row has its rest saved, and a relaunch from the stored file starts there', async () => {
+  const first = await launch(savedOf(stepping()));
+  assert.equal(rowOffsetOf(first.m.container), 0, 'the row starts at 0');
+  for (let n = 0; n < 3; n += 1) first.m.key('ArrowRight');
+  await advanceUntilRowRests(first.m.container);
+  await advanceFrames(300);
+  await flushSaves();
+  const at = rowOffsetOf(first.m.container);
+  assert.ok(at > 0, `the keys moved the row: ${at}`);
+  const stored = first.saves.at(-1);
+  assert.ok(stored?.scroll !== undefined, `the rest is saved: ${JSON.stringify(first.saves.map((s) => s.scroll))}`);
+  const shown = first.m.latest().entries.filter((p) => p.title !== undefined && wholeOnScreen(first.m, p.title)).map((p) => p.title);
+  cleanup();
+  const again = await launch(stored!);
+  assert.equal(rowOffsetOf(again.m.container), at, 'the relaunch starts at the stop the person left it on');
+  assert.equal(rowGlideTargetOf(again.m.container), null, 'drawn there, not gliding to it');
+  assert.deepEqual(again.m.latest().entries.filter((p) => p.title !== undefined && wholeOnScreen(again.m, p.title)).map((p) => p.title), shown, 'the same panels are in view');
+  cleanup();
+  // Control: the same file without its rest starts at 0.
+  const { scroll: _dropped, ...bare } = stored!;
+  const none = await launch(bare as WorkspaceState);
+  assert.equal(rowOffsetOf(none.m.container), 0, 'control: with no saved rest the row starts at 0');
+});
+
+test('a press on the row that moves nothing saves no rest', async () => {
+  const { m, saves } = await launch(savedOf(stepping()));
+  const win = m.container.querySelector<HTMLElement>('[data-row-embla-window]')!;
+  act(() => void win.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 })));
+  act(() => void win.ownerDocument.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 })));
+  await advanceFrames(400);
+  await flushSaves();
+  assert.ok(saves.every((s) => s.scroll === undefined), JSON.stringify(saves.map((s) => s.scroll)));
+  // Control: a key step on the same row is saved.
+  m.key('ArrowRight');
+  await advanceUntilRowRests(m.container);
+  await advanceFrames(300);
+  await flushSaves();
+  assert.ok(saves.at(-1)?.scroll !== undefined, 'control: a step that moved the row is saved');
 });
 
 /** The id a panel of `m` has this launch, found by the title `made` gives it (restored panels get fresh ids). */
 const idOfTitle = (m: MountedRow, title: string): string => m.latest().entries.find((p) => p.title === title)!.id;
-
-/** The stop of `m` nearest to where the panel titled `title` starts, among the stops that show it. */
-function nearestShowing(m: MountedRow, title: string): number {
-  const n = m.latest().rowNumbers;
-  const idx = n.ids.indexOf(idOfTitle(m, title));
-  const left = n.rowMarginLeft + n.leftOffsets[idx]!;
-  let best = Number.NaN;
-  for (const [k, stop] of n.stops.entries()) {
-    if (idx < n.stopSpans[k]!.first || idx >= n.stopSpans[k]!.end) continue;
-    if (Number.isNaN(best) || Math.abs(stop - left) < Math.abs(best - left)) best = stop;
-  }
-  return best;
-}
-
 
 /** The left on screen of the slot drawn for the panel titled `title`: the stubbed window starts at 16. */
 const slotLeftOf = (m: MountedRow, title: string): number => m.container.querySelector<HTMLElement>(`[data-row-slot][data-row-id="${idOfTitle(m, title)}"]`)!.getBoundingClientRect().left;

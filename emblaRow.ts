@@ -659,6 +659,51 @@ export function emblaWouldShow(embla: EmblaCarouselType, id: string, align: 'int
 
 const heldRows = new WeakSet<EmblaCarouselType>();
 
+/** How long the row must stand still, in ms, before a person's move counts as at rest: a glide's last frame and a momentum tail are not rest. */
+const REST_QUIET_MS = 150;
+const restListeners = new Set<(embla: EmblaCarouselType, at: number) => void>();
+const restWatches = new WeakMap<EmblaCarouselType, number>();
+/** Hears every Embla row that a person moved come to rest, with the scroll px it rests at. @internal */
+export function subscribeEmblaRests(listener: (embla: EmblaCarouselType, at: number) => void): () => void {
+  restListeners.add(listener);
+  return () => {
+    restListeners.delete(listener);
+  };
+}
+/**
+ * A person moves the row `embla` (a wheel, a press, a key step, the dot bar): watches it each frame until it has stood still for
+ * REST_QUIET_MS with no glide, press, wheel gesture or drag hold on it, then, if it moved, tells the rest listeners where it rests.
+ * One watch per row; a later move while one runs is part of it.
+ * @internal
+ */
+export function watchEmblaRest(embla: EmblaCarouselType): void {
+  if (restWatches.has(embla)) return;
+  const start = emblaDrawnOf(embla);
+  let last = start;
+  let moved = false;
+  let still = performance.now();
+  const tick = (): void => {
+    const drawn = emblaDrawnOf(embla);
+    const now = performance.now();
+    const going = Math.abs(emblaTargetOf(embla) - drawn) > 0.5 || embla.internalEngine().dragHandler.pointerDown() || heldRows.has(embla) || wheelRuns.has(embla);
+    if (going || Math.abs(drawn - start) > 0.5) moved = true;
+    if (going || Math.abs(drawn - last) > 0.01) still = now;
+    last = drawn;
+    if (!going && now - still >= REST_QUIET_MS) {
+      restWatches.delete(embla);
+      if (moved) for (const l of [...restListeners]) l(embla, emblaScrollOf(embla));
+      return;
+    }
+    restWatches.set(embla, requestAnimationFrame(tick));
+  };
+  restWatches.set(embla, requestAnimationFrame(tick));
+}
+function stopRestWatch(embla: EmblaCarouselType): void {
+  const frame = restWatches.get(embla);
+  if (frame !== undefined) cancelAnimationFrame(frame);
+  restWatches.delete(embla);
+}
+
 /**
  * How long a wheel gesture holds the row after its last wheel before it settles: just over the gap between two events of one
  * continuous scroll, so the glide to the stop ahead starts while the row still has the wheel's speed. A wheel that comes later starts
@@ -875,6 +920,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
         if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault();
         return;
       }
+      watchEmblaRest(embla);
       wheels.feedWheel(e);
     };
     // A gesture starts on a sideways wheel that is not a momentum tail (as the plugin started one), and not under a person's drag of
@@ -949,6 +995,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     const step = (direction: 'left' | 'right'): void => {
       // A key during a wheel gesture's hold ends it where it is drawn, as a press does, and steps from there.
       endEmblaWheel(embla);
+      watchEmblaRest(embla);
       // From the stop nearest where the row is heading, not Embla's selected index, which a direct write (a keep's
       // jump) leaves stale: scrollNext from a stale index can name the stop the row already rests on.
       const snaps = embla.scrollSnapList().length;
@@ -973,6 +1020,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // release settles the row on the nearest stop. A right or middle press leaves the gesture going (its contextmenu is kept above).
     const onPress = (e: PointerEvent): void => {
       starts.delete(embla);
+      if (e.button === 0) watchEmblaRest(embla);
       if (!e.isTrusted || e.button !== 0 || !endEmblaWheel(embla)) return;
       const settle = (): void => {
         view.removeEventListener('pointerup', settle, true);
@@ -988,6 +1036,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       offWheels();
       for (const type of ['contextmenu', 'touchcancel']) win.removeEventListener(type, onStrayRelease, true);
       endWheelRun(embla);
+      stopRestWatch(embla);
       win.removeEventListener('pointerdown', onPress, true);
       unsubscribeAway();
       cancelAnimationFrame(awayFrame);

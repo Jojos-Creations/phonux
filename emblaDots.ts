@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useReducedMotion, useReducedMotionConfig } from 'motion/react';
 import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
-import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, writeEmbla, type EmblaStrip } from './emblaRow.js';
+import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, runsOnEmbla, subscribeEmblaRows, watchEmblaRest, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
@@ -191,6 +191,7 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
   const barProps: PanelDots['barProps'] = {
     onPointerDown: (e) => {
       if (e.button !== 0) return;
+      watchEmblaRest(embla);
       const at = e.clientX - e.currentTarget.getBoundingClientRect().left;
       press.current = { x: e.clientX, id: dotOf(e.target)?.dataset.dot ?? null, onOval: ovalAt(at), moved: false };
       e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -228,6 +229,7 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
     onWheel: (e) => {
       const raw = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       if (raw === 0 || drag.current !== null) return;
+      watchEmblaRest(embla);
       const w = wheel.current;
       if (e.timeStamp - w.at > WHEEL_QUIET_MS || Math.sign(raw) !== Math.sign(w.travel)) w.travel = 0;
       const first = w.travel === 0;

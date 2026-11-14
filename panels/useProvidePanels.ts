@@ -31,9 +31,23 @@ import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
 import type { RootView } from '../panelManager.js';
-import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, startEmblaAt, whenEmblaFree, wholeInView } from '../emblaRow.js';
-import { useWorkspacePersistence } from './useWorkspacePersistence.js';
+import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, startEmblaAt, subscribeEmblaRests, whenEmblaFree, wholeInView, type StripLayout } from '../emblaRow.js';
+import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
+
+/**
+ * The rest of a row at scroll `at` as a saved mark names it: the first panel, in strip order, the window shows, and `at`'s offset
+ * from that panel's left edge in units of `step` (one phone and its gap). Null for an empty strip.
+ */
+function restMarkAt(layout: StripLayout, at: number, step: number): RestMark | null {
+  let first = -1;
+  for (const [k, left] of layout.lefts.entries()) {
+    if (left + layout.widths[k]! <= at + 0.5) continue;
+    if (first < 0 || left < layout.lefts[first]!) first = k;
+  }
+  if (first < 0 || step <= 0) return null;
+  return { panel: layout.ids[first]!, offset: Math.round(((at - layout.lefts[first]!) / step) * 1e4) / 1e4 };
+}
 
 /** Whether the host's CaptureTrigger is asked for a picture at `event`: a panel is captured at both. */
 const asksForPicture = (event: 'park' | 'close'): boolean => FIXED.snapshot === 'both' || FIXED.snapshot === event;
@@ -473,7 +487,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
 
   const shrinkUnfocusedRef = useRef(tuning.shrinkUnfocused);
   shrinkUnfocusedRef.current = tuning.shrinkUnfocused;
-  const { restoreSettled, dismiss, undismiss, isDismissed, scroll: savedRest } = useWorkspacePersistence({
+  const { restoreSettled, dismiss, undismiss, isDismissed, scroll: savedRest, setScroll } = useWorkspacePersistence({
     storage: core.storage,
     panels,
     setPanels,
@@ -618,6 +632,25 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     };
     // Mount only: the container ref object never changes.
   }, []);
+  // A row a person moved is saved where it comes to rest (the persistence hook's save waits out its own quiet time): as the first
+  // panel the window shows and the rest's offset from that panel's left edge in phone widths (and gaps), which the start below reads.
+  // Nothing is recorded before the restore settles: the file's rest is still to come.
+  const restoreSettledRef = useRef(restoreSettled);
+  restoreSettledRef.current = restoreSettled;
+  const restStepRef = useRef(0);
+  restStepRef.current = i.phoneWidth + tuning.rowGap;
+  useEffect(
+    () =>
+      subscribeEmblaRests((embla, at) => {
+        const el = i.overflowContainerRef.current;
+        if (el === null || !restoreSettledRef.current || emblaOf(el) !== embla) return;
+        const strip = emblaStripOf(el);
+        const mark = strip === undefined ? null : restMarkAt(strip.layout, at, restStepRef.current);
+        if (mark !== null) setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
+      }),
+    // Mount only: the container ref object never changes.
+    [],
+  );
   // Where the row starts, once per mount: at the first commit after the restore settled with a row that has an entry and an Embla
   // row to move, which starts there with no glide once it is measured. A saved rest wins: the stop `offset` phone widths (and gaps)
   // from the left edge of the panel it names, as the previous launch left it. With none, `tuning.initialScroll`. A wheel or a press
