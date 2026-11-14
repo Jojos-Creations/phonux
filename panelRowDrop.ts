@@ -11,8 +11,7 @@ import type { ChromeStore } from './panelChrome.js';
 import { panelKey } from './panelSettings.js';
 import type { AddPlacement } from './panelSettings.js';
 import type { DragScroll } from './panelSlotContext.js';
-import { openEdgeHold, endEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
-import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { edgeScrollOf, edgeScrollerOf, openEdgeHold, endEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { landPanelIn, type WorkspaceHandle } from './workspaceCore.js';
 
 /** A panel a drag would cross, with the width the row draws it at. */
@@ -127,7 +126,8 @@ export interface RowDropInput {
   readonly walkOf: (entry: PanelRowEntry) => Walk;
   /** The hop rule shared with the header drag. */
   readonly stepsFor: (entry: PanelRowEntry, offset: number) => number;
-  readonly dragScroll: DragScroll | undefined;
+  /** The edge numbers a drag scrolls by, read at each frame: the Embla row's, which the row computes after it calls this hook. */
+  readonly dragScroll: () => DragScroll | undefined;
 }
 
 interface Active {
@@ -158,7 +158,7 @@ export function useRowDrop(input: RowDropInput): { preview: DropPreview | null; 
   const controller = React.useMemo<RowDropController>(() => {
     const entryOf = (a: Active): PanelRowEntry | undefined => latest.current.entries.find((p) => p.id === a.engineId);
     const releaseHold = (a: Active): void => {
-      if (a.hold !== null) endEdgeHold(a.hold, latest.current.dragScroll, reducedRef.current);
+      if (a.hold !== null) endEdgeHold(a.hold, latest.current.dragScroll(), reducedRef.current);
       a.hold = null;
     };
     const finish = (a: Active): void => {
@@ -179,7 +179,7 @@ export function useRowDrop(input: RowDropInput): { preview: DropPreview | null; 
     };
     const tick = (a: Active) => (nowMs: number): void => {
       const h = a.hold;
-      const slot = latest.current.dragScroll;
+      const slot = latest.current.dragScroll();
       if (h === null || active.current !== a) return;
       h.frame = null;
       if (slot === undefined) return;
@@ -201,10 +201,11 @@ export function useRowDrop(input: RowDropInput): { preview: DropPreview | null; 
         const a: Active = { engineId: entry.id, key, source, live: state.status === 'live', hold: null, x: null, steps: 0 };
         active.current = a;
         if (a.live) row.chrome.setDragging(a.engineId, true);
-        const scrollerEl = row.boxRef.current === null ? null : closestRowScroller(row.boxRef.current);
-        const slot = row.dragScroll;
+        // The row's box sits inside the Embla window, so the hold moves the Embla row, as a header drag's does.
+        const scrollerEl = row.boxRef.current === null ? null : edgeScrollerOf(row.boxRef.current);
+        const slot = row.dragScroll();
         if (scrollerEl !== null && slot !== undefined && slot.mode === 'edge') {
-          a.hold = openEdgeHold(scrollerEl, rowScrollerFor(scrollerEl).scrollLeft(), slot, a.engineId);
+          a.hold = openEdgeHold(scrollerEl, edgeScrollOf(scrollerEl), slot, a.engineId);
           if (a.hold !== null) a.hold.frame = requestAnimationFrame(tick(a));
         }
         setPreview({ id: a.engineId, steps: 0, hidden: !a.live });

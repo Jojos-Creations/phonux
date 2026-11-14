@@ -6,7 +6,8 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
+import { emblaWindowIn, rowOffsetOf, setRowOffset, stubSlotBoxes } from './support/strip.js';
+import { emblaHeld, emblaOf } from '../emblaRow.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelRowDrop, useWorkspace } from '../index.js';
@@ -452,8 +453,14 @@ async function mountedScrolling(): Promise<MountedRow> {
   Object.defineProperty(m.container, 'clientWidth', { value: WINDOW, configurable: true });
   m.container.getBoundingClientRect = () => ({ left: 0, right: WINDOW, top: 0, bottom: 700, width: WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) });
   await settle();
+  // Lays the Embla row out, so the drag's edge hold moves the row Embla draws and rowOffsetOf reads it.
+  stubSlotBoxes(m.container, 16);
+  await settle();
   return m;
 }
+
+/** Whether a gesture or a drag's edge hold holds the Embla row of `m`. */
+const rowHeld = (m: MountedRow): boolean => emblaHeld(emblaOf(emblaWindowIn(m.container)!)!);
 
 test('held in the right edge band the row scrolls and the hop count follows the scroll; held mid-window it stays', async () => {
   const m = await mountedScrolling();
@@ -465,15 +472,15 @@ test('held in the right edge band the row scrolls and the hop count follows the 
   await update(WINDOW);
   await frames(60);
   assert.ok(rowOffsetOf(m.container) > 100, `the row scrolled: ${rowOffsetOf(m.container)}`);
-  assert.equal(m.scroller.claimHeld(), true, 'the drag holds the scroller');
+  assert.equal(rowHeld(m), true, 'the drag holds the row');
   act(() => hook().cancel());
-  assert.equal(m.scroller.claimHeld(), false, 'and gives it back');
+  assert.equal(rowHeld(m), false, 'and gives it back');
   await settle();
 });
 
 test('held in the left edge band the row scrolls back', async () => {
   const m = await mountedScrolling();
-  m.scroller.glideTo(1200, { durationSec: 0, instant: true, ease: 'linear' });
+  setRowOffset(m.container, 1200);
   assert.equal(rowOffsetOf(m.container), 1200);
   begin('s5');
   await update(0);

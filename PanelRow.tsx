@@ -404,6 +404,8 @@ export function PanelRow({
   const leftById = new Map(present.map((p, index) => [p.id, leftOffsets[index]!]));
   const widthFor = (entry: PanelRowEntry): number => widthById.get(entry.id) ?? panelWidthOf(entry, phoneWidth, maxLiveWidth, gap);
   const dropRowOf = (entry: PanelRowEntry) => ({ entries, rowGap: gap, widthById, leftById, width: widthFor(entry), walk: neighborsAt(entry) });
+  // A drag from outside the row edge-scrolls the Embla row by the same numbers as a header drag; they are set below, once known.
+  const rowDropScroll = React.useRef<DragScroll | undefined>(undefined);
   const { preview: drop, controller: rowDrop } = useRowDrop({
     workspace,
     rootId,
@@ -412,7 +414,7 @@ export function PanelRow({
     boxRef,
     walkOf: neighborsAt,
     stepsFor,
-    dragScroll,
+    dragScroll: () => rowDropScroll.current,
     centreOf: (entry, hidden) => (hidden ? (dropParts({ id: entry.id, steps: 0, hidden: true }, dropRowOf(entry)).gap?.left ?? 0) + widthFor(entry) / 2 : (leftById.get(entry.id) ?? 0) + widthFor(entry) / 2),
   });
   const shiftById = new Map<string, number>();
@@ -473,6 +475,7 @@ export function PanelRow({
   // A reorder drag's edge scroll on Embla: the window's own edges, the strip's end and its rests (a Reduce Motion hold jumps rest to rest);
   // a strip has no hidden panels to swap in, and the release settles on Embla's nearest stop.
   const emblaDragScroll: DragScroll = { ...dragScroll, maxScroll: stripMax, stops: emblaRests(markers, stripPx, emblaWindow.width), settleStops: [], insetLeft: 0, insetRight: 0, cycle: undefined };
+  rowDropScroll.current = emblaDragScroll;
   const lastStops = React.useRef<string | null>(null);
   // On Embla every panel has its slot on the strip; a parkable one far from the view draws a placeholder of its width instead of its
   // content, and loads again when it comes near. The cap (`maxLivePanels`) bounds how many parkable panels stay loaded.
