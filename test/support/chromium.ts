@@ -42,14 +42,22 @@ const isFile = (p: string): boolean => {
 
 // The newest cached headless shell or Chromium, from where Playwright keeps its downloads.
 function cached(): string | undefined {
-  const roots = [process.env.PLAYWRIGHT_BROWSERS_PATH, join(homedir(), 'Library', 'Caches', 'ms-playwright'), join(homedir(), '.cache', 'ms-playwright')].filter((r): r is string => r !== undefined && existsSync(r));
+  return cachedChromium([process.env.PLAYWRIGHT_BROWSERS_PATH, join(homedir(), 'Library', 'Caches', 'ms-playwright'), join(homedir(), '.cache', 'ms-playwright')]);
+}
+
+/**
+ * The newest headless shell or Chromium under `roots` (Playwright download folders), by revision. A headless shell is
+ * `chrome-headless-shell` in newer downloads and `headless_shell` in older ones (revision 1194 on macOS).
+ */
+export function cachedChromium(candidates: readonly (string | undefined)[]): string | undefined {
+  const roots = candidates.filter((r): r is string => r !== undefined && existsSync(r));
   const found: { revision: number; path: string }[] = [];
   for (const root of roots) {
     for (const dir of readdirSync(root)) {
       const m = /^chromium(?:_headless_shell)?-(\d+)$/.exec(dir);
       if (m === null) continue;
       for (const sub of readdirSync(join(root, dir))) {
-        for (const bin of ['chrome-headless-shell', 'Chromium.app/Contents/MacOS/Chromium', 'chrome']) {
+        for (const bin of ['chrome-headless-shell', 'headless_shell', 'Chromium.app/Contents/MacOS/Chromium', 'chrome']) {
           const p = join(root, dir, sub, bin);
           if (isFile(p)) found.push({ revision: Number(m[1]), path: p });
         }
