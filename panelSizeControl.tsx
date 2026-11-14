@@ -66,7 +66,7 @@ export const drawsSizeControl = (slot: PanelSlotValue | undefined): boolean =>
 export interface PanelSizeControlProps {
   /** The height of a bar the page keeps along the window's top edge, which a fullscreen panel stops below. 0 when omitted. */
   readonly topInset?: () => number;
-  /** The Fullscreen shortcut as the host spells it, shown in the entry's hover text. */
+  /** The Fullscreen shortcut as the host spells it, shown in the entry's hover text and named in its accessible name. */
   readonly fullscreenShortcut?: string;
   /** The Fullscreen shortcut in `aria-keyshortcuts` form. */
   readonly fullscreenKeys?: string;
@@ -182,7 +182,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
                 size="small"
                 data-view-fullscreen=""
                 autoFocus={firstWidth === undefined}
-                aria-label={labels.fullscreen}
+                // The name carries the shortcut the hover text shows: the Tooltip's own label gives way to the button's.
+                aria-label={fullscreenLabel}
                 {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}
                 {...currentProps(maximize.maximized)}
                 onClick={() => {

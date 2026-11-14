@@ -57,7 +57,7 @@ test('picking a width sets the panel\'s slots as the person, and the pressed wid
 });
 
 /** The control alone in a hand-built slot whose handle refuses every width. */
-function refusingSlot(onRefused?: (what: 'resize' | 'fullscreen') => void): { said: string[]; calls: unknown[][]; container: HTMLElement } {
+function refusingSlot(onRefused?: (what: 'resize' | 'fullscreen') => void, extra: PanelSizeControlProps = {}): { said: string[]; calls: unknown[][]; container: HTMLElement } {
   const said: string[] = [];
   const calls: unknown[][] = [];
   const handle = {
@@ -67,7 +67,7 @@ function refusingSlot(onRefused?: (what: 'resize' | 'fullscreen') => void): { sa
     },
   } as unknown as NonNullable<PanelSlotValue['handle']>;
   const value: PanelSlotValue = { collapsible: true, closable: true, movable: true, resizable: true, maxSlots: 4, neighborWidths: { left: [], right: [] }, tuning: slotTuning(LIBRARY_TUNING_DEFAULTS), handle, summary: { id: 'p', live: true, slots: 1, fitSlots: 4 } };
-  const props: PanelSizeControlProps = onRefused === undefined ? {} : { onRefused };
+  const props: PanelSizeControlProps = onRefused === undefined ? extra : { ...extra, onRefused };
   const control = createElement(PanelSizeControl as (p: PanelSizeControlProps) => ReactElement | null, props);
   const tree = createElement(AnnounceContext.Provider, { value: (text: string) => void said.push(text) }, createElement(PanelSlotContext.Provider, { value }, control));
   return { said, calls, container: mount(tree).container };
@@ -93,6 +93,22 @@ test('with onRefused the host hears the refusal instead, and nothing is announce
   await pickIn(container, 'fold');
   assert.deepEqual(heard, ['resize']);
   assert.deepEqual(said, []);
+});
+
+test('Fullscreen\'s accessible name carries the shortcut its hover text shows, and the widths keep their own names', async () => {
+  const { container } = refusingSlot(undefined, { fullscreenShortcut: 'Alt+Enter', fullscreenKeys: 'Alt+Enter' });
+  act(() => void container.querySelector<HTMLButtonElement>('[data-panel-size-button]')!.click());
+  await wait();
+  const full = document.querySelector<HTMLButtonElement>('[data-view-fullscreen]')!;
+  assert.equal(full.getAttribute('aria-label'), 'Fullscreen (Alt+Enter)', 'the name a screen reader reads names the chord');
+  assert.equal(full.getAttribute('aria-keyshortcuts'), 'Alt+Enter');
+  assert.equal(full.closest('span'), null, 'no wrapper around the entry');
+  assert.deepEqual(widths().map((b) => b.getAttribute('aria-label')), ['Phone', 'Fold', 'Tablet', 'Desktop'], 'a width has no chord, so its name is its hover text');
+  cleanup();
+  const plain = refusingSlot();
+  act(() => void plain.container.querySelector<HTMLButtonElement>('[data-panel-size-button]')!.click());
+  await wait();
+  assert.equal(document.querySelector<HTMLButtonElement>('[data-view-fullscreen]')!.getAttribute('aria-label'), 'Fullscreen', 'with no shortcut, the plain name');
 });
 
 const key = (target: Element, name: string): void => void act(() => void target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })));

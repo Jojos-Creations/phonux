@@ -8,6 +8,8 @@
   `disabled` attribute, which took it out of the keyboard path, so a screen reader never said which size was current. It is
   now `aria-disabled="true"` with `aria-pressed="true"` and `aria-current="true"`: the arrow keys, Home and End land on it,
   and a press, Enter or Space does nothing (no resize, no fullscreen change, the menu stays open). It looks the same.
+  Fullscreen's accessible name now carries the host's `fullscreenShortcut` as its hover text does (`Fullscreen (Alt+Enter)`),
+  since the Tooltip no longer labels the entry through a wrapper.
 - `PanelHandle.move(by, 'code')` no longer scrolls the row: like `place` from code, it keeps the panels in view where they are on
   screen and never anchors the view on the moved panel. A move with source `'person'` still follows the panel as its `scrollOnMove`
   says. This is what lets a host carry the root across the row without the view jumping after it.
