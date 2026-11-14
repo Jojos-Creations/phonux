@@ -35,6 +35,9 @@
 
 ### Fixed
 
+- `phonux/testing/row`: `drag()` reorders again. jsdom resolves an unset margin to an empty string, which the row's carousel read
+  as NaN, so the row had no stops and every drag's hop count was NaN. The testing DOM now resolves an unset margin to 0px, as a
+  browser does. A real browser was never affected.
 - The View Size menu's label draws in the theme's secondary text color, as intended; under MUI 9 it drew in the primary text color.
 
 ### Removed (breaking)

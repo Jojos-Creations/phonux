@@ -103,6 +103,21 @@ if (typeof win.ResizeObserver !== 'function') win.ResizeObserver = NoIntersectio
 define('matchMedia', win.matchMedia);
 define('IntersectionObserver', win.IntersectionObserver);
 define('ResizeObserver', win.ResizeObserver);
+// Embla adds the last slide's resolved right margin to the strip's length. A browser resolves an unset margin to its initial 0px;
+// jsdom answers '', which Embla reads as NaN: the row then has no stops, its position is NaN, and a reorder drag's scroll distance
+// (and so its hop count) is NaN, so no drag ever moved a panel. An unset margin reads 0px here, as it does in a browser.
+const MARGINS = new Set(['margin-top', 'margin-right', 'margin-bottom', 'margin-left']);
+const computedStyle = win.getComputedStyle.bind(win);
+win.getComputedStyle = ((element: Element, pseudo?: string | null) => {
+  const style = computedStyle(element, pseudo);
+  const read = style.getPropertyValue.bind(style);
+  style.getPropertyValue = (name: string) => {
+    const value = read(name);
+    return value === '' && MARGINS.has(name) ? '0px' : value;
+  };
+  return style;
+}) as typeof win.getComputedStyle;
+define('getComputedStyle', win.getComputedStyle);
 // An own property shadows Performance.prototype.now; the Node and the jsdom clocks read the same counter.
 Object.defineProperty(globalThis.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
 Object.defineProperty(win.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
