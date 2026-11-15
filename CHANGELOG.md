@@ -72,6 +72,13 @@ settings that only meant something to parking are removed. Hosts that set none o
 - Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel.
 - A restored panel keeps its saved width under `tuning.shrinkUnfocused`.
 - The View Size menu's label draws in the theme's secondary text color under MUI 9.
+- A tile capture asked of a panel that is faded or hidden, as a panel still fading in is, waits for the panel to show
+  (looking every 50 ms, up to 2 s) and is taken then; it was dropped with no sign, so a host kept a timed retry. A
+  panel still faded after 2 s keeps its last picture, as before, and `evict` ends the wait.
+- `addPanel` while the attached workspace is loading (`status === 'loading'`) waits and is applied once it is ready,
+  exactly as the same call after ready: the panel opens, where before it was replayed as a declaration, so a panel the
+  person had closed before stayed closed with no signal. Its state reads `pending` meanwhile. An `addPanel` before the
+  workspace is attached is still a declaration.
 
 ### Removed (breaking)
 
