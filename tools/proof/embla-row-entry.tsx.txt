@@ -38,6 +38,9 @@ const ROOT_MOVE = q.get('rootMove') === '1';
 // browser context is a relaunch from the saved file.
 const HOLD = q.get('hold');
 const STORE = q.get('store') === '1';
+// rootless=1: a workspace with no root template and no page at launch (its row starts with no slot); `__g.add(name)` adds the pages,
+// and `history` is a page made from the settings of the app's History template, shown as an ordinary panel.
+const ROOTLESS = q.get('rootless') === '1';
 const STORE_KEY = 'embla-row-proof-workspace';
 const storedAtLaunch = STORE ? localStorage.getItem(STORE_KEY) : null;
 // bg=1: a magenta page, so a slot that paints nothing (an unloaded placeholder in view) shows as magenta in a captured frame.
@@ -89,6 +92,9 @@ function View({ name, k }: { name: string; k: number }) {
 function ExtraView() {
   return <div data-box="x" tabIndex={-1} style={{ height: '100%', background: '#a52', color: '#fff', font: '24px sans-serif', padding: 12 }}>x</div>;
 }
+function HistoryView() {
+  return <div data-box="history" tabIndex={-1} style={{ height: '100%', background: '#264', color: '#fff', font: '24px sans-serif', padding: 12, boxSizing: 'border-box' }}>history</div>;
+}
 function RootView() {
   return <div data-box={ROOT} style={{ height: '100%', background: '#243', color: '#fff', font: '24px sans-serif', padding: 12 }}>{ROOT}</div>;
 }
@@ -96,13 +102,13 @@ function RootView() {
 // mount: false, as the app passes: this page renders the row itself. Without it the auto mount renders a second row that fails to attach.
 const ws = createWorkspace({
   mount: false,
-  root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}), ...(HOLD === null ? {} : { edgeHold: HOLD }) } as any }),
+  ...(ROOTLESS ? {} : { root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}), ...(HOLD === null ? {} : { edgeHold: HOLD }) } as any }) }),
   // `x`: a page opened later, any number of times (`__g.openExtra()`), one slot wide, drawn as the others are.
-  templates: [...ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })), definePanel({ id: 'x', view: ExtraView as any, settings: { title: 'x', multiple: true } as any })],
+  templates: [...ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })), definePanel({ id: 'x', view: ExtraView as any, settings: { title: 'x', multiple: true } as any }), definePanel({ id: 'history', view: HistoryView as any, settings: { title: 'History', listed: false, layer: 'raised', resizable: false, movable: false, hollowDot: true } as any })],
   tuning: { rowGesture: 'step', rowGap: GAP, ...(CAP === null ? {} : { maxLivePanels: CAP }) } as any,
   ...(STORE ? { storage: { load: async () => (storedAtLaunch === null ? null : JSON.parse(storedAtLaunch)), save: (state: unknown) => localStorage.setItem(STORE_KEY, JSON.stringify(state)) } } : {}),
 });
-if (storedAtLaunch === null) for (const id of ids) ws.addPanel(id);
+if (storedAtLaunch === null && !ROOTLESS) for (const id of ids) ws.addPanel(id);
 
 // Commits of the proof's App: a step on a virtual clock waits for a change's commits to land before it lets time run on.
 let commits = 0;
@@ -266,7 +272,12 @@ requestAnimationFrame(frame);
   PITCH: PHONE + GAP,
   PHONE,
   GAP,
-  ready: () => latest !== undefined && Number.isFinite(latest.rowNumbers?.windowWidth) && document.querySelectorAll('[data-row-slot]').length === ids.length + 1 && (emblaOf(container()) !== undefined),
+  ready: () => latest !== undefined && Number.isFinite(latest.rowNumbers?.windowWidth) && (ROOTLESS || (document.querySelectorAll('[data-row-slot]').length === ids.length + 1 && emblaOf(container()) !== undefined)),
+  add: (name: string) => ws.addPanel(name),
+  // The Embla box's inline transform as written (NaN shows here as text, where the computed matrix would read none).
+  boxTransform: () => (document.querySelector<HTMLElement>('[data-row-embla-window]')?.firstElementChild as HTMLElement | null | undefined)?.style.transform ?? null,
+  windowBox: () => { const r = document.querySelector<HTMLElement>('[data-row-embla-window]')?.getBoundingClientRect(); return r === undefined ? null : { left: r.left, width: r.width, height: r.height }; },
+  emblaNow: () => { const e = emblaOf(container()); if (e === undefined) return null; const n = e.internalEngine(); return [n.location.get(), n.offsetLocation.get(), n.target.get()].map((v: number) => -v); },
   pos,
   logical,
   // Where Embla is going, scroll px.

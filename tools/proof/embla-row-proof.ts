@@ -72,6 +72,11 @@
  *        after a relaunch from its saved file (a reload in the same browser context, resting where the person left it, not gliding),
  *        and a 6 px wheel nudge at rest (back on its stop).
  *
+ * rootless a workspace with no root template and no page at launch, so its row starts with no slot: the empty row is not drawn at
+ *        NaN; then a page made from the app's History template settings, shown as an ordinary panel: it draws, whole and full height,
+ *        in the window, Embla's location, drawn place and target are numbers; six more pages: the opens bring the row to its last stop, an
+ *        ArrowLeft steps it one slot back, and back at the start History is drawn whole. Screenshots of the row with History alone and with the pages.
+ *
  * Every check is in the JSON it prints, with `failed` listing what broke. Exits 1 when a check failed and 2 when a run recorded no
  * frames or no motion, so a run that proved nothing never reads as a pass. Screenshots go to --out; look at them.
  */
@@ -90,7 +95,7 @@ const arg = (name: string): string | undefined => {
 // The old row is gone (step 8d): `--engine` is accepted for old runners and ignored.
 const ENGINE = 'embla';
 const OUT = arg('out') ?? join(tmpdir(), 'embla-row-proof');
-const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open,shots').split(','));
+const ONLY = new Set((arg('only') ?? 'wheel,feed,drag,keys,change,gesture,resize,strip,dots,summon,width,blank,reorder,inert,open,shots,rootless').split(','));
 // `--cases a,b` runs only the named cases of a section (a case's name is in its `want(...)`); every case runs without it.
 const CASES = arg('cases')?.split(',');
 const want = (name: string): boolean => CASES === undefined || CASES.includes(name);
@@ -2881,6 +2886,49 @@ if (ONLY.has('shots') && ENGINE === 'embla') {
     await close();
   }
   out.shots = res;
+}
+
+if (ONLY.has('rootless') && ENGINE === 'embla') {
+  const res: Record<string, unknown> = {};
+  const { page, errors, close } = await open('1,1,1,1,1,1', 1800, 900, '&rootless=1');
+  const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
+  const finite = (v: number[] | null): boolean => v !== null && v.every((x) => Number.isFinite(x));
+  const historyBox = (): Promise<{ left: number; width: number; height: number } | null> => page.evaluate(() => { const r = document.querySelector<HTMLElement>('[data-box="history"]')?.getBoundingClientRect(); return r === undefined ? null : { left: r.left, width: r.width, height: r.height }; });
+  res.empty = { slots: await g(page, 'slotCount'), transform: await g(page, 'boxTransform'), embla: await g(page, 'emblaNow') };
+  if (String((res.empty as any).transform).includes('NaN')) failed.push(`rootless empty: the empty row's box is drawn at ${(res.empty as any).transform}`);
+  await g(page, 'add', 'history');
+  await sleep(800);
+  const win = await g(page, 'windowBox');
+  const hist = await historyBox();
+  const embla = await g(page, 'emblaNow');
+  res.history = { slots: await g(page, 'slotCount'), win, hist, embla, transform: await g(page, 'boxTransform') };
+  await page.screenshot({ path: join(OUT, 'rootless-history-alone.png') });
+  if ((res.history as any).slots !== 1) failed.push(`rootless history: ${(res.history as any).slots} slots drawn, not 1`);
+  if (!finite(embla)) failed.push(`rootless history: Embla's location, drawn place and target are ${JSON.stringify(embla)}`);
+  if (hist === null || win === null || hist.width < 380 || hist.height < 500 || hist.left < win.left - 1 || hist.left + hist.width > win.left + win.width + 1) failed.push(`rootless history: History is not drawn whole and full height in the window: ${JSON.stringify({ hist, win })}`);
+  for (const name of ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']) await g(page, 'add', name);
+  // Each page opens at the row's end and comes into view, so the row ends at its last stop.
+  await sleep(2000);
+  const max = await g(page, 'max');
+  const at0 = await g(page, 'pos');
+  await page.mouse.move(900, 450);
+  await page.keyboard.press('ArrowLeft');
+  await sleep(1500);
+  const at1 = await g(page, 'pos');
+  await g(page, 'jumpToSlot', 0);
+  await sleep(500);
+  const hist2 = await historyBox();
+  const win2 = await g(page, 'windowBox');
+  res.pages = { slots: await g(page, 'slotCount'), max, at0, at1, embla: await g(page, 'emblaNow'), hist: hist2, win: win2, loaded: (await g(page, 'loadedIds')).sort() };
+  await page.screenshot({ path: join(OUT, 'rootless-history-and-pages.png') });
+  if ((res.pages as any).slots !== 7) failed.push(`rootless pages: ${(res.pages as any).slots} slots drawn, not 7`);
+  if (!(max > PITCH) || Math.abs(at0 - max) > 0.5) failed.push(`rootless pages: after the opens the row stands at ${at0}, not its last stop ${max}`);
+  if (Math.abs(at0 - at1 - PITCH) > 0.5) failed.push(`rootless pages: ArrowLeft moved the row from ${at0} to ${at1}, not one slot (${PITCH})`);
+  if (Math.abs(at1 - at0) < 0.5) empty.push('rootless pages: the arrow key moved nothing, so the step proves nothing');
+  if (hist2 === null || win2 === null || hist2.width < 380 || hist2.left < win2.left - 1 || hist2.left + hist2.width > win2.left + win2.width + 1) failed.push(`rootless pages: back at the start, History is not drawn whole in the window: ${JSON.stringify({ hist2, win2 })}`);
+  if (errors.length > 0) failed.push(`rootless: page errors ${errors.join(' | ')}`);
+  await close();
+  out.rootless = res;
 }
 
 await browser.close();
