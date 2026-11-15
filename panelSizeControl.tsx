@@ -78,7 +78,7 @@ export interface PanelSizeControlProps {
  * The width control of the panel the call is made in, for its header. It draws nothing outside a row, nor for a panel that is
  * not resizable or may take fewer than two slots. The menu offers the widths up to five phones that `maxSlots` allows and the
  * window fits, with the panel's current size highlighted, then Fullscreen. The current size (Fullscreen while the panel is fullscreen)
- * takes focus and reads as pressed, current and unavailable, and picking it does nothing. Focus lands on the first width that is not the current size when it opens, the arrow keys, Home and End move along every entry, and focus goes back to the button when Escape closes it or a width is picked.
+ * takes focus and reads as pressed, current and unavailable, and picking it does nothing. Opened from the keyboard, focus lands on the first width that is not the current size; opened by a press, focus stays off the entries, so no hover text opens on its own. The arrow keys, Home and End move along every entry, and focus goes back to the button when Escape closes it or a width is picked.
  * @public
  */
 export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys, onRefused }: PanelSizeControlProps = {}): React.JSX.Element | null {
@@ -89,6 +89,9 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const slot = React.useContext(PanelSlotContext);
   const button = React.useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
+  // Whether the menu was opened from the keyboard (a click with no press count: Enter, Space or a screen reader). Only then does focus
+  // move onto an entry: Chromium marks that focus :focus-visible even after a mouse press, so its hover text would open and stay.
+  const [fromKeys, setFromKeys] = React.useState(false);
   const place = insidePanel(anchor);
   const refused = (what: 'resize' | 'fullscreen'): void => {
     if (onRefused !== undefined) onRefused(what);
@@ -111,8 +114,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const own = summary.savedSlots ?? summary.slots ?? 1;
   const isCurrent = (slots: number): boolean => !maximize.maximized && (summary.slots ?? 1) === slots;
   const widths = Array.from({ length: limit }, (_, i) => i + 1);
-  // Focus opens on the first width that is not the current size, and with no other width on Fullscreen.
-  const firstWidth = widths.find((slots) => !isCurrent(slots));
+  // Opened from the keyboard, focus goes to the first width that is not the current size, and with no other width to Fullscreen.
+  const firstWidth = fromKeys ? widths.find((slots) => !isCurrent(slots)) : undefined;
   const close = (): void => {
     refocus.current = true;
     setAnchor(null);
@@ -130,7 +133,10 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
           data-panel-size-button=""
           // A press must not move focus first: the row reads a focus change inside a panel as the person choosing it.
           onMouseDown={(event) => event.preventDefault()}
-          onClick={(event) => setAnchor(event.currentTarget)}
+          onClick={(event) => {
+            setFromKeys(event.detail === 0);
+            setAnchor(event.currentTarget);
+          }}
           sx={ICON}
         >
           {maximize.maximized || own > SIZE_KEYS.length ? icons.fullscreen : icons.size(own)}
@@ -181,7 +187,7 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
               <IconButton
                 size="small"
                 data-view-fullscreen=""
-                autoFocus={firstWidth === undefined}
+                autoFocus={fromKeys && firstWidth === undefined}
                 // The name carries the shortcut the hover text shows: the Tooltip's own label gives way to the button's.
                 aria-label={fullscreenLabel}
                 {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}

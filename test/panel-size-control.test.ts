@@ -163,6 +163,23 @@ test('Escape closes the menu and focus returns to the View Size button', async (
   assert.ok(document.activeElement === sizeButton(rig), "focus is on the expected stop");
 });
 
+test('a menu opened by a press leaves focus off its entries, so no hover text opens on its own; opened from the keys, focus goes to the first width', async () => {
+  const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+  // A press is a click with a press count; the keyboard's click (Enter, Space) has none, which is what element.click() sends.
+  act(() => void sizeButton(rig)!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+  await wait();
+  const stops = [...document.querySelectorAll<HTMLButtonElement>('[data-panel-size-group] button')];
+  assert.deepEqual(stops.map(stopName), ['phone', 'fold', 'tablet', 'fullscreen'], 'the menu is open');
+  assert.ok(!stops.some((b) => b === document.activeElement), 'no entry holds focus after a press');
+  assert.equal(document.querySelectorAll('[role="tooltip"]').length, 0, 'no hover text is open');
+  key(document.activeElement ?? document.body, 'Escape');
+  await wait();
+  assert.equal(document.querySelectorAll('[data-view-size]').length, 0, 'Escape still closes it');
+  await openSizes(rig);
+  const again = [...document.querySelectorAll<HTMLButtonElement>('[data-panel-size-group] button')];
+  assert.ok(document.activeElement === again[1], 'opened from the keys, focus starts on Fold, the first width that is not the current size');
+});
+
 test('the menu is not a role=menu holding buttons, which a screen reader cannot read as a menu', async () => {
   const rig = await headerRig({ ids: ['a'], sizeControl: true });
   await openSizes(rig);
