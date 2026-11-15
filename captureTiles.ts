@@ -94,7 +94,7 @@ export interface TileCaptureOptions {
 /**
  * The tile-picture controller: a `CaptureRegistry` for panels, a `CaptureTrigger` for the host's park, close and
  * evict moments, and the `SnapshotsAPI` a `HostProvider` reads from. A capture asked of a panel that is faded or hidden
- * (still fading in, say) waits for it to show, up to two seconds, and is taken then; a host needs no timed retry.
+ * (still fading in, say) waits a while for it to show and is taken then; a host needs no timed retry.
  * @public
  */
 export interface TileCapture extends CaptureRegistry, CaptureTrigger, SnapshotsAPI {
@@ -361,7 +361,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
 
 /** How long a capture waits for a panel's pictures to load before it takes what is there. */
 const IMAGE_WAIT_MS = 5000;
-/** How long a capture of a faded or hidden panel waits for it to show (the row's fades take 0.6 s), and how often it looks. */
+// How long a capture of a faded or hidden panel waits for it to show (the row's fades take 0.6 s), and how often it looks.
 const SHOW_WAIT_MS = 2000;
 const SHOW_POLL_MS = 50;
 
