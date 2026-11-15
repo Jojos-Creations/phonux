@@ -565,6 +565,9 @@ export interface SnapshotsAPI {
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
 
 // @public
+export function stubRowDom(win?: Window): void;
+
+// @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
     configure(patch: ViewPatch): ConfigureResult;
 };

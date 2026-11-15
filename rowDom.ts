@@ -70,6 +70,8 @@ export function panelRootOf(target: EventTarget | null): HTMLElement | null {
 
 /** On the element Embla is rooted on: the window that shows whole slots. @internal */
 export const EMBLA_WINDOW_ATTRIBUTE = 'data-row-embla-window';
+/** On each slot marker: an empty box one phone wide, at its slot's place in the strip. @internal */
+export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
 
 /** The custom properties a row slot carries: how far in from the slot's left and right its header and footer lie, in px. @internal */
 export const CHROME_CUT_LEFT_PROPERTY = '--phonux-chrome-cut-left';

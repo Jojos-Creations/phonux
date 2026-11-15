@@ -13,14 +13,12 @@ import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { registerRowKeys } from './rowStep.js';
-import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
+import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** On the Workspace's row container, always 'embla'. Nothing in the library reads it. @internal */
 export const ROW_ENGINE_ATTRIBUTE = 'data-row-engine';
-/** On each slot marker: an empty box one phone wide, at its slot's place in the strip. @internal */
-export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
-// Declared in rowDom so the row's key and band code can read it without importing Embla.
-export { EMBLA_WINDOW_ATTRIBUTE };
+// Declared in rowDom so the row's key and band code, and the jsdom stubs, can read them without importing Embla.
+export { EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE };
 
 
 /**

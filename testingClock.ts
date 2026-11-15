@@ -7,6 +7,7 @@
  * Loaded by the `phonux/testing/row` entry (testingRow.ts) and, through test/support/jsdom-globals.ts, by the library's own tests.
  */
 import { JSDOM } from 'jsdom';
+import { fillRowDomGaps } from './testingDom.js';
 
 /** One virtual frame, in milliseconds. The clock only ever moves by a whole number of these. @public */
 export const FRAME_MS = 16;
@@ -85,39 +86,9 @@ win.cancelAnimationFrame = cancelFrame;
 define('requestAnimationFrame', requestFrame);
 define('cancelAnimationFrame', cancelFrame);
 
-// What the row (Embla Carousel, the library's only row) reads at init that jsdom lacks: breakpoints through matchMedia, slides in
-// view through IntersectionObserver, a resize of the window or a slide through ResizeObserver. None ever fires here.
-class NoIntersections {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-  takeRecords(): [] {
-    return [];
-  }
-}
-if (typeof win.matchMedia !== 'function') {
-  win.matchMedia = ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as unknown as typeof win.matchMedia;
-}
-if (typeof win.IntersectionObserver !== 'function') win.IntersectionObserver = NoIntersections as unknown as typeof IntersectionObserver;
-if (typeof win.ResizeObserver !== 'function') win.ResizeObserver = NoIntersections as unknown as typeof ResizeObserver;
-define('matchMedia', win.matchMedia);
-define('IntersectionObserver', win.IntersectionObserver);
-define('ResizeObserver', win.ResizeObserver);
-// Embla adds the last slide's resolved right margin to the strip's length. A browser resolves an unset margin to its initial 0px;
-// jsdom answers '', which Embla reads as NaN: the row then has no stops, its position is NaN, and a reorder drag's scroll distance
-// (and so its hop count) is NaN, so no drag ever moved a panel. An unset margin reads 0px here, as it does in a browser.
-const MARGINS = new Set(['margin-top', 'margin-right', 'margin-bottom', 'margin-left']);
-const computedStyle = win.getComputedStyle.bind(win);
-win.getComputedStyle = ((element: Element, pseudo?: string | null) => {
-  const style = computedStyle(element, pseudo);
-  const read = style.getPropertyValue.bind(style);
-  style.getPropertyValue = (name: string) => {
-    const value = read(name);
-    return value === '' && MARGINS.has(name) ? '0px' : value;
-  };
-  return style;
-}) as typeof win.getComputedStyle;
-define('getComputedStyle', win.getComputedStyle);
+// What the row (Embla Carousel, the library's only row) reads that jsdom lacks: breakpoints through matchMedia, slides in view through
+// IntersectionObserver, a resize through ResizeObserver, CSS.escape, and a resolved margin of 0px where jsdom answers ''.
+fillRowDomGaps(win);
 // An own property shadows Performance.prototype.now; the Node and the jsdom clocks read the same counter.
 Object.defineProperty(globalThis.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
 Object.defineProperty(win.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });

@@ -48,6 +48,11 @@ motion.
 `usePanelState(id)` listens to that one panel (`reader.get(id).subscribe`), reads its value from the snapshot, and until the panel
 exists listens to the workspace and switches to the panel once it appears.
 
+
+`stubRowDom` (on `phonux/testing`) is for a host that keeps its own jsdom window and clock. It patches the window it is given
+and imports neither jsdom nor the engine, so the fake's entry stays light. Only what the row reads is filled in, and the row's
+offsets are read back from the px the row writes inline, so the stub cannot disagree with the row about where a marker is. The
+`phonux/testing/row` entry fills in the same gaps, but not the offsets, on the window it installs.
 ## Behavior flags cross this boundary as data only
 
 The panel model (`PanelWindow`, `panelWindow.ts`) adds behavior flags (`collapsible`, `listed`, `view`, ...)

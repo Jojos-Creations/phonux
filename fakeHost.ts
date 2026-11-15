@@ -304,4 +304,5 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
 }
 
 export { reportMaximized } from './maximizedStore.js';
+export { stubRowDom } from './testingDom.js';
 export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';

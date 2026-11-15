@@ -215,6 +215,11 @@ await row.dispose();
 
 `row.panel(id)` returns the drawn `root`, `header`, `grabBar` and `footer` of the panel with that key.
 
+A host whose tests keep their own jsdom window (and real time) calls `stubRowDom(window)` from `phonux/testing` once,
+before it mounts a `Workspace`. It fills in what the row reads that jsdom lacks: `matchMedia`, `IntersectionObserver`,
+`ResizeObserver`, `CSS.escape`, a computed margin of `0px`, and the offsets of the row's window and slot markers, so the
+row has its stops and an arrow key or a scroll request steps it. jsdom draws nothing, so no element's box follows the row.
+
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.
 

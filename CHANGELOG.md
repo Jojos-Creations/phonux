@@ -58,9 +58,14 @@ settings that only meant something to parking are removed. Hosts that set none o
   and the labels `couldNotLoad` and `tryAgain`.
 - `packWorkspaceTiles` and `WorkspaceTileRow`.
 - A template's own `firstPressFocusOnly` overrides the workspace's for its panels.
+- `stubRowDom(window)` on `phonux/testing`: fills in what the row reads that jsdom lacks (`matchMedia`,
+  `IntersectionObserver`, `ResizeObserver`, `CSS.escape`, a margin of `0px`, the row's offsets), so a host's own jsdom
+  test can mount a `Workspace` and step its row.
 
 ### Fixed
 
+- A workspace with no root template draws its panels: its row starts with no slot, and the row was drawn at NaN
+  from then on, blank even once panels were added.
 - Every `<Panel>` survives Reduce Motion being turned on or off under `MotionConfig` (a hook was called
   conditionally and React lost the panel's content).
 - A second `useProvidePanels` on an attached workspace no longer replaces the attached row's panel list.
