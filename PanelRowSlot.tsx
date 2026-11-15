@@ -16,6 +16,9 @@ import { emblaDrawnOf, emblaHeld, emblaOf, emblaTargetOf, subscribeEmblaRows } f
 import { EMBLA_WINDOW_ATTRIBUTE } from './rowDom.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
+/** How many of its own pitches a slot's place may jump in one commit and still glide there. */
+const FAR_JUMP_PITCHES = 2;
+
 /**
  * The library's default row gap, 16 px; the gap a workspace draws with is its `tuning.rowGap`, which this does not follow.
  * @public
@@ -350,6 +353,9 @@ export function PanelRowSlot({
     // own move runs from there. A slot ahead of the held panel keeps its offset while the start moves, so the carry alone moves it.
     const shift = leftOffset - lastRest.current! + carried;
     const moved = lastRest.current !== leftOffset || carried !== 0;
+    // A slot whose own place jumps past more than two of its own pitches in one commit (a panel carried across the row from code) is
+    // drawn at its new place at once: a glide would draw it across every panel between, over the view.
+    const far = Math.abs(leftOffset - lastRest.current!) > FAR_JUMP_PITCHES * (width + (gap ?? ROW_GAP)) + 1;
     lastRest.current = leftOffset;
     if (shift !== 0) m.shift(-shift);
     if (!present) {
@@ -368,7 +374,7 @@ export function PanelRowSlot({
     const returning = exiting.current;
     exiting.current = false;
     if (!moved && !returning) return;
-    if (instant) {
+    if (instant || (far && !returning)) {
       slotDriver.set(node, m, rest);
       kickRect();
       return;
