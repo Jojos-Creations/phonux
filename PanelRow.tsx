@@ -596,7 +596,8 @@ export function PanelRow({
   };
   useRowDraw(boxRef);
   // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
-  useEmblaRow(windowRef, boxRef, true, workspaceTuning.gestureQuietMs, React.useContext(AwayContext), workspaceTuning.rowGesture);
+  // Embla runs only on a row with a slot: built with no slides it has no stop, and its position reads that missing stop as NaN.
+  useEmblaRow(windowRef, boxRef, markers.length > 0, workspaceTuning.gestureQuietMs, React.useContext(AwayContext), workspaceTuning.rowGesture);
   React.useLayoutEffect(() => {
     const embla = windowRef.current !== null ? emblaOf(windowRef.current) : undefined;
     const restop = lastStops.current !== null && lastStops.current !== stopsKey;
