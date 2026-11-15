@@ -2892,7 +2892,7 @@ if (ONLY.has('rootless') && ENGINE === 'embla') {
   const res: Record<string, unknown> = {};
   const { page, errors, close } = await open('1,1,1,1,1,1', 1800, 900, '&rootless=1');
   const PITCH = await page.evaluate(() => (window as any).__g.PITCH);
-  const finite = (v: number[] | null): boolean => v !== null && v.every((x) => Number.isFinite(x));
+  const finite = (v: number[] | null): boolean => v?.every((x) => Number.isFinite(x)) === true;
   const historyBox = (): Promise<{ left: number; width: number; height: number } | null> => page.evaluate(() => { const r = document.querySelector<HTMLElement>('[data-box="history"]')?.getBoundingClientRect(); return r === undefined ? null : { left: r.left, width: r.width, height: r.height }; });
   res.empty = { slots: await g(page, 'slotCount'), transform: await g(page, 'boxTransform'), embla: await g(page, 'emblaNow') };
   if (String((res.empty as any).transform).includes('NaN')) failed.push(`rootless empty: the empty row's box is drawn at ${(res.empty as any).transform}`);
