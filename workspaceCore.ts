@@ -473,6 +473,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   /** What a view asked at a Host-bag create, by engine id. The file keeps those asks merged into the instance layer; this keeps them apart for the session so a `null` in a configure shows them again. */
   const splits = new Map<string, HostSplit>();
   const inflight = new Set<PanelId>();
+  // Adds made while the attached row loads: replayed as adds once it is ready, so they open as they would after it.
+  const queued = new Map<PanelId, () => void>();
   const warned = new Set<string>();
   const listeners = new Set<() => void>();
   const panelListeners = new Map<PanelId, Set<() => void>>();
@@ -621,7 +623,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const stateOfRecord = (r: Rec): PanelState => {
     const template = templateOf(r.templateId);
     const res = resolutionFor(r, r.id, r.templateId, r.settings, undefined, false, r.lastEngineId === undefined ? undefined : splits.get(r.lastEngineId));
-    const pending = !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'));
+    const pending = !r.closed && (inflight.has(r.id) || queued.has(r.id) || (r.intent && status !== 'ready'));
     return {
       id: r.id,
       templateId: r.templateId,
@@ -894,7 +896,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const instanceKeys = (templateId: string): Set<PanelId> => {
     const keys = new Set<PanelId>();
     for (const e of committed?.entries ?? []) if (e.view === templateId && e.marker !== true && e.id !== rootId) keys.add(panelKey(e));
-    for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
+    for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || queued.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
     return keys;
   };
 
@@ -959,8 +961,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     reportConflicts(id, res);
     const count = instancesOf(t.id);
     const over = (!multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
-    const rec: Rec = { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: !ready && !over, closed: over, anonymous: suffix !== undefined };
+    // A declaration replayed at settle would skip a closed panel's tombstone and every open option; an add waits for ready instead.
+    const waits = !ready && !over && status === 'loading' && owner !== undefined;
+    const rec: Rec = { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: !ready && !over && !waits, closed: over, anonymous: suffix !== undefined };
     records.set(id, rec);
+    if (waits) queued.set(id, () => { if (records.get(id) === rec) records.delete(id); addPanelBy(opener)(given, options); });
     if (ready && !over) {
       inflight.add(id);
       const open = options?.place === undefined ? undefined : placeOpen(commit!, options.place);
@@ -971,6 +976,21 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return source.handleOf(id) as PanelHandle<P>;
   };
   const addPanel = addPanelBy(undefined);
+  /** Runs the adds made while loading, once the row is ready and still attached. */
+  const flushQueued = (): void => {
+    if (status !== 'ready' || commit === undefined) return;
+    const adds = [...queued.values()];
+    queued.clear();
+    for (const add of adds) add();
+  };
+  /** A row that leaves before it is ready keeps the waiting adds as declarations, for the next attach to restore. */
+  const declareQueued = (): void => {
+    for (const id of queued.keys()) {
+      const r = records.get(id);
+      if (r !== undefined) r.intent = true;
+    }
+    queued.clear();
+  };
 
 
   /** The refusal for an operation a workspace in this state cannot take at all, or undefined when it is attached and ready. */
@@ -1333,6 +1353,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       owner = undefined;
       commit = undefined;
       inflight.clear();
+      declareQueued();
       pendingMoves = [];
       if (status !== 'disposed') status = 'detached';
       refresh();
@@ -1356,6 +1377,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       status = c.settled ? 'ready' : 'loading';
       refresh();
       flushMoves(c.entries);
+      // After this commit, not inside it: an add asks the row for a new commit.
+      if (status === 'ready' && queued.size > 0) queueMicrotask(flushQueued);
     },
     subscribe: (l) => {
       tuningListeners.add(l);
@@ -1415,6 +1438,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       status = 'disposed';
       owner = undefined;
       commit = undefined;
+      queued.clear();
       for (const r of records.values()) r.intent = false;
       refresh();
       listeners.clear();
