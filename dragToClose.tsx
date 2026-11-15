@@ -13,8 +13,8 @@ import { AnnounceContext } from './announce.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { PanelSlotContext, PanelVerticalDragContext, type DragScroll } from './panelSlotContext.js';
-import { endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
-import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
+import { edgeScrollOf, edgeScrollerOf, endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
+import { rowStripOf } from './rowScroller.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import type { CssStyle } from './cssStyle.js';
 import type { DragToCloseTuning } from './panelSettings.js';
@@ -203,14 +203,14 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
   };
 
   /** Gives the claim back and returns how far the slot moved with the row (a scroll or a swap at the edge) since the pointer went down; 0 when no claim was held. */
-  const end = (): number => {
+  const end = (back = false): number => {
     const h = hold.current;
     if (h === null) return 0;
     hold.current = null;
     const moved = travel(h);
     slotStart.current = null;
     if (Number.isFinite(floor.current)) latest.current.dragScroll?.nudgeBarrier?.(0);
-    endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion);
+    endEdgeHold(h, latest.current.dragScroll, latest.current.reduceMotion, true, back);
     return moved;
   };
 
@@ -229,11 +229,11 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
   return {
     /** A press on the handle: where the pointer is and where the row is scrolled, which the release counts from. */
     press(event: React.PointerEvent<HTMLElement>): void {
-      const scrollerEl = box.current === null ? null : closestRowScroller(box.current);
+      const scrollerEl = box.current === null ? null : edgeScrollerOf(box.current);
       slack.current = Number.POSITIVE_INFINITY;
       floor.current = Number.NEGATIVE_INFINITY;
       // A touch swipe is a native pan that ends in pointercancel, so only a mouse or pen drags to the edge.
-      pressed.current = scrollerEl === null || event.pointerType === 'touch' ? null : { scrollerEl, startScroll: rowScrollerFor(scrollerEl).scrollLeft(), downX: event.clientX };
+      pressed.current = scrollerEl === null || event.pointerType === 'touch' ? null : { scrollerEl, startScroll: edgeScrollOf(scrollerEl), downX: event.clientX };
       cancelled.current = false;
       unwatch();
       if (pressed.current !== null) {
@@ -245,7 +245,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
     lock(clientX: number): void {
       const slot = latest.current.dragScroll;
       const p = pressed.current;
-      const rowEnd = p?.scrollerEl.querySelector(':scope > [data-row-strip]')?.getBoundingClientRect();
+      const rowEnd = (p === null ? null : rowStripOf(p.scrollerEl))?.getBoundingClientRect();
       const own = box.current?.getBoundingClientRect();
       // Rects and the translations drawn now are in the same screen px; both ends scroll together, so the gap holds as the row scrolls.
       slack.current = rowEnd === undefined || own === undefined || rowEnd.width === 0 ? Number.POSITIVE_INFINITY : rowEnd.right - (own.right - x.get() - scrollX.get());
@@ -253,7 +253,7 @@ function useEdgeScroll(box: React.RefObject<HTMLDivElement | null>, dragScroll: 
       const opened = openEdgeHold(p.scrollerEl, p.startScroll, slot, panelId);
       if (opened === null) return;
       const slotEl = box.current?.closest<HTMLElement>('[data-row-slot]') ?? null;
-      const strip = p.scrollerEl.querySelector<HTMLElement>(':scope > [data-row-strip]');
+      const strip = rowStripOf(p.scrollerEl);
       // A slot with no layout (no width) has no slide to ride.
       slotStart.current = slotEl === null || strip === null || slotEl.getBoundingClientRect().width === 0 ? null : { el: slotEl, strip, left: inStrip({ el: slotEl, strip }) };
       const barrier = slot.barrierRight?.();
@@ -768,7 +768,8 @@ function DragToCloseBox({
       stopFollowing();
       axisLock.current = null;
       edge.release();
-      edge.end();
+      // A cancel puts everything back: the order (no hop is reported) and, on Embla, the row where the drag started.
+      edge.end(true);
       springHome();
     },
     onDragEnd: () => {

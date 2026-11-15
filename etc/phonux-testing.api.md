@@ -38,6 +38,8 @@ export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
     fadeEase: FadeEase;
+    where: 'outside' | 'inside';
+    fitVisibleMaxSlots: number;
 };
 
 // @public
@@ -225,9 +227,6 @@ export interface MemoryWorkspaceStorage extends WorkspaceStorage {
 export function memoryWorkspaceStorage(initial?: WorkspaceState | null): MemoryWorkspaceStorage;
 
 // @public
-export type Overflow = 'scroll' | 'park';
-
-// @public
 export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadHandle {
     close(source?: 'code' | 'person'): PanelResult;
     configure(patch: InstancePatch): ConfigureResult;
@@ -284,6 +283,7 @@ export interface PanelsAPI {
     clearAll(): void;
     // @deprecated
     close(id: string): void;
+    readonly closedByPerson?: readonly PanelSummary[] | null;
     // @deprecated
     create(): void;
     // @deprecated
@@ -359,6 +359,7 @@ export interface PanelState {
     readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly settings: ResolvedPanelSettings;
+    readonly slots?: number;
     readonly status: PanelStatus;
     readonly templateId: string;
     readonly title: string | undefined;
@@ -427,7 +428,9 @@ export interface PhonuxLabels {
     close: string;
     closed: (title: string) => string;
     couldNotFullscreen: string;
+    couldNotLoad: string;
     couldNotResize: string;
+    dotBarView: (first: number, last: number, total: number) => string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     fullscreen: string;
@@ -440,6 +443,7 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     row: string;
     sizeName: (slots: number) => string;
+    tryAgain: string;
     undo: string;
     undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;
@@ -526,12 +530,7 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    hideStickiness: 'sticky' | 'until-room';
-    capacityReturn: 'auto' | 'manual';
-    overflow: Overflow;
-    revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
-    resize: 'reveal' | 'reflow';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -554,7 +553,6 @@ export type SlideTuning = {
     ease: readonly [number, number, number, number];
     closeExitSeconds: number;
     closeExitEase: CloseExitEase;
-    glideEase: GlideEase;
 };
 
 // @public
@@ -565,6 +563,9 @@ export interface SnapshotsAPI {
 
 // @public
 export type SourceLayer = 'library' | 'workspace' | 'template' | 'host' | 'instance' | 'user' | 'derived' | 'forced';
+
+// @public
+export function stubRowDom(win?: Window): void;
 
 // @public
 export type ViewHandle<P extends JsonValue = JsonValue> = Omit<PanelHandle<P>, 'configure'> & {
@@ -676,11 +677,8 @@ export type WorkspaceTuning = {
     rowTop?: number | null;
     phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
-    gestureLockMs?: number;
     gestureQuietMs?: number;
     resizeSettleSlides?: number;
-    returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
-    dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
     fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {

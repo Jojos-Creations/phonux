@@ -47,7 +47,7 @@ interface HiddenCandidate {
   liveBefore: number;
   /** True when a person hid it and it stays hidden until shown. */
   held: boolean;
-  /** Its `revealOnScroll`. */
+  /** Which steps may reveal it. */
   policy: 'edges' | 'any' | 'never';
 }
 
@@ -68,9 +68,15 @@ export function gestureTarget(i: {
   stops?: readonly number[];
   gap: number;
   hidden: readonly HiddenCandidate[];
+  /** The root's place among the live panels. It never leaves the row for a parked panel, so a parked one does not wait behind it; any other live panel beyond the window still counts. Absent or -1: no root in the list. */
+  rootAt?: number;
+  /** One phone's width: a panel wider than this that the window's edge cuts comes in before any parked panel. Absent: no panel does. */
+  phoneWidth?: number;
+  /** The row's slot grid, as `gridEdgesOf` gives it: nothing draws past it, so a panel in the margin beside it is out of the view. Absent: the view is the window less a gap each side. */
+  grid?: { lo: number; hi: number };
 }): { kind: 'show'; id: string } | { kind: 'scroll'; to: number } | { kind: 'none' } {
-  const windowLeft = i.base + i.gap;
-  const windowRight = i.base + i.clientWidth - i.gap;
+  const windowLeft = i.base + i.gap + (i.grid?.lo ?? 0);
+  const windowRight = i.grid === undefined ? i.base + i.clientWidth - i.gap : i.base + i.gap + i.grid.hi;
   const lefts = i.liveStarts.map((start) => start + i.gap);
   const overlaps = lefts.map((left, k) => left < windowRight && left + i.liveWidths[k]! > windowLeft);
   const firstInView = overlaps.indexOf(true);
@@ -80,10 +86,14 @@ export function gestureTarget(i: {
   const sideRight = (h: HiddenCandidate): boolean => h.liveBefore > lastInView;
   const sideLeft = (h: HiddenCandidate): boolean => h.liveBefore <= (firstInView < 0 ? count : firstInView);
   const candidates = i.hidden.filter((h) => h.policy !== 'never' && (i.direction === 'right' ? sideRight(h) : sideLeft(h)));
-  if (candidates.length > 0) {
+  // A wide panel the window's edge still cuts comes in first: a parked panel swapped in now would leave it unseen, and it may be the one that parks.
+  const edgePanel = i.direction === 'right' ? lastInView : firstInView;
+  const edgeCut = i.phoneWidth !== undefined && edgePanel >= 0 && i.liveWidths[edgePanel]! > i.phoneWidth + 1 && (i.direction === 'right' ? lefts[edgePanel]! + i.liveWidths[edgePanel]! > windowRight + 1 : lefts[edgePanel]! < windowLeft - 1);
+  const canScroll = stepTarget(i.direction, i.base, i.stops !== undefined && i.stops.length > 0 ? i.stops : i.liveStarts, i.maxScroll) !== null;
+  if (candidates.length > 0 && !(edgeCut && canScroll)) {
     const nearest = candidates.reduce((best, h) => (i.direction === 'right' ? (h.liveBefore < best.liveBefore ? h : best) : h.liveBefore >= best.liveBefore ? h : best));
     const between = i.direction === 'right' ? nearest.liveBefore - 1 - lastInView : (firstInView < 0 ? count : firstInView) - nearest.liveBefore;
-    const beyondWindow = i.direction === 'right' ? count - 1 - lastInView : firstInView;
+    const beyondWindow = i.liveStarts.filter((_, k) => k !== i.rootAt && (i.direction === 'right' ? k > lastInView : k < firstInView)).length;
     const reachable = nearest.held || nearest.policy === 'any' ? between <= 0 : between <= 0 && beyondWindow <= 0;
     if (reachable) return { kind: 'show', id: nearest.id };
   }

@@ -33,6 +33,7 @@ export function hostPanelsOf(provided: ProvidedPanels): PanelsAPI {
     panelList: provided.panelList,
     ...(provided.maxFitPanels !== undefined ? { maxFitPanels: provided.maxFitPanels } : {}),
     recentlyClosed: provided.recentlyClosed,
+    closedByPerson: provided.closedByPerson,
     undoClose: provided.undoClose,
     clearAll: provided.clearAll,
     create: create as PanelsAPI['create'],

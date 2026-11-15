@@ -18,9 +18,12 @@ afterEach(() => {
 
 function row(): { el: HTMLElement; strip: HTMLElement } {
   const el = document.createElement('div');
+  const window = document.createElement('div');
+  window.setAttribute('data-row-window', '');
   const strip = document.createElement('div');
   strip.setAttribute('data-row-strip', '');
-  el.appendChild(strip);
+  window.appendChild(strip);
+  el.appendChild(window);
   document.body.appendChild(el);
   made.push(el);
   return { el, strip };

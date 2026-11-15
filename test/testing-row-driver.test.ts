@@ -81,20 +81,20 @@ test('keepDown holds the pointer, release lets go, and nothing is reordered befo
   assert.deepEqual(keysInOrder(ws), ['root', 'a', 'c', 'b'], 'released');
 });
 
-test('setWidth gives the row a new window: a panel that no longer fits parks, and it comes back when the window grows', async () => {
-  const ws = createWorkspace({ root: view('root'), templates: [view('a'), view('b')], defaults: { overflow: 'park' }, storage: memoryWorkspaceStorage() });
+test('setWidth gives the row a new window: the scroller reports it, every animation finishes, and on the strip a panel keeps its slot', async () => {
+  const ws = createWorkspace({ root: view('root'), templates: [view('a'), view('b')], defaults: {}, storage: memoryWorkspaceStorage() });
   ws.addPanel('a');
   ws.addPanel('b');
   const rendered = await render(ws, 1600);
   assert.equal(ws.panels.get('a')?.getState().status, 'live');
   await rendered.setWidth(900);
   assert.equal(rendered.scroller.clientWidth, 900, 'the scroller reports the new width');
-  assert.equal(ws.panels.get('a')?.getState().status, 'parked', 'a no longer fits');
-  assert.equal(rendered.panel('a'), undefined, 'and a parked panel has no slot');
   assert.equal(frameClock.pendingCount(), 0, 'setWidth resolved with every animation finished');
+  assert.equal(ws.panels.get('a')?.getState().status, 'live', 'nothing parks for room on the strip: a narrower window scrolls');
+  assert.ok(rendered.panel('a'), 'a keeps its slot');
   await rendered.setWidth(1600);
-  assert.equal(ws.panels.get('a')?.getState().status, 'live');
-  assert.ok(rendered.panel('a'), 'a is drawn again');
+  assert.equal(rendered.scroller.clientWidth, 1600);
+  assert.ok(rendered.panel('a'), 'a is drawn at the wider window too');
 });
 
 test('press clicks a control the way a person does', async () => {

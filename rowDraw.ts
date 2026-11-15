@@ -1,0 +1,25 @@
+/**
+ * The row's one drawing pass. Where each slot rests is written here once per commit; React's first render writes the same rest,
+ * and nothing else does. A slot's own mover (slotMover.ts) only adds how far the slot is from that rest while it moves; Embla
+ * moves the strip itself (emblaRow.ts).
+ */
+
+import * as React from 'react';
+import { restTranslate } from './slotMover.js';
+import { drawHeldSlots, isHeldSlot } from './emblaRow.js';
+import { EMBLA_WINDOW_ATTRIBUTE } from './rowDom.js';
+
+/** Writes every slot's rest under `boxRef` after each commit. A leaving slot keeps the rest it last rendered, so its exit is not carried along by the row it left. @internal */
+export function useRowDraw(boxRef: React.RefObject<HTMLElement | null>): void {
+  React.useLayoutEffect(() => {
+    const anchor = boxRef.current;
+    if (anchor === null) return;
+    for (const slot of anchor.querySelectorAll<HTMLElement>('[data-row-slot]')) {
+      if (isHeldSlot(slot)) continue;
+      const rest = restTranslate(Number(slot.dataset.rowSlot));
+      if (slot.style.translate !== rest) slot.style.translate = rest;
+    }
+    const win = anchor.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
+    if (win !== null) drawHeldSlots(win);
+  });
+}

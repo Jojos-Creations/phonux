@@ -8,6 +8,7 @@ import './support/jsdom-globals.js';
 import * as React from 'react';
 import { act } from 'react';
 import { usePanelDragging, usePanelResizing } from '../index.js';
+import { computeRowNumbers, gridEdgesOf, slotEdgesAt, slotSpanAt } from '../rowNumbers.js';
 import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
@@ -102,24 +103,16 @@ test('the hold at each of three stops: the others keep their widths through a re
   }
 });
 
-test('stepping across every stop with a cap set never changes the live set', async () => {
-  const m = mountRow(
-    row(rootEntry(), ...[2, 4, 1, 3, 1, 2].map((n, k) => made(`s${k + 1}`, { slots: n, maxSlots: 64, overflow: k < 2 ? 'scroll' : 'park' }, { view: 'resizing-view' }))),
-    1800,
-    { tuning: { rowGesture: 'step', maxLivePanels: 3 } },
-  );
-  await advanceFrames(100);
-  scrolled(m);
-  mock.timers.enable({ apis: ['setTimeout'] });
-  const live = m.live();
-  assert.equal(live.length, 5, `the cap parked one of the four parkable panels (${live.join(',')})`);
-  const stops = m.latest().rowNumbers.stops.length;
-  for (let k = 0; k < stops + 1; k++) {
-    await step(m, 'right');
-    assert.deepEqual(m.live(), live, `after step ${k + 1} right`);
-  }
-  for (let k = 0; k < stops + 1; k++) {
-    await step(m, 'left');
-    assert.deepEqual(m.live(), live, `after step ${k + 1} left`);
-  }
+test('slotEdgesAt: a panel fades across the held gap, and one past the grid runs to the window edge only by what it has inside', () => {
+  const n = computeRowNumbers({ entries: [made('root', { edgeHold: 'left' }, { collapsible: false }), ...[1, 1, 2, 1].map((slots, k) => made(`s${k + 1}`, { slots, maxSlots: 64 }))], phoneWidth: 320, containerWidth: 1700, gap: 24, wholePanels: true });
+  assert.ok(n.leftInset > 0, 'control: the root is held');
+  const k = n.ids.indexOf('s3');
+  const { lo, hi } = { lo: gridEdgesOf(n).lo + n.leftInset, hi: gridEdgesOf(n).hi };
+  const atSpan = (left: number): number => slotSpanAt(n, k, 0).left - left;
+  const whole = slotEdgesAt(n, k, atSpan(lo + 100), 24);
+  assert.deepEqual([whole.fade, whole.left], [null, 0], 'clear of the gap: no fade');
+  const under = slotEdgesAt(n, k, atSpan(lo - 200), 24);
+  assert.deepEqual([under.fade, under.left], [176, 176], 'the fade starts at the held panel and the cut is there too');
+  assert.equal(slotEdgesAt(n, k, atSpan(hi + 5), 24).right, n.widths[k], 'wholly past the grid stays hidden');
+  assert.equal(slotEdgesAt(n, k, atSpan(hi - 10), 24).right, n.widths[k]! - 20, 'ten inside the grid shows ten past it');
 });

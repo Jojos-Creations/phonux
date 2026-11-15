@@ -70,3 +70,17 @@ test('the rendered grid honours a tile size and an override', () => {
   assert.equal(m.container.querySelector<HTMLElement>('[data-workspace-tiles]')?.dataset.columns, '2');
   m.unmount();
 });
+
+test("a panel's state carries its own width in slots, and a resize publishes a new snapshot", () => {
+  const ws = createWorkspace({ mount: false, root: markerTemplate('root', { settings: { title: 'Root' } }), templates: [markerTemplate('fold', { settings: { title: 'Fold', maxSlots: 2 } })] });
+  const fold = ws.addPanel('fold');
+  const m = mountWorkspace(ws);
+  assert.equal(fold.getState().slots, 1);
+  const before = ws.panels.getSnapshot().version;
+  act(() => {
+    fold.setSlots(2);
+  });
+  assert.equal(fold.getState().slots, 2);
+  assert.ok(ws.panels.getSnapshot().version > before, 'a new snapshot, so a reader of the snapshot redraws');
+  m.unmount();
+});

@@ -1,10 +1,109 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-rc.7
 
-- The View Size control works by keyboard. It opens as a popover of buttons, not a `role="menu"` holding buttons (which axe flagged as `aria-required-children`), so the trigger's `aria-haspopup` is now `dialog`. Focus lands on the first width, the arrow keys, Home and End move along the widths and Fullscreen, Tab stays inside, and Escape closes it and returns focus to the View Size button. It looks the same.
-- A template's own `firstPressFocusOnly` (boolean) overrides the workspace's `tuning.firstPressFocusOnly` for that template's panels, either way. Left out, the workspace value decides. `definePanel` refuses a non-boolean.
-- Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel. Focus landing in such a portaled surface, which React counts as part of the row but the DOM does not, was taken for focus entering the row and moved to a panel, and the dialog's focus trap pulled it back, so the keys never got past the dialog's frame. The row now steers only focus that lands inside its own DOM.
+rc.7 replaces the panel row. From rc.6 to rc.7 the row is one continuous strip drawn by Embla Carousel 8.6
+(`embla-carousel` 8.6.0 and `wheel-gestures` 2.3.0 are new runtime dependencies, both MIT, pinned exactly):
+every panel has its slot on the strip, the window shows whole slots, and nothing parks for room any more. The
+settings that only meant something to parking are removed. Hosts that set none of them need no change.
+
+### Changed
+
+- The row is one strip that rests on the slot grid. A mouse wheel or trackpad moves it 1:1 (no speed curve or
+  coast of its own); once the wheel is quiet 500 ms (150 ms after a momentum wheel) it rests on the stop ahead if
+  the gesture covered a quarter of the gap from the stop behind, else on that stop. It stops flat at both ends.
+  A mouse drag on the row's surface, the bare arrow keys, `stepRow`, `feedRowWheel` and the dot bar move the same
+  strip. While a wheel holds the row, no other input moves it back.
+- Pages wholly outside the window are `inert` (no focus, key or pointer; style them with `[data-row-slot][inert]`).
+  A page focused while cut comes into view; a newly opened page, a show or `panel.scrollTo()` glides the row to it.
+- A panel opened, closed, moved or resized left of the view, or a window resize, leaves what is on screen still: the
+  page at the window's left edge stays put in every frame.
+- A wide (multi-slot) page may rest with only part of it in the window at the edge; the stops are one per slot.
+  `tuning.chrome.fitVisibleMaxSlots` lays its header over the part shown.
+- The Workspace (root) panel is an ordinary page of the row: it scrolls with the strip and stays where it is put.
+  `panels.summonRoot()` moves it in the page order to the slot just outside the view and glides it in, as a
+  person's move the saved order keeps. `panels.rootView()` reads `'shown'` or `'away'`.
+- `tuning.maxLivePanels` counts every collapsible panel: a panel far from the window draws a same-width placeholder
+  instead of its content and mounts again when it comes near (`Workspace`'s new `rowNearSlots`, default 2). Fixed
+  columns and a panel being dragged stay loaded. With no cap every panel stays loaded.
+- `edgeHold` 'left' and 'right' keep the panel whole one gap beside the strip; 'both' scrolls with the strip until it
+  reaches the window's edge and sticks there.
+- The row's rest is saved with the panels once a person's move has stood still 150 ms, and a relaunch starts there.
+- `PanelsInput.onPanelRect` reports `moving` rects through a row scroll and a `settled` one where the panel rests.
+- `phonux/testing/row`'s `drag()` reorders on the strip (jsdom's unset margin now reads as 0px).
+- Drag to reorder edge-scrolls the strip at the window's edge; Escape returns the row and the order.
+- A size glide (View Size, a phone-model change) and Fullscreen ease the panel's real box, so content is laid out
+  at its drawn size on every frame (rc.6 scaled it).
+- `PanelHandle.move(by, 'code')` no longer scrolls the row; a `'person'` move still follows `scrollOnMove`.
+- The View Size menu is a popover of buttons that works by keyboard; its current size is `aria-disabled` and
+  `aria-current` instead of `disabled`, so a screen reader reaches it.
+- The default English labels say "space": `New space`, `Space name`, new workspaces `Space 1`, `Space 2`.
+  Saved names, ids and attributes are unchanged.
+- A row of hand-built 0.1.0 entries (no settings) scrolls like every other row and may draw at slightly different
+  widths: it no longer prices its panels beside the fixed columns.
+
+### Added
+
+- `usePanelDots`: the oval slider takes the keyboard (ArrowRight and ArrowUp one stop on, ArrowLeft and ArrowDown
+  one back, Home and End to the ends) and carries `aria-valuetext` from the new label `dotBarView`; the hook takes
+  an optional `labels` input. It works on any scroller with `data-row-scroller`, not only the Workspace's.
+- `panels.subscribeMoves(listener)` and `PanelMove`: `{ id, source }` for every panel a completed move or place
+  changed, `source` `'person'` or `'code'`.
+- `panels.rootView()`, `panels.summonRoot()` and the `RootView` type.
+- `PanelsAPI.closedByPerson` (optional): the closes the person made, for a host that draws its own undo notice.
+- `WorkspaceColumnHandle.reorderWorkspace(target, toIndex)`.
+- `tuning.chrome.fitVisibleMaxSlots` (1 to 64, default 2) and `tuning.chrome.where` (`'outside'` or `'inside'`),
+  with `CHROME_INSIDE_ATTRIBUTE`, `CHROME_SHOWN_ATTRIBUTE` and `PANEL_CHROME_INSET_PX`.
+- `PanelLoader` (`PanelLoaderProps`, `PanelLoadFailure`, `PANEL_LOAD_TIMEOUT_MS`, `PANEL_PLACEHOLDER_WINDOW_MS`)
+  and the labels `couldNotLoad` and `tryAgain`.
+- `packWorkspaceTiles` and `WorkspaceTileRow`.
+- A template's own `firstPressFocusOnly` overrides the workspace's for its panels.
+- `stubRowDom(window)` on `phonux/testing`: fills in what the row reads that jsdom lacks (`matchMedia`,
+  `IntersectionObserver`, `ResizeObserver`, `CSS.escape`, a margin of `0px`, the row's offsets), so a host's own jsdom
+  test can mount a `Workspace` and step its row.
+
+### Fixed
+
+- A workspace with no root template draws its panels: its row starts with no slot, and the row was drawn at NaN
+  from then on, blank even once panels were added.
+- Every `<Panel>` survives Reduce Motion being turned on or off under `MotionConfig` (a hook was called
+  conditionally and React lost the panel's content).
+- A second `useProvidePanels` on an attached workspace no longer replaces the attached row's panel list.
+- Tab and Shift+Tab reach the buttons of a dialog or popover opened from a panel.
+- A restored panel keeps its saved width under `tuning.shrinkUnfocused`.
+- The View Size menu's label draws in the theme's secondary text color under MUI 9.
+- A tile capture asked of a panel that is faded or hidden, as a panel still fading in is, waits for the panel to show
+  (looking every 50 ms, up to 2 s) and is taken then; it was dropped with no sign, so a host kept a timed retry. A
+  panel still faded after 2 s keeps its last picture, as before, and `evict` ends the wait.
+- `addPanel` while the attached workspace is loading (`status === 'loading'`) waits and is applied once it is ready,
+  exactly as the same call after ready: the panel opens, where before it was replayed as a declaration, so a panel the
+  person had closed before stayed closed with no signal. Its state reads `pending` meanwhile. An `addPanel` before the
+  workspace is attached is still a declaration.
+
+### Removed (breaking)
+
+- The old row and everything that parked for room. Removed settings, from the types, `PANEL_SETTINGS_CATALOG`, the
+  resolver and DESIGN.md: `overflow` (and the `Overflow` type), `hideStickiness` (every hide holds until shown, as
+  'sticky' did), `capacityReturn`, `revealOnScroll`, `resize` (and `PanelSizeBox`'s `reveal`), `tuning.gestureLockMs`,
+  `tuning.returnTieBreak`, `tuning.dropTieBreak` and `tuning.slide.glideEase` (and the `GlideEase` type). A layer,
+  `createWorkspace({ tuning })` or `configureTuning` that still passes one is not refused: in development it logs one
+  `console.warn` per key and the value is ignored; a saved instance layer drops it with an `invalid-saved-setting`
+  note. TypeScript callers that name one get a type error.
+- `usePanelDots`' `rowNumbers` and `tuning` inputs. `RowNumbers.rowScroll` and `ProvidedPanels.rowScroll` are always
+  true, `RowNumbers.parkLiveWidths` is always empty, and `computeRowNumbers`' `fixedItemCount` is ignored.
+- `rootStepsAside` and the parking helpers behind it.
+
+### Migration
+
+- Drop any of the removed settings above from templates, layers and `createWorkspace({ tuning })`; development
+  builds name each one still passed. Rows that relied on `overflow: 'park'` now scroll; use `tuning.maxLivePanels`
+  to cap loaded content.
+- Drop `resize` and `reveal`; drop `rowNumbers` and `tuning` from `usePanelDots` calls.
+- A host that draws a native view over a panel keeps using `onPanelRect`; it now fires during row scrolls.
+- A host that implements `PanelsAPI` itself needs no change: `closedByPerson` is optional; read it as
+  `closedByPerson ?? null`.
+- Styles that hid off-screen pages can key on `[data-row-slot][inert]`.
+- The design of the row is in DESIGN.md, "The row".
 
 ## 0.2.0-rc.6
 

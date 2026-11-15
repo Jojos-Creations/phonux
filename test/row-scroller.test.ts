@@ -51,15 +51,16 @@ test('an instant glide moves at once', () => {
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 
-test('a glide stops at pointer-down in the container and stays where it was', async () => {
+test('a glide goes on to its target when the container is pressed: a press must not leave the row between two stops', async () => {
   const el = container();
   rowScrollerFor(el).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
   await advanceFrames(160);
   const at = rowOffsetOf(el);
   assert.ok(at > 0 && at < 812);
   el.dispatchEvent(new Event('pointerdown'));
-  await advanceFrames(400);
-  assert.equal(rowOffsetOf(el), at);
+  assert.equal(rowScrollerFor(el).glideTarget(), 812);
+  await advanceFrames(600);
+  assert.equal(rowOffsetOf(el), 812);
   assert.equal(rowScrollerFor(el).glideTarget(), null);
 });
 
@@ -159,29 +160,17 @@ test('a mounted Workspace marks its scroll container data-row-scroller and no ot
   }
 });
 
-test('the Workspace reset of a row that stops scrolling stops a glide in flight and writes 0 through the scroller', async () => {
-  const ref = React.createRef<HTMLDivElement>();
-  const rowRef = React.createRef<HTMLDivElement>();
-  const at = (rowScroll: boolean): React.ReactElement =>
-    withHost(React.createElement(Workspace, { overflowContainerRef: ref, rowRef, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [], rowScroll, children: null }));
-  const mounted = mount(at(true));
-  rowScrollerFor(ref.current!).glideTo(812, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
-  await advanceFrames(160);
-  assert.ok(rowOffsetOf(ref.current!) > 0);
-  mounted.rerender(at(false));
-  assert.equal(rowOffsetOf(ref.current!), 0);
-  assert.equal(rowScrollerFor(ref.current!).glideTarget(), null);
-  await advanceFrames(400);
-  assert.equal(rowOffsetOf(ref.current!), 0, 'the glide did not resume');
-});
-
 const stripXOf = (el: HTMLElement): number => Number(/translateX\((-?[\d.e+-]+)px\)/.exec(el.querySelector<HTMLElement>('[data-row-strip]')!.style.transform)?.[1] ?? 0);
 
+/** A container holding a strip the way the Workspace does: inside the window element that cuts it. */
 function rowWithStrip(): HTMLDivElement {
   const el = container();
+  const window = document.createElement('div');
+  window.setAttribute('data-row-window', '');
   const strip = document.createElement('div');
   strip.setAttribute('data-row-strip', '');
-  el.appendChild(strip);
+  window.appendChild(strip);
+  el.appendChild(window);
   return el;
 }
 
@@ -227,4 +216,74 @@ test('a bump asked while a glide is in flight waits for it to land', async () =>
   assert.equal(rowOffsetOf(el), 400);
   await advanceFrames(80);
   assert.ok(stripXOf(el) < -400, 'the bump plays after the glide lands');
+});
+
+test('a glide asked for just after a size glide starts rides its curve and length; one asked for later keeps its own', async () => {
+  const sizeMove = { durationSec: 0.8, ease: [0.4, 0, 0.2, 1] as const };
+  const near = container();
+  rowScrollerFor(near).followSize({ ...sizeMove, startMs: performance.now() });
+  rowScrollerFor(near).glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  const own = container();
+  rowScrollerFor(own).glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  await advanceFrames(5 * 16);
+  assert.ok(rowOffsetOf(near) < 100, `the size curve starts slow: ${rowOffsetOf(near)}`);
+  assert.ok(rowOffsetOf(own) > 400, `cubic-out leaves fast: ${rowOffsetOf(own)}`);
+  await advanceFrames(21 * 16);
+  assert.notEqual(rowOffsetOf(near), 1000, 'still gliding past the 0.4 s it was asked for');
+  await advanceFrames(25 * 16);
+  assert.equal(rowOffsetOf(near), 1000);
+
+  const late = container();
+  rowScrollerFor(late).followSize({ ...sizeMove, startMs: performance.now() });
+  await advanceFrames(20 * 16);
+  rowScrollerFor(late).glideTo(1000, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  await advanceFrames(5 * 16);
+  assert.ok(rowOffsetOf(late) > 400, `a late scroll is its own move: ${rowOffsetOf(late)}`);
+});
+
+test('a glide runs on the compositor while no listener needs the strip drawn in its frame, and the frame loop draws it while one does', async () => {
+  const el = rowWithStrip();
+  setRowOffset(el, 0);
+  const strip = el.querySelector<HTMLElement>('[data-row-strip]')!;
+  let animations = 0;
+  strip.animate = (() => {
+    animations += 1;
+    return { cancel() {} };
+  }) as unknown as HTMLElement['animate'];
+  rowScrollerFor(el).glideTo(400, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  assert.equal(animations, 1, 'control: a plain row hands the glide to the compositor');
+  await advanceFrames(30 * 16);
+  animations = 0;
+  let woken = 0;
+  const unsubscribe = rowScrollerFor(el).subscribe(() => (woken += 1), { sameFrame: true });
+  rowScrollerFor(el).glideTo(0, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  await advanceFrames(5 * 16);
+  assert.equal(animations, 0, 'no compositor animation');
+  assert.ok(woken >= 4, 'the listener is woken on the frames the strip is drawn');
+  const at = rowOffsetOf(el);
+  assert.ok(at > 0 && at < 400, 'still on the way');
+  assert.equal(strip.style.transform, `translateX(${rowScrollerFor(el).stripX()}px)`, 'the strip is drawn where the numbers say');
+  unsubscribe();
+  rowScrollerFor(el).glideTo(400, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  assert.equal(animations, 1, 'with the listener gone the compositor draws the next glide');
+});
+
+test('a listener that needs the strip drawn in its frame, subscribed while a glide runs on the compositor, takes it over', async () => {
+  const el = rowWithStrip();
+  setRowOffset(el, 0);
+  const strip = el.querySelector<HTMLElement>('[data-row-strip]')!;
+  let cancelled = 0;
+  strip.animate = (() => ({
+    cancel() {
+      cancelled += 1;
+    },
+  })) as unknown as HTMLElement['animate'];
+  rowScrollerFor(el).glideTo(400, { durationSec: 0.4, instant: false, ease: 'cubic-out' });
+  await advanceFrames(3 * 16);
+  const before = cancelled;
+  const unsubscribe = rowScrollerFor(el).subscribe(() => {}, { sameFrame: true });
+  assert.ok(cancelled > before, 'the compositor animation is cancelled');
+  await advanceFrames(3 * 16);
+  assert.equal(strip.style.transform, `translateX(${rowScrollerFor(el).stripX()}px)`, 'and the frame loop draws the rest');
+  unsubscribe();
 });

@@ -33,18 +33,16 @@ async function heldRig(o: PinRigOptions = {}): Promise<PinRig> {
 
 const holdNotes = (r: PinRig): SettingNote[] => r.m.notes.filter((n) => n.code === 'hold-unlisted');
 
-test('a listed false configure of a held panel answers one hold-unlisted note and reports it once, whatever revealOnScroll is', async () => {
+test('a listed false configure of a held panel answers one hold-unlisted note and reports it once', async () => {
   const warn = mock.method(console, 'warn', () => undefined);
-  for (const reveal of ['edges', 'any', 'never'] as const) {
-    const r = await heldRig({ settings: { c: { revealOnScroll: reveal } } });
-    assert.equal(r.facts('c').listed, true, `${reveal}: c is listed before the call`);
-    const out = r.turn(() => r.h.c!.configure({ listed: false }));
-    const n = note(r.entry('c').id);
-    assert.deepEqual(out, answer(true, ['listed'], [n]), `${reveal}: the answer carries the note`);
-    assert.deepEqual(r.m.notes, [n], `${reveal}: onNote heard it once`);
-    assert.equal(r.facts('c').listed, false, `${reveal}: c left the list`);
-    cleanup();
-  }
+  const r = await heldRig();
+  assert.equal(r.facts('c').listed, true, 'c is listed before the call');
+  const out = r.turn(() => r.h.c!.configure({ listed: false }));
+  const n = note(r.entry('c').id);
+  assert.deepEqual(out, answer(true, ['listed'], [n]), 'the answer carries the note');
+  assert.deepEqual(r.m.notes, [n], 'onNote heard it once');
+  assert.equal(r.facts('c').listed, false, 'c left the list');
+  cleanup();
   assert.equal(warn.mock.callCount(), 0, 'a note is not a conflict, so console.warn stays silent');
 });
 
@@ -84,19 +82,6 @@ test('each call that unlists a held panel answers its own note, and a call that 
   assert.deepEqual([nulled.changed, nulled.now, nulled.notes], [true, ['listed'], [nu]], 'a null that restores an unlisting derived value is told like listed false');
   assert.deepEqual(u.m.notes, [nu]);
   assert.equal(u.facts('c').listed, false);
-});
-
-test('no note for a parked panel the engine parked, nor for a live one', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e'];
-  const r = await pinRig({ ids, width: 1000, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' as const }])) });
-  await r.settle();
-  assert.deepEqual([r.state('b').status, r.state('b').held], ['parked', false], 'b is parked for room');
-  assert.equal(r.state('e').status, 'live');
-  for (const id of ['b', 'e']) {
-    const out = r.turn(() => r.h[id]!.configure({ listed: false }));
-    assert.deepEqual(out, answer(true, ['listed'], []), id);
-  }
-  assert.equal(r.m.notes.length, 0);
 });
 
 test('no note when the held panel was already unlisted: nothing newly becomes unlisted', async () => {

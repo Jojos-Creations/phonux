@@ -96,6 +96,7 @@ export { slideToTransition } from './directionalTransition.js';
 export { GAP, PANEL_TRANSITION, PanelSizeBox, usePanelSizeGlide, type PanelSizeGlide } from './PanelRowSlot.js';
 export { PanelHeaderButtons, usePanelHeaderButtons } from './panelHeaderButtons.js';
 export { PanelSizeControl, type PanelSizeControlProps } from './panelSizeControl.js';
+export { PANEL_LOAD_TIMEOUT_MS, PANEL_PLACEHOLDER_WINDOW_MS, PanelLoader, type PanelLoadFailure, type PanelLoaderProps } from './PanelLoader.js';
 export { PanelFooter } from './panelFooter.js';
 export type { PanelHeaderButtonItem, PanelHeaderButtonItemBase, PanelHeaderIconItem, PanelHeaderTextItem } from './panelHeaderButtons.js';
 export { Workspace } from './Workspace.js';
@@ -103,8 +104,10 @@ export type { WorkspaceProps } from './Workspace.js';
 export { WorkspacePanel, WorkspaceTrash } from './WorkspacePanel.js';
 export type { WorkspacePanelProps, WorkspaceTrashProps } from './WorkspacePanel.js';
 export type { WorkspacePanelEntry, WorkspaceTileCounts, WorkspaceTileSize } from './workspacePanelModel.js';
+export { packWorkspaceTiles } from './workspacePanelModel.js';
+export type { WorkspaceTileRow } from './workspacePanelModel.js';
 export { useProvidePanels } from './panels/useProvidePanels.js';
-export { feedRowWheel } from './panels/useRowScrollGesture.js';
+export { feedRowWheel } from './feedRowWheel.js';
 export type { PanelsInput, ProvidedPanels } from './panels/useProvidePanels.js';
 export type { PanelWindow } from './panelWindow.js';
 export { reorderStepsForOffset } from './panelWindow.js';
@@ -120,7 +123,6 @@ export type {
   PanelId,
   AnchorRequest,
   AddPlacement,
-  Overflow,
   EnterFrom,
   ExitTo,
   ScrollAlign,
@@ -139,7 +141,6 @@ export type {
   ChromeTuning,
   CloseExitEase,
   FadeEase,
-  GlideEase,
   DragToCloseTuning,
   SlideTuning,
   EdgeScrollTuning,
@@ -201,9 +202,9 @@ export type { WorkspaceColumnProps } from './WorkspaceColumn.js';
 export type { AddPanelOptions, MovePanelOptions, MovePanelResult, ViewWorkspace, WorkspaceHandle, WorkspaceOptions, WorkspaceWrapProps } from './workspaceCore.js';
 export type { WorkspaceLive, WorkspacePanelsInput } from './workspaceLive.js';
 export type { PanelHandle } from './panelHandles.js';
-export type { ConfigureResult, PanelManager, PanelResult, ResetResult } from './panelManager.js';
+export type { ConfigureResult, PanelManager, PanelMove, PanelResult, ResetResult, RootView } from './panelManager.js';
 export { usePanelStates, usePanelState, useWorkspace, useWorkspaceManager } from './panels/usePanelStates.js';
-export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
+export { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, CHROME_SHOWN_ATTRIBUTE, DRAGGING_ATTRIBUTE, useActivePanel, usePanelActive, usePanelDragProps, usePanelDragging, usePanelResizing, usePanelSetDragging, usePanelSliding } from './panelChrome.js';
 export type { PanelRect, PanelRectEvent } from './panelChrome.js';
 export type { ChromePart } from './panelChrome.js';
 export { usePanelPresence } from './panelPresence.js';
@@ -233,6 +234,7 @@ export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';
 export { stepRow } from './rowStep.js';
 export { useRowFrameBand } from './rowFrameBand.js';
 export type { RowFrameBand } from './rowFrameBand.js';
+export { CHROME_INSIDE_ATTRIBUTE, PANEL_CHROME_INSET_PX } from './panelChromeInside.js';
 export { PANEL_BAR_HEIGHT_PX, PANEL_FOOTER_ROOM_PX, rowFootReserve } from './panelChromeSize.js';
 export { showPanels, whenAccepted, whenColumnReady, whenPanel } from './panelWaits.js';
 export type { WaitOptions } from './panelWaits.js';

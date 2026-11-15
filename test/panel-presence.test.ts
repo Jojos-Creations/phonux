@@ -67,7 +67,8 @@ test('a panel scrolled outside the window reads scrolledAway, and shown is false
 test('a panel the row scrolls back into the window reads shown again', () => {
   const m = scrollableRow();
   layout(m);
-  setRowOffset(m.container, 1200);
+  // The last stop: s5 is whole in the second slot there, and s1 is wholly past the grid's left edge.
+  setRowOffset(m.container, 1624);
   layout(m);
   assert.equal(reasonOf('s1'), 'scrolledAway');
   assert.equal(reasonOf('s5'), 'shown');

@@ -25,11 +25,13 @@ const legacy: RowNumbers = computeRowNumbers({ entries: [createRootPanel(ROOT)],
 const base: WorkspaceShellStyleInput = { containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 1, liveWidths: [] };
 const shell = (over: Partial<WorkspaceShellStyleInput>) => workspaceShellStyle({ ...base, ...over });
 
-test('workspaceShellStyle: a row with no settings is hidden and shows no scrollbar rule, whatever the gesture', () => {
+// Since overflow was removed (owner, 2026-11-14) a row of hand-built entries is a scrolling strip like any other: before, it kept
+// the 0.1.0 shell that showed its scrollbar rule and no overscroll rule.
+test('workspaceShellStyle: a row with no settings is a scrolling strip: hidden, with its scrollbar hidden, whatever the gesture', () => {
   for (const rowGesture of [undefined, 'step', 'off'] as const) {
     const s = shell({ rowNumbers: legacy, ...(rowGesture === undefined ? {} : { rowGesture }) });
     assert.equal(s.overflowX, 'hidden');
-    assert.equal(s.hideScrollbar, false);
+    assert.equal(s.hideScrollbar, true);
   }
   assert.equal(shell({}).overflowX, 'hidden', 'and a call with no numbers at all is a row with no settings');
 });
@@ -61,11 +63,12 @@ const WEBKIT_RULE = /::-webkit-scrollbar\{display:none;?\}/;
 
 const NO_CHAINING = /overscroll-behavior-x:none/;
 
-test('a mounted Workspace for a row with no settings emits overflow-x:hidden, no scrollbar rule and no overscroll rule', () => {
+test('a mounted Workspace for a row with no settings emits what a scrolling row does: overflow-x:hidden, both scrollbar-hiding rules and the overscroll rule', () => {
   const markup = markupOf(legacy);
   assert.match(markup, /overflow-x:hidden/);
-  assert.doesNotMatch(markup, /scrollbar/);
-  assert.doesNotMatch(markup, NO_CHAINING);
+  assert.match(markup, HIDES_SCROLLBAR);
+  assert.match(markup, WEBKIT_RULE);
+  assert.match(markup, NO_CHAINING);
 });
 
 test("a mounted Workspace for a scrolling row at rowGesture 'step' emits overflow-x:hidden, overscroll-behavior-x:none and both scrollbar-hiding rules", () => {

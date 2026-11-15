@@ -10,6 +10,7 @@ import Popover from '@mui/material/Popover';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { AnnounceContext } from './announce.js';
+import { PHONE_FRAME_ATTRIBUTE } from './PanelFrame.js';
 import { useOptionalHost } from './hostApi.js';
 import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
@@ -17,11 +18,19 @@ import { usePanelMaximize } from './panelMaximize.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
 import { panelRootOf } from './rowDom.js';
 
-/** Grows from the button's edge toward the panel's middle and no wider than the panel, so the menu never covers the next panel. */
-function insidePanel(button: HTMLElement | null): { side: 'left' | 'right'; maxWidth: number | undefined } {
-  const icon = button?.getBoundingClientRect();
-  const panel = button ? panelRootOf(button)?.getBoundingClientRect() : undefined;
-  return { side: icon && panel && icon.left + icon.width / 2 > panel.left + panel.width / 2 ? 'right' : 'left', maxWidth: panel?.width };
+/** The menu's inset from the panel's sides, in px. */
+const MENU_INSET_PX = 8;
+
+/** A bar across the top of the panel's frame, a pill inset the same from its top and sides, so the menu never covers the next panel. */
+function insidePanel(button: HTMLElement | null): { top: number; left: number; width: number | undefined } {
+  const root = button ? panelRootOf(button) : null;
+  const frame = root?.querySelector<HTMLElement>(`[${PHONE_FRAME_ATTRIBUTE}]`) ?? root;
+  const panel = frame?.getBoundingClientRect();
+  return {
+    top: panel ? panel.top + MENU_INSET_PX : (button?.getBoundingClientRect().bottom ?? 0),
+    left: (panel?.left ?? 0) + MENU_INSET_PX,
+    width: panel ? panel.width - 2 * MENU_INSET_PX : undefined,
+  };
 }
 
 const SIZE_KEYS = ['phone', 'fold', 'tablet', 'desktop', 'ultrawide'] as const;
@@ -29,7 +38,7 @@ const SIZE_KEYS = ['phone', 'fold', 'tablet', 'desktop', 'ultrawide'] as const;
 const ICON = { color: 'inherit' } as const;
 const STOP_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
 
-/** Arrow keys, Home and End step focus along the group's buttons without wrapping. */
+/** Arrow keys, Home and End step focus along all of the group's buttons without wrapping, the current size included. */
 function stepFocus(event: React.KeyboardEvent<HTMLElement>): void {
   if (!STOP_KEYS.includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const stops = [...event.currentTarget.querySelectorAll<HTMLElement>('button')];
@@ -39,7 +48,15 @@ function stepFocus(event: React.KeyboardEvent<HTMLElement>): void {
   const to = event.key === 'Home' ? 0 : event.key === 'End' ? stops.length - 1 : at + (event.key === 'ArrowRight' ? 1 : -1);
   stops[Math.min(Math.max(to, 0), stops.length - 1)]?.focus({ preventScroll: true });
 }
-const ENTRY = { color: 'text.primary' } as const;
+// The current size keeps focus, so a screen reader can say which size it is, but takes no press: it is marked aria-disabled, not
+// disabled, and drawn highlighted the same whether hovered or not.
+const ENTRY = {
+  color: 'text.primary',
+  '&[aria-disabled="true"], &[aria-disabled="true"]:hover': { color: 'primary.contrastText', bgcolor: 'primary.main', cursor: 'default' },
+} as const;
+/** The props that mark an entry as the size the panel has now: reachable and read as current, but not pressable. */
+const currentProps = (current: boolean) =>
+  current ? ({ 'aria-pressed': true, 'aria-current': true, 'aria-disabled': true, disableTouchRipple: true } as const) : ({ 'aria-pressed': false } as const);
 
 /** Whether the control draws anything in this slot, so `Panel` leaves its header's placeholder alone when it does not. */
 export const drawsSizeControl = (slot: PanelSlotValue | undefined): boolean =>
@@ -49,7 +66,7 @@ export const drawsSizeControl = (slot: PanelSlotValue | undefined): boolean =>
 export interface PanelSizeControlProps {
   /** The height of a bar the page keeps along the window's top edge, which a fullscreen panel stops below. 0 when omitted. */
   readonly topInset?: () => number;
-  /** The Fullscreen shortcut as the host spells it, shown in the entry's hover text. */
+  /** The Fullscreen shortcut as the host spells it, shown in the entry's hover text and named in its accessible name. */
   readonly fullscreenShortcut?: string;
   /** The Fullscreen shortcut in `aria-keyshortcuts` form. */
   readonly fullscreenKeys?: string;
@@ -60,7 +77,8 @@ export interface PanelSizeControlProps {
 /**
  * The width control of the panel the call is made in, for its header. It draws nothing outside a row, nor for a panel that is
  * not resizable or may take fewer than two slots. The menu offers the widths up to five phones that `maxSlots` allows and the
- * window fits, with the panel's own width pressed, then Fullscreen. Focus lands on the first width when it opens, the arrow keys move along the widths, and focus goes back to the button when Escape closes it or a width is picked.
+ * window fits, with the panel's current size highlighted, then Fullscreen. The current size (Fullscreen while the panel is fullscreen)
+ * takes focus and reads as pressed, current and unavailable, and picking it does nothing. Opened from the keyboard, focus lands on the first width that is not the current size; opened by a press, focus stays off the entries, so no hover text opens on its own. The arrow keys, Home and End move along every entry, and focus goes back to the button when Escape closes it or a width is picked.
  * @public
  */
 export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys, onRefused }: PanelSizeControlProps = {}): React.JSX.Element | null {
@@ -71,15 +89,10 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const slot = React.useContext(PanelSlotContext);
   const button = React.useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
+  // Whether the menu was opened from the keyboard (a click with no press count: Enter, Space or a screen reader). Only then does focus
+  // move onto an entry: Chromium marks that focus :focus-visible even after a mouse press, so its hover text would open and stay.
+  const [fromKeys, setFromKeys] = React.useState(false);
   const place = insidePanel(anchor);
-  const returnFocus = React.useRef(false);
-  // The popover's focus trap pulls focus back while it is still open, so the button takes it only once the commit that closes it has run.
-  React.useEffect(() => {
-    if (anchor === null && returnFocus.current) {
-      returnFocus.current = false;
-      button.current?.focus({ preventScroll: true });
-    }
-  }, [anchor]);
   const refused = (what: 'resize' | 'fullscreen'): void => {
     if (onRefused !== undefined) onRefused(what);
     else announce?.(what === 'resize' ? labels.couldNotResize : labels.couldNotFullscreen);
@@ -87,12 +100,24 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
   const maximize = usePanelMaximize(button, { ...(topInset !== undefined ? { topInset } : {}), onRefused: () => refused('fullscreen') });
   const handle = slot?.handle;
   const summary = slot?.summary;
+  // Focus goes back to the button only once the menu has closed: while open, its focus trap pulls focus back into the menu, which then
+  // unmounts holding it with no blur React can see, and the panel would read itself as focused, its chrome shown, from then on.
+  const refocus = React.useRef(false);
+  React.useEffect(() => {
+    if (anchor !== null || !refocus.current) return;
+    refocus.current = false;
+    button.current?.focus({ preventScroll: true });
+  }, [anchor]);
   if (!drawsSizeControl(slot) || handle === undefined || summary === undefined) return null;
   const maxSlots = slot?.maxSlots ?? 1;
   const limit = Math.min(SIZE_KEYS.length, maxSlots, summary.fitSlots ?? maxSlots);
   const own = summary.savedSlots ?? summary.slots ?? 1;
+  const isCurrent = (slots: number): boolean => !maximize.maximized && (summary.slots ?? 1) === slots;
+  const widths = Array.from({ length: limit }, (_, i) => i + 1);
+  // Opened from the keyboard, focus goes to the first width that is not the current size, and with no other width to Fullscreen.
+  const firstWidth = fromKeys ? widths.find((slots) => !isCurrent(slots)) : undefined;
   const close = (): void => {
-    returnFocus.current = true;
+    refocus.current = true;
     setAnchor(null);
   };
   const fullscreenLabel = fullscreenShortcut === undefined ? labels.fullscreen : `${labels.fullscreen} (${fullscreenShortcut})`;
@@ -108,7 +133,10 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
           data-panel-size-button=""
           // A press must not move focus first: the row reads a focus change inside a panel as the person choosing it.
           onMouseDown={(event) => event.preventDefault()}
-          onClick={(event) => setAnchor(event.currentTarget)}
+          onClick={(event) => {
+            setFromKeys(event.detail === 0);
+            setAnchor(event.currentTarget);
+          }}
           sx={ICON}
         >
           {maximize.maximized || own > SIZE_KEYS.length ? icons.fullscreen : icons.size(own)}
@@ -120,41 +148,52 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
         open={anchor !== null}
         onClose={(_event, reason) => (reason === 'escapeKeyDown' ? close() : setAnchor(null))}
         disableRestoreFocus
-        anchorOrigin={{ vertical: 'bottom', horizontal: place.side }}
-        transformOrigin={{ vertical: 'top', horizontal: place.side }}
-        slotProps={{ paper: { role: 'dialog', 'aria-label': labels.viewSize, sx: { maxWidth: place.maxWidth, maxHeight: 'calc(100% - 96px)' } } }}
+        anchorReference="anchorPosition"
+        anchorPosition={{ top: place.top, left: place.left }}
+        marginThreshold={0}
+        slotProps={{ paper: { role: 'dialog', 'aria-label': labels.viewSize, sx: { width: place.width, maxWidth: place.width, maxHeight: 'calc(100% - 96px)', borderRadius: 999 } } }}
       >
-        <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" onKeyDown={stepFocus} sx={{ px: 2, pt: 2, pb: 1.5 }}>
-          <Typography variant="caption" component="div" color="text.secondary">
+        <Box role="group" aria-label={labels.viewSize} data-panel-size-group="" onKeyDown={stepFocus} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, px: 2, py: 1 }}>
+          {/* MUI 9's Typography takes the text colors as textPrimary/textSecondary; 'text.secondary' falls through to the primary text color. */}
+          <Typography variant="caption" component="div" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
             {labels.viewSize}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            {Array.from({ length: limit }, (_, i) => i + 1).map((slots) => (
-              <Tooltip key={slots} title={labels.sizeName(slots)}>
-                <IconButton
-                  size="small"
-                  data-view-size={SIZE_KEYS[slots - 1]}
-                  autoFocus={slots === 1}
-                  aria-label={labels.sizeName(slots)}
-                  aria-pressed={(summary.slots ?? 1) === slots}
-                  onClick={() => {
-                    close();
-                    if (!handle.setSlots(slots, 'person').ok) refused('resize');
-                  }}
-                  sx={ENTRY}
-                >
-                  {icons.size(slots)}
-                </IconButton>
-              </Tooltip>
-            ))}
+            {widths.map((slots) => {
+              const current = isCurrent(slots);
+              return (
+                <Tooltip key={slots} title={labels.sizeName(slots)}>
+                  <IconButton
+                    size="small"
+                    data-view-size={SIZE_KEYS[slots - 1]}
+                    autoFocus={slots === firstWidth}
+                    aria-label={labels.sizeName(slots)}
+                    {...currentProps(current)}
+                    onClick={() => {
+                      // The size the panel has already: a press, Enter or Space changes nothing and leaves the menu open.
+                      if (current) return;
+                      close();
+                      if (maximize.maximized) maximize.toggle();
+                      if (!handle.setSlots(slots, 'person').ok) refused('resize');
+                    }}
+                    sx={ENTRY}
+                  >
+                    {icons.size(slots)}
+                  </IconButton>
+                </Tooltip>
+              );
+            })}
             <Tooltip title={fullscreenLabel}>
               <IconButton
                 size="small"
                 data-view-fullscreen=""
-                aria-label={labels.fullscreen}
+                autoFocus={fromKeys && firstWidth === undefined}
+                // The name carries the shortcut the hover text shows: the Tooltip's own label gives way to the button's.
+                aria-label={fullscreenLabel}
                 {...(fullscreenKeys !== undefined ? { 'aria-keyshortcuts': fullscreenKeys } : {})}
-                aria-pressed={maximize.maximized}
+                {...currentProps(maximize.maximized)}
                 onClick={() => {
+                  if (maximize.maximized) return;
                   close();
                   maximize.toggle();
                 }}

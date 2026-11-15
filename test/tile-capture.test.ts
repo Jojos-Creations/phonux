@@ -170,6 +170,110 @@ test('the store takes a picture of the host-set byte cap, not a fixed number', a
   assert.equal(controller.get('a'), null, 'a picture larger than the host byte cap was kept');
 });
 
+const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('TS1 a capture asked of a panel still fading in waits, and is taken once the panel shows', async () => {
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a']);
+  const row = panel();
+  const el = row.appendChild(document.createElement('div'));
+  Object.defineProperty(el, 'clientWidth', { value: 400 });
+  Object.defineProperty(el, 'clientHeight', { value: 800 });
+  row.style.opacity = '0.3'; // the fade is on an ancestor, as a row's entrance is
+  controller.register('a', el, 'viewport');
+  controller.capture('a');
+  controller.capture('a');
+  await wait(120);
+  assert.equal(calls.length, 0, 'control: a fading panel is not drawn mid-fade');
+  row.style.opacity = '1';
+  await wait(120);
+  await flush();
+  assert.equal(calls.length, 1, 'the capture was taken once, when the panel showed');
+  assert.ok(controller.get('a'), 'its picture is kept');
+});
+
+test('TS2 a panel closed while its capture waits is never drawn', async () => {
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a', 'b']);
+  const a = panel();
+  a.style.opacity = '0';
+  controller.register('a', a, 'viewport');
+  controller.capture('a');
+  controller.evict('a');
+  const b = panel();
+  b.style.opacity = '0';
+  const unregister = controller.register('b', b, 'viewport');
+  controller.capture('b');
+  unregister();
+  b.remove();
+  a.style.opacity = '1';
+  b.style.opacity = '1';
+  await wait(150);
+  await flush();
+  assert.equal(calls.length, 0, 'an evicted or unregistered panel was drawn');
+  assert.equal(controller.get('a'), null);
+});
+
+test('TS3 a panel that stays faded past the wait keeps its last picture, and showing later takes no picture', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a']);
+  const el = panel();
+  el.style.opacity = '0';
+  controller.register('a', el, 'viewport');
+  controller.capture('a');
+  const step = (ms: number): void => { for (let at = 0; at < ms; at += 10) t.mock.timers.tick(10); }; // one tick per look it schedules
+  step(1950);
+  assert.equal(calls.length, 0);
+  step(100);
+  el.style.opacity = '1';
+  step(500);
+  t.mock.timers.reset();
+  await flush();
+  assert.equal(calls.length, 0, 'the wait ended at two seconds');
+  controller.capture('a');
+  await flush();
+  assert.equal(calls.length, 1, 'control: a capture asked now is taken');
+});
+
+test('a panel behind its placeholder keeps its last picture, and is pictured once the load ends', async () => {
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a']);
+  const el = panel();
+  const loader = el.appendChild(document.createElement('div'));
+  const cover = loader.appendChild(document.createElement('div'));
+  cover.setAttribute('data-panel-loading', '');
+  controller.register('a', el, 'viewport');
+  controller.capture('a');
+  await flush();
+  assert.equal(calls.length, 0, 'the placeholder was pictured');
+  assert.equal(controller.get('a'), null);
+  cover.remove();
+  loader.dispatchEvent(new Event('phonux-panel-loaded', { bubbles: true }));
+  await flush();
+  assert.equal(calls.length, 1, 'the loaded panel was not pictured');
+  assert.ok(controller.get('a'));
+  loader.dispatchEvent(new Event('phonux-panel-loaded', { bubbles: true }));
+  await flush();
+  assert.equal(calls.length, 1, 'a load nobody asked to picture was pictured');
+});
+
+test('a panel showing a failed load is not pictured', async () => {
+  const calls: TileRequest[] = [];
+  const controller = createTileCapture({ rasterise: rasteriser(calls) });
+  await controller.restore(['a']);
+  const el = panel();
+  el.appendChild(document.createElement('div')).setAttribute('data-panel-load-failed', 'error');
+  controller.register('a', el, 'viewport');
+  controller.capture('a');
+  await flush();
+  assert.equal(calls.length, 0);
+});
+
 test('evidence 7 and 4: the library imports no DOM capture package and names no storage location', () => {
   const files = ['captureTiles.ts', 'capturePolicy.ts', 'captureRecapture.ts'];
   for (const file of files) {

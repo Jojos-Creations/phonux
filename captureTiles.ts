@@ -3,7 +3,7 @@
 // this module draws nothing and names no location where pictures are kept.
 
 import type { CaptureRegistry, CaptureTrigger, SnapshotsAPI, ViewId, ViewSnapshot } from './snapshots.js';
-import { isFadedOrHidden, isOneColour, tilePictureBox } from './capturePolicy.js';
+import { PANEL_LOADED_EVENT, isFadedOrHidden, isOneColour, isStillLoading, tilePictureBox } from './capturePolicy.js';
 
 /** A picture's stored form: what `TilePictureStorage` reads and writes. Plain data, so any storage can hold it. @public */
 export interface TilePictureRecord {
@@ -93,7 +93,9 @@ export interface TileCaptureOptions {
 
 /**
  * The tile-picture controller: a `CaptureRegistry` for panels, a `CaptureTrigger` for the host's park, close and
- * evict moments, and the `SnapshotsAPI` a `HostProvider` reads from. @public
+ * evict moments, and the `SnapshotsAPI` a `HostProvider` reads from. A capture asked of a panel that is faded or hidden
+ * (still fading in, say) waits a while for it to show and is taken then; a host needs no timed retry.
+ * @public
  */
 export interface TileCapture extends CaptureRegistry, CaptureTrigger, SnapshotsAPI {
   /**
@@ -184,9 +186,39 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
     return dropped;
   };
 
+  /** Panels whose capture was turned away by a load still running. */
+  const waitingForLoad = new Set<ViewId>();
+  /** Panels whose capture waits for a fade to end, with the timer of the next look. */
+  const waitingForShow = new Map<ViewId, ReturnType<typeof setTimeout>>();
+  const stopWaitingForShow = (viewId: ViewId): void => {
+    clearTimeout(waitingForShow.get(viewId));
+    waitingForShow.delete(viewId);
+  };
+  // Looks again every SHOW_POLL_MS: a fade may be a CSS transition or a script's animation, and neither tells this module it ended.
+  const awaitShown = (viewId: ViewId): void => {
+    if (waitingForShow.has(viewId)) return;
+    let looks = Math.ceil(SHOW_WAIT_MS / SHOW_POLL_MS);
+    const look = (): void => {
+      const target = registered.get(viewId);
+      looks -= 1;
+      if (target === undefined || !target.el.isConnected) return void waitingForShow.delete(viewId);
+      if (!isFadedOrHidden(target.el)) {
+        waitingForShow.delete(viewId);
+        capture(viewId);
+      } else if (looks > 0) waitingForShow.set(viewId, setTimeout(look, SHOW_POLL_MS));
+      // Still faded at the end of the wait: a parked or hidden panel, whose last good picture stays.
+      else waitingForShow.delete(viewId);
+    };
+    waitingForShow.set(viewId, setTimeout(look, SHOW_POLL_MS));
+  };
+
   const register: CaptureRegistry['register'] = (viewId, el, extent) => {
     registered.set(viewId, { el, extent });
+    // The picture asked for during the load is owed now; a panel nobody asked to picture stays unpictured.
+    const onLoaded = (): void => { if (waitingForLoad.delete(viewId)) capture(viewId); };
+    el.addEventListener(PANEL_LOADED_EVENT, onLoaded);
     return () => {
+      el.removeEventListener(PANEL_LOADED_EVENT, onLoaded);
       // Only this registration's own entry: a later register() of the same id must not be undone by an older cleanup.
       if (registered.get(viewId)?.el === el) registered.delete(viewId);
     };
@@ -200,7 +232,7 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
       await imagesSettled(loading);
       if (!el.isConnected) return null;
     }
-    if (isFadedOrHidden(el)) return null;
+    if (isFadedOrHidden(el) || isStillLoading(el)) return null;
     // 'full' is the scroll extent, past what is visible; the client extent is what the viewport shows.
     const width = extent === 'full' ? el.scrollWidth : el.clientWidth;
     const height = extent === 'full' ? el.scrollHeight : el.clientHeight;
@@ -236,8 +268,10 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
 
   const capture: CaptureTrigger['capture'] = (viewId) => {
     const target = registered.get(viewId);
-    // A faded or hidden panel would draw over its last good picture.
-    if (!target || isFadedOrHidden(target.el)) return;
+    if (!target) return;
+    // A faded or hidden panel would draw over its last good picture: the capture waits for it to show.
+    if (isFadedOrHidden(target.el)) { awaitShown(viewId); return; }
+    if (isStillLoading(target.el)) { waitingForLoad.add(viewId); return; }
     // Sampled now, before the async work: an evict in this same tick must already count against this capture.
     const generation = generationOf(viewId);
     const { el, extent } = target;
@@ -253,6 +287,8 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
 
   const evict: CaptureTrigger['evict'] = (viewId) => {
     generations.set(viewId, generationOf(viewId) + 1);
+    waitingForLoad.delete(viewId);
+    stopWaitingForShow(viewId);
     if (!restored) evictedBeforeRestore.add(viewId);
     if (forget(viewId)) notify(viewId);
     if (storage) enqueue(() => storage.remove([viewId]));
@@ -325,6 +361,9 @@ export function createTileCapture(options: TileCaptureOptions): TileCapture {
 
 /** How long a capture waits for a panel's pictures to load before it takes what is there. */
 const IMAGE_WAIT_MS = 5000;
+// How long a capture of a faded or hidden panel waits for it to show (the row's fades take 0.6 s), and how often it looks.
+const SHOW_WAIT_MS = 2000;
+const SHOW_POLL_MS = 50;
 
 /** The `<img>`s under `el` still loading. */
 const loadingImages = (el: HTMLElement): HTMLImageElement[] => [...el.querySelectorAll('img')].filter((img) => !img.complete);

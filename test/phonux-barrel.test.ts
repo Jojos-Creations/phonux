@@ -37,6 +37,8 @@ const VALUE_EXPORTS = [
   'noopCaptureTrigger',
   'createTileCapture',
   'useRecaptureOnSettle',
+  'CHROME_INSIDE_ATTRIBUTE',
+  'PANEL_CHROME_INSET_PX',
   'useViewState',
   'ViewStateMissingProviderError',
   'DEFAULT_PANEL_SIZE',
@@ -46,6 +48,9 @@ const VALUE_EXPORTS = [
   'computeRowNumbers',
   'PanelRow',
   'PanelSizeBox',
+  'PANEL_LOAD_TIMEOUT_MS',
+  'PANEL_PLACEHOLDER_WINDOW_MS',
+  'PanelLoader',
   'PanelSizeControl',
   'GAP',
   'PANEL_TRANSITION',
@@ -64,6 +69,7 @@ const VALUE_EXPORTS = [
   'Workspace',
   'WorkspacePanel',
   'WorkspaceTrash',
+  'packWorkspaceTiles',
   'useProvidePanels',
   'feedRowWheel',
   'reorderStepsForOffset',
@@ -98,6 +104,7 @@ const VALUE_EXPORTS = [
   'ACTIVE_ATTRIBUTE',
   'CHROME_ATTRIBUTE',
   'CHROME_PARTS',
+  'CHROME_SHOWN_ATTRIBUTE',
   'DRAGGING_ATTRIBUTE',
   'PHONE_FRAME_ATTRIBUTE',
   // The workspace name control a column draws, for a host to size and style around.
@@ -139,7 +146,7 @@ const VALUE_EXPORTS = [
   'withSlotChanges',
 ].sort();
 
-test('the phonux barrel exports exactly the 126 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 128 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

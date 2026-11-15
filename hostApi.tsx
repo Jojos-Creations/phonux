@@ -139,8 +139,8 @@ export interface PanelsAPI {
   /**
    * Appends a live panel; zero-arg opens a panel of the host's default view. `view` names the template that renders
    * the panel -- an unknown key renders a placeholder, never a crash. No raw
-   * `collapsible` key: `permanent` (CreatePanelOptions) is the only door to a permanent column. A panel whose `overflow` setting is 'park' parks the live parkable panel
-   * touched longest ago at capacity; any other panel scrolls the row instead of parking anything.
+   * `collapsible` key: `permanent` (CreatePanelOptions) is the only door to a permanent column. The row scrolls to make room;
+   * no other panel is hidden.
    * @deprecated Use `useWorkspace().panels.addPanel(template)`. Still works, with one development warning; removed in a later release.
    */
   create(): void;
@@ -151,7 +151,7 @@ export interface PanelsAPI {
    */
   create(options: CreatePanelOptions): void;
   /**
-   * Make a panel live in place, without reordering the row. When its `overflow` is 'park', it may park the live parkable panel touched longest ago.
+   * Make a panel live in place, without reordering the row. No other panel is hidden to make room: the row scrolls.
    * @deprecated Use `useWorkspace().panels.get(key)?.show()`. Still works, with one development warning; removed in a later release.
    */
   activate(id: string): void;
@@ -166,8 +166,7 @@ export interface PanelsAPI {
   /**
    * Sets `id` to `slots` phone-panel widths wide, clamped to 1 and the panel's `maxSlots`; the row draws it at most as wide as
    * fits the window. It stays mounted and live, its content the same node, and the row reflows around it. If the row no longer fits,
-   * OTHER panels whose `overflow` is 'park' park, never this one -- also when one handler resizes, opens or activates several panels,
-   * unless the earlier of them already fill the row. No-op for an unknown id, a permanent column (e.g. the root), a panel that is not
+   * the row scrolls; no other panel is hidden. No-op for an unknown id, a permanent column (e.g. the root), a panel that is not
    * resizable or a panel already at that count. See DESIGN.md for the slots.
    * Optional so a host that does not implement slots still satisfies `PanelsAPI`; the library's own provider (`useProvidePanels`) always implements it.
    * @deprecated Use `useWorkspace().panels.get(key)?.setSlots(slots)`. Still works, with one development warning; removed in a later release.
@@ -186,7 +185,9 @@ export interface PanelsAPI {
   close(id: string): void;
   /** The views closed within the current undo window, oldest first; non-null exactly while it is open, which is until the latest of each recent close's time plus that panel's `undoWindowMs`. The workspace's own undo-close toast shows exactly while it is non-null. */
   readonly recentlyClosed: readonly PanelSummary[] | null;
-  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, parking the live parkable one touched longest ago if the row is full and its `overflow` is 'park') and its log entry is removed. Does nothing when the window is closed. */
+  /** The views in `recentlyClosed` the person closed (source `'person'`), oldest first; null when there are none. What a host's own undo notice shows, since a close from code gives the person nothing to undo. The workspace's own panel API always sets it; a host-written `PanelsAPI` may leave it out, so read it as `closedByPerson ?? null`. */
+  readonly closedByPerson?: readonly PanelSummary[] | null;
+  /** Undo every close in `recentlyClosed`: each view returns at its old place (a live one comes back live, and the row scrolls to make room) and its log entry is removed. Does nothing when the window is closed. */
   undoClose(): void;
   /** Forgets every panel that is clearable; the root, a fixed column and an unclearable panel stay. Not logged and not undoable. */
   clearAll(): void;

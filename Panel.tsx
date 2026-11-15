@@ -9,6 +9,8 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import type { CssStyle, ElementProps } from './cssStyle.js';
+import { CHROME_INSIDE_ATTRIBUTE, chromeInsideSx, useChromeScrollAway } from './panelChromeInside.js';
+import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import { PanelHeaderRow, type PanelHeaderRowProps } from './PanelFrame.js';
 import { type PanelSize, useOptionalHost } from './hostApi.js';
 import { resolveIcons } from './icons.js';
@@ -22,7 +24,7 @@ import { CaptureRegistryContext, type ViewId } from './snapshots.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import { GRAB_HANDLE_PX } from './rowConstants.js';
 import { PanelTouchContext, usePanelTouch } from './panelTouch.js';
-import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
+import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, CHROME_SHOWN_ATTRIBUTE, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
 export type { Host } from './hostApi.js';
@@ -108,6 +110,8 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   const touchProps = usePanelTouch(rootRef, React.useContext(PanelTouchContext));
   const dragging = usePanelDragging();
   const { visible, handlers } = useChromeVisibility();
+  const inside = (slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome).where === 'inside';
+  const onScrollCapture = useChromeScrollAway(rootRef, inside);
   const fadeHeader = useChromeFade(visible);
   const fadeGrab = useChromeFade(visible);
   const warned = React.useRef(false);
@@ -133,6 +137,19 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
     warned.current = true;
     console.warn('Panel: header buttons are declared but the panel has no title, so no header row is drawn and they are not shown.');
   }, [untitled]);
+  // Hover is read from the DOM's pointer boundaries, not React's: React counts a menu portalled out of the panel as inside it, so a
+  // pointer still on one as it closes would never leave the panel.
+  React.useEffect(() => {
+    const el = rootRef.current;
+    if (el === null) return undefined;
+    const { onPointerEnter, onPointerLeave } = handlers;
+    el.addEventListener('pointerenter', onPointerEnter);
+    el.addEventListener('pointerleave', onPointerLeave);
+    return () => {
+      el.removeEventListener('pointerenter', onPointerEnter);
+      el.removeEventListener('pointerleave', onPointerLeave);
+    };
+  }, [handlers]);
   React.useEffect(() => {
     // No registry (a bare <HostProvider>, as in most tests) or opted out: registering is a no-op, never a throw.
     if (!registry || !viewId || capture === 'never' || !rootRef.current) return undefined;
@@ -141,20 +158,18 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   return (
     <PanelChromeVisibleContext.Provider value={visible}>
     <Box
-      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...sx }}
+      sx={{ position: 'relative', width: boxed ? '100%' : (size?.width ?? slot?.drawn?.width ?? phoneSize.width), height: boxed ? '100%' : undefined, ...(inside ? chromeInsideSx : {}), ...sx }}
       {...{ [PANEL_ROOT_ATTRIBUTE]: '' }}
       {...rest}
+      {...(inside ? { [CHROME_INSIDE_ATTRIBUTE]: '' } : {})}
+      onScrollCapture={(e: React.UIEvent<HTMLDivElement>) => {
+        onScrollCapture(e);
+        rest.onScrollCapture?.(e);
+      }}
       {...(active ? { [ACTIVE_ATTRIBUTE]: '' } : {})}
+      {...(visible || (slot?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome).mode === 'always' ? { [CHROME_SHOWN_ATTRIBUTE]: '' } : {})}
       {...touchProps}
       {...(dragging ? { [DRAGGING_ATTRIBUTE]: '' } : {})}
-      onPointerEnter={(e: React.PointerEvent<HTMLDivElement>) => {
-        handlers.onPointerEnter(e);
-        rest.onPointerEnter?.(e);
-      }}
-      onPointerLeave={(e: React.PointerEvent<HTMLDivElement>) => {
-        handlers.onPointerLeave(e);
-        rest.onPointerLeave?.(e);
-      }}
       onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
         handlers.onFocus(e);
         rest.onFocus?.(e);

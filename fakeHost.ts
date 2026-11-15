@@ -42,7 +42,7 @@ export type { BezierEase, FadeEase } from './panelSettings.js';
 export type { ChromeTuning, CloseExitEase, GlideEase, HeaderButtonBase, HeaderButtonContext } from './panelSettings.js';
 export type { SettingsPatch } from './settingsPatch.js';
 export type { CssStyle, ElementProps } from './cssStyle.js';
-export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, Overflow, PanelSettings, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
+export type { DragToCloseTuning, EdgeScrollTuning, EnterFrom, ExitTo, HeaderButtonIconForm, HeaderButtonTextForm, PanelSettings, ScrollOnDrag, ScrollOnMove, ScrollOnOpen, SlideTuning, WorkspaceTuning } from './panelSettings.js';
 export type { InstancePatch } from './settingsPatch.js';
 
 /** One recorded call to a fake method, as listed in `FakeHost.calls`. @public */
@@ -95,6 +95,7 @@ export function createFakeHost(overrides: FakeOverrides = {}): FakeHost {
     reanchor: (id, anchor) => log('panels', 'reanchor', [id, anchor]),
     close: (id) => log('panels', 'close', [id]),
     recentlyClosed: null,
+    closedByPerson: null,
     undoClose: () => log('panels', 'undoClose', []),
     clearAll: () => log('panels', 'clearAll', []),
   };
@@ -303,4 +304,5 @@ export function createFakePanel<P extends JsonValue = JsonValue>(state: Partial<
 }
 
 export { reportMaximized } from './maximizedStore.js';
+export { stubRowDom } from './testingDom.js';
 export type { MaximizablePanel, MaximizePhase } from './maximizedStore.js';

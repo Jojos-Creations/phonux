@@ -40,6 +40,10 @@ jobs:
       # Trusted publishing needs npm 11.5.1 or later.
       - run: npm install -g npm@11.6.2
       - run: npm ci
+      # The gate runs here too: release:check builds and smokes the package, which a red tree can pass.
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
       # release:check refuses a version the registry already has, then builds and runs the publish gate.
       - run: npm run release:check
       - name: Publish from dist/

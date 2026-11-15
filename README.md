@@ -85,13 +85,13 @@ import { createWorkspaceColumn, definePanel } from 'phonux';
 
 const notes = definePanel({ id: 'notes', view: NotesView });
 const column = createWorkspaceColumn({ templates: [notes] });
-column.addWorkspace().addPanel('notes'); // "Workspace 1"
+column.addWorkspace().addPanel('notes'); // "Space 1"
 column.addWorkspace({ name: 'Reading' }); // or give it a name
 column.removeWorkspace(0); // takes it out and disposes it; false for the last one
 ```
 
 The column renders itself. A button at the top and bottom center names the neighbor and moves there, `column.step('up' | 'down')`
-moves by one (bind a key to it; the column binds none), and where there is none it reads "Create new workspace" and calls
+moves by one (bind a key to it; the column binds none), and where there is none it reads "New space" and calls
 `addWorkspace`. Each workspace has an input above its panels for its name. `storage` keeps the list, the names and the current
 workspace; the column has one content (`root`, `templates`, `defaults`, `order`), `addWorkspace` takes only `id`, `name` and `index`, and a
 workspace's panels are kept by `storage.workspace(id)` (return `undefined` for none). Give the workspace you already have its old key with `addWorkspace({ id })`. An app that draws its own rows passes
@@ -214,6 +214,11 @@ await row.dispose();
 ```
 
 `row.panel(id)` returns the drawn `root`, `header`, `grabBar` and `footer` of the panel with that key.
+
+A host whose tests keep their own jsdom window (and real time) calls `stubRowDom(window)` from `phonux/testing` once,
+before it mounts a `Workspace`. It fills in what the row reads that jsdom lacks: `matchMedia`, `IntersectionObserver`,
+`ResizeObserver`, `CSS.escape`, a computed margin of `0px`, and the offsets of the row's window and slot markers, so the
+row has its stops and an arrow key or a scroll request steps it. jsdom draws nothing, so no element's box follows the row.
 
 See `DESIGN.md` in this folder for the reasoning behind the API shape, the
 panel-view registry, and what stays out of a view's reach on purpose.

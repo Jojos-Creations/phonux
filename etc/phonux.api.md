@@ -76,11 +76,17 @@ export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof Workspac
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
 
 // @public
+export const CHROME_INSIDE_ATTRIBUTE = "data-panel-chrome-inside";
+
+// @public
 export const CHROME_PARTS: {
     readonly header: "header";
     readonly grabBar: "grab-bar";
     readonly footer: "footer";
 };
+
+// @public
+export const CHROME_SHOWN_ATTRIBUTE = "data-panel-chrome-shown";
 
 // @public
 export type ChromePart = (typeof CHROME_PARTS)[keyof typeof CHROME_PARTS];
@@ -90,6 +96,8 @@ export type ChromeTuning = {
     mode: 'always' | 'hover-or-active';
     fadeMs: number;
     fadeEase: FadeEase;
+    where: 'outside' | 'inside';
+    fitVisibleMaxSlots: number;
 };
 
 // @public
@@ -357,9 +365,6 @@ export function findPhoneModel(id: string): PhoneModel | undefined;
 export const GAP = 16;
 
 // @public
-export type GlideEase = 'cubic-out' | 'linear' | BezierEase;
-
-// @public
 export interface GrabDragEnd {
     clientX: number;
     clientY: number;
@@ -572,9 +577,6 @@ export interface OpenRow {
 }
 
 // @public
-export type Overflow = 'scroll' | 'park';
-
-// @public
 export const OVERLAY_Z: {
     readonly dialog: 2000;
     readonly toast: 1400;
@@ -589,6 +591,9 @@ export const OverlaySlot: React_2.NamedExoticComponent<{
 export type OverlaySlotName = 'dialog' | 'toast';
 
 // @public
+export function packWorkspaceTiles(spans: readonly number[], columns: number): WorkspaceTileRow[];
+
+// @public
 export function Panel(input: PanelProps): React_2.JSX.Element;
 
 // @public
@@ -598,10 +603,19 @@ export const PANEL_API: PanelApiLevel;
 export const PANEL_BAR_HEIGHT_PX: number;
 
 // @public
+export const PANEL_CHROME_INSET_PX: number;
+
+// @public
 export const PANEL_CORNER_RADIUS_UNITS = 4;
 
 // @public
 export const PANEL_FOOTER_ROOM_PX: number;
+
+// @public
+export const PANEL_LOAD_TIMEOUT_MS = 15000;
+
+// @public
+export const PANEL_PLACEHOLDER_WINDOW_MS = 200;
 
 // @public
 export const PANEL_ROOT_ATTRIBUTE = "data-panel-root";
@@ -641,6 +655,7 @@ export interface PanelDots {
             readonly touchAction: 'none';
             readonly cursor: string;
         };
+        readonly 'data-dot-bar': '';
     };
     readonly cursor: string;
     dotProps(id: string): {
@@ -663,8 +678,11 @@ export interface PanelDots {
         readonly 'aria-valuemin': 0;
         readonly 'aria-valuemax': 100;
         readonly 'aria-valuenow': number;
+        readonly 'aria-valuetext': string;
+        readonly onKeyDown: (e: React_2.KeyboardEvent<HTMLElement>) => void;
     };
     selectDot(id: string): void;
+    readonly shown: readonly string[];
     startOvalDrag(): {
         drag(dx: number): void;
         end(): void;
@@ -767,6 +785,22 @@ export interface PanelHeaderTextItem extends PanelHeaderButtonItemBase {
 export type PanelId = string;
 
 // @public
+export function PanelLoader(input: PanelLoaderProps): React_2.JSX.Element;
+
+// @public
+export interface PanelLoaderProps {
+    readonly children: React_2.ReactNode;
+    readonly failed?: (retry: () => void, why: PanelLoadFailure) => React_2.ReactNode;
+    readonly load: () => Promise<unknown>;
+    readonly placeholder?: () => React_2.ReactNode | Promise<React_2.ReactNode>;
+    readonly timeoutMs?: number;
+    readonly windowMs?: number;
+}
+
+// @public
+export type PanelLoadFailure = 'error' | 'timeout';
+
+// @public
 export interface PanelManager {
     configure(id: PanelId, patch: InstancePatch): ConfigureResult;
     configureTemplate(templateId: string, patch: Pick<SettingsPatch, 'hostCreatable' | 'hollowDot' | 'multiple' | 'maxInstances'>): ConfigureResult;
@@ -778,7 +812,10 @@ export interface PanelManager {
     getSnapshot(): PanelSnapshot;
     list(f?: ListFilter): readonly PanelHandle[];
     resetLayout(target: PanelId | 'all'): ResetResult;
+    rootView(): RootView;
     subscribe(l: () => void): () => void;
+    subscribeMoves(l: (move: PanelMove) => void): () => void;
+    summonRoot(): boolean;
     swap(show: readonly (PanelId | {
         id: PanelId;
         place?: AddPlacement | 'in-place';
@@ -805,6 +842,12 @@ export interface PanelMaximize {
     readonly phase: MaximizePhase;
     toggle(): boolean;
 }
+
+// @public
+export type PanelMove = {
+    readonly id: PanelId;
+    readonly source: 'code' | 'person';
+};
 
 // @public
 export interface PanelPresence {
@@ -925,6 +968,7 @@ export interface PanelsAPI {
     clearAll(): void;
     // @deprecated
     close(id: string): void;
+    readonly closedByPerson?: readonly PanelSummary[] | null;
     // @deprecated
     create(): void;
     // @deprecated
@@ -998,7 +1042,6 @@ export interface PanelSize {
 export function PanelSizeBox(input: {
     width?: number;
     height?: number;
-    reveal?: boolean;
     children: React_2.ReactNode;
 }): React_2.JSX.Element;
 
@@ -1042,6 +1085,7 @@ export interface PanelState {
     readonly openedBy?: PanelId | null;
     readonly params: JsonValue | undefined;
     readonly settings: ResolvedPanelSettings;
+    readonly slots?: number;
     readonly status: PanelStatus;
     readonly templateId: string;
     readonly title: string | undefined;
@@ -1183,7 +1227,9 @@ export interface PhonuxLabels {
     close: string;
     closed: (title: string) => string;
     couldNotFullscreen: string;
+    couldNotLoad: string;
     couldNotResize: string;
+    dotBarView: (first: number, last: number, total: number) => string;
     dragCancelled: (title: string) => string;
     dropped: (title: string) => string;
     fullscreen: string;
@@ -1196,6 +1242,7 @@ export interface PhonuxLabels {
     pickedUp: (title: string) => string;
     row: string;
     sizeName: (slots: number) => string;
+    tryAgain: string;
     undo: string;
     undoCloseMessage: (titles: readonly string[]) => string;
     untitledHeader: string;
@@ -1299,11 +1346,8 @@ export type ResolvedWorkspaceTuning = {
     rowTop: number | null;
     phoneHeight: 'fit' | 'auto';
     saveQuietMs: number;
-    gestureLockMs: number;
     gestureQuietMs: number;
     resizeSettleSlides: number;
-    returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order';
-    dropTieBreak: 'leftmost' | 'rightmost';
     rowGesture: 'step' | 'off';
     fastScroll: 'coalesce' | 'jump';
     initialScroll: 'start' | 'end' | 'root' | {
@@ -1319,6 +1363,9 @@ export type ResolvedWorkspaceTuning = {
     shrinkUnfocused: boolean;
     firstPressFocusOnly: boolean;
 };
+
+// @public
+export type RootView = 'shown' | 'away';
 
 // @public
 export const ROW_ID_ATTRIBUTE = "data-row-id";
@@ -1340,7 +1387,7 @@ export const ROW_SLOT_ATTRIBUTE = "data-row-slot";
 export const ROW_STRIP_ATTRIBUTE = "data-row-strip";
 
 // @public
-export const rowFootReserve: (gap: number) => number;
+export const rowFootReserve: (gap: number, where?: "outside" | "inside") => number;
 
 // @public
 export interface RowFrameBand {
@@ -1368,6 +1415,7 @@ export interface RowLayoutResult {
 
 // @public
 export interface RowNumbers {
+    anchor?: number;
     endPad: number;
     held: readonly {
         id: string;
@@ -1481,12 +1529,7 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    hideStickiness: 'sticky' | 'until-room';
-    capacityReturn: 'auto' | 'manual';
-    overflow: Overflow;
-    revealOnScroll: 'edges' | 'any' | 'never';
     edgeHold: 'off' | 'left' | 'right' | 'both';
-    resize: 'reveal' | 'reflow';
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -1521,7 +1564,6 @@ export type SlideTuning = {
     ease: readonly [number, number, number, number];
     closeExitSeconds: number;
     closeExitEase: CloseExitEase;
-    glideEase: GlideEase;
 };
 
 // @public
@@ -1612,11 +1654,10 @@ export const usePanelCapabilities: () => Pick<ResolvedPanelSettings, "closable" 
 
 // @public
 export function usePanelDots(i: {
-    rowNumbers: RowNumbers;
     entries: readonly WorkspaceRowEntry[];
     scroller: React_2.RefObject<HTMLElement | null>;
-    tuning: Pick<ResolvedWorkspaceTuning, 'slide'> & Partial<Pick<ResolvedWorkspaceTuning, 'fastScroll'>>;
     ovalSide?: number;
+    labels?: Partial<PhonuxLabels>;
 }): PanelDots;
 
 // @public
@@ -1819,6 +1860,7 @@ export interface WorkspaceColumnHandle {
     dispose(): void;
     movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     removeWorkspace(target: WorkspaceHandle | number): boolean;
+    reorderWorkspace(target: WorkspaceHandle | number, toIndex: number): boolean;
     scrollTo(target: WorkspaceHandle | number): void;
     readonly status: ColumnStatus;
     step(direction: 'up' | 'down'): boolean;
@@ -1878,6 +1920,7 @@ export type WorkspaceOptions = WorkspaceLive & {
     theme?: (mode: 'light' | 'dark') => PhonuxTheme;
     wrap?: ComponentType<WorkspaceWrapProps>;
     undoToast?: boolean;
+    rowNearSlots?: number;
 };
 
 // @public
@@ -1958,6 +2001,7 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
     overflowContainerRef: RefObject<HTMLDivElement | null>;
     phoneHeight?: number;
     phoneWidth: number;
+    rowNearSlots?: number;
     rowNumbers?: RowNumbers;
     rowRef: RefObject<HTMLDivElement | null>;
     rowResizeSettled?: boolean;
@@ -1981,12 +2025,12 @@ export interface WorkspaceRow {
 
 // @public
 export interface WorkspaceRowEntry {
+    readonly collapsible?: boolean;
     readonly id: string;
     readonly live?: boolean;
     readonly marker?: true;
     readonly settings?: {
         readonly hollowDot: boolean;
-        readonly revealOnScroll?: 'edges' | 'any' | 'never';
     };
     readonly slots?: number;
     readonly uid?: string;
@@ -2022,6 +2066,14 @@ export interface WorkspaceTileCounts {
 }
 
 // @public
+export interface WorkspaceTileRow {
+    readonly end: number;
+    readonly start: number;
+    readonly stretched: boolean;
+    readonly used: number;
+}
+
+// @public
 export type WorkspaceTileSize = 'small' | 'medium' | 'large';
 
 // @public
@@ -2049,11 +2101,8 @@ export type WorkspaceTuning = {
     rowTop?: number | null;
     phoneHeight?: 'fit' | 'auto';
     saveQuietMs?: number;
-    gestureLockMs?: number;
     gestureQuietMs?: number;
     resizeSettleSlides?: number;
-    returnTieBreak?: 'latest-first' | 'earliest-first' | 'row-order';
-    dropTieBreak?: 'leftmost' | 'rightmost';
     rowGesture?: 'step' | 'off';
     fastScroll?: 'coalesce' | 'jump';
     initialScroll?: 'start' | 'end' | 'root' | {

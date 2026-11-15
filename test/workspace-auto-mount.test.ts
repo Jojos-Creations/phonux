@@ -111,7 +111,7 @@ function HandWired({ workspace }: { workspace: WorkspaceHandle }): React.ReactEl
   return React.createElement(ThemeProvider, { theme: muiThemeFor(createDefaultTheme('light')), children: host });
 }
 
-const scrolling = (id: string): PanelTemplate => tpl(id, { settings: { overflow: 'scroll' } });
+const scrolling = (id: string): PanelTemplate => tpl(id, { settings: {} });
 const sharedIds = (): (() => string) => {
   let n = 0;
   return () => `e${++n}`;

@@ -4,7 +4,7 @@
  * before the panel exists, while it is live and after the workspace detaches.
  */
 import type { JsonValue } from './hostApi.js';
-import type { ConfigureResult, PanelOpSource, PanelResult, ResetResult } from './panelManager.js';
+import type { ConfigureResult, PanelMove, PanelOpSource, PanelResult, ResetResult, RootView } from './panelManager.js';
 import type { AddPlacement, PanelId, PanelSettingsResolution, ScrollAlign, WorkspaceTuning } from './panelSettings.js';
 import type { InstancePatch, SettingsPatch, ViewPatch } from './settingsPatch.js';
 import type { ListFilter, PanelReader, PanelReadHandle, PanelSnapshot, PanelState, ViewHandle } from './panelTemplate.js';
@@ -23,7 +23,7 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
   getState(): PanelState & { readonly params: P | undefined };
   /** Brings the panel into view: a parked one comes back, a live one out of view is scrolled to, a closed one reopens when its `showWhenClosed` says so. */
   show(source?: 'code' | 'person'): PanelResult;
-  /** Parks the panel and holds it parked as its `hideStickiness` says. */
+  /** Parks the panel and holds it parked until it is shown. */
   hide(source?: 'code' | 'person'): PanelResult;
   /** Hides a live panel, shows a parked one and, for a closed one, reopens it when its `toggleWhenClosed` says so. */
   toggleVisibility(source?: 'code' | 'person'): PanelResult;
@@ -35,9 +35,11 @@ export interface PanelHandle<P extends JsonValue = JsonValue> extends PanelReadH
    * Moves a live panel `by` slots, negative to the left, in one gated call. It stops at the row's end or at a panel it
    * cannot cross; the result is accepted with `changed` true when at least one slot was crossed, and false at an end or for 0.
    * A call from code is not limited by `movable`, the root's included; with source `'person'` a panel whose `movable` is false answers `not-movable`.
+   * With source `'person'` the row follows the panel as its `scrollOnMove` says; a move from code never scrolls the row, and the
+   * panels in view stay where they are on screen, as for `place` from code.
    */
   move(by: number, source?: 'code' | 'person'): PanelResult;
-  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`root-fixed`), as it cannot be anchored to itself. */
+  /** Puts the panel where `p` says; a parked panel is placed and stays parked. Limited by `movable` as `move` is; the root is never placed (`root-fixed`), as it cannot be anchored to itself. With source `'person'` the row follows the panel as its `scrollOnMove` says; a place from code never scrolls the row, and the panels in view stay where they are on screen, those after the panel's old place closing the gap it left. */
   place(p: AddPlacement | 'in-place', source?: 'code' | 'person'): PanelResult;
   /** Makes the panel `slots` phone widths wide, clamped to 1 and its `maxSlots`; the row draws at most the slots that fit. A call from code is not limited by `resizable`; with source `'person'` a panel whose `resizable` is false answers `not-resizable`. */
   setSlots(slots: number, source?: 'code' | 'person'): PanelResult;
@@ -66,6 +68,8 @@ export interface ReadSource {
   subscribePanel(id: PanelId, l: () => void): () => void;
   getSnapshot(): PanelSnapshot;
   subscribe(l: () => void): () => void;
+  /** Calls `l` for each panel a completed move or place changed, after the snapshot that shows it. */
+  subscribeMoves(l: (move: PanelMove) => void): () => void;
   /** The operable handle of `id`, or undefined when the workspace knows no such panel. */
   handleOf(id: PanelId): PanelHandle | undefined;
   /** The read-only handle of `id`, or undefined when the workspace knows no such panel. */
@@ -78,6 +82,10 @@ export interface ReadSource {
   resetLayout(target: PanelId | 'all'): ResetResult;
   /** Parks `hide` and shows `show` in one update. */
   swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide: readonly PanelId[]): PanelResult;
+  /** Where the root stands in the view. */
+  rootView(): RootView;
+  /** Brings the root into the view. */
+  summonRoot(): boolean;
   /** Patches one panel's settings, for a panel's own caller or for its view. */
   configure(id: PanelId, patch: InstancePatch | ViewPatch, caller: 'panel' | 'view'): ConfigureResult;
   /** Patches the template-scope settings of a template. */

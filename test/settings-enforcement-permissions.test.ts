@@ -378,22 +378,12 @@ test('the undo window restarts from each close: a second default close 1 s in en
   assert.deepEqual(heldIds(p), []);
 });
 
-/** Root plus three live panels, all under `layer`, in a container that holds three columns: the reconcile effect parks the leftmost one. */
-const parkingRow = (layer: PanelSettings, spy: Spy): ReturnType<typeof provide> =>
-  provide([rootEntry(), made('a', { overflow: 'park', ...layer }), made('b', { overflow: 'park', ...layer }), made('c', { overflow: 'park', ...layer })], { capture: spy, containerWidth: 1300 });
-
-test('snapshot control: the row above really parks a panel, so the park scenario below can be positive', () => {
+test('a close takes a picture', () => {
   const spy = spyCapture();
-  const p = parkingRow({}, spy);
-  assert.deepEqual(p.now().entries.filter((e) => !e.live).map((e) => e.id), ['a']);
-});
-
-test('a park and a close each take a picture', () => {
-  const spy = spyCapture();
-  const p = parkingRow({}, spy);
-  assert.deepEqual(spy.captured, ['a']);
+  const p = provide([rootEntry(), made('a'), made('b'), made('c')], { capture: spy, containerWidth: 1300 });
+  assert.deepEqual(spy.captured, [], 'control: nothing parks for room on the strip, so no picture before the close');
   act(() => p.now().close('b'));
-  assert.deepEqual(spy.captured, ['a', 'b']);
+  assert.deepEqual(spy.captured, ['b']);
 });
 
 test('a close the gate refuses takes no picture', () => {
@@ -519,17 +509,9 @@ test('a row of hand-built and created entries has unique names by `key ?? id`', 
 // effective(): legacy defaults
 // ---------------------------------------------------------------------------
 
-test("effective of a hand-built collapsible entry has overflow 'park'", () => {
-  assert.equal(effective(hand('a')).overflow, 'park');
-});
-
-test("effective of a hand-built fixed column has overflow 'scroll'", () => {
-  assert.equal(effective(hand('a', { collapsible: false })).overflow, 'scroll');
-});
-
 test('effective of a hand-built entry has every key without a legacy field at its library default', () => {
   const eff = effective(hand('a')) as unknown as Record<string, unknown>;
-  const fromFields = new Set(['closable', 'parkable', 'movable', 'resizable', 'maxSlots', 'clearable', 'listed', 'overflow', 'layer', 'enterFrom', 'slots', 'title']);
+  const fromFields = new Set(['closable', 'parkable', 'movable', 'resizable', 'maxSlots', 'clearable', 'listed', 'layer', 'enterFrom', 'slots', 'title']);
   const derived = resolvePanelSettings().value as unknown as Record<string, unknown>;
   let compared = 0;
   for (const key of Object.keys(derived)) {

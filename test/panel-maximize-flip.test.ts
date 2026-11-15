@@ -1,6 +1,6 @@
 /**
- * Maximize grows a panel from its slot to the window and back as a transform: the root's box is set once, to the window, and no
- * frame of the grow or the shrink writes its top, left, width or height. jsdom has no popover and no layout, so both are stubbed.
+ * Maximize grows a panel from its slot to the window and back as a move and a clip: the root's box is set once, to the window, no
+ * frame of the grow or the shrink writes its top, left, width or height, and none scales it, so its content is never stretched. jsdom has no popover and no layout, so both are stubbed.
  */
 import { test, afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,24 +60,30 @@ async function boxesDuring(root: HTMLElement, run: () => Promise<void>): Promise
   return seen;
 }
 
-test('a grow sets the window box once and moves only the transform until it lands on the stylesheet box', async () => {
+test('a grow eases the panel\'s real box from its slot to the window, never moved by a transform or clipped, and lands on the stylesheet box', async () => {
   const root = mountPanel();
-  let mid = '';
-  let start = '';
+  let transforms = '';
   const boxes = await boxesDuring(root, async () => {
     act(() => void api!.toggle());
-    start = root.style.transform;
-    await advanceFrames(300);
-    mid = root.style.transform;
+    for (let k = 0; k < 30; k += 1) {
+      await advanceFrames(10);
+      transforms += root.style.transform + root.style.clipPath;
+    }
     assert.equal(api!.phase, 'growing');
   });
-  assert.deepEqual(boxes, [`0px 0px ${document.documentElement.clientWidth}px ${document.documentElement.clientHeight}px`], 'one box: the window');
-  assert.match(start, /translate\(100px, 50px\) scale\(/, 'it starts drawn over its slot');
-  assert.notEqual(mid, start, 'the transform moves');
+  const { clientWidth, clientHeight } = document.documentElement;
+  const first = boxes[0]!.split(' ').map(Number.parseFloat);
+  assert.ok([50, 100, 390, 700].every((v, k) => Math.abs(first[k]! - v) < 2), `it starts at its slot: ${boxes[0]}`);
+  assert.ok(boxes.length > 10, `its box eases on each frame: ${boxes.length} boxes`);
+  for (const b of boxes) {
+    const [top, left, width, height] = b.split(' ').map(Number.parseFloat) as [number, number, number, number];
+    const within = (v: number, a: number, z: number): boolean => v >= Math.min(a, z) - 1e-6 && v <= Math.max(a, z) + 1e-6;
+    assert.ok(within(top, 50, 0) && within(left, 100, 0) && within(width, 390, clientWidth) && within(height, 700, clientHeight), `between the slot and the window: ${b}`);
+  }
+  assert.equal(transforms, '', 'never moved by a transform or clipped');
   await advanceFrames(400);
   assert.equal(api!.phase, 'maximized');
   assert.ok(root.hasAttribute(MAXIMIZED_ATTRIBUTE));
-  assert.equal(root.style.transform, '');
   assert.deepEqual([root.style.top, root.style.left, root.style.right, root.style.bottom, root.style.width, root.style.height], ['0px', '0px', '0px', '0px', 'auto', 'auto']);
 });
 
@@ -99,5 +105,5 @@ test('a shrink interrupted by a grow and shrunk again lands back in the slot wit
   });
   assert.equal(api!.phase, 'home');
   assert.equal(root.getAttribute('style'), before, 'the slot style is back exactly');
-  assert.equal(boxes.length, 2, `the window box once on the way down, then the slot's own style: ${boxes.join(' | ')}`);
+  assert.ok(boxes.length > 10, `the box eased on the way down and back: ${boxes.length} boxes`);
 });

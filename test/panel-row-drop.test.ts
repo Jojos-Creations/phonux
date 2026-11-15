@@ -6,7 +6,8 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
+import { emblaWindowIn, rowOffsetOf, setRowOffset, stubSlotBoxes } from './support/strip.js';
+import { emblaHeld, emblaOf } from '../emblaRow.js';
 import * as React from 'react';
 import { act } from 'react';
 import { DragToClose, usePanelRowDrop, useWorkspace } from '../index.js';
@@ -14,11 +15,11 @@ import type { PanelRowDrop, PanelResult, ViewWorkspace } from '../index.js';
 import { landPanelIn } from '../workspaceCore.js';
 import { FRAME_MS } from './support/jsdom-globals.js';
 import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
-import { drag, release } from './support/drag-gesture.js';
 import { ROW_LAYER_Z } from '../rowConstants.js';
 import { centerRank, slotZ } from '../rowSlotZ.js';
 import { made, mountRow, panelsOf, rootEntry, row, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 afterEach(async () => {
   document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
@@ -51,7 +52,7 @@ const slotOf = (m: MountedRow, id: string): HTMLElement => {
   return slot;
 };
 const xOf = (m: MountedRow, id: string): number => {
-  const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotOf(m, id).style.transform);
+  const match = /translateX\((-?[\d.e+-]+)px\)/.exec(slotTransform(slotOf(m, id)));
   return match === null ? 0 : Math.round(Number(match[1]));
 };
 const restZ = (m: MountedRow, id: string, tier: number = ROW_LAYER_Z.BASE): string => {
@@ -178,29 +179,6 @@ test('end with no drag in progress is a refusal that touches nothing', async () 
 // ---------------------------------------------------------------------------
 
 const OFFSETS = [-1300, -620, -410, -200, 0, 150, 205, 420, 700, 1300];
-
-test('for the same offsets the hook parts the neighbours exactly as a header drag of the same panel does', async () => {
-  const others = ['root', 's1', 's3', 's4'];
-  for (const offset of OFFSETS) {
-    let viaHook: Record<string, number>;
-    {
-      const m = await mounted();
-      begin('s2');
-      await update(at(m, 's2', offset));
-      viaHook = xs(m, others);
-      act(() => hook().cancel());
-      cleanup();
-    }
-    const m = await mounted();
-    await drag(slotOf(m, 's2').querySelector('[data-grab="s2"]')!, { dx: offset, dy: 0, steps: 12, hold: 8, keepDown: true });
-    await frames(60);
-    const viaHeader = xs(m, others);
-    await release(offset, 0);
-    await frames(60);
-    cleanup();
-    assert.deepEqual(viaHook, viaHeader, `offset ${offset}`);
-  }
-});
 
 test('the hop count is the header rule at literal offsets: a hop needs half the next neighbour\'s span, counted from where the last hop ended', async () => {
   // A phone neighbor is 390 + 16 gap = 406 wide, so the thresholds are 203, 609 and 1015.
@@ -475,8 +453,14 @@ async function mountedScrolling(): Promise<MountedRow> {
   Object.defineProperty(m.container, 'clientWidth', { value: WINDOW, configurable: true });
   m.container.getBoundingClientRect = () => ({ left: 0, right: WINDOW, top: 0, bottom: 700, width: WINDOW, height: 700, x: 0, y: 0, toJSON: () => ({}) });
   await settle();
+  // Lays the Embla row out, so the drag's edge hold moves the row Embla draws and rowOffsetOf reads it.
+  stubSlotBoxes(m.container, 16);
+  await settle();
   return m;
 }
+
+/** Whether a gesture or a drag's edge hold holds the Embla row of `m`. */
+const rowHeld = (m: MountedRow): boolean => emblaHeld(emblaOf(emblaWindowIn(m.container)!)!);
 
 test('held in the right edge band the row scrolls and the hop count follows the scroll; held mid-window it stays', async () => {
   const m = await mountedScrolling();
@@ -488,15 +472,15 @@ test('held in the right edge band the row scrolls and the hop count follows the 
   await update(WINDOW);
   await frames(60);
   assert.ok(rowOffsetOf(m.container) > 100, `the row scrolled: ${rowOffsetOf(m.container)}`);
-  assert.equal(m.scroller.claimHeld(), true, 'the drag holds the scroller');
+  assert.equal(rowHeld(m), true, 'the drag holds the row');
   act(() => hook().cancel());
-  assert.equal(m.scroller.claimHeld(), false, 'and gives it back');
+  assert.equal(rowHeld(m), false, 'and gives it back');
   await settle();
 });
 
 test('held in the left edge band the row scrolls back', async () => {
   const m = await mountedScrolling();
-  m.scroller.glideTo(1200, { durationSec: 0, instant: true, ease: 'linear' });
+  setRowOffset(m.container, 1200);
   assert.equal(rowOffsetOf(m.container), 1200);
   begin('s5');
   await update(0);

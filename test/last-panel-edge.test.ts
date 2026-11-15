@@ -6,10 +6,11 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
+import { advanceUntilRowRests, emblaWindowIn, rowOffsetOf, stubSlotBoxes } from './support/strip.js';
+import { act } from 'react';
 import type { PanelWindow } from '../index.js';
 import { computeRowNumbers, maxScrollOf } from '../rowNumbers.js';
-import { cleanup } from './support/mount-harness.js';
+import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { made, mountRow, rootEntry, row } from './support/scroll-row.js';
 
 afterEach(() => {
@@ -54,13 +55,24 @@ for (const [name, entries] of Object.entries(rows)) {
   }
 }
 
-test('mounted at 2240: stepping to the last stop lands the scroll at maxScrollOf, and the last panel centered', () => {
+test('mounted at 2240 on the Embla row: the window is the whole slots that fit, centered by the shift, and its end puts the last panel flush with the window', async () => {
   const m = mountRow(rows['[root, 1, 1, 5-slot, 1]']!(), 2240, { tuning: { rowGesture: 'step' } });
+  await advanceFrames(500);
+  // Lays the Embla row out, so its window, its slots and its position read what a browser draws.
+  stubSlotBoxes(m.container, 0);
+  await advanceFrames(500);
   const n = m.latest().rowNumbers;
-  const last = n.stops.at(-1)!;
-  m.scroller.glideTo(last, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  assert.equal(rowOffsetOf(m.container), maxScrollOf(n), 'the scroll range ends at the new last stop');
-  const end = n.widths.length - 1;
   assert.equal(n.endPad, 97, 'the end pad is the centering shift');
-  assert.equal(maxScrollOf(n) + n.windowWidth - (n.rowMarginLeft + n.leftOffsets[end]! + n.widths[end]!), 97, 'the last panel sits the shift short of the window edge');
+  const win = emblaWindowIn(m.container)!.getBoundingClientRect();
+  assert.equal(win.width, 5 * (PHONE + GAP) - GAP, 'the window shows five whole slots');
+  assert.equal((n.windowWidth - win.width) / 2, SHIFT[2240], 'what is left of the row area is the centering shift on each side');
+  assert.equal(rowOffsetOf(m.container), 0, 'control: the row starts at its first stop');
+  act(() => void m.latest().scrollTo('d'));
+  await advanceUntilRowRests(m.container);
+  assert.equal(rowOffsetOf(m.container), maxScrollOf(n), 'bringing the last panel in rests the row at the last stop');
+  assert.equal(n.stops.at(-1), maxScrollOf(n));
+  const slots = [...m.container.querySelectorAll<HTMLElement>('[data-row-slot]')];
+  assert.equal(slots.length, 5, 'control: one slot per panel');
+  const lastRight = slots.at(-1)!.getBoundingClientRect().right;
+  assert.equal(win.right - lastRight, 0, 'the last panel sits flush with the window, so the shift short of the row area');
 });

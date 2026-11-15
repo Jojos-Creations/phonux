@@ -63,14 +63,19 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   if (snap.status === 'ready' && placedAt.current === null) placedAt.current = snap.current;
   if (placedAt.current !== null && snap.current !== placedAt.current) moved.current = true;
   const placed = moved.current;
-  // A workspace added or removed above the current one shifts its index without changing what is shown: the track jumps there.
+  // Only the workspace left and the one arrived at slide, so a move past several is one step and the ones between never show.
+  // A workspace added or removed above the current one changes neither, so nothing moves.
   const currentId = snap.workspaces[snap.current]?.id;
-  const shownId = React.useRef(currentId);
-  const reseated = shownId.current === currentId && left.current !== snap.current;
+  const [seenId, setSeenId] = React.useState(currentId);
+  const [fromId, setFromId] = React.useState<string | undefined>(undefined);
+  if (seenId !== currentId) {
+    setSeenId(currentId);
+    setFromId(seenId);
+  }
+  const slide = reduced || !placed ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})`;
 
   // An inert cell drops the focus inside it; the arrow keys keep working only if focus lands somewhere in the column again.
   React.useLayoutEffect(() => {
-    shownId.current = currentId;
     const was = snap.workspaces[left.current];
     left.current = snap.current;
     const now = snap.workspaces[snap.current];
@@ -86,7 +91,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
 
   return (
     <Box data-workspace-column="" sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <div style={{ height: '100%', transform: `translateY(${-Math.max(snap.current, 0) * 100}%)`, transition: reduced || !placed || reseated ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})` }}>
+      <div style={{ position: 'relative', height: '100%' }}>
         {snap.workspaces.map((ws, i) => {
           const active = i === snap.current;
           const above = snap.workspaces[i - 1];
@@ -106,7 +111,11 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
               tabIndex={-1}
               aria-hidden={active ? undefined : true}
               inert={!active}
-              sx={{ position: 'relative', height: '100%', outline: 'none' }}
+              onTransitionEnd={(event: React.TransitionEvent<HTMLElement>) => {
+                if (active && event.target === event.currentTarget && event.propertyName === 'transform') setFromId(undefined);
+              }}
+              style={{ transform: `translateY(${active ? 0 : i < snap.current ? -100 : 100}%)`, transition: active || ws.id === fromId ? slide : 'none' }}
+              sx={{ position: 'absolute', inset: 0, outline: 'none' }}
             >
               <Band side="above" band={bands.above} inset={snap.topInset} props={slotProps} />
               {own === undefined ? (

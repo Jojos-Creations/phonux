@@ -9,7 +9,7 @@ import type { ComponentType, ReactNode } from 'react';
 import type { JsonValue } from './hostApi.js';
 import { checkPatch, configured, flipRefusal, flipsParkable, ownLayer, planInstance, planTemplate, planTuning, reconfigured, refusedFlip, refusedPlan, unchanged, type ConfigureOutcome, type HostSplit } from './panelConfigure.js';
 import { makeHandle, makeOwnHandle, makeReader, makeViewHandle, type PanelHandle, type PanelVerbCall, type ReadSource } from './panelHandles.js';
-import { accepted, makePanelManager, refused, type ConfigureResult, type PanelManager, type PanelOpSource, type PanelResult, type ResetResult } from './panelManager.js';
+import { accepted, makePanelManager, refused, type RootView, type ConfigureResult, type PanelManager, type PanelMove, type PanelOpSource, type PanelResult, type ResetResult } from './panelManager.js';
 import { PanelManagerError, type PanelRefusal } from './panelManagerError.js';
 import { applyTemplate, effective, holdUnlistedNote, panelKey, resolvePanelSettings, sameSettingsValue } from './panelSettings.js';
 import type { AddPlacement, EnterFrom, PanelId, PanelSettings, PanelSettingsResolution, ResolvedPanelSettings, ResolvedWorkspaceTuning, ScrollAlign, SettingNote, WorkspaceTuning } from './panelSettings.js';
@@ -63,7 +63,7 @@ export interface WorkspaceWrapProps {
 export type WorkspaceOptions = WorkspaceLive & {
   /** The workspace's stable id, the key a column stores its panels under. Unset: a counter id. */
   id?: string;
-  /** The workspace's name, shown by a column. Unset: `'Workspace'`. Trimmed and cut to `MAX_WORKSPACE_NAME` characters; an empty one is ignored. */
+  /** The workspace's name, shown by a column. Unset: `'Space'`. Trimmed and cut to `MAX_WORKSPACE_NAME` characters; an empty one is ignored. */
   name?: string;
   /** Called with the new name after `workspace.rename` changed it, never for the name the workspace started with. */
   onRename?: (name: string) => void;
@@ -109,6 +109,8 @@ export type WorkspaceOptions = WorkspaceLive & {
    * notice to the host, which reads `PanelsAPI.recentlyClosed`. Fixed at creation. Ignored when `mount` is `false`.
    */
   undoToast?: boolean;
+  /** The auto mount's `Workspace` `rowNearSlots`. Unset: that prop's default. Fixed at creation. */
+  rowNearSlots?: number;
 };
 
 /**
@@ -284,6 +286,8 @@ export interface EngineBinding {
   readonly wrap: ComponentType<WorkspaceWrapProps> | undefined;
   /** Whether the auto mount draws its undo-close toast (see `WorkspaceOptions.undoToast`). */
   readonly undoToast: boolean;
+  /** The auto mount's near-slot count (see `WorkspaceOptions.rowNearSlots`). */
+  readonly rowNearSlots: number | undefined;
   /** The theme function the auto mount draws with, if the app gave one. */
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
   /** A hand-mounted row was given this workspace; warns once in development when the workspace also mounts itself. */
@@ -304,6 +308,10 @@ export interface EngineBinding {
   cycle(direction: 'left' | 'right', keepId: string): boolean;
   /** The attached hook binds (or, with undefined, unbinds) what a swap at the edge runs. */
   bindCycle(sink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined): void;
+  /** The attached hook binds (or, with undefined, unbinds) what the root's summon runs. */
+  bindSummon(sink: RootSummonSink | undefined): void;
+  /** The hook moved or placed the panel under `engineId` for `source`; it is reported once a published commit draws the change. */
+  noteMove(engineId: string, source: PanelOpSource): void;
   /** The workspace's own templates, the root's included. */
   templates(): readonly PanelTemplate[];
   /** The template this workspace holds under `id`, or undefined: what its row renders a panel of `id` with. */
@@ -322,6 +330,11 @@ export interface EngineBinding {
   detach(owner: object): void;
   /** Tells the workspace the list this render draws, so a view mounting in it can read its own panel before the commit publishes. Idempotent; changes no snapshot. */
   observe(entries: readonly PanelWindow[], held: { has(engineId: string): boolean }): void;
+  /**
+   * Whether a hook other than `owner` (the object a hook attaches with) holds the workspace. Such a hook will fail to attach, so it
+   * must not `observe`: its list would replace the attached row's, and every view that row draws afterwards would find no handle.
+   */
+  heldByOther(owner: object): boolean;
   /** Records a commit and publishes a new snapshot when it changed something. */
   publish(commit: EngineCommit): void;
   /** Subscribes to tuning changes for `useSyncExternalStore`. */
@@ -354,7 +367,29 @@ interface Retired {
 /** How many closed anonymous panels keep answering through a handle someone still holds. */
 const RETIRED_LIMIT = 256;
 
+/** The ids of one longest common subsequence of `a` and `b`. */
+function longestCommon(a: readonly string[], b: readonly string[]): Set<string> {
+  const len = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i -= 1) for (let j = b.length - 1; j >= 0; j -= 1) len[i]![j] = a[i] === b[j] ? len[i + 1]![j + 1]! + 1 : Math.max(len[i + 1]![j]!, len[i]![j + 1]!);
+  const kept = new Set<string>();
+  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
+    if (a[i] === b[j]) {
+      kept.add(a[i]!);
+      i += 1;
+      j += 1;
+    } else if (len[i + 1]![j]! >= len[i]![j + 1]!) i += 1;
+    else j += 1;
+  }
+  return kept;
+}
+
 const CORES = new WeakMap<WorkspaceHandle, Core>();
+
+/** What the attached hook does for the root's summon. */
+export interface RootSummonSink {
+  view(): RootView;
+  summon(): boolean;
+}
 
 interface Core {
   binding: EngineBinding;
@@ -407,6 +442,7 @@ const sameState = (a: PanelState, b: PanelState): boolean =>
   a.url === b.url &&
   a.listed === b.listed &&
   a.openedBy === b.openedBy &&
+  a.slots === b.slots &&
   JSON.stringify(a.params) === JSON.stringify(b.params) &&
   sameSettingsValue(a.settings, b.settings);
 
@@ -437,6 +473,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   /** What a view asked at a Host-bag create, by engine id. The file keeps those asks merged into the instance layer; this keeps them apart for the session so a `null` in a configure shows them again. */
   const splits = new Map<string, HostSplit>();
   const inflight = new Set<PanelId>();
+  // Adds made while the attached row loads: replayed as adds once it is ready, so they open as they would after it.
+  const queued = new Map<PanelId, () => void>();
   const warned = new Set<string>();
   const listeners = new Set<() => void>();
   const panelListeners = new Map<PanelId, Set<() => void>>();
@@ -455,6 +493,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let owner: object | undefined;
   let committed: { entries: readonly PanelWindow[]; held: { has(engineId: string): boolean } } | undefined;
   let commit: EngineCommit | undefined;
+  const moveListeners = new Set<(move: PanelMove) => void>();
+  /** Each with the list committed when it was noted: a publish of that same list has not drawn it yet. */
+  let pendingMoves: { engineId: string; source: PanelOpSource; before: readonly PanelWindow[] }[] = [];
   let observed: { entries: readonly PanelWindow[]; held: { has(engineId: string): boolean } } | undefined;
   // useSyncExternalStore needs getState to return the same object until the state changes, also for a panel drawn before its first commit.
   const drawnStates = new Map<PanelId, PanelState>();
@@ -506,6 +547,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   let touchSink: ((engineId: string, control: boolean) => void) | undefined;
   let blurSink: (() => void) | undefined;
   let cycleSink: ((direction: 'left' | 'right', keepId: string) => boolean) | undefined;
+  let summonSink: RootSummonSink | undefined;
   const notesBeforeSink: SettingNote[] = [];
 
   const reportConflicts = (id: PanelId, res: PanelSettingsResolution): void => {
@@ -574,13 +616,14 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       listed: e.listed,
       settings: res.value,
       openedBy: openerKey(e, entries),
+      slots: e.savedSlots ?? slotsOf(e),
     };
   };
 
   const stateOfRecord = (r: Rec): PanelState => {
     const template = templateOf(r.templateId);
     const res = resolutionFor(r, r.id, r.templateId, r.settings, undefined, false, r.lastEngineId === undefined ? undefined : splits.get(r.lastEngineId));
-    const pending = !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'));
+    const pending = !r.closed && (inflight.has(r.id) || queued.has(r.id) || (r.intent && status !== 'ready'));
     return {
       id: r.id,
       templateId: r.templateId,
@@ -626,6 +669,60 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     for (const s of reused) if (previous.get(s.id) !== s) for (const l of [...(panelListeners.get(s.id) ?? [])]) l();
     for (const id of previous.keys()) if (!states.has(id)) for (const l of [...(panelListeners.get(id) ?? [])]) l();
     for (const l of [...listeners]) l();
+  };
+
+  /** What the noted moves drawn between `before` and `after` report: each noted panel still in the row, then each panel it carried. */
+  const movesOf = (noted: readonly { engineId: string; source: PanelOpSource }[], before: readonly PanelWindow[], after: readonly PanelWindow[]): PanelMove[] => {
+    const byId = new Map(after.filter((e) => e.marker !== true).map((e) => [e.id, e]));
+    const targets = new Map<string, PanelOpSource>();
+    const out: PanelMove[] = [];
+    for (const m of noted) {
+      const e = byId.get(m.engineId);
+      if (e === undefined) continue;
+      targets.set(m.engineId, m.source);
+      out.push({ id: panelKey(e), source: m.source });
+    }
+    if (targets.size === 0) return out;
+    // Carried: out of order against the panels that kept their order, and anchored, directly or through others, to a noted panel.
+    const was = before.filter((e) => e.marker !== true && !targets.has(e.id) && byId.has(e.id)).map((e) => e.id);
+    const common = new Set(was);
+    const now = after.filter((e) => common.has(e.id)).map((e) => e.id);
+    const kept = longestCommon(was, now);
+    const carrier = (e: PanelWindow): PanelOpSource | undefined => {
+      const seen = new Set<string>();
+      for (let at: PanelWindow | undefined = e; at?.anchor !== undefined && !seen.has(at.id); at = byId.get(at.anchor.panel)) {
+        seen.add(at.id);
+        const source = targets.get(at.anchor.panel);
+        if (source !== undefined) return source;
+      }
+      return undefined;
+    };
+    for (const id of now) {
+      if (kept.has(id)) continue;
+      const e = byId.get(id)!;
+      const source = carrier(e);
+      if (source !== undefined) out.push({ id: panelKey(e), source });
+    }
+    return out;
+  };
+
+  /** Reports the noted moves `after` draws; a move noted against `after` itself waits for the commit that draws it. */
+  const flushMoves = (after: readonly PanelWindow[]): void => {
+    const due = pendingMoves.filter((m) => m.before !== after);
+    if (due.length === 0) return;
+    pendingMoves = pendingMoves.filter((m) => m.before === after);
+    const groups = new Map<readonly PanelWindow[], { engineId: string; source: PanelOpSource }[]>();
+    for (const m of due) groups.set(m.before, [...(groups.get(m.before) ?? []), m]);
+    const moves = [...groups].flatMap(([before, noted]) => movesOf(noted, before, after));
+    for (const move of moves) {
+      for (const l of [...moveListeners]) {
+        try {
+          l(move);
+        } catch (e) {
+          reportError(e);
+        }
+      }
+    }
   };
 
   /** The entry named `id` in the list this render draws, with its place in it. */
@@ -721,6 +818,10 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       listeners.add(l);
       return () => void listeners.delete(l);
     },
+    subscribeMoves: (l) => {
+      moveListeners.add(l);
+      return () => void moveListeners.delete(l);
+    },
     handleOf: (id) => {
       const known = knownState(id);
       if (known === undefined) return undefined;
@@ -754,6 +855,8 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     operate: (id, call, src) => operate(id, call, src),
     resetLayout: (target) => resetLayout(target),
     swap: (show, hide) => swapPanels(show, hide),
+    rootView: () => summonSink?.view() ?? 'shown',
+    summonRoot: () => summonSink?.summon() ?? false,
     configure: (id, patch, caller) => configureOne(id, patch, caller),
     configureTemplate: (templateId, patch) => configureTemplateOne(templateId, patch),
     configureTuning: (patch) => configureTuningOne(patch),
@@ -793,7 +896,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
   const instanceKeys = (templateId: string): Set<PanelId> => {
     const keys = new Set<PanelId>();
     for (const e of committed?.entries ?? []) if (e.view === templateId && e.marker !== true && e.id !== rootId) keys.add(panelKey(e));
-    for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
+    for (const r of records.values()) if (r.templateId === templateId && !r.closed && (inflight.has(r.id) || queued.has(r.id) || (r.intent && status !== 'ready'))) keys.add(r.id);
     return keys;
   };
 
@@ -858,8 +961,11 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     reportConflicts(id, res);
     const count = instancesOf(t.id);
     const over = (!multiple && count > 0) || (res.value.maxInstances !== 'unlimited' && count >= res.value.maxInstances);
-    const rec: Rec = { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: !ready && !over, closed: over, anonymous: suffix !== undefined };
+    // A declaration replayed at settle would skip a closed panel's tombstone and every open option; an add waits for ready instead.
+    const waits = !ready && !over && status === 'loading' && owner !== undefined;
+    const rec: Rec = { id, templateId: t.id, settings: options?.settings, params: options?.params, url: options?.url, intent: !ready && !over && !waits, closed: over, anonymous: suffix !== undefined };
     records.set(id, rec);
+    if (waits) queued.set(id, () => { if (records.get(id) === rec) records.delete(id); addPanelBy(opener)(given, options); });
     if (ready && !over) {
       inflight.add(id);
       const open = options?.place === undefined ? undefined : placeOpen(commit!, options.place);
@@ -870,6 +976,21 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     return source.handleOf(id) as PanelHandle<P>;
   };
   const addPanel = addPanelBy(undefined);
+  /** Runs the adds made while loading, once the row is ready and still attached. */
+  const flushQueued = (): void => {
+    if (status !== 'ready' || commit === undefined) return;
+    const adds = [...queued.values()];
+    queued.clear();
+    for (const add of adds) add();
+  };
+  /** A row that leaves before it is ready keeps the waiting adds as declarations, for the next attach to restore. */
+  const declareQueued = (): void => {
+    for (const id of queued.keys()) {
+      const r = records.get(id);
+      if (r !== undefined) r.intent = true;
+    }
+    queued.clear();
+  };
 
 
   /** The refusal for an operation a workspace in this state cannot take at all, or undefined when it is attached and ready. */
@@ -1168,6 +1289,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     live,
     wrap: o.wrap,
     undoToast: o.undoToast !== false,
+    rowNearSlots: o.rowNearSlots,
     theme: o.theme,
     warnHandMounted: () => {
       if (!autoMounted || warnedHandMount || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
@@ -1197,6 +1319,12 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     bindCycle: (sink) => {
       cycleSink = sink;
     },
+    bindSummon: (sink) => {
+      summonSink = sink;
+    },
+    noteMove: (engineId, source) => {
+      if (status !== 'disposed' && owner !== undefined) pendingMoves.push({ engineId, source, before: committed?.entries ?? [] });
+    },
     bindNotes: (sink) => {
       noteSink = sink;
       // A slot that fails in the first commit reports before the hook's layout effect has bound the sink.
@@ -1217,6 +1345,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       observed = undefined;
       lastEntries = new Map();
       inflight.clear();
+      pendingMoves = [];
       status = 'loading';
     },
     detach: (who) => {
@@ -1224,12 +1353,15 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       owner = undefined;
       commit = undefined;
       inflight.clear();
+      declareQueued();
+      pendingMoves = [];
       if (status !== 'disposed') status = 'detached';
       refresh();
     },
     observe: (entries, held) => {
       if (status !== 'disposed') observed = { entries, held };
     },
+    heldByOther: (who) => owner !== undefined && owner !== who,
     publish: (c) => {
       if (status === 'disposed' || owner === undefined) return;
       committed = { entries: c.entries, held: c.held };
@@ -1244,6 +1376,9 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       inflight.clear();
       status = c.settled ? 'ready' : 'loading';
       refresh();
+      flushMoves(c.entries);
+      // After this commit, not inside it: an add asks the row for a new commit.
+      if (status === 'ready' && queued.size > 0) queueMicrotask(flushQueued);
     },
     subscribe: (l) => {
       tuningListeners.add(l);
@@ -1303,9 +1438,12 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
       status = 'disposed';
       owner = undefined;
       commit = undefined;
+      queued.clear();
       for (const r of records.values()) r.intent = false;
       refresh();
       listeners.clear();
+      moveListeners.clear();
+      pendingMoves = [];
       panelListeners.clear();
       tuningListeners.clear();
       live.clear();

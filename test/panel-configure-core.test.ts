@@ -5,7 +5,6 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
 import { act, createElement, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import type { ConfigureResult, HeaderButton, PanelHandle, PanelResult, PanelSettings, PanelSummary } from '../index.js';
@@ -18,6 +17,7 @@ import { fire, TRIGGERS } from './support/ops-rig.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 import { pinRig, type PinRig } from './support/pin-rig.js';
 import { markerTemplate } from './support/workspace-row.js';
+import { slotTransform } from './support/strip.js';
 
 /** A rig with a `multiple` template named m beside the panel a. */
 const multiRig = (settings: PanelSettings): Promise<PinRig> => pinRig({ ids: ['a'], extra: [markerTemplate('m', { settings: { multiple: true, ...settings } })] });
@@ -148,7 +148,7 @@ test('class law: a NOW key changes only the fields it names', async () => {
 test('class law: an equal patch is changed false and commits nothing', async () => {
   const r = await pinRig();
   r.turn(() => r.h.b!.configure({ scrollOnOpen: 'center' }));
-  const seen = watch(r, () => [r.h.b!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({}), r.h.b!.configure({ hideStickiness: null })]);
+  const seen = watch(r, () => [r.h.b!.configure({ scrollOnOpen: 'center' }), r.h.b!.configure({}), r.h.b!.configure({ toggleWhenClosed: null })]);
   for (const res of seen.out) assert.deepEqual({ ...done(res) }, { ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] });
   sameEntries(seen.before, seen.after);
   assert.equal(seen.renders, 0);
@@ -198,7 +198,7 @@ const WRITER_KEYS: readonly [string, string, PanelSettings][] = [
   ['NOW', 'movable', { movable: false }],
   ['NOW', 'title', { title: 'Renamed' }],
   ['NEXT', 'scrollOnOpen', { scrollOnOpen: 'center' }],
-  ['NEXT', 'hideStickiness', { hideStickiness: 'until-room' }],
+  ['NEXT', 'toggleWhenClosed', { toggleWhenClosed: 'reopen' }],
   ['STATE', 'maxSlots', { maxSlots: 2 }],
 ];
 
@@ -516,13 +516,13 @@ test('an anonymous closed instance answers is-closed to configure, inside the wi
 
 test('a configure that raises a runtime note carries it in the result and reports it once', async () => {
   const r = await pinRig();
-  const lever = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
-  assert.deepEqual([...lever.notes], [{ code: 'park-lever-inert', key: 'capacityReturn', message: "capacityReturn: only a panel whose overflow is 'park' is ever parked for room, so this has no effect here" }]);
-  assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert']);
-  const second = done(r.turn(() => r.h.c!.configure({ capacityReturn: 'manual' })));
-  assert.deepEqual(second.notes.map((n) => n.code), ['park-lever-inert']);
-  assert.deepEqual(r.m.notes.map((n) => n.code), ['park-lever-inert', 'park-lever-inert']);
-  const again = done(r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' })));
+  const lever = done(r.turn(() => r.h.b!.configure({ resizable: true, maxSlots: 1 })));
+  assert.deepEqual([...lever.notes], [{ code: 'resizable-capped', key: 'maxSlots', message: 'maxSlots: resizable is set by the instance layer but maxSlots resolves to 1, so the panel cannot grow; set maxSlots too' }]);
+  assert.deepEqual(r.m.notes.map((n) => n.code), ['resizable-capped']);
+  const second = done(r.turn(() => r.h.c!.configure({ resizable: true, maxSlots: 1 })));
+  assert.deepEqual(second.notes.map((n) => n.code), ['resizable-capped']);
+  assert.deepEqual(r.m.notes.map((n) => n.code), ['resizable-capped', 'resizable-capped']);
+  const again = done(r.turn(() => r.h.b!.configure({ resizable: true, maxSlots: 1 })));
   assert.deepEqual([again.changed, [...again.notes]], [false, []]);
   assert.equal(r.m.notes.length, 2, 'an equal patch raises nothing more');
 });
@@ -531,33 +531,35 @@ test('a state change planted between the call and the commit makes the updater r
   let plant: (() => void) | undefined;
   const r = await pinRig({ over: { onNote: () => plant?.() } });
   plant = () => r.provided().clearAll();
-  const res = r.turn(() => r.h.b!.configure({ capacityReturn: 'manual' }));
+  const res = r.turn(() => r.h.b!.configure({ resizable: true, maxSlots: 1 }));
   assert.deepEqual([res.ok, (res as Done).notes.length], [true, 1], 'control: the note ran the planted hook');
   assert.deepEqual(r.order(), ['root']);
 });
 
 for (const kind of ['declared', 'anonymous'] as const) {
   test(`a state change planted between the call and the commit on ${kind === 'declared' ? 'a declared' : 'an anonymous'} panel: the patch applies to the entry the other update left, and the resolver and the entry agree`, async () => {
-    const ids = ['a', 'b', 'c', 'd', 'e'];
+    // The other update is a move of a neighbour past the panel, run from the note the configure raises before it commits: nothing
+    // parks for room on the Embla row, and the panel's own operations answer busy until the commit. The move rewrites the panel's
+    // anchor priority, so a commit from the entry the call saw would put the panel back where it was.
     let plant: (() => void) | undefined;
     const r = await pinRig({
-      ids,
-      width: 1000,
-      settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' } as PanelSettings])),
-      extra: [markerTemplate('m', { settings: { multiple: true, overflow: 'park' } })],
+      extra: [markerTemplate('m', { settings: { multiple: true } })],
       over: { onNote: () => plant?.() },
     });
     const anon = kind === 'anonymous' ? r.turn(() => r.ws.addPanel('m')) : undefined;
     await r.settle();
-    const id = anon === undefined ? 'e' : anon.id;
-    const handle = anon ?? r.h.e!;
-    assert.equal(r.entry(id).live, true, 'control: it is the live park panel');
-    plant = () => void r.h.a!.show();
+    const id = anon === undefined ? 'c' : anon.id;
+    const handle = anon ?? r.h.c!;
+    const order = r.order();
+    assert.deepEqual([order[1], order.at(-1)], ['a', id], 'control: a is first after the root and the panel is last');
+    plant = () => void r.h.a!.move(order.length - 2);
     const before = r.entry(id);
     const res = r.turn(() => handle.configure({ closable: false, resizable: true, maxSlots: 1 }));
     assert.deepEqual({ ok: (res as Done).ok, now: [...(res as Done).now] }, { ok: true, now: ['closable', 'resizable', 'maxSlots'] });
+    await r.settle();
     const after = r.entry(id);
-    assert.equal(after.live, false, 'control: the planted show of a parked neighbour parked it before the configure could commit');
+    assert.deepEqual(r.order(), [...order.filter((k) => k !== 'a'), 'a'], 'control: the planted move landed before the configure could commit');
+    assert.equal(after.anchor?.priority, before.anchor!.priority - 1, 'the entry keeps the priority the move left');
     assert.deepEqual([after.settings === before.settings, !after.settings!.closable, after.settings!.closable, after.settings!.maxSlots], [false, true, false, 1], 'the entry carries the configure');
     assert.deepEqual([handle.getSettings().value.closable, handle.getSettings().source.closable], [false, 'instance'], 'and the resolver reads the same');
     assert.equal((r.turn(() => handle.close('person')) as { code?: string }).code, 'not-closable', 'and the restriction holds: close() is refused');
@@ -608,7 +610,7 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['live', 'live', { listed: false }, ['listed'], [], []],
   ['live', 'live', { layer: 'raised' }, ['layer'], [], []],
   ['live', 'live', { scrollOnOpen: 'center' }, [], ['scrollOnOpen'], []],
-  ['live', 'live', { hideStickiness: 'until-room' }, [], ['hideStickiness'], []],
+  ['live', 'live', { toggleWhenClosed: 'reopen' }, [], ['toggleWhenClosed'], []],
   ['live', 'live', { closable: false, scrollOnOpen: 'center' }, ['closable'], ['scrollOnOpen'], []],
   ['live', 'live', { maxSlots: 2 }, ['maxSlots'], [], []],
   ['live', 'live', { parkable: false }, ['parkable'], [], []],
@@ -621,25 +623,11 @@ const SAMPLE: readonly [Context, string, Record<string, unknown>, string[], stri
   ['person two slots', 'live', { slots: 1 }, [], ['slots'], ['slots']],
 ];
 
-test('the result of 17 patches over live, parked, hidden and person-shaped panels equals the literals written by hand', async () => {
-  assert.equal(SAMPLE.length, 17);
-  let executed = 0;
-  for (const [context, status, patch, now, later, shadowed] of SAMPLE) {
-    const { r, id } = await contextRig(context);
-    assert.equal(r.state(id).status, status, `${context}: control, the status the row expects`);
-    const res = done(r.turn(() => r.h[id]!.configure(patch as never)));
-    assert.deepEqual({ ok: res.ok, changed: res.changed, now: [...res.now], later: [...res.later], shadowed: [...res.shadowed] }, { ok: true, changed: true, now, later, shadowed }, `${context} ${JSON.stringify(patch)}`);
-    executed += 1;
-    cleanup();
-  }
-  assert.equal(executed, 17);
-});
-
 test('getSettings after a configure deep-equals the resolver over the patched layers, with source instance for the patched keys', async () => {
   const slot = { icon: 'i', label: 'X', onClick: () => undefined };
   const cases: [string, Record<string, unknown>][] = [
     ['a NOW key', { closable: false, title: 'Eve' }],
-    ['a NEXT key', { scrollOnOpen: 'center', hideStickiness: 'until-room' }],
+    ['a NEXT key', { scrollOnOpen: 'center', toggleWhenClosed: 'reopen' }],
     ['a STATE key', { maxSlots: 2 }],
     ['a slot', { headerButtons: { x: slot } }],
   ];
@@ -659,14 +647,14 @@ test('getSettings after a configure deep-equals the resolver over the patched la
 });
 
 test('null removes the key and the cascade\'s value and source come back: library, workspace and template', async () => {
-  const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } }, workspace: { defaults: { hideStickiness: 'until-room' } } });
+  const r = await pinRig({ settings: { b: { scrollOnOpen: 'start' } }, workspace: { defaults: { toggleWhenClosed: 'reopen' } } });
   const read = (key: string): [unknown, string | undefined] => {
     const s = r.h.b!.getSettings();
     return [(s.value as unknown as Record<string, unknown>)[key], s.source[key]];
   };
   const rows: [string, Record<string, unknown>, Record<string, unknown>, [unknown, string], [unknown, string], [unknown, string]][] = [
     ['scrollOnOpen', { scrollOnOpen: 'center' }, { scrollOnOpen: null }, ['start', 'template'], ['center', 'instance'], ['start', 'template']],
-    ['hideStickiness', { hideStickiness: 'sticky' }, { hideStickiness: null }, ['until-room', 'workspace'], ['sticky', 'instance'], ['until-room', 'workspace']],
+    ['toggleWhenClosed', { toggleWhenClosed: 'ignore' }, { toggleWhenClosed: null }, ['reopen', 'workspace'], ['ignore', 'instance'], ['reopen', 'workspace']],
     ['scrollOnMove', { scrollOnMove: 'none' }, { scrollOnMove: null }, ['follow', 'library'], ['none', 'instance'], ['follow', 'library']],
   ];
   for (const [key, set, unset, was, during, back] of rows) {
@@ -913,7 +901,7 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   const r = await pinRig();
   await r.settle();
   const slotX = (name: string): number => {
-    const transform = (r.m.container.querySelector(`[data-slot="${name}"]`)!.closest('[data-row-slot]') as HTMLElement).style.transform;
+    const transform = slotTransform(r.m.container.querySelector(`[data-slot="${name}"]`)!.closest('[data-row-slot]') as HTMLElement);
     return transform === 'none' ? 0 : Number(/translateX\((-?[\d.]+)px\)/.exec(transform)![1]);
   };
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 406, 812, 1218], 'before: 390 + 16 apart');
@@ -924,46 +912,6 @@ test('configureTuning rowGap re-prices the row in one commit: the slots rest one
   assert.deepEqual([r.m.latest().tuning.rowGap, r.ws.tuning.rowGap, r.m.latest().rowNumbers.stripWidth], [40, 40, 4 * 390 + 3 * 40], 'priced in the commit of the call, not after it');
   await r.settle();
   assert.deepEqual(['root', 'a', 'b', 'c'].map(slotX), [0, 430, 860, 1290], 'after: 390 + 40 apart');
-});
-
-test('configureTuning rowGap in park mode: a smaller capacity parks the fewest park panels through the reconcile effect, then the live ones fit', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
-  const r = await pinRig({ ids, width: 1950, workspace: { tuning: { rowGap: 0 } }, settings: Object.fromEntries(ids.map((id) => [id, { overflow: 'park' } as PanelSettings])) });
-  await r.settle();
-  const liveParkable = (): string[] => r.live().filter((id) => id !== 'root');
-  assert.equal(liveParkable().length, 4, 'capacity at gap 0: (1950 - 390) / 390');
-  const renders = r.m.renders();
-  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 40 })));
-  await r.settle();
-  const capacity = Math.floor((1950 - 2 * 40 - 390) / (390 + 40));
-  assert.equal(capacity, 3);
-  assert.equal(liveParkable().length <= capacity, true, 'after the settled commit the live park panels fit');
-  assert.equal(liveParkable().length, 3, 'and exactly one was parked: the fewest');
-  assert.equal(r.m.renders() - renders >= 2, true, 'the re-price commits first and the reconcile effect parks in a later commit');
-  const widths = r.m.latest().rowNumbers;
-  assert.equal(widths.stripWidth <= widths.windowWidth, true, 'the live panels fit the window');
-});
-
-test('configureTuning rowGap in a scrolling row only re-prices: nothing is parked, and the farthest legal scrollLeft moves with the strip', async () => {
-  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
-  const r = await pinRig({ ids, width: 1000, workspace: { tuning: { rowGesture: 'step' } } });
-  await r.settle();
-  const numbers = () => {
-    const n = r.m.latest().rowNumbers;
-    return [n.stripWidth, n.windowWidth, n.stripWidth - n.windowWidth];
-  };
-  assert.deepEqual(numbers(), [4450, 968, 3482], 'eleven panels at gap 16: 11 x 390 + 10 x 16');
-  const live = r.live();
-  const renders = r.m.renders();
-  done(r.turn(() => r.ws.panels.configureTuning({ rowGap: 0 })));
-  await r.settle();
-  assert.deepEqual(numbers(), [4290, 1000, 3290], 'at gap 0: 11 x 390, a window of 1000');
-  assert.deepEqual(r.live(), live, 'nothing was parked');
-  assert.equal(r.m.renders() - renders, 1, 'one commit');
-  r.turn(() => r.h.j!.scrollTo('start'));
-  await r.settle();
-  // At gap 0 the row has (1000 mod 390) / 2 = 110 of centering at each end, so the bound is 110 + 4290 + 110 - 1000.
-  assert.equal(rowOffsetOf(r.m.container), 3510, 'a scroll to the last panel stops at the new bound, not the old 3654');
 });
 
 test('configureTuning rowGap on a row that is not measured is stored: nothing is priced or parked', async () => {

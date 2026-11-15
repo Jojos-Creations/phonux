@@ -16,8 +16,9 @@ import { mountRow, panelsOf } from './support/scroll-row.js';
 afterEach(() => cleanup());
 
 const translateX = (el: Element): number => {
+  // Slots with no PanelRow around them: no drawing pass runs, so the rest is what each rendered.
   const match = /translateX\((-?[\d.e+-]+)px\)/.exec((el as HTMLElement).style.transform);
-  return match === null ? 0 : Number(match[1]);
+  return (Number((el as HTMLElement).dataset.rowSlot) || 0) + (match === null ? 0 : Number(match[1]));
 };
 
 const realRect = HTMLElement.prototype.getBoundingClientRect;

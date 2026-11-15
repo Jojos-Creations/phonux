@@ -32,6 +32,7 @@ import { useViewSnapshot } from './snapshots.js';
 import { useWorkspace, usePanelStates } from './panels/usePanelStates.js';
 import { usePhoneSize } from './phoneFit.js';
 import {
+  packWorkspaceTiles,
   reorderWorkspaceIds,
   workspaceTileRatio,
   workspaceTileSpan,
@@ -112,8 +113,10 @@ export interface WorkspaceTrashProps {
  * collision detection apply, and a tile can be dropped on the host's own drop targets. The panel draws its own drag preview
  * and the drag announcements from the host's labels in both cases.
  * Tile pictures come from the host's snapshots (`useViewSnapshot`); a tile with no picture shows its `placeholder`, else an
- * empty placeholder. A tile spans as many grid columns as its entry's `slots`, capped at the grid's columns, and its picture
- * is that many phone widths wide and one phone tall, so every tile in a row has the same height.
+ * empty placeholder. A tile spans as many grid columns as its entry's `slots`, capped at the grid's columns, and is as tall as
+ * a one-column tile in its row; a tile capped at the columns shows its panel at the panel's own ratio. Tiles fill rows in the
+ * order given: a tile that does not fit in what is left of a row starts the next one, and the row it left is stretched across
+ * the grid, its tiles wider and taller by the same ratio. A last row that is not full keeps the normal size.
  *
  * @throws RangeError when a tile count is not a positive integer.
  * @public
@@ -140,6 +143,7 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
   const labels = resolveLabels(useOptionalHost()?.labels);
   const workspace = useWorkspace();
   const columns = workspaceTileColumns(tileSize, tileCounts);
+  const spans = entries.map((entry) => workspaceTileSpan(entry.slots, columns));
   const [dragging, setDragging] = React.useState<string | undefined>(undefined);
   const [announcement, setAnnouncement] = React.useState('');
   const draggable = onReorder !== undefined || onTrash !== undefined;
@@ -189,9 +193,18 @@ function WorkspaceView({ entries, tileCounts, tileSize = 'medium', className, on
           </Box>
         )}
         <Box data-workspace-tiles="" data-columns={columns} sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-          {entries.map((tile) => (
-            <WorkspaceTileButton key={tile.id} tile={tile} span={workspaceTileSpan(tile.slots, columns)} draggable={draggable} onActivate={activate} />
-          ))}
+          {packWorkspaceTiles(spans, columns).flatMap((row) => {
+            const tiles = entries.slice(row.start, row.end).map((tile, i) => (
+              <WorkspaceTileButton key={tile.id} tile={tile} span={spans[row.start + i] ?? 1} columns={columns} draggable={draggable} onActivate={activate} />
+            ));
+            if (!row.stretched) return tiles;
+            // A row cut short by a wider tile is laid out as a grid of its own columns across the full width; the gap is the grid's.
+            return [
+              <Box key={`row:${entries[row.start]?.id ?? row.start}`} data-workspace-tile-row="" data-columns={row.used} sx={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: `repeat(${row.used}, minmax(0, 1fr))`, columnGap: 'inherit' }}>
+                {tiles}
+              </Box>,
+            ];
+          })}
         </Box>
       </Box>
       {typeof document !== 'undefined' &&
@@ -246,13 +259,25 @@ function useEnclosingDndContext(): boolean {
 }
 
 /** A tile is picked up, and dropped onto, when the grid is draggable. */
-function WorkspaceTileButton({ tile, span, draggable, onActivate }: { tile: WorkspacePanelEntry; span: number; draggable: boolean; onActivate: (id: string) => void }): React.JSX.Element {
+function WorkspaceTileButton({ tile, span, columns, draggable, onActivate }: { tile: WorkspacePanelEntry; span: number; columns: number; draggable: boolean; onActivate: (id: string) => void }): React.JSX.Element {
   const snapshot = useViewSnapshot(tile.id);
-  const ratio = workspaceTileRatio(span, usePhoneSize());
+  const phone = usePhoneSize();
+  const slots = tile.slots ?? 1;
+  // A wide tile that fits takes its height from a one-column gauge on the grid's own tracks, so it lines up with its row whatever the gap.
+  const gauged = span > 1 && slots <= columns;
+  const ratio = workspaceTileRatio(gauged ? 1 : slots, phone);
   const drag = useDraggable({ id: tile.id, disabled: !draggable });
   const drop = useDroppable({ id: tile.id, disabled: !draggable });
   const over = drop.isOver && !drag.isDragging;
-  const caption = <Box sx={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tile.title}</Box>;
+  const strip = gauged ? { gridRow: 2, gridColumn: '1 / -1' } : {};
+  const caption = <Box sx={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...(tile.icon === undefined ? strip : {}) }}>{tile.title}</Box>;
+  const picture = snapshot ? (
+    <Box component="img" src={snapshot.src} alt="" sx={pictureSx(ratio, gauged)} />
+  ) : tile.placeholder !== undefined ? (
+    <Box component="img" data-workspace-placeholder="" src={tile.placeholder} alt="" sx={pictureSx(ratio, gauged)} />
+  ) : (
+    <Box aria-hidden="true" sx={{ ...pictureSx(ratio, gauged), bgcolor: 'action.selected' }} />
+  );
   return (
     <Box
       component="button"
@@ -269,7 +294,8 @@ function WorkspaceTileButton({ tile, span, draggable, onActivate }: { tile: Work
       aria-label={tile.title}
       onClick={() => onActivate(tile.id)}
       sx={{
-        display: 'block',
+        display: gauged ? 'grid' : 'block',
+        ...(gauged ? { gridTemplateColumns: 'subgrid', gridTemplateRows: 'auto auto' } : {}),
         minWidth: 0,
         gridColumn: `span ${span}`,
         border: 0,
@@ -283,17 +309,12 @@ function WorkspaceTileButton({ tile, span, draggable, onActivate }: { tile: Work
         outline: over ? (theme: Theme) => `${theme.spacing(0.25)} solid ${theme.palette.primary.main}` : undefined,
       }}
     >
-      {snapshot ? (
-        <Box component="img" src={snapshot.src} alt="" sx={{ display: 'block', width: '100%', aspectRatio: ratio, objectFit: 'cover', objectPosition: 'top' }} />
-      ) : tile.placeholder !== undefined ? (
-        <Box component="img" data-workspace-placeholder="" src={tile.placeholder} alt="" sx={{ display: 'block', width: '100%', aspectRatio: ratio, objectFit: 'cover', objectPosition: 'top' }} />
-      ) : (
-        <Box aria-hidden="true" sx={{ width: '100%', aspectRatio: ratio, bgcolor: 'action.selected' }} />
-      )}
+      {gauged && <Box aria-hidden="true" data-workspace-tile-gauge="" sx={{ gridRow: 1, gridColumn: 1, alignSelf: 'start', aspectRatio: ratio }} />}
+      {picture}
       {tile.icon === undefined ? (
         caption
       ) : (
-        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, ...strip }}>
           <Box data-workspace-tile-icon="" sx={{ display: 'flex', flexShrink: 0 }}>
             {tile.icon}
           </Box>
@@ -302,6 +323,15 @@ function WorkspaceTileButton({ tile, span, draggable, onActivate }: { tile: Work
       )}
     </Box>
   );
+}
+
+/**
+ * A tile picture's style. A gauged picture fills the gauge's row and gives no size of its own, so its image cannot make the
+ * tile taller than its row.
+ */
+function pictureSx(ratio: string, gauged: boolean) {
+  if (gauged) return { display: 'block', gridRow: 1, gridColumn: '1 / -1', width: '100%', height: '100%', contain: 'size', objectFit: 'cover', objectPosition: 'top' } as const;
+  return { display: 'block', width: '100%', aspectRatio: ratio, objectFit: 'cover', objectPosition: 'top' } as const;
 }
 
 /**

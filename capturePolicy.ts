@@ -14,6 +14,14 @@ export function isFadedOrHidden(el: HTMLElement): boolean {
   return false;
 }
 
+/** What PanelLoader fires from its own root once a panel's real content is up and its placeholder gone. @internal */
+export const PANEL_LOADED_EVENT = 'phonux-panel-loaded';
+
+/** A panel still behind its placeholder, or showing a failed load: a picture of it would stand in for the page in its tile. */
+export function isStillLoading(el: HTMLElement): boolean {
+  return el.querySelector('[data-panel-loading], [data-panel-load-failed]') !== null;
+}
+
 /** True when every RGBA pixel equals the first one: a blank or transparent picture, not a view of anything. */
 export function isOneColour(pixels: Uint8ClampedArray): boolean {
   for (let i = 4; i < pixels.length; i++) if (pixels[i] !== pixels[i % 4]) return false;

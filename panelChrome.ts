@@ -34,6 +34,12 @@ export const DRAGGING_ATTRIBUTE = 'data-panel-dragging';
 export const CHROME_ATTRIBUTE = 'data-panel-chrome-part';
 
 /**
+ * Set on a panel's root while its header and footer are showing, so a host can draw around them.
+ * @public
+ */
+export const CHROME_SHOWN_ATTRIBUTE = 'data-panel-chrome-shown';
+
+/**
  * The values {@link CHROME_ATTRIBUTE} takes, one per part: `header`, `grabBar` (`'grab-bar'`), `footer` and `resize`. A panel
  * carries at most one element of each, except `resize`, which marks the grip on each side.
  * @public
@@ -484,29 +490,60 @@ function subscribeHoverNone(listener: () => void): () => void {
 }
 const hoverNone = (): boolean => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(hover: none)').matches;
 
-/** Handlers `Panel` puts on its root box, composed over the caller's own. */
+/** Handlers `Panel` puts on its root box, composed over the caller's own; the pointer pair on the DOM node itself (Panel.tsx). */
 export interface ChromeRootHandlers {
-  onPointerEnter: React.PointerEventHandler<HTMLElement>;
-  onPointerLeave: React.PointerEventHandler<HTMLElement>;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
   onFocus: React.FocusEventHandler<HTMLElement>;
   onBlur: React.FocusEventHandler<HTMLElement>;
 }
+
+/** Whether Option (Alt) is down, which shows every panel's header and footer. Leaving the window lets it go, since its key-up then lands elsewhere. */
+export function useOptionHeld(): boolean {
+  const [held, setHeld] = React.useState(false);
+  React.useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => setHeld(event.altKey);
+    const onBlur = (): void => setHeld(false);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
+  return held;
+}
+
+/** How long a pointer may be off a panel before its chrome hides: long enough to cross the gap to the header at any speed. */
+const CHROME_LEAVE_MS = 150;
 
 /**
  * Whether the panel above shows its chrome in full, and the root handlers that track hover and focus. Shown while the mode is
  * 'always', while the panel is hovered, holds focus, is active or is dragged, and on a device that cannot hover.
  */
 export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootHandlers } {
-  const mode = (React.useContext(PanelSlotContext)?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome).mode;
+  const { mode } = React.useContext(PanelSlotContext)?.tuning.chrome ?? LIBRARY_TUNING_DEFAULTS.chrome;
+  const held = useOptionHeld();
   const active = usePanelActive();
   const dragging = usePanelDragging();
   const cannotHover = React.useSyncExternalStore(subscribeHoverNone, hoverNone, () => false);
   const [hovered, setHovered] = React.useState(false);
+  const leaving = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(leaving.current), []);
   const [focused, setFocused] = React.useState(false);
   const handlers = React.useMemo<ChromeRootHandlers>(
     () => ({
-      onPointerEnter: () => setHovered(true),
-      onPointerLeave: () => setHovered(false),
+      onPointerEnter: () => {
+        clearTimeout(leaving.current);
+        setHovered(true);
+      },
+      // The gap between the frame and its header or footer belongs to neither: a pointer crossing it has not left.
+      onPointerLeave: () => {
+        clearTimeout(leaving.current);
+        leaving.current = setTimeout(() => setHovered(false), CHROME_LEAVE_MS);
+      },
       onFocus: () => setFocused(true),
       onBlur: (e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
@@ -514,7 +551,7 @@ export function useChromeVisibility(): { visible: boolean; handlers: ChromeRootH
     }),
     [],
   );
-  return { visible: mode === 'always' || hovered || focused || active || dragging || cannotHover, handlers };
+  return { visible: mode === 'always' || held || hovered || focused || active || dragging || cannotHover, handlers };
 }
 
 /**
@@ -582,9 +619,12 @@ export function usePanelDragProps(): { onClose?: () => void; reorder?: ReorderHa
     props.reorder = {
       onDragEnd: (offset) => {
         const steps = reorderStepsForOffset(offset, slot.neighborWidths, slot.tuning.rowGap, slot.tuning.hopFraction);
-        if (steps !== 0) handle.move(steps, 'person');
+        if (steps === 0) return;
+        slot.noteReorder?.();
+        handle.move(steps, 'person');
       },
       onStep: (steps) => {
+        slot.noteReorder?.();
         const answer = handle.move(steps, 'person');
         return answer.ok && answer.changed;
       },

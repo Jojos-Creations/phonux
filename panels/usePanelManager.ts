@@ -9,7 +9,7 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
-import { fewestParksThatSettle, isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
+import { rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
 import { placePanel, reportNotes } from '../panelPlacement.js';
 import { resetEntries, type ResetEnv } from '../panelReset.js';
 import type { AddPlacement, PanelSettingsResolution } from '../panelSettings.js';
@@ -18,11 +18,8 @@ import { FIXED, effective, holdUnlistedNote } from '../panelSettings.js';
 import type { SettingNote, WorkspaceTuning } from '../panelSettings.js';
 import { DROP_TIE_BREAK, RETURN_TIE_BREAK, ROW_GAP } from '../rowConstants.js';
 import {
-  leastRecentlyTouchedId,
   movePanelBy,
   parkedToReveal,
-  parkLevers,
-  parksForRoom,
   promoteToLive,
   recordOverride,
   setSlots,
@@ -66,7 +63,7 @@ export interface UsePanelManagerResult {
   /**
    * The row gesture: 'right' brings the first parked panel after the rightmost live one and parks the LEFTMOST live
    * one ('left' mirrors), then parks more on that side until the row settles, never an acted-on panel. Does nothing,
-   * with no `setPanels`, when nothing is parked on that side or when that panel's `revealOnScroll` is 'never'.
+   * with no `setPanels`, when nothing is parked on that side.
    * `keep` (a dragged panel) is never parked. True when a panel came in.
    */
   scrollRow: (direction: 'left' | 'right', keep?: string) => boolean;
@@ -124,7 +121,7 @@ export interface PanelManagerOptions {
   capParkedRef?: { current: string[] };
   /** Receives each note the engine raises; whatever it throws is swallowed. */
   onNote?: (note: SettingNote) => void;
-  /** Only `rowGap`, `returnTieBreak`, `dropTieBreak` and `maxLivePanels` are read here. */
+  /** Only `rowGap` and `maxLivePanels` are read here. */
   tuning?: WorkspaceTuning;
   /** What the panel's settings resolve to over those layers with no person's layer at all; without it nothing can be reset. */
   resolveDefaults?: (entry: PanelWindow) => PanelSettingsResolution;
@@ -145,15 +142,14 @@ export function usePanelManager(
   rootId: string,
   options?: PanelManagerOptions,
 ): UsePanelManagerResult {
-  const returnTieBreak: NonNullable<WorkspaceTuning['returnTieBreak']> = options?.tuning?.returnTieBreak ?? RETURN_TIE_BREAK;
-  const dropTieBreak: NonNullable<WorkspaceTuning['dropTieBreak']> = options?.tuning?.dropTieBreak ?? DROP_TIE_BREAK;
+  const returnTieBreak: 'latest-first' | 'earliest-first' | 'row-order' = RETURN_TIE_BREAK;
+  const dropTieBreak: 'leftmost' | 'rightmost' = DROP_TIE_BREAK;
   const gap = options?.tuning?.rowGap ?? ROW_GAP;
   const maxLive = options?.tuning?.maxLivePanels ?? null;
   const env: RowEnv = { phoneWidth, containerWidth, gap, fixedColumnCount, maxLive, dropTieBreak };
   const pricing = (row: readonly PanelWindow[]) => rowPricing(env, row);
   const settledKeeping = (next: PanelWindow[], keep: readonly string[]): PanelWindow[] => settleKeeping(env, next, keep);
-  const { widthOf, capacityFor, settles } = pricing(panels);
-  const capacity = capacityFor(panels.filter(isParkLive));
+  const { capacityFor } = pricing(panels);
 
   /**
    * Parked ids in park order, most recent last. A ref, not state: only handlers and the reconcile effect below
@@ -299,7 +295,7 @@ export function usePanelManager(
 
   /** Free slots a row leaves for `live` (its live collapsible panels): capacity priced from their own widths, less their count. Infinity while unmeasured. */
   const freeSlots = (live: readonly PanelWindow[]): number => capacityFor(live) - live.length;
-  const liveParkable = (row: readonly PanelWindow[]): PanelWindow[] => row.filter(isParkLive);
+  const liveParkable = (row: readonly PanelWindow[]): PanelWindow[] => row.filter((p) => p.live && p.collapsible);
   /** Whether an 'until-room' hold still keeps `id` parked beside `base`, the live set it would join. */
   const heldBack = (id: string, base: readonly PanelWindow[]): boolean => {
     const hold = heldRef.current.get(id);
@@ -336,14 +332,7 @@ export function usePanelManager(
         forgetCapParked(id);
         continue;
       }
-      const parked = panels.find((p) => p.id === id);
-      if (parked !== undefined && parkLevers(parked).capacityReturn === 'manual') {
-        writeHold(id, 'sticky');
-        forgetCollapsed(id);
-        capParkedOrderRef.current = [...capParkedOrderRef.current.filter((x) => x !== id), id];
-      } else {
-        pushCollapsed([id]);
-      }
+      pushCollapsed([id]);
     }
   };
   /** What a placement of `p` resolves against: the row's root and the panel's own `placeFallback`. */
@@ -358,11 +347,11 @@ export function usePanelManager(
     return placePanel(row, id, placeAs, placing(target));
   };
   /** `row` with `id` landed and live, or null when `id` is unknown or already live: the one lift every path that shows a panel runs inside its update. */
-  const liftOn = (row: PanelWindow[], id: string, placeAs: AddPlacement | 'in-place', cap: number, keep?: ReadonlySet<string>): PanelWindow[] | null => {
+  const liftOn = (row: PanelWindow[], id: string, placeAs: AddPlacement | 'in-place'): PanelWindow[] | null => {
     if (!row.some((p) => p.id === id && !p.live)) return null;
     const landed = landOn(row, id, placeAs);
     if (landed.row.some((p) => p.id === id && p.live)) return landed.row;
-    return promoteToLive(landed.row, id, cap, touchedAt, keep);
+    return promoteToLive(landed.row, id);
   };
 
   const wouldEmptyRow = (ids: readonly string[]): boolean => {
@@ -399,65 +388,16 @@ export function usePanelManager(
   };
 
   /**
-   * Before a panel is shown -- a new one from PanelsAPI.create(), or usePanelClosing's undo restoring a LIVE
-   * one -- parks whatever is necessary to stay at capacity (by count, then by width), in the SAME update that
-   * reveals it. `apply` is called once, purely (no side effect), against `panelsNow` to learn the id and array
-   * position of whatever it adds/restores; the real commit re-runs it against the LATEST state instead of
-   * trusting this snapshot.
+   * Shows a panel -- a new one from PanelsAPI.create(), or usePanelClosing's undo restoring a LIVE one -- keeping it live
+   * through the settle. `apply` is called once, purely, against `panelsNow` to learn the id of whatever it adds; the
+   * commit re-runs it against the LATEST state. The row is one strip, so nothing parks to make room.
    */
   const revealPanelProactively = (panelsNow: PanelWindow[], apply: (prev: PanelWindow[]) => PanelWindow[]): void => {
     const afterInsert = apply(panelsNow);
     const targetId = afterInsert.find((p) => !panelsNow.some((q) => q.id === p.id))?.id;
     if (targetId !== undefined) markKeepLive(targetId);
     const keep = [...keptIds()];
-    const settledApply = (prev: PanelWindow[]): PanelWindow[] => settledKeeping(apply(prev), keep);
-    // The new panel may itself be a reserved one, which takes room from the parkable panels already live.
-    const capacityAfter = targetId === undefined ? capacity : pricing(afterInsert).capacityFor(afterInsert.filter(isParkLive), panels.filter(isParkLive).map(widthOf));
-    if (targetId === undefined || capacityAfter === Number.POSITIVE_INFINITY) {
-      setPanels(settledApply);
-      return;
-    }
-    const targetIndex = afterInsert.findIndex((p) => p.id === targetId);
-    const liveParkableCountAfter = afterInsert.filter(isParkLive).length;
-    const overCapacity = Math.max(0, liveParkableCountAfter - capacityAfter);
-    if (overCapacity === 0) {
-      setPanels(settledApply);
-      return;
-    }
-    const toPark: string[] = [];
-    const exempt = keptIds();
-    let scratch = afterInsert;
-    for (let i = 0; i < overCapacity; i++) {
-      const id = leastRecentlyTouchedId(scratch, touchedAt, exempt);
-      if (!id) break;
-      toPark.push(id);
-      scratch = scratch.map((p) => (p.id === id ? { ...p, live: false } : p));
-    }
-    if (toPark.length === 0) {
-      setPanels(settledApply);
-      return;
-    }
-    const rightParks = toPark.filter((id) => sideOfLiveRange(afterInsert, id) === 'right');
-    if (rightParks.length > 0) {
-      flushOwn(() =>
-        setExitRightIds((prev) => {
-          const next = new Set(prev);
-          for (const id of rightParks) next.add(id);
-          return next;
-        }),
-      );
-    }
-    recordPark(toPark, { kind: 'capacity' });
-    const parkedSet = new Set(toPark);
-    setPanels((current) => settledKeeping(apply(current).map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)), keep));
-  };
-
-  /** The capacity `promoteToLive` judges `target` going live against in `row`: this render's, or under a cap the one that counts `target` if the cap counts it. */
-  const capacityShowing = (row: PanelWindow[], target: PanelWindow): number => {
-    if (maxLive === null) return capacity;
-    const priced = pricing(row);
-    const live = row.filter(isParkLive);
-    return priced.capacityFor(parksForRoom(target) ? [...live, target] : live, live.map(priced.widthOf));
+    setPanels((prev) => settledKeeping(apply(prev), keep));
   };
 
   /** See `UsePanelManagerResult.swapPanels`'s own doc comment. */
@@ -492,7 +432,7 @@ export function usePanelManager(
       for (const { id, place } of arriving) {
         const target = row.find((p) => p.id === id);
         if (target === undefined || target.live) continue;
-        row = liftOn(row, id, place ?? effective(target).placeOnShow, capacityShowing(row, target), new Set(keep)) ?? row;
+        row = liftOn(row, id, place ?? effective(target).placeOnShow) ?? row;
       }
       return settledKeeping(row, keep);
     });
@@ -516,56 +456,31 @@ export function usePanelManager(
     const showAt = placeAs ?? effective(target).placeOnShow;
     const landed = landOn(from, id, showAt);
     const before = showAt === 'in-place' ? from : landed.row;
-    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id, capacityShowing(before, target), touchedAt, keptIds());
+    const result = before.some((p) => p.id === id && p.live) ? before : promoteToLive(before, id);
     if (!result) return;
     reportNotes(options?.onNote, landed.notes);
     if (showAt !== 'in-place') setEnterSide(id, sideOfLiveRange(result, id));
     forgetCollapsed(id);
     releaseHold(id);
-    const demoted = result.find((p) => !p.live && before.find((prev) => prev.id === p.id)?.live);
-    if (!demoted) {
-      // An updater, not `result`: `result` is built from this render's array and would drop an update queued
-      // earlier in the same handler.
-      setPanels((prev) => settledKeeping(liftOn(prev, id, showAt, Number.POSITIVE_INFINITY) ?? prev, keep));
-      return;
-    }
-    if (sideOfLiveRange(before, demoted.id) === 'right') markExitRight(demoted.id);
-    recordPark([demoted.id], { kind: 'capacity' });
-    // Applied in two functional updates, in this order: `id` goes live first (no demotion yet -- capacity
-    // Infinity guarantees that for this call only), then the panel it displaces is parked.
-    setPanels((prev) => liftOn(prev, id, showAt, Number.POSITIVE_INFINITY) ?? prev);
-    setPanels((current) => settledKeeping(current.map((p) => (p.id === demoted.id ? { ...p, live: false } : p)), keep));
+    // An updater, not `result`: `result` is built from this render's array and would drop an update queued
+    // earlier in the same handler.
+    setPanels((prev) => settledKeeping(liftOn(prev, id, showAt) ?? prev, keep));
   };
 
   /** See `UsePanelManagerResult.scrollRow`'s own doc comment. */
   const scrollRow = (direction: 'left' | 'right', keep?: string): boolean => {
     const reveal = parkedToReveal(panels, direction);
     if (!reveal) return false;
-    const kept = keep === undefined ? keptIds() : new Set([...keptIds(), keep]);
+    if (keep !== undefined) markKeepLive(keep);
     markKeepLive(reveal.id);
-    // A resize earlier in this handler is priced at its new tier, or the row committed below could overflow..
-    const sized = withPendingSlots(panels);
-    const live = sized.filter(isParkLive);
-    const farFirst = (direction === 'right' ? live : [...live].reverse()).filter((p) => !kept.has(p.id));
-    const toPark = new Set<string>();
-    const rowAfter = (): PanelWindow[] => sized.filter((p) => (isParkLive(p) || (p.id === reveal.id && parksForRoom(p))) && !toPark.has(p.id));
-    // At least the one panel the gesture swaps out, then more only while the row with `reveal` would not settle.
-    for (const p of farFirst) {
-      if (toPark.size > 0 && settles(rowAfter())) break;
-      toPark.add(p.id);
-    }
-    const flip = (row: PanelWindow[]): PanelWindow[] => row.map((p) => (toPark.has(p.id) ? { ...p, live: false } : p.id === reveal.id ? { ...p, live: true } : p));
+    // The row is one strip: nothing parks to make room, and a hidden panel stays hidden until it is shown.
     setEnterSide(reveal.id, direction);
-    // A leftward gesture parks off the RIGHT edge: mark those BEFORE the setPanels below, in their own commit.
-    if (direction === 'left' && toPark.size > 0) flushOwn(() => setExitRightIds((prev) => new Set([...prev, ...toPark])));
-    recordPark([...toPark], { kind: 'capacity' });
     forgetCollapsed(reveal.id);
     releaseHold(reveal.id);
-    setPanels((prev) => flip(prev));
     return true;
   };
 
-  /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
+  /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */  /** See `UsePanelManagerResult.reorderPanel`'s own doc comment. */
   const reorderPanel = (id: string, by: number | 'left' | 'right', record = true): boolean => {
     const count = by === 'left' ? -1 : by === 'right' ? 1 : by;
     const changes = movePanelBy(panels, id, count, rootId) !== panels;
@@ -637,12 +552,10 @@ export function usePanelManager(
    * finds nothing to drop while a cap is set: the render above has settled the row. A RISE reveals from the top of
    * `collapseOrderRef`; one that doesn't settle stays on the stack for an OLDER, narrower one.
    */
-  const committedRef = useRef(panels);
-  // The value the previous committed render had: a raise is read against it, so a mount, a restore, a resize, an equal or lower value and StrictMode's second effect all read none.
-  const prevMaxLiveRef = useRef(maxLive);
+  // Empty before the first commit, so a panel that is already hidden when the row first mounts counts as added hidden
+  // and gets its hold like any later one; seeded with `panels`, the reconcile below would take its slot back at once.
+  const committedRef = useRef<readonly PanelWindow[]>([]);
   useEffect(() => {
-    const raised = prevMaxLiveRef.current !== null && (maxLive === null || maxLive > prevMaxLiveRef.current);
-    prevMaxLiveRef.current = maxLive;
     capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
     // `settledKeeping` parks inside a state update, where no call-time code sees which panels it chose: the
     // stack learns of any park not already on it from the commit itself.
@@ -656,7 +569,7 @@ export function usePanelManager(
     const byCap = capParkedRef.current;
     capParkedRef.current = [];
     // A panel added parked is held per its own setting, unless the cap parked it before its row was shown; a hold whose panel is gone (clearAll wipes without a close) is dropped.
-    for (const p of panels) if (p.collapsible && !p.live && !before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld(p.id, effective(p).hideStickiness);
+    for (const p of panels) if (p.collapsible && !p.live && !before.some((q) => q.id === p.id) && !byCap.includes(p.id)) markHeld(p.id, 'sticky');
     for (const id of heldRef.current.keys()) if (!panels.some((p) => p.id === id)) releaseHold(id);
     const capParked = byCap.filter((id) => panels.some((p) => p.id === id && p.collapsible && !p.live));
     if (capParked.length > 0) recordPark(capParked, { kind: 'capacity' });
@@ -664,62 +577,23 @@ export function usePanelManager(
       (p) => p.collapsible && !p.live && !collapseOrderRef.current.includes(p.id) && !heldRef.current.has(p.id) && before.some((q) => q.id === p.id && q.live),
     );
     if (unrecorded.length > 0) recordPark(unrecorded.map((p) => p.id), { kind: 'capacity' });
-    const keepIds: string[] = [];
     const waiting = new Map<string, PanelWindow[]>();
     // A mark still on the array its action read waits for that action to land. Inside flushOwn every mark
     // outlives this reconcile: the rest of its handler has not landed yet.
     for (const [id, seen] of keepLiveRef.current) {
-      if (seen !== panels) keepIds.push(id);
       if (seen === panels || flushingRef.current > 0) waiting.set(id, seen);
     }
     keepLiveRef.current = waiting;
-    if (capacity === Number.POSITIVE_INFINITY) return;
-    const live = panels.filter(isParkLive);
-    // An 'until-room' hold taken before the first measurement took no threshold; it takes the row's as measured now.
-    for (const [id, hold] of heldRef.current) if (typeof hold === 'object' && hold.freeAfterPark === Number.POSITIVE_INFINITY) writeHold(id, { freeAfterPark: capacity - live.length });
-    if (live.length > capacity) {
-      const toPark = fewestParksThatSettle(live, widthOf, settles, keepIds, dropTieBreak);
-      if (toPark.length === 0) return;
-      recordPark(toPark, { kind: 'capacity' });
-      const parkedSet = new Set(toPark);
-      setPanels((current) => current.map((p) => (parkedSet.has(p.id) ? { ...p, live: false } : p)));
-    } else if (live.length < capacity && (collapseOrderRef.current.length > 0 || (raised && capParkedOrderRef.current.length > 0))) {
-      // A raise also walks the manual panels the cap parked; the walk and its bound are the ones a capacity rise uses.
-      const stack = raised ? [...collapseOrderRef.current, ...capParkedOrderRef.current] : collapseOrderRef.current;
-      const revealed = new Set<string>();
-      const stale = new Set<string>();
-      for (const id of returnOrder(stack, panels)) {
-        const candidate = panels.find((p) => p.id === id);
-        if (!candidate || candidate.live) {
-          stale.add(id); // closed, or already live some other way
-          continue;
-        }
-        if (heldBack(id, panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id))))) continue;
-        if (settles(panels.filter((p) => parksForRoom(p) && (p.live || revealed.has(p.id) || p.id === id)))) revealed.add(id);
-      }
-      if (revealed.size === 0) return;
-      collapseOrderRef.current = collapseOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
-      capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => !revealed.has(id) && !stale.has(id));
-      // Each returning panel lands by its own `placeOnReturn`, in return order, in the update that makes it live.
-      const returnAt = (id: string): AddPlacement | 'in-place' => FIXED.placeOnReturn;
-      const landAll = (row: PanelWindow[]): PanelWindow[] => [...revealed].reduce((acc, id) => landOn(acc, id, returnAt(id)).row, row);
-      let landing = panels;
-      const moved = new Set<string>();
-      for (const id of revealed) {
-        const result = landOn(landing, id, returnAt(id));
-        reportNotes(options?.onNote, result.notes);
-        if (returnAt(id) !== 'in-place') moved.add(id);
-        landing = result.row;
-      }
-      const landed = landing.map((p) => (revealed.has(p.id) ? { ...p, live: true } : p));
-      for (const id of revealed) {
-        releaseHold(id);
-        setEnterSide(id, sideOfLiveRange(moved.has(id) ? landed : panels, id));
-      }
-      setPanels((current) => landAll(current).map((p) => (revealed.has(p.id) ? { ...p, live: true } : p)));
-    }
+    // The row is one continuous strip (Embla): a panel parked for room or the cap (an older save, a row from before the strip) takes
+    // its slot back where it is; a host's hide stays.
+    // A hand-built collapsible entry is the one the parking engine parked for room.
+    const back = new Set(panels.filter((p) => p.settings === undefined && p.collapsible && !p.live && !heldRef.current.has(p.id)).map((p) => p.id));
+    if (back.size === 0) return;
+    collapseOrderRef.current = collapseOrderRef.current.filter((id) => !back.has(id));
+    capParkedOrderRef.current = capParkedOrderRef.current.filter((id) => !back.has(id));
+    setPanels((current) => current.map((p) => (back.has(p.id) ? { ...p, live: true } : p)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capacity, panels, maxLive]);
+  }, [panels, maxLive]);
 
   /**
    * `stack` (park order, most recent last) in the order a return walk tries it: the tie-break first, then a stable
@@ -727,12 +601,7 @@ export function usePanelManager(
    */
   const returnOrder = (stack: readonly string[], row: readonly PanelWindow[]): string[] => {
     const rowIndex = (id: string): number => row.findIndex((p) => p.id === id);
-    const priority = (id: string): number => {
-      const p = row.find((q) => q.id === id);
-      return p === undefined ? 0 : parkLevers(p).returnPriority;
-    };
-    const walk = returnTieBreak === 'latest-first' ? [...stack].reverse() : returnTieBreak === 'earliest-first' ? [...stack] : [...stack].sort((a, b) => rowIndex(a) - rowIndex(b));
-    return walk.sort((a, b) => priority(b) - priority(a));
+    return returnTieBreak === 'latest-first' ? [...stack].reverse() : returnTieBreak === 'earliest-first' ? [...stack] : [...stack].sort((a, b) => rowIndex(a) - rowIndex(b));
   };
 
   /** See `UsePanelManagerResult.revealMostRecentlyCollapsed`'s own doc comment for the full contract. */
@@ -748,7 +617,7 @@ export function usePanelManager(
         stale.add(id); // closed, or already live some other way
         continue;
       }
-      if (candidateId === null && !heldBack(id, liveParkable(sized)) && settles(sized.filter((p) => parksForRoom(p) && (p.live || p.id === id)))) candidateId = id;
+      if (candidateId === null && !heldBack(id, liveParkable(sized))) candidateId = id;
     }
     collapseOrderRef.current = stack.filter((id) => id !== candidateId && !stale.has(id));
     if (candidateId === null) return;
@@ -761,24 +630,22 @@ export function usePanelManager(
       // One of the two "reappearance" paths that enter from the anchor's side -- mark it BEFORE the setPanels
       // call below; no flushSync, since the mark only has to be in the commit that mounts the slot.
       markEnteringViaAnchor(revealId);
-      setPanels((current) => promoteToLive(current, revealId, Number.POSITIVE_INFINITY, touchedAt) ?? current);
+      setPanels((current) => promoteToLive(current, revealId) ?? current);
       return;
     }
     const placed = landOn(panelsAfterClose, revealId, returnAt);
     reportNotes(options?.onNote, placed.notes);
     setEnterSide(revealId, sideOfLiveRange(placed.row, revealId));
-    setPanels((current) => liftOn(current, revealId, returnAt, Number.POSITIVE_INFINITY) ?? current);
+    setPanels((current) => liftOn(current, revealId, returnAt) ?? current);
   };
 
   /** The ids of the parked panels on the collapse stack that `row` has room to bring back, in return order. */
   const plannedReturns = (row: readonly PanelWindow[]): string[] => {
-    const priced = pricing(row);
     const back = new Set<string>();
     for (const id of returnOrder(collapseOrderRef.current, row)) {
       const candidate = row.find((p) => p.id === id);
       if (!candidate || candidate.live) continue;
-      if (heldBack(id, row.filter((p) => parksForRoom(p) && (p.live || back.has(p.id))))) continue;
-      if (priced.settles(row.filter((p) => parksForRoom(p) && (p.live || back.has(p.id) || p.id === id)))) back.add(id);
+      if (!heldBack(id, row.filter((p) => p.collapsible && (p.live || back.has(p.id))))) back.add(id);
     }
     return [...back];
   };
@@ -832,4 +699,3 @@ export function usePanelManager(
   };
 }
 
-export { fewestParksThatSettle } from './rowSettle.js';

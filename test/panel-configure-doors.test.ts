@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 
 type Refused = Extract<ConfigureResult, { ok: false }>;
 
-const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'shrinkUnfocused', 'firstPressFocusOnly', 'rowGap', 'rowTop', 'phoneHeight', 'saveQuietMs', 'gestureLockMs', 'gestureQuietMs', 'resizeSettleSlides', 'returnTieBreak', 'dropTieBreak', 'rowGesture', 'fastScroll', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
+const WORKSPACE_ONLY = ['defaultEnterFrom', 'defaultExitTo', 'shrinkUnfocused', 'firstPressFocusOnly', 'rowGap', 'rowTop', 'phoneHeight', 'saveQuietMs', 'gestureQuietMs', 'resizeSettleSlides', 'rowGesture', 'fastScroll', 'initialScroll', 'maxLivePanels', 'chrome', 'phoneFit', 'phoneFitMin', 'phoneFitMax', 'dragToClose', 'slide', 'hopFraction', 'edgeScroll'];
 const TEMPLATE = ['hostCreatable', 'multiple', 'maxInstances', 'hollowDot'];
 
 /** One legal value for every settings key the catalog names, so a sweep can ask each of them. */
@@ -41,7 +41,6 @@ const VALUE: Record<string, unknown> = {
   overflow: 'park',
   revealOnScroll: 'any',
   edgeHold: 'left',
-  resize: 'reveal',
   scrollOnOpen: 'center',
   scrollOnMove: 'none',
   toggleWhenClosed: 'reopen',
@@ -65,11 +64,8 @@ const VALUE: Record<string, unknown> = {
   hopFraction: 0.4,
   edgeScroll: { zonePx: 60 },
   saveQuietMs: 700,
-  gestureLockMs: 400,
   gestureQuietMs: 300,
   resizeSettleSlides: 2,
-  returnTieBreak: 'row-order',
-  dropTieBreak: 'rightmost',
   rowGesture: 'off',
   fastScroll: 'jump',
   initialScroll: 'end',
@@ -157,10 +153,10 @@ test('doors: the table ran every row, calls by classes by one key each', () => {
 // The sweep: every catalog key through every call
 // ---------------------------------------------------------------------------
 
-test('doors: the catalog holds the plain keys, three template keys among them, and twenty-five tuning leaves', () => {
+test('doors: the catalog holds the plain keys, three template keys among them, and twenty-two tuning leaves', () => {
   assert.equal(flatKeys.length + leafKeys.length, names.length);
   assert.deepEqual(leafKeys.sort(), [...WORKSPACE_ONLY].sort());
-  assert.equal(leafKeys.length, 25);
+  assert.equal(leafKeys.length, 22);
   assert.deepEqual(PANEL_SETTINGS_CATALOG.filter((d) => d.configure.doors.length === 1 && d.configure.doors[0] === 'template').map((d) => d.name).sort(), [...TEMPLATE].sort());
 });
 

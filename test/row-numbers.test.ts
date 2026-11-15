@@ -34,15 +34,18 @@ const legacyPanel = (id: string): PanelWindow => appendPanel([], { url: `https:/
 const numbers = (entries: PanelWindow[], containerWidth = 1000) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth, gap: GAP });
 const eleven = (): PanelWindow[] => [scrollRoot(), ...[1, 2, 3, 4, 5].map((k) => made(`pin${k}`, { parkable: false })), ...[1, 2, 3, 4, 5].map((k) => made(`web${k}`))];
 
-test('computeRowNumbers: a row of hand-built entries is not a scrolling row and keeps the 0.1.0 numbers', () => {
+test('computeRowNumbers: a row of hand-built entries is a scrolling strip like any other (overflow removed, 2026-11-14)', () => {
+  // Before the owner removed overflow this row kept the 0.1.0 park numbers: maxLiveWidth 862 and the parked widths apart.
   const n = numbers([legacyRoot(), legacyPanel('a'), legacyPanel('b')], 1300);
-  assert.equal(n.rowScroll, false);
+  assert.equal(n.rowScroll, true);
   assert.equal(n.windowWidth, 1268);
-  assert.equal(n.maxLiveWidth, 862, '1268 less the fixed 390 and one gap');
-  assert.equal(n.rowMarginLeft, 33, '(1268 - (390 + 2 * 406)) / 2');
-  assert.equal(n.stripWidth, 1202);
-  assert.deepEqual(n.reservedWidths, [390]);
-  assert.deepEqual(n.parkLiveWidths, [390, 390]);
+  assert.equal(n.maxLiveWidth, 1268, 'a strip panel may be as wide as the window');
+  assert.equal(n.rowMarginLeft, 33, '(1268 - 1202) / 2: a strip that fits is centered');
+  assert.equal(n.stripWidth, 1202, '3 * 390 + 2 * 16');
+  assert.deepEqual(n.leftOffsets, [0, 406, 812]);
+  assert.deepEqual(n.reservedWidths, [390, 390, 390]);
+  assert.deepEqual(n.parkLiveWidths, []);
+  assert.equal(maxScrollOf(n), 0, 'the strip fits: nothing to scroll');
 });
 
 test('computeRowNumbers: History, five pinned and five web panels, all scroll, at container 1000', () => {
@@ -106,14 +109,14 @@ test('computeRowNumbers: the root-less marker is never drawn, counted or priced'
   assert.equal(n.rowMarginLeft, 86);
 });
 
-test('computeRowNumbers: a fixedItemCount the host passes prices a hand-built row, and the default is the drawn fixed columns', () => {
+test('computeRowNumbers: a fixedItemCount the host passes no longer prices a hand-built row: the strip ignores it (overflow removed, 2026-11-14)', () => {
   const entries = [legacyRoot(), legacyPanel('a')];
   const price = (fixedItemCount?: number) => computeRowNumbers({ entries, phoneWidth: 390, containerWidth: 1300, gap: GAP, ...(fixedItemCount === undefined ? {} : { fixedItemCount }) }).maxLiveWidth;
-  assert.equal(price(), 862);
-  assert.equal(price(2), 862 - 406, 'a second fixed column takes its width and gap out of the cap');
+  assert.equal(price(), 1268, 'the window, not 1268 less the fixed column (862 under the 0.1.0 park numbers)');
+  assert.equal(price(2), 1268, 'a second fixed column changes nothing');
 });
 
-test('a mounted scrolling row: the container pads 16 on the left and none on the right, and the eleven slots plus ten gaps sum to the strip', () => {
+test('a mounted scrolling row: the container pads 16 on both sides, the eleven slots plus ten gaps sum to the strip, and the row box is the window two slots wide', () => {
   const entries = eleven().map((p) => ({ ...p, view: 'rn-view' }));
   const n = numbers(entries);
   const ref = { current: null };
@@ -121,11 +124,14 @@ test('a mounted scrolling row: the container pads 16 on the left and none on the
   const workspace = createElement(Workspace, { overflowContainerRef: ref, rowRef: ref, containerWidth: 1000, rowResizeSettled: true, phoneWidth: 390, fixedColumnCount: 6, liveWidths: [], rowNumbers: n, children: row });
   const markup = renderToStaticMarkup(createElement(CacheProvider, { value: createCache({ key: 'css' }), children: createElement(HostProvider, { host: createFakeHost(), children: workspace }) }));
   assert.match(markup, /padding-left:16px/);
-  assert.match(markup, /padding-right:0px/);
+  // The Embla row is a window cut one gap inside each edge; the old row scrolled its container and padded none on the right.
+  assert.match(markup, /padding-right:16px/);
   assert.doesNotMatch(markup, /data-row-end-pad/, 'the range comes from the numbers, so no element holds it open');
   const slotWidths = [...markup.matchAll(/data-panel-size-box="" style="width:(\d+)px/g)].map((m) => Number(m[1]));
   assert.equal(slotWidths.length, 11);
   assert.equal(slotWidths.reduce((sum, w) => sum + w, 0) + 10 * GAP, n.stripWidth);
   assert.equal(n.stripWidth, 4450);
-  assert.match(markup, /width:4450px/, 'the row box is as wide as the strip');
+  // The slots overflow Embla's box, which is as wide as the window: two slots and a gap fit in 1000 less 16 on each side.
+  assert.match(markup, /data-row-embla-window="" style="[^"]*width:796px/, 'the row window is two slots and a gap wide');
+  assert.doesNotMatch(markup, /width:4450px/, 'no box is as wide as the strip: the window cuts it');
 });

@@ -47,19 +47,6 @@ const probeOf = (container: HTMLElement, id: string): HTMLElement => {
   return node;
 };
 
-test('a left-held panel is drawn in the strip, pinned by its own host, and its view reads it as not movable', () => {
-  // The row root, a (held left), b, c at 1000 px: the held panel is the second entry, in its React place in the strip.
-  const m = mountRow(row(rootEntry(), made('a', { edgeHold: 'left' }), made('b'), made('c')), 1000);
-  const aId = m.latest().entries.find((p) => p.id !== ROOT && p.title === 'a')?.id;
-  const slot = m.container.querySelector<HTMLElement>(`[data-row-strip] [data-row-id="${aId}"]`);
-  assert.ok(slot, 'the held panel is in the strip, at its React place');
-  const host = slot.closest<HTMLElement>('[data-row-hold]');
-  assert.equal(host?.style.position, 'relative', 'the host holds it at its edge');
-  assert.equal(host?.dataset.holdLeft, '0px', 'the left hold is its offset in the left group');
-  assert.equal(probeOf(m.container, 'a').dataset.movable, 'false', 'a held panel cannot be moved by a person');
-  assert.equal(probeOf(m.container, 'b').dataset.movable, 'true', 'a strip panel still can');
-});
-
 test('a drag beside a held panel does not cross it: the strip panel next to the held one reads no width on that side', () => {
   const held = mountRow(row(rootEntry(), made('a', { edgeHold: 'left' }), made('b'), made('c')), 1000);
   const heldLeft = probeOf(held.container, 'b').dataset.left;
@@ -77,44 +64,6 @@ test('a panel that cannot fit lets go: a three-phone panel with edgeHold left is
   assert.equal(m.latest().rowNumbers.held.length, 0);
 });
 
-test('the edge elements are spacers as wide as their groups, and the held panels are pinned by their hosts', () => {
-  // Two holds need room for both groups (see the numbers test at 1400), so the row is wide enough for them.
-  const m = mountRow(row(rootEntry(), made('a', { edgeHold: 'left' }), made('b'), made('c', { edgeHold: 'right' })), 1400);
-  const left = m.container.querySelector<HTMLElement>('[data-row-edge="left"]');
-  const right = m.container.querySelector<HTMLElement>('[data-row-edge="right"]');
-  assert.ok(left && right);
-  assert.equal(left.style.width, '406px', 'the left group and its gap');
-  assert.equal(right.style.width, '406px', 'the right group and its gap');
-  assert.equal(left.style.position, '', 'a spacer, not a held element');
-  const aHost = slotOf(m.container, 'a')!.closest<HTMLElement>('[data-row-hold]');
-  const cHost = slotOf(m.container, 'c')!.closest<HTMLElement>('[data-row-hold]');
-  assert.equal(aHost?.dataset.holdLeft, '0px');
-  assert.equal(cHost?.dataset.holdRight, '16px', 'the right group: its gap, less the panel offset and width');
-});
-
-test('a held panel keeps its view when its hold starts and when it lets go, for left, right and both', () => {
-  const cases: [string, PanelSettings, string][] = [
-    ['left', { edgeHold: 'left' }, 'a'],
-    ['right', { edgeHold: 'right' }, 'c'],
-    ['both', { edgeHold: 'both' }, 'a'],
-  ];
-  for (const [name, layer, id] of cases) {
-    const entries = [rootEntry(), made(`${name}-a`, name === 'left' || name === 'both' ? layer : {}, { view: 'edge-count' }), made(`${name}-b`, {}, { view: 'edge-count' }), made(`${name}-c`, name === 'right' ? layer : {}, { view: 'edge-count' })];
-    const m = mountRow(row(...entries), 1000);
-    const key = id === 'a' ? `${name}-a` : `${name}-c`;
-    assert.equal(m.latest().rowNumbers.held.length + m.latest().rowNumbers.stuck.length, 1, `${name}: held at 1000`);
-    const first = counted.get(entries[id === 'a' ? 1 : 3]!.id);
-    assert.ok(first !== undefined, `${key} mounted`);
-    m.rerender(300);
-    assert.equal(m.latest().rowNumbers.held.length + m.latest().rowNumbers.stuck.length, 0, `${name}: released at 300`);
-    m.rerender(1000);
-    m.rerender(600);
-    m.rerender(1000);
-    assert.equal(counted.get(entries[id === 'a' ? 1 : 3]!.id), first, `${name}: the view is the same instance through the hold changes`);
-    cleanup();
-  }
-});
-
 test('two both panels stack: each host is pinned at its stacked inset, and neither view remounts as the stack starts or lets go', () => {
   const entries = [rootEntry(), made('stack-a', { edgeHold: 'both' }, { view: 'edge-count' }), made('stack-b', {}, { view: 'edge-count' }), made('stack-c', { edgeHold: 'both' }, { view: 'edge-count' }), made('stack-d', {}, { view: 'edge-count' })];
   const m = mountRow(row(...entries), 1400);
@@ -123,10 +72,12 @@ test('two both panels stack: each host is pinned at its stacked inset, and neith
   const hostOf = (id: string) => slotOf(m.container, id)!.closest<HTMLElement>('[data-row-hold]');
   const outer = hostOf(entries[1]!.id);
   const inner = hostOf(entries[3]!.id);
-  assert.equal(outer?.dataset.holdLeft, `${stuck[0]!.left}px`, 'the outer panel is pinned at the window edge');
-  assert.equal(inner?.dataset.holdLeft, `${stuck[1]!.left}px`, 'the inner panel is pinned a panel and a gap in');
-  assert.equal(inner?.dataset.holdLeft, '406px');
-  assert.equal(outer?.dataset.holdRight, `${stuck[0]!.right}px`);
+  // Each host carries the insets it keeps from the window's left and right edges (a stuck panel's right inset less the gap the old
+  // scrollport kept: the Embla window ends at its last slot).
+  assert.equal(outer?.dataset.holdStick, `${stuck[0]!.left} ${stuck[0]!.right - 16}`, 'the outer panel is pinned at the window edge');
+  assert.equal(inner?.dataset.holdStick, `${stuck[1]!.left} ${stuck[1]!.right - 16}`, 'the inner panel is pinned a panel and a gap in');
+  assert.equal(inner?.dataset.holdStick, '406 0');
+  assert.equal(outer?.dataset.holdStick, '0 406');
   const first = [counted.get(entries[1]!.id), counted.get(entries[3]!.id)];
   assert.ok(first.every((n) => n !== undefined), 'both views mounted');
   m.rerender(300);

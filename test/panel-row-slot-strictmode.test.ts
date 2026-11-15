@@ -27,9 +27,10 @@ function Hosted(): React.ReactElement {
   );
 }
 
+// Slots with no PanelRow around them: no drawing pass runs, so the rest is what each rendered.
 const translateX = (el: HTMLElement): number => {
   const match = /translateX\((-?[\d.e+-]+)px\)/.exec(el.style.transform);
-  return match === null ? 0 : Number(match[1]);
+  return Number(el.dataset.rowSlot) + (match === null ? 0 : Number(match[1]));
 };
 
 test('a slot that a reorder moves in the DOM slides to its new rest', async () => {

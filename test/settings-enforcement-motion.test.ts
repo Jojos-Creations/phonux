@@ -18,9 +18,10 @@ import { bindingOf, type EngineOps } from '../workspaceCore.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, withHost, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const ROOT = 'root';
-const OWNED = ['layer', 'enterFrom', 'resize'];
+const OWNED = ['layer', 'enterFrom'];
 const SPAN = 390 + GAP;
 
 registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-slot': panel.id }, panel.title));
@@ -28,7 +29,7 @@ registerTestView('motion-view', ({ panel }) => React.createElement('i', { 'data-
 const resolve = (layer: PanelSettings = {}) => resolvePanelSettings({ template: layer }).value;
 function made(id: string, layer: PanelSettings = {}, over: Partial<PanelWindow> = {}): PanelWindow {
   const skeleton = appendPanel([], { url: `https://${id}.example`, title: id, view: 'motion-view' }, id, ROOT)[0]!;
-  return applyTemplate({ ...skeleton, ...over }, resolve({ overflow: 'park', ...layer }), 'create');
+  return applyTemplate({ ...skeleton, ...over }, resolve({ ...layer }), 'create');
 }
 const rootEntry = (): PanelWindow =>
   applyTemplate({ ...createRootPanel(ROOT), view: 'motion-view' }, resolvePanelSettings({ template: { title: 'History', layer: 'raised', enterFrom: 'anchor' } }, { root: true }).value, 'create');
@@ -66,7 +67,7 @@ const row = (entries: PanelWindow[], p: Props = {}, workspace?: WorkspaceHandle)
   );
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 const axis = (slot: HTMLElement, name: 'X' | 'Y'): number => {
-  const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slot.style.transform);
+  const match = new RegExp(`translate${name}\\((-?[\\d.]+)px\\)`).exec(slotTransform(slot));
   return match === null ? 0 : Number(match[1]);
 };
 const xOf = (container: HTMLElement, id: string): number => axis(slotOf(container, id)!, 'X');
@@ -203,19 +204,6 @@ test('differential layer: the resolved layer decides the slot stacking', () => {
 test('differential enterFrom: the resolved setting decides which side a new slot starts from', () => {
   differential('enterFrom', (run) => {
     for (const value of ['left', 'right'] as const) run(value, () => enterX({ enterFrom: value }));
-  });
-});
-
-test('differential resize: the resolved setting decides whether the row\'s size box reveals the content or reflows it', () => {
-  differential('resize', (run) => {
-    for (const value of ['reveal', 'reflow'] as const) {
-      run(value, () => {
-        const mounted = mount(row([rootEntry(), made('b', { resize: value })]));
-        const revealed = slotOf(mounted.container, 'b')!.querySelector('[data-panel-size-reveal]') !== null;
-        mounted.unmount();
-        return revealed;
-      });
-    }
   });
 });
 

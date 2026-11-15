@@ -50,15 +50,10 @@ test('rowConstants: SAVE_QUIET_MS equals WORKSPACE_SAVE_QUIET_MS, which stays ex
   assert.equal(WORKSPACE_SAVE_QUIET_MS, 500);
 });
 
-test('rowConstants: the gesture lock is the literal 30 and the hop fraction is the literal 0.5, and neither number has a second copy in the row code', () => {
+test('rowConstants: the gesture lock is the literal 30 and the hop fraction is the literal 0.5, and the save delay has no second copy', () => {
   assert.equal(rowConstants.GESTURE_LOCK_MS, 30);
   assert.equal(rowConstants.HOP_FRACTION, 0.5);
-  const gesture = readFileSync(`${ROOT}panels/useRowScrollGesture.ts`, 'utf8');
   const persistence = readFileSync(`${ROOT}panels/useWorkspacePersistence.ts`, 'utf8');
-  assert.match(gesture, /import \{ GESTURE_LOCK_MS, GESTURE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the gesture imports the one constant it defaults to');
-  assert.doesNotMatch(gesture, /GESTURE_LOCK_MS = /, 'no module constant of the gesture lock is left in the gesture file');
-  assert.doesNotMatch(gesture, /\b30\b/, 'the number 30 is not written in the gesture file');
-  assert.doesNotMatch(gesture, /\b150\b/, 'the number 150 is not written in the gesture file');
   assert.match(persistence, /import \{ SAVE_QUIET_MS \} from '\.\.\/rowConstants\.js';/, 'the persistence hook imports the one constant it defaults to');
   assert.doesNotMatch(persistence, /SAVE_QUIET_MS = 500/, 'no module constant of the save delay is left in the persistence file');
   assert.doesNotMatch(persistence, /\b500\b/, 'the number 500 is not written in the persistence file');
@@ -89,13 +84,9 @@ test('rowConstants: every exported constant reaches LIBRARY_TUNING_DEFAULTS, so 
   assert.equal(t.slide.closeExitSeconds, rowConstants.SLIDE_CLOSE_EXIT_SECONDS);
   assert.equal(t.hopFraction, rowConstants.HOP_FRACTION);
   assert.equal(t.saveQuietMs, rowConstants.SAVE_QUIET_MS);
-  assert.equal(t.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
   assert.equal(t.gestureQuietMs, rowConstants.GESTURE_QUIET_MS);
   assert.equal(t.slide.closeExitEase, rowConstants.CLOSE_EXIT_EASE);
-  assert.equal(t.slide.glideEase, rowConstants.GLIDE_EASE);
   assert.deepEqual({ ...rowConstants.ROW_LAYER_Z }, { BASE: 1, RAISED: 100, DRAGGED: 200 });
-  assert.equal(t.returnTieBreak, rowConstants.RETURN_TIE_BREAK);
-  assert.equal(t.dropTieBreak, rowConstants.DROP_TIE_BREAK);
   assert.equal(t.rowGesture, rowConstants.ROW_GESTURE);
   assert.equal(t.fastScroll, rowConstants.FAST_SCROLL);
   assert.equal(t.initialScroll, rowConstants.INITIAL_SCROLL);
@@ -130,8 +121,7 @@ test('rowConstants: no source file outside rowConstants.ts declares its own copy
   assert.deepEqual(offenders, []);
 });
 
-test('rowConstants: the gesture and the persistence hook default to the constants, which are the tuning defaults', () => {
-  assert.equal(LIBRARY_TUNING_DEFAULTS.gestureLockMs, rowConstants.GESTURE_LOCK_MS);
+test('rowConstants: the persistence hook defaults to the constant, which is the tuning default', () => {
   assert.equal(LIBRARY_TUNING_DEFAULTS.saveQuietMs, rowConstants.SAVE_QUIET_MS);
 });
 

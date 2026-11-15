@@ -79,7 +79,9 @@ export function mountRow(entries: PanelWindow[], width: number, over: Partial<Om
     rerender: (next) => mounted.rerender(wrap(React.createElement(Probe, { containerWidth: next }))),
     wheel: (init) => {
       const event = new WheelEvent('wheel', { cancelable: true, bubbles: true, ...init });
-      act(() => void container.dispatchEvent(event));
+      // A wheel over the row lands inside it: on the Embla row's window, where its wheel listener is, and bubbles up to the container.
+      const target = container.querySelector<HTMLElement>('[data-row-embla-window]') ?? container;
+      act(() => void target.dispatchEvent(event));
       return event;
     },
     key: (name, init = {}, target = window) => void act(() => void target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init }))),

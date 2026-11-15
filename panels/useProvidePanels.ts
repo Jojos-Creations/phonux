@@ -7,16 +7,11 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
-import { useReducedMotionConfig } from 'motion/react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop, snapToStopIndex, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
-import { ROW_BUMP_PX, ROW_BUMP_SEC, rowScrollerFor } from '../rowScroller.js';
-import { stepGlide } from '../rowFastScroll.js';
-import { createRestWatch } from './restWatch.js';
-import { gestureTarget, scrollTargetFor } from '../scrollTargets.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
 import { panelWidthOf } from '../panelTiers.js';
@@ -35,38 +30,27 @@ import { conflictNotes, finishCreated } from '../workspacePlan.js';
 import { usePanelClosing, type Reapplied } from './usePanelClosing.js';
 import { usePanelManager, type GateKind } from './usePanelManager.js';
 import { createPanelList } from './panelList.js';
-import { isParkLive, rowPricing, settleKeeping, type RowEnv } from './rowSettle.js';
-import { useRowScrollGesture } from './useRowScrollGesture.js';
+import type { RootView } from '../panelManager.js';
+import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, startEmblaAt, subscribeEmblaRests, whenEmblaFree, wholeInView, type StripLayout } from '../emblaRow.js';
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
 
+/**
+ * The rest of a row at scroll `at` as a saved mark names it: the first panel, in strip order, the window shows, and `at`'s offset
+ * from that panel's left edge in units of `step` (one phone and its gap). Null for an empty strip.
+ */
+function restMarkAt(layout: StripLayout, at: number, step: number): RestMark | null {
+  let first = -1;
+  for (const [k, left] of layout.lefts.entries()) {
+    if (left + layout.widths[k]! <= at + 0.5) continue;
+    if (first < 0 || left < layout.lefts[first]!) first = k;
+  }
+  if (first < 0 || step <= 0) return null;
+  return { panel: layout.ids[first]!, offset: Math.round(((at - layout.lefts[first]!) / step) * 1e4) / 1e4 };
+}
+
 /** Whether the host's CaptureTrigger is asked for a picture at `event`: a panel is captured at both. */
 const asksForPicture = (event: 'park' | 'close'): boolean => FIXED.snapshot === 'both' || FIXED.snapshot === event;
-
-/** How long the row must stand still, in ms, before it counts as at rest: a glide's last frame and a momentum tail are not rest. */
-const REST_QUIET_MS = 150;
-
-/** The index in `n.stops` of the stop nearest `at`, the earliest on a tie; -1 when the row has no stops. */
-function nearestStopIndex(n: RowNumbers, at: number): number {
-  let best = -1;
-  for (const [k, stop] of n.stops.entries()) if (best < 0 || Math.abs(stop - at) < Math.abs(n.stops[best]! - at)) best = k;
-  return best;
-}
-
-/** The rest of the row at stop `k`, as a saved mark names it: the first drawn entry the stop shows, and the stop's offset from that entry's left edge in phone widths. */
-function markOfStop(n: RowNumbers, k: number, step: number): RestMark {
-  const index = n.stopSpans[k]!.first;
-  return { panel: n.ids[index]!, offset: (n.stops[k]! - (n.stripStart + n.leftOffsets[index]!)) / step };
-}
-
-/** The stop a saved mark names: the stop that shows its panel nearest the panel's left edge moved by the offset. Null when the panel is not drawn or no stop shows it. */
-function stopOfMark(n: RowNumbers, mark: RestMark | null, step: number): number | null {
-  if (mark === null) return null;
-  const index = n.ids.indexOf(mark.panel);
-  if (index < 0) return null;
-  const k = snapToStopIndex(n, index, n.stripStart + n.leftOffsets[index]! + mark.offset * step);
-  return k < 0 ? null : n.stops[k]!;
-}
 
 /**
  * Duck-typed (a `preventDefault` function): a bare `onClick={panels.create}` reference passes the click
@@ -156,6 +140,8 @@ function planCreate(options: CreatePanelOptions | undefined, template: PanelTemp
   };
 }
 
+/** The root as the row draws it while it has stepped aside: a parked panel, in the drawn entries only, never on the list. */
+
 /** Whether a host-bag `create` of `template` may add another, given the entries as they stand: `hostCreatable`, `multiple` and `maxInstances`. */
 function mayCreate(settings: ResolvedPanelSettings, templateId: string, entries: readonly PanelWindow[]): boolean {
   if (!settings.hostCreatable) return false;
@@ -214,21 +200,15 @@ function appendFromTemplate(
   });
 }
 
-/** The four timing leaves of `tuning`, each at its library default when unset or unusable. */
-function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<WorkspaceTuning, 'saveQuietMs' | 'gestureLockMs' | 'returnTieBreak' | 'dropTieBreak'>> {
+/** The timing leaf of `tuning`, at its library default when unset or unusable. */
+function timingTuning(tuning: WorkspaceTuning | undefined): Required<Pick<WorkspaceTuning, 'saveQuietMs'>> {
   const ms = (value: number | undefined, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback);
-  const defaults = LIBRARY_TUNING_DEFAULTS;
-  const returnTieBreak = tuning?.returnTieBreak;
-  const dropTieBreak = tuning?.dropTieBreak;
-  return {
-    saveQuietMs: ms(tuning?.saveQuietMs, defaults.saveQuietMs),
-    gestureLockMs: ms(tuning?.gestureLockMs, defaults.gestureLockMs),
-    returnTieBreak: returnTieBreak === 'earliest-first' || returnTieBreak === 'row-order' ? returnTieBreak : defaults.returnTieBreak,
-    dropTieBreak: dropTieBreak === 'rightmost' ? dropTieBreak : defaults.dropTieBreak,
-  };
+  return { saveQuietMs: ms(tuning?.saveQuietMs, LIBRARY_TUNING_DEFAULTS.saveQuietMs) };
 }
 
 /** A scroll the row owes after a commit; one is pending at a time and the last recorded wins. */
+/** A root brought into the view: the side it stands on, the panels it parked, the scroll to go back to, null when the row draws it only for the summon, and which panels were live when it came. */
+
 type ScrollRequest = {
   id: string;
   kind: 'open' | 'move';
@@ -264,7 +244,7 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly liveWidths: readonly number[];
   /** The widest one live panel can be in this row; `Infinity` until the row is measured (`containerWidth` 0). */
   readonly maxLiveWidth: number;
-  /** Whether the row scrolls: any drawn entry carries settings whose `overflow` is 'scroll'. Hand it to a Workspace's `rowScroll`. */
+  /** Always true: every row is one scrolling strip. Hand it to a Workspace's `rowScroll`. */
   readonly rowScroll: boolean;
   /** The row's one set of numbers, the same value the shell, the row and the capacity are priced from. Hand it to a Workspace's and a PanelRow's `rowNumbers`. */
   readonly rowNumbers: RowNumbers;
@@ -293,8 +273,6 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly enterSideById: ReadonlyMap<string, 'left' | 'right'>;
 }
 
-/** Which panels the row draws and where in the strip: it changes when a slot slides, and never for a window resize alone. */
-const slotsKey = (n: RowNumbers): string => `${n.ids.join(',')}|${n.leftOffsets.join(',')}`;
 
 /**
  * Builds the `PanelsAPI` an app hands its views. The provider owns the panel list, seeded once from `initialEntries`.
@@ -330,29 +308,19 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The cap settles the row before anything reads it, so no committed row holds more live panels than the cap, not even for one frame.
   const keepLiveRef = useRef<ReadonlyMap<string, PanelWindow[]>>(new Map());
   const capParkedRef = useRef<string[]>([]);
-  const maxLive = tuning.maxLivePanels ?? null;
-  const settleEnv: RowEnv = { phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, maxLive, dropTieBreak: timing.dropTieBreak };
-  const acted = [...keepLiveRef.current].filter(([, seen]) => seen !== rawPanels).map(([id]) => id);
-  const panels = maxLive === null ? rawPanels : settleKeeping(settleEnv, rawPanels, acted);
-  if (panels !== rawPanels) {
-    const parked = rawPanels.filter((p, k) => p.live && !panels[k]!.live).map((p) => p.id);
-    capParkedRef.current = [...capParkedRef.current.filter((id) => !parked.includes(id)), ...parked];
-  }
-  useLayoutEffect(() => {
-    if (panels !== rawPanels) setPanels((current) => settleKeeping(settleEnv, current, acted));
-  });
+  // The row is one continuous strip (Embla): nothing parks for room or for the cap, so the list is the row as it is.
+  const panels = rawPanels;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const stopsOnGrid = tuning.rowGesture === 'step';
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: stopsOnGrid };
-  const rowNumbers = computeRowNumbers(rowInput);
-  const restedRef = useRef(false);
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' };
+  const rowNumbers = ((): RowNumbers => {
+    return computeRowNumbers(rowInput);
+  })();
   const { maxLiveWidth } = rowNumbers;
   const fitCount = rowFitCount({ containerWidth: i.containerWidth, phoneWidth: i.phoneWidth, gap: tuning.rowGap, fixedColumnCount: fixedViewCount, liveWidths: [] });
   const maxFitPanels = fitCount === null ? null : effectiveMaxPanels(fitCount, fixedViewCount);
   // A host-fed phone width that is not a positive finite number leaves the value unset: the function throws on it, and a number the host only reads must not take the row down.
   const minWidth = !(i.phoneWidth > 0) || !Number.isFinite(i.phoneWidth) ? undefined : minWorkspaceWidth({ phoneWidth: i.phoneWidth, fixedColumnCount: fixedViewCount, gap: tuning.rowGap });
   const liveWidths = panels.filter((p) => p.collapsible && p.live).map((p) => panelWidthOf(p, i.phoneWidth, maxLiveWidth, tuning.rowGap));
-  const reducedMotion = useReducedMotionConfig() === true;
   const slotsWarnedRef = useRef(new Set<string>());
   // A template that asks for more than its maxSlots warns once; a call to setSlots does the same instead of clamping silently.
   const warnSlotsClamped = (target: PanelWindow, asked: number): void => {
@@ -374,55 +342,39 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       // A reporter that throws must not break the scroll that raised the note.
     }
   };
-  // The container's width as laid out; before layout the host's measurement stands in for it.
-  const windowOf = (el: HTMLElement): number => (el.clientWidth > 0 ? el.clientWidth : i.containerWidth);
   const requestScroll = (request: Omit<ScrollRequest, 'misses'>): boolean => {
     const el = i.overflowContainerRef.current;
     if (el === null) return false;
-    if (rowScrollerFor(el).claimHeld()) {
-      // A host's scrollTo during a resize hold is kept: the resize's release settles the row, then the scroll runs. Automatic
-      // scrolls stay dropped, as a drag drops them.
-      if (request.forced && rowScrollerFor(el).deferUntilRelease(() => pendingScroll.set({ ...request, misses: 0 }))) return true;
-      scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
-      return false;
-    }
-    // A request on a panel that is already shown changes no state, so nothing else would commit for it to run in.
+    // A gesture holding the Embla row defers the scroll to its release (`showOnEmbla`).
     pendingScroll.set({ ...request, misses: 0 });
     return true;
   };
-  const followPanel = (id: string): void => {
+  /** Whether panel `id` shows in the window of the strip Embla draws now. */
+  const drawnInView = (el: HTMLElement, id: string): boolean => {
+    const embla = emblaOf(el);
+    const drawn = emblaStripOf(el);
+    const j = drawn === undefined ? -1 : drawn.layout.ids.indexOf(id);
+    if (embla === undefined || drawn === undefined || j < 0) return false;
+    const at = emblaDrawnOf(embla);
+    const l = drawn.layout.lefts[j]!;
+    return l + drawn.layout.widths[j]! > at + 0.5 && l < at + drawn.windowWidth - 0.5;
+  };
+  const followPanel = (id: string, sized = false): void => {
     const el = i.overflowContainerRef.current;
     const entry = panels.find((p) => p.id === id);
-    const k = rowNumbers.ids.indexOf(id);
-    if (el === null || entry === undefined || k < 0 || effective(entry).scrollOnMove !== 'follow') return;
-    const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
-    const inView = left < rowScrollerFor(el).scrollLeft() + windowOf(el) - tuning.rowGap && left + rowNumbers.widths[k]! > rowScrollerFor(el).scrollLeft() + tuning.rowGap;
-    if (inView) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
+    if (el === null || entry === undefined || !rowNumbers.ids.includes(id) || effective(entry).scrollOnMove !== 'follow') return;
+    // A width change is the keep-still rule's (DESIGN.md "The row", step 5): the pages that do not change stay where they are.
+    if (sized) return;
+    // "In view" is read off the strip Embla draws now.
+    if (drawnInView(el, id)) requestScroll({ id, kind: 'move', align: null, forced: false, fresh: false });
   };
   const requestOpen = (id: string, over: Partial<Pick<ScrollRequest, 'align' | 'forced' | 'fresh'>> = {}): boolean => requestScroll({ id, kind: 'open', align: null, forced: false, fresh: false, ...over });
 
-  const snapped = (k: number, raw: number): number => snapToStop(rowNumbers, k, raw);
-  /** Where the container would scroll to put panel `id` at `align`, or null when the row is not laid out for it. */
-  const scrollTargetOf = (id: string, align: ScrollAlign): number | null => {
-    const el = i.overflowContainerRef.current;
-    const k = rowNumbers.ids.indexOf(id);
-    if (el === null || k < 0) return null;
-    const raw = scrollTargetFor({
-      left: tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!,
-      width: rowNumbers.widths[k]!,
-      scrollLeft: rowScrollerFor(el).scrollLeft(),
-      clientWidth: windowOf(el),
-      maxScroll: maxScrollOf(rowNumbers),
-      gap: tuning.rowGap,
-      align,
-    });
-    return snapped(k, raw);
-  };
-  /** Whether a scroll to `align` would move the container: false when it is already there or the row has nothing to scroll. */
+  /** Whether a scroll to `align` would move the row, against where the Embla row is heading: false when it is already there or the row has nothing to scroll. */
   const wouldScroll = (id: string, align: ScrollAlign): boolean => {
-    const to = scrollTargetOf(id, align);
     const el = i.overflowContainerRef.current;
-    return to !== null && el !== null && Math.abs(to - rowScrollerFor(el).scrollLeft()) >= 0.5;
+    const emblaRow = el === null ? undefined : emblaOf(el);
+    return emblaRow === undefined ? false : (emblaWouldShow(emblaRow, id, align) ?? false);
   };
 
   const {
@@ -455,12 +407,15 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     onNote: i.onNote,
     keepLiveRef,
     capParkedRef,
-    tuning: { rowGap: tuning.rowGap, returnTieBreak: timing.returnTieBreak, dropTieBreak: timing.dropTieBreak, maxLivePanels: tuning.maxLivePanels },
+    tuning: { rowGap: tuning.rowGap, maxLivePanels: tuning.maxLivePanels },
     ...(core.order !== undefined ? { order: core.order } : {}),
     resolveDefaults: core.resolveDefaults,
   });
 
-  core.observe(panels, heldIds);
+  // The attach token, made before the first observe: a hook that renders while another holds the workspace (and then fails to
+  // attach) must not replace that row's list, or every view the row draws afterwards finds no handle.
+  const attachOwner = useRef({});
+  if (!core.heldByOther(attachOwner.current)) core.observe(panels, heldIds);
 
   // A shown panel the page asked for, whether it was parked or already live out of view, is scrolled to once it is in.
   const activatePanel = (id: string): void => {
@@ -469,127 +424,67 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     if (known) requestOpen(id);
   };
 
-  // Set once the persistence hook is called, below: the rest watch restores the saved state the hook owns.
-  const [restWatcher] = useState(() => createRestWatch({ quietMs: REST_QUIET_MS, pointerHeld: () => pointerHeldRef.current, settled: () => settledRef.current }));
-  // A pointer down on the row until it is let go, the scrollbar thumb included: a rest is not called while it is held.
-  const pointerHeldRef = useRef(false);
-
-  // The last swap: when its enter and exit end, and its direction. A swap back over one in flight reverses half-run
-  // animations, and a fast back-and-forth turns into panels growing and shrinking in place, so a reversal waits for the
-  // swap before it to land. Swaps the same way stay as fast as the input.
-  const lastSwapRef = useRef<{ ends: number; direction: 'left' | 'right' } | null>(null);
-  const swapAllowed = (direction: 'left' | 'right'): boolean => {
-    const now = performance.now();
-    const last = lastSwapRef.current;
-    if (last !== null && last.direction !== direction && now < last.ends) return false;
-    lastSwapRef.current = { ends: reducedMotion ? 0 : now + tuning.slide.durationSec * 1000, direction };
+  // The root is an ordinary page of the strip: it scrolls with the row and stays where it is put. A
+  // summon moves it in the page order to the slot just outside the view, on the side it lies on (`emblaSummonMove`), as a person's
+  // move that the order records, and the row's glide then brings it in, as a scroll to any page does. Nothing is undone later.
+  const stripNow = (): { el: HTMLElement; layout: { ids: readonly string[]; lefts: readonly number[]; widths: readonly number[] }; windowWidth: number; at: number } | null => {
+    const el = i.overflowContainerRef.current;
+    const embla = el === null ? undefined : emblaOf(el);
+    const s = el === null ? undefined : emblaStripOf(el);
+    if (el === null || embla === undefined || s === undefined) return null;
+    return { el, layout: s.layout, windowWidth: s.windowWidth, at: emblaTargetOf(embla) };
+  };
+  const stripRootView = (): RootView => {
+    const now = stripNow();
+    const k = now === null ? -1 : now.layout.ids.indexOf(rootId);
+    return now === null || k < 0 || wholeInView(now.layout, k, now.at, now.windowWidth) ? 'shown' : 'away';
+  };
+  // The move and the glide, read off the strip and the order as they are when the row is free to move. The view is the one drawn
+  // now: mid-glide the root goes next to what is on screen, so it never appears inside the view, and the glide turns to bring it in.
+  const stripSummonNow = (): void => {
+    const now = stripNow();
+    const embla = now === null ? undefined : emblaOf(now.el);
+    if (now === null || embla === undefined) return;
+    const move = emblaSummonMove(now.layout, emblaDrawnOf(embla), now.windowWidth, rootId);
+    if (move === null) {
+      requestScroll({ id: rootId, kind: 'move', align: 'into-view', forced: true, fresh: false });
+      return;
+    }
+    const present = panels.filter(isPresent).map((p) => p.id);
+    const from = present.indexOf(rootId);
+    const others = present.filter((id) => id !== rootId);
+    const at = move.beside === null ? (move.side === 'left' ? 0 : others.length) : others.indexOf(move.beside) + (move.side === 'left' ? 0 : 1);
+    if (from < 0 || (move.beside !== null && at - (move.side === 'left' ? 0 : 1) < 0)) return;
+    if (at !== from) {
+      // The commit that draws the move snaps the slots it moves: they are all out of the view, and the root must stand at its new
+      // place before the glide brings it in.
+      noteEmblaMove(now.el, rootId);
+      if (reorderPanel(rootId, at - from, true)) core.noteMove(rootId, 'person');
+    }
+    requestScroll({ id: rootId, kind: 'move', align: 'into-view', forced: true, fresh: false });
+  };
+  const stripSummonNowRef = useRef(stripSummonNow);
+  stripSummonNowRef.current = stripSummonNow;
+  const stripSummonRoot = (): boolean => {
+    const el = i.overflowContainerRef.current;
+    const embla = el === null ? undefined : emblaOf(el);
+    if (el === null || embla === undefined || stripRootView() !== 'away') return false;
+    // A wheel gesture's hold ends where the row is drawn, as a key step ends it; a person's drag holding the row defers the summon
+    // to its release.
+    endEmblaWheel(embla);
+    whenEmblaFree(embla, () => stripSummonNowRef.current());
     return true;
   };
 
-  // One step of the gesture. A row with nothing to scroll toward swaps: the parked panel beside the live range comes in.
-  const stepRow = (direction: 'left' | 'right'): void => {
-    const el = i.overflowContainerRef.current;
-    if (el === null) return;
-    watchRest();
-    const scroller = rowScrollerFor(el);
-    scroller.noteInput();
-    if (scroller.claimHeld()) return;
-    scroller.noteMove();
-    const maxScroll = maxScrollOf(rowNumbers);
-    // A step with nowhere to go gives the iOS rubber band instead of nothing.
-    const bump = (): void => {
-      if (!reducedMotion) scroller.bump(direction, { distancePx: ROW_BUMP_PX, durationSec: ROW_BUMP_SEC, holdMs: tuning.gestureQuietMs });
-    };
-    if (!rowNumbers.rowScroll || maxScroll <= 0) {
-      const gate = lastSwapRef.current;
-      if (!swapAllowed(direction) || scrollRow(direction)) return;
-      // Nothing came in, so no swap holds the gate against a step back.
-      lastSwapRef.current = gate;
-      bump();
-      return;
-    }
-    let liveBefore = 0;
-    const hidden = [];
-    for (const p of panels) {
-      if (isPresent(p)) liveBefore += 1;
-      else if (p.marker !== true) hidden.push({ id: p.id, liveBefore, held: heldIds.has(p.id), policy: effective(p).revealOnScroll });
-    }
-    const step = gestureTarget({
-      direction,
-      base: scroller.glideTarget() ?? scroller.scrollLeft(),
-      clientWidth: windowOf(el),
-      // The strip is padded so every stop is reachable, which puts the browser's end past the last stop.
-      maxScroll,
-      liveStarts: rowNumbers.leftOffsets.map((offset) => rowNumbers.stripStart + offset),
-      liveWidths: rowNumbers.widths,
-      stops: rowNumbers.stepStops,
-      gap: tuning.rowGap,
-      hidden,
-    });
-    if (step.kind === 'show') {
-      if (swapAllowed(direction)) activatePanel(step.id);
-    }
-    else if (step.kind === 'none') bump();
-    else if (step.kind === 'scroll') {
-      stepGlide(scroller, step.to, { mode: tuning.fastScroll, durationSec: tuning.slide.durationSec, ease: tuning.slide.glideEase, instant: reducedMotion, windowWidth: windowOf(el) });
-    }
-  };
+  /** Where the root stands now: in the view or out of it. The scroll the row is heading for counts, so a press during a glide answers for where the row will rest. */
+  const rootView = (): RootView => stripRootView();
 
-  // The slots the last commit drew, read by the settle below before this commit's are recorded.
-  const drawnSlotsRef = useRef('');
-  const settledNumbersRef = useRef<RowNumbers | undefined>(undefined);
-  const endWidthRef = useRef<number | undefined>(undefined);
-  // The window, a close or a reorder moves the stops: a row left between two is brought to the nearest one.
-  // The glide's own target is the base, so a settle never fights a step in flight. Never while a drag holds the row.
-  useLayoutEffect(() => {
-    const el = i.overflowContainerRef.current;
-    if (el === null || tuning.rowGesture !== 'step' || !Number.isFinite(rowNumbers.windowWidth)) return;
-    const scroller = rowScrollerFor(el);
-    // A resize's settle owns the rest while its margin glides; a stop that moved in that wait is settled onto when it ends.
-    if (scroller.claimHeld() || scroller.settling()) return;
-    const base = scroller.glideTarget() ?? scroller.scrollLeft();
-    const before = settledNumbersRef.current;
-    settledNumbersRef.current = rowNumbers;
-    // A wider window can bring a parked panel back a commit after the new width, when the row fits for one commit in between.
-    const wasAtEnd = before !== undefined && before.windowWidth !== rowNumbers.windowWidth && before.stepStops.length > 1 && Math.abs(base - before.stepStops.at(-1)!) < 1;
-    if (wasAtEnd) endWidthRef.current = rowNumbers.windowWidth;
-    else if (endWidthRef.current !== rowNumbers.windowWidth) endWidthRef.current = undefined;
-    // When the slots slid (a close, an open, a reorder) the settle rides their own curve: on another, a panel that both slides and
-    // scrolls lurches back and forth.
-    const ease = slotsKey(rowNumbers) === drawnSlotsRef.current ? tuning.slide.glideEase : ([...tuning.slide.ease] as [number, number, number, number]);
-    // A row that fits has one rest, 0: a close that brings the whole row into view glides there with the close.
-    if (rowNumbers.stepStops.length === 0) {
-      if (base >= 0.5) scroller.glideTo(0, { durationSec: tuning.slide.durationSec, instant: reducedMotion || (before !== undefined && before.windowWidth !== rowNumbers.windowWidth), ease });
-      return;
-    }
-    // The settle lands on a step stop, so the next step is a whole phone width; the whole-panel stops can sit between grid points.
-    // A new window width rescales every stop, so a row resting at an end stays at that end rather than at the nearest pixel.
-    const atEnd = endWidthRef.current === rowNumbers.windowWidth;
-    endWidthRef.current = undefined;
-    const to = atEnd ? rowNumbers.stepStops.at(-1)! : nearestStop({ ...rowNumbers, stops: rowNumbers.stepStops }, base);
-    // The first stop is not 0 once another stop needs room left of it; opening the row there is not a movement to animate.
-    const opening = !restedRef.current;
-    restedRef.current = true;
-    // A window step lands at once, as the row's margin does: a glide per step would trail the window's edge.
-    const windowStep = before !== undefined && before.windowWidth !== rowNumbers.windowWidth;
-    if (Math.abs(to - base) < 0.5) return;
-    scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion || opening || windowStep, ease });
-  }, [rowNumbers.stepStops.join(','), rowNumbers.stripStart, rowNumbers.endPad]);
-  useLayoutEffect(() => {
-    drawnSlotsRef.current = slotsKey(rowNumbers);
-  });
-
-  // The row's wheel/arrow-key gesture is wired here, not in the host, so a host stays free of effects and refs.
-  // Every wheel event and finger move keeps a bump at the end held, so the row springs back only once the scrolling stops.
-  const keepBump = (direction: 'left' | 'right'): void => {
-    const el = i.overflowContainerRef.current;
-    if (el !== null) rowScrollerFor(el).keepBump(direction, tuning.gestureQuietMs);
-  };
-  useRowScrollGesture(i.overflowContainerRef, stepRow, timing.gestureLockMs, tuning.rowGesture, tuning.gestureQuietMs, i.phoneWidth + tuning.rowGap, keepBump);
+  /** Moves a root that is out of the view to the slot just outside it and glides it in. False when there is nothing to do. */
+  const summonRoot = (): boolean => stripSummonRoot();
 
   const shrinkUnfocusedRef = useRef(tuning.shrinkUnfocused);
   shrinkUnfocusedRef.current = tuning.shrinkUnfocused;
-  const { restoreSettled, dismiss, undismiss, isDismissed, scroll, setScroll } = useWorkspacePersistence({
+  const { restoreSettled, dismiss, undismiss, isDismissed, scroll: savedRest, setScroll } = useWorkspacePersistence({
     storage: core.storage,
     panels,
     setPanels,
@@ -605,37 +500,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     panelTitle: labels.panelTitle,
     onError: core.reportError,
     replay: true,
-    restAtPhone: () => shrinkUnfocusedRef.current,
   });
 
-  // A row a person moves is saved where it comes to rest. A wheel or pointer-down on the row and a step (a key or a
-  // wheel gesture) call `restWatch`: it watches the row until it has stood still for REST_QUIET_MS, and if it moved,
-  // records the stop it rests on. It adds no listener, so the row's listener budget is the gesture's own. Nothing runs at open.
-  const settledRef = useRef(restoreSettled);
-  settledRef.current = restoreSettled;
-  const rowNumbersRef = useRef(rowNumbers);
-  rowNumbersRef.current = rowNumbers;
-  const stepRef = useRef(0);
-  stepRef.current = i.phoneWidth + tuning.rowGap;
-  const watchRest = (): void => {
-    const el = i.overflowContainerRef.current;
-    if (el !== null) restWatcher.watch(el, restAt);
-  };
-  const restAt = (at: number): void => {
-    const n = rowNumbersRef.current;
-    const k = nearestStopIndex(n, at);
-    if (k < 0) return;
-    const mark = markOfStop(n, k, stepRef.current);
-    setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
-  };
-  useEffect(() => () => restWatcher.cancel(), [restWatcher]);
-
-  /** `row` with `leaves` parked when the row's live panels no longer fit, so the open's chosen panel goes rather than the cap's pick. */
-  const makeRoom = (row: PanelWindow[], leaves: string): PanelWindow[] => {
-    const live = row.filter(isParkLive);
-    if (rowPricing(settleEnv, row).settles(live) || !live.some((p) => p.id === leaves)) return row;
-    return row.map((p) => (p.id === leaves ? { ...p, live: false } : p));
-  };
   const createFromWorkspace = (req: CreateRequest): void => {
     const template = templateList().find((t) => t.id === req.templateId);
     if (template === undefined) return;
@@ -645,8 +511,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const build = (prev: PanelWindow[]): PanelWindow[] => {
       if (prev.some((p) => panelKey(p) === req.id)) return prev;
       const made = appendFromTemplate(prev, { template, id: req.engineId, name: req.id, settings: req.settings, params: req.params, url: req.url, hostData, defaults: workspaceDefaults, rootId, order: core.order, declared: req.declared === true, fallbackTitle: labels.panelTitle(req.engineId), rowEnd: carried !== undefined, ...(req.place !== undefined ? { place: req.place } : {}) });
-      const roomed = req.leaves === undefined ? made : makeRoom(made, req.leaves);
-      const opened = req.openedBy === undefined ? roomed : roomed.map((p) => (p.id === req.engineId ? { ...p, openedBy: req.openedBy } : p));
+      const opened = req.openedBy === undefined ? made : made.map((p) => (p.id === req.engineId ? { ...p, openedBy: req.openedBy } : p));
       if (carried === undefined) return opened;
       // The panel keeps its identity, name and size; its place in the old row means nothing here.
       const kept = opened.map((p) => (p.id === req.engineId ? { ...p, ...(carried.uid !== undefined ? { uid: carried.uid } : {}), ...(carried.title !== undefined ? { title: carried.title } : {}), ...(carried.slots !== undefined ? { slots: carried.slots } : {}) } : p));
@@ -683,7 +548,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     return () => core.bindNotes(undefined);
   });
   // tuning.shrinkUnfocused: every panel wider than one phone but `except` rests at one phone, and keeps the width it goes back to.
-  // A move of the row picks its own rest; a blur keeps the panel it shrinks in view.
+  // A blur keeps the panel it shrinks in view. A move of the row rests nothing: a wide panel slides past the Workspace panel at its width, cut at that edge.
   const restAtPhone = (except: string | null, keepInView = except !== null): void => {
     if (!tuning.shrinkUnfocused) return;
     const grown = new Map(panels.filter((p) => p.id !== except && p.marker !== true && slotsOf(p) > 1).map((p) => [p.id, slotsOf(p)]));
@@ -693,12 +558,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     // A wide panel shrinks toward its left edge, which may be past the window's: the row glides with it so it rests in view.
     const el = i.overflowContainerRef.current;
     if (!keepInView || el === null) return;
-    const shown = [...grown.keys()].find((id) => {
-      const k = rowNumbers.ids.indexOf(id);
-      if (k < 0) return false;
-      const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
-      return left < rowScrollerFor(el).scrollLeft() + windowOf(el) && left + rowNumbers.widths[k]! > rowScrollerFor(el).scrollLeft();
-    });
+    const shown = [...grown.keys()].find((id) => drawnInView(el, id));
     // A frame later: a glide started inside the press is stopped by that same press reaching the row.
     if (shown !== undefined) requestAnimationFrame(() => requestScroll({ id: shown, kind: 'move', align: null, forced: false, fresh: false }));
   };
@@ -732,13 +592,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     core.bindCycle((direction, keepId) => scrollRow(direction, keepId));
     return () => core.bindCycle(undefined);
   });
-  const restAtPhoneRef = useRef(restAtPhone);
-  restAtPhoneRef.current = restAtPhone;
-  useEffect(() => {
-    const el = i.overflowContainerRef.current;
-    return el === null ? undefined : rowScrollerFor(el).subscribeMoves(() => restAtPhoneRef.current(null));
-  }, [i.overflowContainerRef]);
-  const attachOwner = useRef({});
+  useLayoutEffect(() => {
+    core.bindSummon({ view: rootView, summon: summonRoot });
+    return () => core.bindSummon(undefined);
+  });
   useLayoutEffect(() => {
     core.attach(attachOwner.current);
     return () => core.detach(attachOwner.current);
@@ -756,61 +613,73 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     undismiss([...keys]);
   });
 
-  // A wheel or pointer-down on the row before the first scroll means the person already chose where to look.
+  // A wheel or a press on the row before its start is applied: the person's own move wins over `tuning.initialScroll`.
   const touchedRef = useRef(false);
   useEffect(() => {
-    const touch = (e: Event): void => {
-      const el = i.overflowContainerRef.current;
-      if (el !== null && e.target instanceof Node && el.contains(e.target)) {
-        touchedRef.current = true;
-        if (e.type === 'pointerdown') pointerHeldRef.current = true;
-        watchRest();
-      }
+    const el = i.overflowContainerRef.current;
+    if (el === null) return undefined;
+    const touch = (): void => {
+      touchedRef.current = true;
     };
-    const release = (): void => {
-      pointerHeldRef.current = false;
-    };
-    window.addEventListener('wheel', touch, { capture: true, passive: true });
-    window.addEventListener('pointerdown', touch, true);
-    window.addEventListener('pointerup', release, true);
-    window.addEventListener('pointercancel', release, true);
+    el.addEventListener('wheel', touch, { capture: true, passive: true });
+    el.addEventListener('pointerdown', touch, true);
     return () => {
-      window.removeEventListener('wheel', touch, true);
-      window.removeEventListener('pointerdown', touch, true);
-      window.removeEventListener('pointerup', release, true);
-      window.removeEventListener('pointercancel', release, true);
+      el.removeEventListener('wheel', touch, true);
+      el.removeEventListener('pointerdown', touch, true);
     };
     // Mount only: the container ref object never changes.
   }, []);
-
-  // Once per mount, at the first commit that is measured, has an entry and follows the restore.
+  // A row a person moved is saved where it comes to rest (the persistence hook's save waits out its own quiet time): as the first
+  // panel the window shows and the rest's offset from that panel's left edge in phone widths (and gaps), which the start below reads.
+  // Nothing is recorded before the restore settles: the file's rest is still to come.
+  const restoreSettledRef = useRef(restoreSettled);
+  restoreSettledRef.current = restoreSettled;
+  const restStepRef = useRef(0);
+  restStepRef.current = i.phoneWidth + tuning.rowGap;
+  useEffect(
+    () =>
+      subscribeEmblaRests((embla, at) => {
+        const el = i.overflowContainerRef.current;
+        if (el === null || !restoreSettledRef.current || emblaOf(el) !== embla) return;
+        const strip = emblaStripOf(el);
+        const mark = strip === undefined ? null : restMarkAt(strip.layout, at, restStepRef.current);
+        if (mark !== null) setScroll((prev) => (prev !== null && prev.panel === mark.panel && prev.offset === mark.offset ? prev : mark));
+      }),
+    // Mount only: the container ref object never changes.
+    [],
+  );
+  // Where the row starts, once per mount: at the first commit after the restore settled with a row that has an entry and an Embla
+  // row to move, which starts there with no glide once it is measured. A saved rest wins: the stop `offset` phone widths (and gaps)
+  // from the left edge of the panel it names, as the previous launch left it. With none, `tuning.initialScroll`. A wheel or a press
+  // first skips both.
   const initialScrollDoneRef = useRef(false);
   useLayoutEffect(() => {
     const el = i.overflowContainerRef.current;
     if (initialScrollDoneRef.current || !restoreSettled || el === null || i.containerWidth === 0 || rowNumbers.ids.length === 0) return;
+    const embla = emblaOf(el);
+    if (embla === undefined) return;
     initialScrollDoneRef.current = true;
-    const scroller = rowScrollerFor(el);
-    if (touchedRef.current || scroller.glideTarget() !== null || rowScrollerFor(el).scrollLeft() !== 0) return;
-    const where = tuning.initialScroll;
-    const maxScroll = maxScrollOf(rowNumbers);
-    let to = rowNumbers.stops[0] ?? 0;
-    // A saved rest wins over initialScroll: the row was left where the person put it.
-    const rested = stopOfMark(rowNumbers, scroll, i.phoneWidth + tuning.rowGap);
-    if (rested !== null) {
-      to = rested;
-    } else if (where === 'end') {
-      to = maxScroll;
-    } else if (where !== 'start') {
-      const k = rowNumbers.ids.indexOf(where === 'root' ? rootId : engineIdOf(where.panel));
-      if (k >= 0) {
-        const left = tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!;
-        to = snapped(k, scrollTargetFor({ left, width: rowNumbers.widths[k]!, scrollLeft: 0, clientWidth: windowOf(el), maxScroll, gap: tuning.rowGap, align: 'start' }));
-      }
+    if (touchedRef.current) return;
+    if (savedRest !== null) {
+      const rest = savedRest;
+      const step = i.phoneWidth + tuning.rowGap;
+      startEmblaAt(embla, (strip, max) => {
+        const k = strip.layout.ids.indexOf(rest.panel);
+        return k < 0 ? null : Math.min(strip.layout.lefts[k]! + rest.offset * step, max);
+      });
+      return;
     }
-    if (to !== 0) scroller.glideTo(to, { durationSec: 0, instant: true, ease: tuning.slide.glideEase });
+    const where = tuning.initialScroll;
+    if (where === 'start') return;
+    const id = where === 'end' ? null : where === 'root' ? rootId : engineIdOf(where.panel);
+    startEmblaAt(embla, (strip, max) => {
+      if (id === null) return max;
+      const k = strip.layout.ids.indexOf(id);
+      return k < 0 ? null : Math.min(strip.layout.lefts[k]!, max);
+    });
   });
 
-  // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
+  // Runs the pending request against this commit's numbers  // Runs the pending request against this commit's numbers: the target margin is the one about to be drawn.
   useLayoutEffect(() => {
     const request = pendingScroll.get();
     if (request === null) return;
@@ -840,23 +709,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     let align: ScrollAlign | null = 'into-view';
     if (request.kind === 'open') align = request.align ?? (settings.scrollOnOpen !== 'none' ? settings.scrollOnOpen : request.forced ? 'into-view' : null);
     if (align === null) return;
-    const scroller = rowScrollerFor(el);
-    const to = snapped(
-      k,
-      scrollTargetFor({
-        left: tuning.rowGap + rowNumbers.stripStart + rowNumbers.leftOffsets[k]!,
-        width: rowNumbers.widths[k]!,
-        scrollLeft: scroller.scrollLeft(),
-        clientWidth: windowOf(el),
-        maxScroll: maxScrollOf(rowNumbers),
-        gap: tuning.rowGap,
-        align,
-      }),
-    );
-    if (Math.abs(to - scroller.scrollLeft()) < 0.5) return;
-    if (!scroller.glideTo(to, { durationSec: tuning.slide.durationSec, instant: reducedMotion, ease: tuning.slide.glideEase })) {
-      scrollNote('scroll-dropped-during-drag', request.id, `A scroll to panel ${request.id} was dropped: a drag holds the row.`);
-    }
+    // The Embla row glides to the stop that shows the panel, from where it is heading, and waits for a gesture holding the row to let go.
+    const emblaRow = emblaOf(el);
+    // The strip this commit drew may not carry the panel yet: wait a commit, as for a panel not yet in the row.
+    if (emblaRow !== undefined && !showOnEmbla(emblaRow, request.id, align) && request.misses + 1 < REQUEST_WAIT_COMMITS) pendingScroll.set({ ...request, misses: request.misses + 1 });
   });
 
   for (const p of panels) keyById.current.set(p.id, panelKey(p));
@@ -1001,7 +857,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     const changed = resizePanel(engineId, next, source === 'person');
     if (changed) {
       i.onPanelResize?.();
-      followPanel(engineId);
+      followPanel(engineId, true);
     }
     gate.release(token);
     return accepted(changed);
@@ -1033,7 +889,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (!settings.parkable) return refused('not-parkable', `panel '${panelKey(target)}' is a fixed column and cannot be parked`);
       if (target.live && FIXED.hideWhenLast === 'refuse' && wouldEmptyRow([engineId])) return refused('would-empty-row', `panel '${panelKey(target)}' is the last one the row shows`);
       const token = gate.take([engineId], 'hide')!;
-      const changed = holdPanel(engineId, settings.hideStickiness);
+      const changed = holdPanel(engineId, 'sticky');
       gate.release(token);
       return accepted(changed);
     },
@@ -1083,7 +939,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be moved`);
       const token = gate.take([engineId], 'other')!;
       const changed = reorderPanel(engineId, by, source === 'person');
-      if (changed) followPanel(engineId);
+      if (changed) core.noteMove(engineId, source);
+      // A move by code leaves the view where it is, as a place by code does: only a person's own move follows the panel.
+      if (changed && source === 'person') followPanel(engineId);
+      else if (changed && i.overflowContainerRef.current !== null) noteEmblaPlace(i.overflowContainerRef.current, engineId);
       gate.release(token);
       return accepted(changed);
     },
@@ -1095,7 +954,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = placeAt(engineId, value, source === 'person');
-      if (changed) followPanel(engineId);
+      if (changed) core.noteMove(engineId, source);
+      // A place by code (a reorder rule, a restore) leaves the view where it is: only a person's own place follows the panel.
+      if (changed && source === 'person') followPanel(engineId);
+      else if (changed && i.overflowContainerRef.current !== null) noteEmblaPlace(i.overflowContainerRef.current, engineId);
       gate.release(token);
       return accepted(changed);
     },
@@ -1121,7 +983,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const hiding = gate.take(hideIds, 'hide')!;
       const showing = gate.take(showIds, 'other')!;
       const changed = swapPanels(
-        leaving.map((p) => ({ id: p.id, stickiness: effective(p).hideStickiness })),
+        leaving.map((p) => ({ id: p.id, stickiness: 'sticky' as const })),
         show.map(({ engineId, place }) => (place === undefined ? { id: engineId } : { id: engineId, place })),
       );
       gate.release(hiding);
@@ -1136,6 +998,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       if (source === 'person' && !effective(target).movable) return refused('not-movable', `panel '${panelKey(target)}' cannot be placed`);
       const token = gate.take([engineId], 'other')!;
       const changed = target.live ? placeAt(engineId, value, source === 'person') : landAt(engineId, value, source === 'person');
+      if (changed) core.noteMove(engineId, source);
       if (changed) scrollForShow(engineId);
       gate.release(token);
       return accepted(changed);
@@ -1153,7 +1016,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       const token = gate.take(engineIds, 'other')!;
       const done = resetPanels(engineIds);
       gate.release(token);
-      if (done.changed && follow && engineIds.length === 1) followPanel(engineIds[0]!);
+      if (done.changed && follow && engineIds.length === 1) followPanel(engineIds[0]!, true);
       const keyOf = (id: string): string => {
         const p = panels.find((q) => q.id === id);
         return p === undefined ? id : panelKey(p);
@@ -1262,7 +1125,10 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
       raw(
         (id: string, _direction: 'left' | 'right') => [id],
         'other',
-        (id, direction) => void reorderPanel(id, direction),
+        (id, direction) => {
+          // The person's arrangement records it, so it reports as the person's.
+          if (reorderPanel(id, direction)) core.noteMove(id, 'person');
+        },
       ),
     ),
     setSlots: named(
@@ -1274,7 +1140,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
           if (target !== undefined) warnSlotsClamped(target, slots);
           if (resizePanel(id, slots)) {
             i.onPanelResize?.();
-            followPanel(id);
+            followPanel(id, true);
           }
         },
       ),
@@ -1286,6 +1152,9 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
         (id: string, _anchor: AnchorRequest) => [id],
         'other',
         (id, anchor) => {
+          const sketch = reanchorPanel(panels, id, anchor, rootId);
+          const anchorOf = (row: readonly PanelWindow[]): string => JSON.stringify(row.find((p) => p.id === id)?.anchor ?? null);
+          if (sketch.map((p) => p.id).join(' ') !== panels.map((p) => p.id).join(' ') || anchorOf(sketch) !== anchorOf(panels)) core.noteMove(id, 'person');
           setPanels((prev) => {
             const next = reanchorPanel(prev, id, anchor, rootId);
             return next === prev ? prev : recordOverride(next, 'anchor', next.map((p) => p.id), rootId);

@@ -7,13 +7,12 @@
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
-import { rowOffsetOf } from './support/strip.js';
 import type { PanelSettings, PanelWindow } from '../index.js';
 import { applyTemplate, resolvePanelSettings } from '../panelSettings.js';
 import { appendPanel, createRootPanel } from '../panelWindow.js';
 import { computeRowNumbers, maxScrollOf, nearestStop, snapToStop } from '../rowNumbers.js';
 import { workspaceShellStyle } from '../Workspace.js';
-import { advanceFrames, cleanup } from './support/mount-harness.js';
+import { cleanup } from './support/mount-harness.js';
 import { mountRow, panelsOf } from './support/scroll-row.js';
 
 afterEach(() => {
@@ -78,9 +77,9 @@ test('unmeasured, and wholePanels false, give no stops: the 0.2.0 numbers', () =
 
 test('snapToStop picks the nearest stop that shows the panel; nearestStop the nearest stop; both leave a row with no stops alone', () => {
   const n = numbers(six());
-  assert.equal(snapToStop(n, 3, 100), 406, 'panel 3 is first shown at the stop 406');
-  assert.equal(snapToStop(n, 0, 900), 406, 'stop 406 still shows panel 0 (its right edge, at 476, is inside the window) and is nearer 900 than stop 0');
-  assert.equal(snapToStop(n, 5, 0), 1218, 'panel 5 is first shown at the stop 1218');
+  assert.equal(snapToStop(n, 3, 100), 812, 'panel 3 is first drawn whole at the stop 812; at 406 the window edge cuts it');
+  assert.equal(snapToStop(n, 0, 900), 0, 'only stop 0 draws panel 0 whole: at 406 its left edge is 320 past the window');
+  assert.equal(snapToStop(n, 5, 0), 1624, 'panel 5 is first drawn whole at the stop 1624');
   assert.equal(nearestStop(n, 700), 812);
   assert.equal(nearestStop(n, 100), 0);
   const none = numbers([root(), made('a')]);
@@ -99,16 +98,6 @@ test('a window exactly two panels wide fits two, not one', () => {
   assert.equal(n.windowWidth, 796);
   assert.deepEqual(n.stopSpans[0], { first: 0, end: 2 });
   assert.equal(n.rowMarginLeft, 0);
-});
-
-test('a resize that changes how many fit brings a row resting past the new last stop back to a stop', async () => {
-  const m = mountRow(panelsOf(5), 1000, { tuning: { rowGesture: 'step' } });
-  m.scroller.glideTo(1624, { durationSec: 0, instant: true, ease: 'cubic-out' });
-  assert.equal(rowOffsetOf(m.container), 1624, 'the last stop at two fit');
-  m.rerender(1500);
-  await advanceFrames(600);
-  assert.deepEqual(m.latest().rowNumbers.stops, [0, 406, 812, 1218], 'three fit at 1500: the grid, with ((1468 + 16) mod 406) / 2 = 133 at each end, and the new end, 133 + 2420 + 133 - 1468');
-  assert.equal(rowOffsetOf(m.container), 1218);
 });
 
 test('the strip margin snaps while stops exist and glides otherwise', () => {

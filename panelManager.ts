@@ -79,11 +79,33 @@ export type ConfigureResult =
 /** Who an operation is for: code, which leaves the person's arrangement alone, or a person's own gesture, which records it. @internal */
 export type PanelOpSource = 'code' | 'person';
 
+/**
+ * One panel a completed move or place changed, and who the change was for.
+ * @public
+ */
+export type PanelMove = {
+  /** The id of the panel that moved. */
+  readonly id: PanelId;
+  /**
+   * `'person'` for a person's own gesture, which the saved arrangement keeps: a drag or the arrow keys on a grab handle, a row drop, a header
+   * button, a host call with source `'person'`, the deprecated host `move` and `reanchor`, and the root's summon on an Embla row. `'code'` for a
+   * `move`, `place` or row drop called with source `'code'`, which leaves the person's arrangement as it was.
+   */
+  readonly source: 'code' | 'person';
+};
+
 /** An accepted operation. @internal */
 export const accepted = (changed: boolean): PanelResult => ({ ok: true, changed });
 
 /** A refusal; the caller has touched nothing. @internal */
 export const refused = (code: PanelRefusal, message: string): PanelResult => ({ ok: false, code, message });
+
+/**
+ * Where the root panel stands: `'shown'` wholly in the view, `'away'` out of it or cut by the window's edge. The root is an
+ * ordinary page of the row, so a root `summonRoot` brought in reads `'shown'` like any page in view.
+ * @public
+ */
+export type RootView = 'shown' | 'away';
 
 /**
  * Every panel of a workspace by id, as handles that can also operate on it, with the calls that configure panels, templates and the workspace's tuning and reset a layout.
@@ -121,6 +143,15 @@ export interface PanelManager {
    * leave the row empty.
    */
   swap(show: readonly (PanelId | { id: PanelId; place?: AddPlacement | 'in-place' })[], hide?: readonly PanelId[]): PanelResult;
+  /** Where the root panel stands: wholly in the view, or out of it. A row that is not on screen reads as 'shown'. */
+  rootView(): RootView;
+  /**
+   * Brings the root panel into the view when it is out of it. The root is an ordinary page of the row: the summon moves it in the
+   * page order to the slot just outside the view on the side it lies on (the left when on neither), as a person's move that the
+   * saved order keeps, and the row then glides it in as it glides to any page. Nothing is undone later: it stays where it landed.
+   * False when it is already wholly in view.
+   */
+  summonRoot(): boolean;
   /**
    * The panel `id` and every panel it opened, directly or through the panels it opened, in row order (see `PanelState.openedBy`).
    * Empty when the row holds no panel `id`: a pending, closed or unknown panel has no family.
@@ -130,6 +161,13 @@ export interface PanelManager {
   getSnapshot(): PanelSnapshot;
   /** Calls `l` when the workspace changes; returns a function that stops the calls. */
   subscribe(l: () => void): () => void;
+  /**
+   * Calls `l` once for every panel a completed `move` or `place` changed (its place in the row or what it is anchored to), the person's gestures included, after the
+   * snapshot that shows the change is published. A panel carried along by the one that moved (one anchored to it, such as a panel it
+   * opened) is reported too, with the same source, after it. An operation that is refused, changes nothing, or whose panel leaves the row
+   * before the change is drawn reports nothing; a park, show, close, open or resize is not a move. Returns a function that stops the calls.
+   */
+  subscribeMoves(l: (move: PanelMove) => void): () => void;
 }
 
 /** The manager over `source`. @internal */
@@ -145,8 +183,11 @@ export function makePanelManager(source: ReadSource): PanelManager {
     configureTuning: (patch) => source.configureTuning(patch),
     resetLayout: (target) => source.resetLayout(target),
     swap: (show, hide = []) => source.swap(show, hide),
+    rootView: () => source.rootView(),
+    summonRoot: () => source.summonRoot(),
     familyOf: (id) => source.familyOf(id),
     getSnapshot: () => source.getSnapshot(),
     subscribe: (l) => source.subscribe(l),
+    subscribeMoves: (l) => source.subscribeMoves(l),
   };
 }

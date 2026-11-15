@@ -9,6 +9,7 @@ import * as React from 'react';
 import { cleanup, mount } from './support/mount-harness.js';
 import { useRowFrameBand, type RowFrameBand } from '../index.js';
 import { ROW_STRIP_ATTRIBUTE } from '../rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE } from '../emblaRow.js';
 
 class SilentObserver {
   observe(): void {}
@@ -28,7 +29,7 @@ test.after(() => {
 
 const rect = (top: number, bottom: number): DOMRect => ({ top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
 
-function rig(): { reports: RowFrameBand[]; stripAt: { top: number } } {
+function rig(frames: string = ROW_STRIP_ATTRIBUTE): { reports: RowFrameBand[]; stripAt: { top: number } } {
   const reports: RowFrameBand[] = [];
   const stripAt = { top: 300 };
   function Page(): React.ReactElement {
@@ -42,7 +43,7 @@ function rig(): { reports: RowFrameBand[]; stripAt: { top: number } } {
     const setStrip = (el: HTMLDivElement | null): void => {
       if (el) el.getBoundingClientRect = () => rect(stripAt.top, stripAt.top + 500);
     };
-    return React.createElement('div', { ref: setPage }, React.createElement('div', { ref: scroller }, React.createElement('div', { [ROW_STRIP_ATTRIBUTE]: '', ref: setStrip })));
+    return React.createElement('div', { ref: setPage }, React.createElement('div', { ref: scroller }, React.createElement('div', { [frames]: '', ref: setStrip })));
   }
   mount(React.createElement(Page));
   return { reports, stripAt };
@@ -79,4 +80,14 @@ test('the band stops following once the frames hold still, and reports each plac
   stripAt.top = 280;
   frameClock.step(5);
   assert.equal(last(reports), '300 200');
+});
+
+test('on an Embla row, which draws no strip, the band is the Embla window and follows a window resize', () => {
+  const { reports, stripAt } = rig(EMBLA_WINDOW_ATTRIBUTE);
+  assert.equal(last(reports), '300 200');
+  frameClock.step(120);
+  window.dispatchEvent(new Event('resize'));
+  stripAt.top = 260;
+  frameClock.step(1);
+  assert.equal(last(reports), '260 240');
 });

@@ -13,6 +13,7 @@ import { movePanel } from '../panelWindow.js';
 import type { UsePanelManagerResult } from '../panels/usePanelManager.js';
 import { cleanup, mount, usePanelManagerWith, withHost, useSeededInput, StaticRow } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const MARKER = '__root__';
 
@@ -40,12 +41,12 @@ const rowOf = (entries: PanelWindow[], rootId: string): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
 /** The row root: the parent of the panel's hold line, which every panel has (the host is `display: contents` unless held). */
-const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold-line]')!.parentElement!;
+const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold]')!.parentElement!;
 const slotIds = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);
 const xOf = (container: HTMLElement, id: string): number => {
   const slot = slotOf(container, id);
   assert.ok(slot, `slot ${id} is mounted`);
-  const match = /translateX\((-?[\d.]+)px\)/.exec(slot.style.transform);
+  const match = /translateX\((-?[\d.]+)px\)/.exec(slotTransform(slot));
   return match === null ? 0 : Number(match[1]);
 };
 

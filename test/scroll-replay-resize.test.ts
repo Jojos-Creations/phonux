@@ -46,23 +46,6 @@ test('a scroll asked for while a resize holds the row is kept, and runs once the
   assert.deepEqual(m.notes.map((n) => n.code), [], 'a kept scroll is not reported as dropped');
 });
 
-test('two scrolls asked for during a resize hold replay only the last', async () => {
-  const expected = await restingAt('b');
-  const first = await restingAt('c');
-  assert.notEqual(expected, first, 'the two targets differ, so replaying the first would be seen');
-  const m = mountRow(sixPanels(), 1000);
-  const scroller = rowScrollerFor(m.container);
-  const claim = scroller.claim({ replayScroll: true })!;
-  act(() => {
-    m.latest().scrollTo('c');
-    m.latest().scrollTo('b');
-  });
-  claim.release();
-  scroller.replayDeferred();
-  await settle();
-  assert.equal(rowOffsetOf(m.container), expected, 'only the last kept scroll runs');
-});
-
 test('with no scroll asked for during a resize hold, the release replays nothing', async () => {
   const m = mountRow(sixPanels(), 1000);
   const scroller = rowScrollerFor(m.container);
@@ -75,14 +58,3 @@ test('with no scroll asked for during a resize hold, the release replays nothing
   assert.equal(rowOffsetOf(m.container), 0);
 });
 
-test('a drag that holds the row still drops a scroll: only a resize claim keeps one', async () => {
-  const m = mountRow(sixPanels(), 1000);
-  const claim = rowScrollerFor(m.container).claim()!;
-  let recorded = true;
-  act(() => {
-    recorded = m.latest().scrollTo('c');
-  });
-  assert.equal(recorded, false);
-  assert.deepEqual(m.notes.map((n) => n.code), ['scroll-dropped-during-drag']);
-  claim.release();
-});

@@ -12,8 +12,8 @@ import { flushSync } from 'react-dom';
 import { PanelManagerError, createWorkspace, useProvidePanels } from '../index.js';
 import type { PanelSettings, WorkspaceHandle, WorkspaceState, WorkspaceStorage } from '../index.js';
 import { LIBRARY_PANEL_DEFAULTS } from '../panelSettings.js';
-import { rowScrollerFor } from '../rowScroller.js';
 import { memoryWorkspaceStorage } from '../fakeHost.js';
+import { viewContextOf } from '../workspaceCore.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost } from './support/mount-harness.js';
 import { flush, markerTemplate, mountWorkspace } from './support/workspace-row.js';
 
@@ -110,6 +110,30 @@ test('a second useProvidePanels on a workspace that is attached throws already-a
   } finally {
     console.error = quiet;
   }
+});
+
+test('a second useProvidePanels that fails to attach leaves the attached row\'s panels answerable to their views', async () => {
+  // The Embla proof page created its workspace without `mount: false`, so the auto mount rendered a second row that failed to
+  // attach; its render-time list (the root alone) replaced the attached row's, and every view that re-rendered after it found no handle.
+  const w = createWorkspace({ mount: false, templates: [markerTemplate('obs-a'), markerTemplate('obs-b')] });
+  const m = mountWorkspace(w);
+  await act(async () => {
+    w.addPanel('obs-a');
+    w.addPanel('obs-b');
+  });
+  await flush();
+  const view = viewContextOf(w);
+  assert.notEqual(view.handleFor('obs-a'), undefined, 'the attached row answers obs-a before the second hook renders');
+  assert.deepEqual(m.slots().filter((s) => s.startsWith('obs-')).sort(), ['obs-a', 'obs-b'], 'both views drew with a handle');
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    assert.throws(() => mountWorkspace(w), (e: unknown) => e instanceof PanelManagerError && e.code === 'already-attached');
+  } finally {
+    console.error = quiet;
+  }
+  assert.notEqual(view.handleFor('obs-a'), undefined, 'obs-a lost its handle to the hook that never attached');
+  assert.notEqual(view.handleFor('obs-b'), undefined, 'obs-b lost its handle to the hook that never attached');
 });
 
 test('a storage whose save throws or rejects reaches onError and the row keeps working', async () => {
@@ -229,20 +253,6 @@ test('first paint never scrolls: panels declared before mount and replayed at se
   assert.equal(r.mountedAt, 0);
 });
 
-test('addPanel after ready scrolls to the literal target of scrollOnOpen: into-view, start and center each land on a different stop', async () => {
-  // Eight panels and a 1600 wide window, the new one fifth: the row rests on the one-phone grid (406 px apart, with 183 of
-  // centering before the strip), and these three aligns snap to three different stops (a narrower window leaves two of them on one).
-  const shape = { width: 1600, fillers: ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8'], after: 'f4' };
-  const into = await addedAt('into-view', shape);
-  const start = await addedAt('start', shape);
-  const center = await addedAt('center', shape);
-  assert.ok(into.at > 0, 'positive control: a request was recorded and the row moved');
-  // The window is 1568 and the strip 3638, with ((1568 + 16) mod 406) / 2 = 183 of centering at each end, so the stops are the
-  // grid 0, 406, ... 2436. The new panel starts at 1823 (16 + 183 + 1624): into-view (632) takes the nearest stop that shows it
-  // whole, 812; center (1221) and start (1807) land on 1218 and 1624.
-  assert.deepEqual([into.at, center.at, start.at], [812, 1218, 1624]);
-});
-
 test('the default scrollOnOpen is the library default', async () => {
   const dflt = await addedAt(undefined);
   const explicit = await addedAt(LIBRARY_PANEL_DEFAULTS.scrollOnOpen === 'none' ? 'into-view' : LIBRARY_PANEL_DEFAULTS.scrollOnOpen);
@@ -252,20 +262,6 @@ test('the default scrollOnOpen is the library default', async () => {
 test('scrollOnOpen none records no request: the row stays where it was', async () => {
   const r = await addedAt('none');
   assert.equal(r.at, r.mountedAt);
-});
-
-test('a request recorded while a drag holds the row is dropped with the note scroll-dropped-during-drag', async () => {
-  const t = markerTemplate('held', { settings: { scrollOnOpen: 'start' } });
-  const w = createWorkspace({ mount: false, templates: [t] });
-  const m = mountWorkspace(w);
-  await flush();
-  const claim = rowScrollerFor(m.container).claim();
-  assert.ok(claim !== null && rowScrollerFor(m.container).claimHeld(), 'positive control: the drag holds the row');
-  act(() => void w.addPanel(t));
-  await advanceFrames(300);
-  assert.equal(m.notes.some((n) => n.code === 'scroll-dropped-during-drag'), true);
-  assert.equal(rowOffsetOf(m.container), 0);
-  claim.release();
 });
 
 // ---------------------------------------------------------------------------

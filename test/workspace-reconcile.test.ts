@@ -277,7 +277,7 @@ test('a hand-written overrides.parkable false restores a declared and an anonymo
   const result = run({ saved, templates: [tpl('t', { parkable: true, multiple: true })], declared: [{ id: 'd', templateId: 't' }] });
   assert.equal(result.entries.length, 2);
   for (const p of result.entries) {
-    assert.deepEqual([p.collapsible, p.live, p.slots, p.settings!.overflow, p.settings!.restoreVisibility], [false, true, 1, 'scroll', 'live'], p.key);
+    assert.deepEqual([p.collapsible, p.live, p.slots, p.settings!.restoreVisibility], [false, true, 1, 'live'], p.key);
   }
 });
 

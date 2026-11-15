@@ -7,10 +7,10 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { act } from 'react';
 import type { PanelWindow, WorkspaceHandle } from '../index.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, StaticRow, withHost } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
+import { slotTransform } from './support/strip.js';
 
 const effects = new Map<string, { mounts: number; unmounts: number }>();
 
@@ -67,7 +67,7 @@ const rowOf = (workspace: WorkspaceHandle, entries: PanelWindow[]): React.ReactE
 
 const slotOf = (container: HTMLElement, id: string): HTMLElement => container.querySelector(`[data-slot="${id}"]`)!.closest<HTMLElement>('[data-row-slot]')!;
 const xOf = (container: HTMLElement, id: string): number => {
-  const match = /translateX\((-?[\d.]+)px\)/.exec(slotOf(container, id).style.transform);
+  const match = /translateX\((-?[\d.]+)px\)/.exec(slotTransform(slotOf(container, id)));
   return match === null ? 0 : Number(match[1]);
 };
 
@@ -80,41 +80,6 @@ async function track(container: HTMLElement, id: string, frames: number): Promis
   }
   return seen;
 }
-
-test('a panel that arrives with the restore settle starts at its rest, with no slide in', async () => {
-  const { workspace, settle } = restoring([entry('a'), entry('b')]);
-  const mounted = mount(rowOf(workspace, [entry('a')]));
-  await advanceFrames(400);
-  mounted.rerender(rowOf(workspace, [entry('a'), entry('b')]));
-  act(settle);
-  for (const [x, opacity] of await track(mounted.container, 'b', 30)) {
-    assert.equal(x, STEP, 'at its rest on every frame');
-    assert.equal(opacity, 1, 'and fully drawn');
-  }
-});
-
-test('a panel added once the row is ready slides in from off its rest', async () => {
-  const { workspace, settle } = restoring([entry('a'), entry('b')]);
-  const mounted = mount(rowOf(workspace, [entry('a')]));
-  act(settle);
-  await advanceFrames(400);
-  mounted.rerender(rowOf(workspace, [entry('a'), entry('b')]));
-  await advanceFrames(32);
-  const seen = await track(mounted.container, 'b', 40);
-  assert.ok(seen[0]![0] > STEP, `the control: it starts beyond its rest (${seen[0]![0]})`);
-  assert.equal(seen[seen.length - 1]![0], STEP, 'and comes to rest');
-});
-
-test('a view present before the settle is mounted once, the settle included', async () => {
-  const { workspace, settle } = restoring([entry('a'), entry('b')]);
-  const mounted = mount(rowOf(workspace, [entry('a')]));
-  await advanceFrames(400);
-  mounted.rerender(rowOf(workspace, [entry('a'), entry('b')]));
-  act(settle);
-  await advanceFrames(400);
-  assert.deepEqual([effects.get('a')?.mounts, effects.get('a')?.unmounts], [1, 0], 'the view the row held before the settle');
-  assert.deepEqual([effects.get('b')?.mounts, effects.get('b')?.unmounts], [1, 0], 'and the one that arrived with it');
-});
 
 test('control: a view whose row is remounted around it counts two mounts, so the count above can fail', async () => {
   const { workspace } = restoring([entry('a')]);

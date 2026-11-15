@@ -7,6 +7,7 @@
  * Loaded by the `phonux/testing/row` entry (testingRow.ts) and, through test/support/jsdom-globals.ts, by the library's own tests.
  */
 import { JSDOM } from 'jsdom';
+import { fillRowDomGaps } from './testingDom.js';
 
 /** One virtual frame, in milliseconds. The clock only ever moves by a whole number of these. @public */
 export const FRAME_MS = 16;
@@ -84,6 +85,10 @@ win.requestAnimationFrame = requestFrame;
 win.cancelAnimationFrame = cancelFrame;
 define('requestAnimationFrame', requestFrame);
 define('cancelAnimationFrame', cancelFrame);
+
+// What the row (Embla Carousel, the library's only row) reads that jsdom lacks: breakpoints through matchMedia, slides in view through
+// IntersectionObserver, a resize through ResizeObserver, CSS.escape, and a resolved margin of 0px where jsdom answers ''.
+fillRowDomGaps(win);
 // An own property shadows Performance.prototype.now; the Node and the jsdom clocks read the same counter.
 Object.defineProperty(globalThis.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });
 Object.defineProperty(win.performance, 'now', { value: () => virtualNow, configurable: true, writable: true });

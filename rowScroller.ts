@@ -1,8 +1,10 @@
 /**
- * The one owner of a row's horizontal offset. The container never scrolls: the offset and the row's centering margin are one
- * `translateX` on its strip, run as a Web Animations API animation so a glide keeps moving while the main thread is busy.
- * Internal and out of the barrel: a later custom scrollbar reads the strip from `computeRowNumbers` and writes through
- * `claim()`, the way edge scrolling does.
+ * The one owner of a row's horizontal position: where the window's left edge sits along the strip, the view. The view is two
+ * numbers that add: the scroll, which a person's step or a claim moves, and the origin, the negative of the row's centering,
+ * which the Workspace supplies. Each runs its own clock, so a re-centering never retimes a scroll glide, a fade or a bump. The
+ * container never scrolls: the strip is one `translateX(-view)`, run as a Web Animations API animation so a glide keeps moving
+ * while the main thread is busy. Internal and out of the barrel: a later custom scrollbar reads the strip from
+ * `computeRowNumbers` and writes through `claim()`, the way edge scrolling does.
  */
 
 import { cubicBezier } from 'motion/react';
@@ -19,7 +21,7 @@ export interface ScrollClaim {
   release(): void;
 }
 
-/** How a move of the offset or the margin runs. */
+/** How a move of the scroll or the origin runs. */
 export interface GlideOptions {
   /** Seconds the move takes. */
   durationSec: number;
@@ -33,26 +35,32 @@ export interface GlideOptions {
   fade?: boolean;
 }
 
+// The scroll a size change asks for comes a frame or two after the glide starts, once focus has returned to the panel.
+const SIZE_FOLLOW_MS = 150;
+
+/** The strip of the row whose scroll container is `container`: inside the window element that cuts it, never a nested row's. @internal */
+export function rowStripOf(container: Element): HTMLElement | null {
+  return container.querySelector<HTMLElement>(`:scope > [data-row-window] > [${ROW_STRIP_ATTRIBUTE}]`);
+}
+
 /** What may move one row's offset. */
 export interface RowScroller {
-  /** The row's current offset: how far its content is moved left, in the units a `scrollLeft` would be. */
+  /** The row's current scroll: how far its content is moved left, in the units a `scrollLeft` would be. A re-centering does not move it. */
   scrollLeft(): number;
   /** Moves to `target` over `durationSec`, or at once when `instant`. False, doing nothing, while a claim is held. */
   glideTo(target: number, o: GlideOptions): boolean;
-  /** Where the glide in flight ends; null when none is. */
+  /** Where the scroll glide in flight ends; null when none is, and while the centering alone is on its way. */
   glideTarget(): number | null;
-  /** Moves the strip's centering margin to `left`, gliding beside any offset glide. Not counted as a scroll. */
-  setMargin(left: number, o: GlideOptions): void;
-  /** The strip's translate now: its margin less the offset. */
+  /** A panel's size glide started at `startMs`: a scroll glide asked for just after rides its clock and curve, so the row and the panel's edge move as one. */
+  followSize(o: { startMs: number; durationSec: number; ease: readonly [number, number, number, number] }): void;
+  /**
+   * The row's centering is now `centering` px. Every panel stays where it is on screen at the call, then the origin glides to
+   * the new centering on its own clock, beside any scroll glide, fade or bump, which it never touches. Not counted as a scroll.
+   * The first call places the row without a move.
+   */
+  reorigin(centering: number, o: GlideOptions): void;
+  /** The strip's translate now: the view's negative, less any bump. */
   stripX(): number;
-  /** How many times a person has asked to move the row: a step, a dot, a press on the row. Counted whether or not the row moved. */
-  inputs(): number;
-  /** Records one such ask. */
-  noteInput(): void;
-  /** Records that a person is moving the row itself (a step, a dot, a drag of the dot bar), not pressing inside it. */
-  noteMove(): void;
-  /** Wakes `listener` at each `noteMove()`. Returns the unsubscribe. */
-  subscribeMoves(listener: () => void): () => void;
   /** Ends the glide in flight where it is. */
   stop(): void;
   /**
@@ -69,14 +77,15 @@ export interface RowScroller {
   deferUntilRelease(run: () => void): boolean;
   /** Runs the scroll kept by `deferUntilRelease`, once. A no-op when none was kept. */
   replayDeferred(): void;
-  /** Wakes `listener` after each change of the offset or the margin, on every frame of a glide. Returns the unsubscribe. */
-  subscribe(listener: () => void): () => void;
+  /**
+   * Wakes `listener` after each change of the scroll or the origin, on every frame of a glide. Returns the unsubscribe. A
+   * `sameFrame` listener writes something that must stand where the strip is drawn, such as a held panel's clamp: while one is
+   * subscribed the frame loop draws every glide itself, since a strip the compositor draws can be a frame from the curve the
+   * listener reads.
+   */
+  subscribe(listener: () => void, options?: { sameFrame?: boolean }): () => void;
   /** True while a claim is held. Asked instead of probing with `claim()`, which would end a glide in flight. */
   claimHeld(): boolean;
-  /** True while a resize's settle waits for the margin to glide: the settle, not a change of stops, decides where the row rests. */
-  settling(): boolean;
-  /** Marks or unmarks that wait. */
-  setSettling(on: boolean): void;
 }
 
 // A bezier tuple is built once per glide, not per frame.
@@ -179,45 +188,54 @@ function createRowScroller(el: HTMLElement): RowScroller {
   // Set by a `replayScroll` claim; `deferred` is the scroll kept for it, run at `replayDeferred()` once its settle has moved the row.
   let replayable = false;
   let deferred: (() => void) | null = null;
+  // The view is the scroll plus the origin, the negative of the row's centering. Each has its own glide and clock: a glide of one
+  // never reshapes the other, so what a caller asked of the scroll lands as asked however the row is re-centering beside it.
   let offset = 0;
-  let margin = 0;
-  let marginSet = false;
+  let origin = 0;
+  let originSet = false;
   let glide: Glide | null = null;
-  let marginGlide: Glide | null = null;
+  let originGlide: Glide | null = null;
   let frame: number | null = null;
   let anim: Animation | null = null;
-  let inputs = 0;
-  let settleWait = false;
   let bump: Bump | null = null;
+  let sizeMove: Parameters<RowScroller['followSize']>[0] | null = null;
 
   const listeners = new Set<() => void>();
-  const moveListeners = new Set<() => void>();
   const notify = (): void => {
     for (const l of [...listeners]) l();
   };
-  const strip = (): HTMLElement | null => el.querySelector<HTMLElement>(`:scope > [${ROW_STRIP_ATTRIBUTE}]`);
+  const strip = (): HTMLElement | null => rowStripOf(el);
   const translate = (x: number): string => `translateX(${x}px)`;
 
+  // Where each stands at `nowMs`, off its glide's own curve rather than the last frame's value.
+  const scrollAt = (nowMs: number): number => (glide === null ? offset : at(glide, nowMs));
+  const originAt = (nowMs: number): number => (originGlide === null ? origin : at(originGlide, nowMs));
+  const viewAt = (nowMs: number): number => scrollAt(nowMs) + originAt(nowMs);
+
+  // Listeners that write from `stripX()` need the strip drawn by the frame loop: a compositor animation runs a frame or more ahead of it.
+  const framers = new Set<() => void>();
+  let framed = false;
   // Draws what the numbers say now: the resting translate, plus one compositor animation for whatever still glides.
   const draw = (nowMs: number): void => {
+    framed = framers.size > 0;
     const s = strip();
     anim?.cancel();
     anim = null;
     if (s === null) return;
-    s.style.transform = translate(margin - offset - bumpAt(bump, nowMs));
+    s.style.transform = translate(-(offset + origin) - bumpAt(bump, nowMs));
     s.style.opacity = glide?.fade === true ? String(opacityAt(glide, nowMs)) : '';
-    const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, marginGlide === null ? 0 : marginGlide.startMs + marginGlide.durationMs, bumpEnd(bump));
-    if (end <= nowMs || typeof s.animate !== 'function') return;
+    const end = Math.max(glide === null ? 0 : glide.startMs + glide.durationMs, originGlide === null ? 0 : originGlide.startMs + originGlide.durationMs, bumpEnd(bump));
+    if (end <= nowMs || framed || typeof s.animate !== 'function') return;
     const frames: Keyframe[] = [];
     const steps = Math.max(1, Math.ceil((end - nowMs) / SAMPLE_MS));
     for (let k = 0; k <= steps; k += 1) {
       const t = nowMs + ((end - nowMs) * k) / steps;
-      const keyframe: Keyframe = { transform: translate((marginGlide === null ? margin : at(marginGlide, t)) - (glide === null ? offset : at(glide, t)) - bumpAt(bump, t)), offset: k / steps };
+      const keyframe: Keyframe = { transform: translate(-viewAt(t) - bumpAt(bump, t)), offset: k / steps };
       if (glide?.fade === true) keyframe.opacity = String(opacityAt(glide, t));
       frames.push(keyframe);
     }
     // Under the animation, the rest it lands on, so its end hands over without a frame of the old value.
-    s.style.transform = translate((marginGlide?.to ?? margin) - (glide?.to ?? offset));
+    s.style.transform = translate(-((glide?.to ?? offset) + (originGlide?.to ?? origin)));
     s.style.opacity = '';
     anim = s.animate(frames, { duration: end - nowMs, easing: 'linear', fill: 'none' });
   };
@@ -229,41 +247,40 @@ function createRowScroller(el: HTMLElement): RowScroller {
       offset = at(glide, now);
       if (now >= glide.startMs + glide.durationMs) endGlide();
     }
-    if (marginGlide !== null) {
-      margin = at(marginGlide, now);
-      if (now >= marginGlide.startMs + marginGlide.durationMs) marginGlide = null;
+    if (originGlide !== null) {
+      origin = at(originGlide, now);
+      if (now >= originGlide.startMs + originGlide.durationMs) originGlide = null;
     }
     if (bump !== null && now >= bumpEnd(bump)) bump = null;
     const s = strip();
     // Without the Web Animations API the frame loop draws each frame itself.
     if (anim === null && s !== null) {
-      s.style.transform = translate(margin - offset - bumpAt(bump, now));
+      s.style.transform = translate(-(offset + origin) - bumpAt(bump, now));
       s.style.opacity = glide?.fade === true ? String(opacityAt(glide, now)) : '';
     }
-    if (glide === null && marginGlide === null && bump === null) {
+    if (glide === null && originGlide === null && bump === null) {
       anim?.cancel();
       anim = null;
     }
     notify();
     if (moving()) frame = requestAnimationFrame(tick);
   };
-  const moving = (): boolean => glide !== null || marginGlide !== null || bump !== null;
+  const moving = (): boolean => glide !== null || originGlide !== null || bump !== null;
   const run = (): void => {
     if (frame === null && moving()) frame = requestAnimationFrame(tick);
   };
 
-  const onPointerDown = (): void => stop();
   function endGlide(): void {
     if (glide === null) return;
-    el.removeEventListener('pointerdown', onPointerDown);
     glide = null;
   }
 
-  // Sets the offset at once, ending any glide of it; a margin glide in flight keeps going.
+  // Sets the scroll at once, ending any scroll glide. A centering still travelling is not a scroll: the origin goes on to its
+  // landing on its own clock, so a press or a jump never freezes the row off-center.
   const place = (left: number): void => {
     const now = performance.now();
     endGlide();
-    if (marginGlide !== null) margin = at(marginGlide, now);
+    origin = originAt(now);
     offset = left;
     draw(now);
     if (!moving()) {
@@ -275,7 +292,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
 
   function stop(): void {
     if (glide === null) return;
-    place(at(glide, performance.now()));
+    place(scrollAt(performance.now()));
   }
 
   // The browser scrolls a clipped container to reveal a focused element. The row takes that as a move of its own offset and
@@ -286,14 +303,15 @@ function createRowScroller(el: HTMLElement): RowScroller {
       const by = el.scrollLeft;
       if (by === 0) return;
       el.scrollLeft = 0;
-      place((glide === null ? offset : at(glide, performance.now())) + by);
+      place(scrollAt(performance.now()) + by);
     },
     { passive: true },
   );
 
   return {
-    scrollLeft: () => offset,
-    stripX: () => margin - offset,
+    scrollLeft: () => scrollAt(performance.now()),
+    // The bump is in the translate, so it is in the strip's x: a reader placing against the strip during a bump sees where it is drawn.
+    stripX: () => -viewAt(performance.now()) - bumpAt(bump, performance.now()),
     glideTo(target, o) {
       if (claimed) return false;
       if (o.instant || o.durationSec <= 0) {
@@ -301,46 +319,40 @@ function createRowScroller(el: HTMLElement): RowScroller {
         return true;
       }
       const now = performance.now();
-      const from = glide === null ? offset : at(glide, now);
+      const from = scrollAt(now);
       const before = glide;
-      if (glide === null) el.addEventListener('pointerdown', onPointerDown);
-      if (marginGlide !== null) margin = at(marginGlide, now);
-      offset = from;
+      origin = originAt(now);
       if (o.fade === true && before?.fade === true) {
         // A fade already under way goes on from the opacity it has reached, so a second jump does not flash the row.
         const t = progress(before, now);
         glide = glideOf(from, target, now - (t < 0.5 ? t : 1 - t) * o.durationSec * 1000, o);
       } else if (o.carry === true && before !== null && !before.fade) glide = carried(from, target, now, speedOf(before, now), o);
+      else if (o.fade !== true && sizeMove !== null && now - sizeMove.startMs < SIZE_FOLLOW_MS) glide = glideOf(from, target, sizeMove.startMs, { ...o, durationSec: sizeMove.durationSec, ease: [...sizeMove.ease] });
       else glide = glideOf(from, target, now, o);
+      // A glide that joins a size change starts in the past, so its curve is already ahead of `from`: what is stored and drawn is
+      // the curve's value now, the same one scrollLeft() reads, not the value the strip had a frame ago.
+      offset = at(glide, now);
       draw(now);
       run();
       return true;
     },
     glideTarget: () => (glide === null ? null : glide.to),
-    setMargin(left, o) {
+    followSize(o) {
+      sizeMove = o;
+    },
+    reorigin(centering, o) {
       const now = performance.now();
-      const target = marginGlide === null ? margin : marginGlide.to;
-      if (marginSet && target === left) return;
+      const next = -centering;
+      if (originSet && (originGlide === null ? origin : originGlide.to) === next) return;
       if (glide !== null) offset = at(glide, now);
-      margin = marginGlide === null ? margin : at(marginGlide, now);
-      // The first margin is where the row is drawn from, not a move.
-      marginGlide = !marginSet || o.instant || o.durationSec <= 0 ? null : glideOf(margin, left, now, o);
-      marginSet = true;
-      if (marginGlide === null) margin = left;
+      origin = originAt(now);
+      // The first origin is where the row is drawn from, not a move.
+      originGlide = !originSet || o.instant || o.durationSec <= 0 ? null : glideOf(origin, next, now, o);
+      originSet = true;
+      if (originGlide === null) origin = next;
       draw(now);
       run();
       notify();
-    },
-    inputs: () => inputs,
-    noteInput() {
-      inputs += 1;
-    },
-    noteMove() {
-      for (const l of [...moveListeners]) l();
-    },
-    subscribeMoves(listener) {
-      moveListeners.add(listener);
-      return () => void moveListeners.delete(listener);
     },
     claimHeld: () => claimed,
     deferUntilRelease(run) {
@@ -354,13 +366,20 @@ function createRowScroller(el: HTMLElement): RowScroller {
       replayable = false;
       kept?.();
     },
-    subscribe(listener) {
+    subscribe(listener, options) {
       listeners.add(listener);
-      return () => void listeners.delete(listener);
-    },
-    settling: () => settleWait,
-    setSettling(on) {
-      settleWait = on;
+      if (options?.sameFrame === true) {
+        framers.add(listener);
+        // A glide already under the compositor goes on in the frame loop from where it is.
+        if (!framed) {
+          draw(performance.now());
+          run();
+        }
+      }
+      return () => {
+        listeners.delete(listener);
+        framers.delete(listener);
+      };
     },
     stop,
     bump(direction, o) {
@@ -368,7 +387,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
       const now = performance.now();
       const by = direction === 'right' ? o.distancePx : -o.distancePx;
       if (glide !== null) offset = at(glide, now);
-      if (marginGlide !== null) margin = at(marginGlide, now);
+      origin = originAt(now);
       if (bump !== null && bump.by === by && now < releaseOf(bump)) bump.holdUntilMs = Math.max(bump.holdUntilMs, now + o.holdMs);
       else {
         const ms = o.durationSec * 1000;
@@ -381,7 +400,7 @@ function createRowScroller(el: HTMLElement): RowScroller {
       const now = performance.now();
       if (bump === null || Math.sign(bump.by) !== (direction === 'right' ? 1 : -1) || now >= releaseOf(bump) || now + holdMs <= bump.holdUntilMs) return;
       if (glide !== null) offset = at(glide, now);
-      if (marginGlide !== null) margin = at(marginGlide, now);
+      origin = originAt(now);
       bump.holdUntilMs = now + holdMs;
       draw(now);
       run();

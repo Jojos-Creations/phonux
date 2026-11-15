@@ -3,13 +3,14 @@
  * when the key lands focus on the panel at the far edge of the view instead. `stepRow` gives a host's own chord the same answer.
  */
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
 
 type Direction = 'left' | 'right';
 
 interface RowKeys {
   step?: (direction: Direction) => void;
   edge?: (direction: Direction, target: EventTarget | null) => boolean;
+  half?: (id: string) => boolean;
 }
 
 const rows = new Map<HTMLElement, RowKeys>();
@@ -21,7 +22,7 @@ export function registerRowKeys(container: HTMLElement, part: RowKeys): () => vo
   rows.set(container, entry);
   return () => {
     for (const key of Object.keys(part) as (keyof RowKeys)[]) if (entry[key] === part[key]) delete entry[key];
-    if (entry.step === undefined && entry.edge === undefined) rows.delete(container);
+    if (entry.step === undefined && entry.edge === undefined && entry.half === undefined) rows.delete(container);
   };
 }
 
@@ -64,7 +65,8 @@ export function focusEdgePanel(container: HTMLElement, active: string | null, di
   const cell = container.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`);
   // Every workspace in a column keeps its row mounted and hears every key; only the one the key went to answers it.
   if (target instanceof Element && target.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`) !== null && cell !== null && !cell.contains(target)) return false;
-  const view = container.getBoundingClientRect();
+  // On an Embla row the view is its window, which the container is wider than (the window is cut to whole slots and centered).
+  const view = (container.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`) ?? container).getBoundingClientRect();
   const slots = [...container.querySelectorAll<HTMLElement>(`[${ROW_ID_ATTRIBUTE}]`)].map((el) => {
     const box = el.getBoundingClientRect();
     return { el, id: el.getAttribute(ROW_ID_ATTRIBUTE), left: box.left, right: box.right };
@@ -109,4 +111,9 @@ export function stepRowIn(container: HTMLElement, direction: Direction): boolean
   if (step === undefined) return false;
   step(direction);
   return true;
+}
+
+/** Rests the row drawn in `container` on the half step that centers panel `id`; false when it has none to rest on. @internal */
+export function halfStepIn(container: HTMLElement, id: string): boolean {
+  return rows.get(container)?.half?.(id) ?? false;
 }

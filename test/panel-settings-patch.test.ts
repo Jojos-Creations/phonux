@@ -32,13 +32,13 @@ function copy<T>(value: T): T {
 }
 
 test('mergePatch: null deletes a value from the layer and the result resolves, where a kept null would be refused', () => {
-  const layer: PanelSettings = { closable: false, title: 'Mine', overflow: 'park' };
-  const next = mergePatch(layer, { title: null, overflow: null });
+  const layer: PanelSettings = { closable: false, title: 'Mine', edgeHold: 'left' };
+  const next = mergePatch(layer, { title: null, edgeHold: null });
   assert.deepEqual(next, { closable: false });
   assert.equal('title' in next, false, 'the key is gone, not set to null');
-  assert.deepEqual(layer, { closable: false, title: 'Mine', overflow: 'park' }, 'the input is unchanged');
+  assert.deepEqual(layer, { closable: false, title: 'Mine', edgeHold: 'left' }, 'the input is unchanged');
   assert.equal(resolvePanelSettings({ instance: next }).value.title, undefined);
-  assert.equal(resolvePanelSettings({ instance: next }).value.overflow, 'scroll');
+  assert.equal(resolvePanelSettings({ instance: next }).value.edgeHold, 'off');
 });
 
 test('mergePatch: a value replaces the key, and placeOnAdd is replaced whole', () => {
@@ -118,7 +118,6 @@ const FLAT_POOL: Record<string, readonly unknown[]> = {
   movable: [true, false],
   listed: [true, false],
   title: ['A', 'B'],
-  overflow: ['scroll', 'park'],
   maxSlots: [1, 2, 64],
   slots: [1, 2, 3],
   placeOnAdd: ['row-end', { before: 'a' }, { after: 'b' }],

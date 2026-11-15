@@ -47,12 +47,7 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   maxInstances: true,
   listed: true,
   startVisibility: true,
-  hideStickiness: true,
-  capacityReturn: true,
-  overflow: true,
-  revealOnScroll: true,
   edgeHold: true,
-  resize: true,
   scrollOnOpen: true,
   scrollOnMove: true,
   toggleWhenClosed: true,
@@ -78,7 +73,7 @@ export const aUserLayer: PanelUserLayer = { slots: 2, anchor: { panel: 'notes', 
 export type ConflictKeys = Expect<Equal<keyof SettingConflict, 'key' | 'layer' | 'kind' | 'asked' | 'applied' | 'rule' | 'forcedBy' | 'message'>>;
 export const CONFLICT_FIELDS: Record<keyof SettingConflict, true> = { key: true, layer: true, kind: true, asked: true, applied: true, rule: true, forcedBy: true, message: true };
 export const conflicts: readonly SettingConflict[] = [
-  { key: 'overflow', layer: 'template', kind: 'forced', asked: 'park', applied: 'scroll', rule: 'C1', forcedBy: 'parkable', message: 'overflow: forced' },
+  { key: 'resizable', layer: 'template', kind: 'forced', asked: true, applied: false, rule: 'C1', forcedBy: 'parkable', message: 'resizable: forced' },
   { key: 'closable', layer: 'instance', kind: 'forced', asked: true, applied: false, rule: 'C5', message: 'closable: forced' },
   { key: 'clearable', layer: 'host', kind: 'forced', asked: true, applied: false, rule: 'C2', forcedBy: 'closable', message: 'clearable: forced' },
   { key: 'hostCreatable', layer: 'instance', kind: 'wrong-scope', asked: false, applied: true, message: 'hostCreatable: wrong scope' },
@@ -132,7 +127,7 @@ export const instancePatch: InstancePatch = { closable: false, title: null };
 // @ts-expect-error a template-scope key is not an instance patch key
 export const instanceTemplateKey: InstancePatch = { multiple: true };
 export const settingsPatch: SettingsPatch = { multiple: true, maxInstances: null, headerButtons: { size: false } };
-export const layerSettings: PanelSettings = { overflow: 'park', headerButtons: { size: false } };
+export const layerSettings: PanelSettings = { edgeHold: 'left', headerButtons: { size: false } };
 
 export const reader: PanelReader = {
   get: (id) => (id === handle.id ? handle : undefined),
@@ -154,5 +149,5 @@ export const viewHandle: ViewHandle = {
   scrollTo: () => done,
   configure: () => ({ ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] }),
 };
-export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { overflow: 'park' } };
+export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { edgeHold: 'left' } };
 export const defined: PanelTemplate<{ page: number }> = definePanel({ id: 'paged', view: () => null, params: { page: 1 } });

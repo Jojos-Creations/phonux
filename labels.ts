@@ -12,11 +12,11 @@ export interface PhonuxLabels {
   untitledHeader: string;
   /** The accessible name of a panel's close button. Default `Close`. */
   close: string;
-  /** The text of the button that creates a workspace where the column has none above or below. Default `Create new workspace`. */
+  /** The text of the button that creates a workspace where the column has none above or below. Default `New space`. */
   newWorkspace: string;
   /** The accessible name of the button that moves to the workspace called `name`. Default `Go to <name>`. */
   goToWorkspace: (name: string) => string;
-  /** The accessible name of the input that holds a workspace's name. Default `Workspace name`. */
+  /** The accessible name of the input that holds a workspace's name. Default `Space name`. */
   workspaceName: string;
   /** The accessible name of the row of panels, a region. Default `Panels`. */
   row: string;
@@ -46,6 +46,10 @@ export interface PhonuxLabels {
   workspaceEmpty: string;
   /** The name of a panel's width control and of the group of widths it opens. Default `View Size`. */
   viewSize: string;
+  /** What a panel says when its content could not load. Default `This page could not load`. */
+  couldNotLoad: string;
+  /** The button that loads it again. Default `Try again`. */
+  tryAgain: string;
   /** The name of the width that is `slots` phones wide. Default `Phone`, `Fold`, `Tablet`, `Desktop`, `Ultrawide`, then `<slots> phones`. */
   sizeName: (slots: number) => string;
   /** The name of the width control's entry that grows the panel to fill the window. Default `Fullscreen`. */
@@ -54,6 +58,8 @@ export interface PhonuxLabels {
   couldNotResize: string;
   /** Said when the browser refused to grow the panel to fill the window. Default `Could not make this panel fullscreen`. */
   couldNotFullscreen: string;
+  /** The dot bar oval's spoken value: the places of the first and last panels the window shows, and how many panels the row has. Default `Panels <first> to <last> of <total>`, or `Panel <first> of <total>` for one. */
+  dotBarView: (first: number, last: number, total: number) => string;
 }
 
 const SIZE_NAMES = ['Phone', 'Fold', 'Tablet', 'Desktop', 'Ultrawide'] as const;
@@ -64,9 +70,9 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   untitledPanel: 'Untitled panel',
   untitledHeader: 'Untitled',
   close: 'Close',
-  newWorkspace: 'Create new workspace',
+  newWorkspace: 'New space',
   goToWorkspace: (name) => `Go to ${name}`,
-  workspaceName: 'Workspace name',
+  workspaceName: 'Space name',
   row: 'Panels',
   panelPosition: (title, place, total) => `${title}, ${place} of ${total}`,
   grabStrip: (title) => `Move or close ${title}`,
@@ -81,10 +87,13 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   workspaceUntitled: 'Untitled',
   workspaceEmpty: 'No panels yet.',
   viewSize: 'View Size',
+  couldNotLoad: 'This page could not load',
+  tryAgain: 'Try again',
   sizeName: (slots) => SIZE_NAMES[slots - 1] ?? `${slots} phones`,
   fullscreen: 'Fullscreen',
   couldNotResize: 'Could not resize this panel',
   couldNotFullscreen: 'Could not make this panel fullscreen',
+  dotBarView: (first, last, total) => (first === last ? `Panel ${first} of ${total}` : `Panels ${first} to ${last} of ${total}`),
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

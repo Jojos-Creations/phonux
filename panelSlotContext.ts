@@ -91,6 +91,8 @@ export interface PanelSlotValue {
   readonly previewReorder?: ((offset: number | null) => void) | undefined;
   /** Whether a release at this offset (px, +right/-left) crosses at least one panel, by the same hop rule the release reports. Absent outside a row. */
   readonly dragHops?: ((offset: number) => boolean) | undefined;
+  /** Says that a person's move of this panel (a drag's drop or an arrow key on its grab strip) is about to reach the row. Absent outside a row. */
+  readonly noteReorder?: (() => void) | undefined;
 }
 
 export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(undefined);

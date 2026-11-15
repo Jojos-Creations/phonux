@@ -3,14 +3,13 @@
  * function that operates on a `PanelWindow[]` array.
  */
 import type { JsonValue } from './hostApi.js';
-import { isPresent, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
+import { isPresent, type NeighborWidths } from './panelRowEntry.js';
 import { computeRowOrder, deriveAnchorsFromOrder } from './panelRowOrder.js';
 import type { PanelAnchor } from './panelRowOrder.js';
 import { FIXED, effective } from './panelSettings.js';
 import { newPanelUid } from './panelUid.js';
-import type { AddPlacement, FixedBehaviour, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
+import type { AddPlacement, PanelSettings, ResolvedPanelSettings } from './panelSettings.js';
 import { HOP_FRACTION } from './rowConstants.js';
-import { waitsLeft } from './rowDots.js';
 
 /**
  * One browsing panel in the unified row: either live in the row or parked, never both. Parking only flips
@@ -175,31 +174,13 @@ export function appendPanel(panels: PanelWindow[], info: { url?: string } & Appe
   return computeRowOrder([...panels, entry], rootId);
 }
 
-/** Whether the row may park `p` to make room: a collapsible entry whose `overflow` is 'park', which every hand-built collapsible entry reads as. Any other entry scrolls instead. @internal */
-export function parksForRoom(p: PanelWindow | PanelRowEntry): boolean {
-  return p.collapsible && effective(p).overflow === 'park';
-}
-
-/** The park levers of `p`: its own `capacityReturn` when its `overflow` is 'park', 'auto' otherwise, because a panel the row never parks for room has no lever to pull. @internal */
-export function parkLevers(p: PanelWindow): Pick<FixedBehaviour, 'evictionRank' | 'returnPriority'> & Pick<ResolvedPanelSettings, 'capacityReturn'> {
-  const s = effective(p);
-  return { evictionRank: FIXED.evictionRank, returnPriority: FIXED.returnPriority, capacityReturn: s.overflow === 'park' ? s.capacityReturn : 'auto' };
-}
-
 /**
- * The id of the live panel to park for room (one whose `overflow` is 'park'), or null with none live: the one with the
- * smallest `touchedAt`, a tie going to the lower index. `exclude` exempts the panel being opened or restored, already
- * live in `panels`, and any panel another action in the same update must keep live.
- * @internal
+ * Whether a parked panel with `before` drawn panels ahead of it in the row waits on the bar's left, of `drawn` drawn panels: one
+ * inside the drawn run waits on the side nearer its place, a tie on the left. The row's step follows the same rule, so a step
+ * toward a dot always reaches it.
  */
-export function leastRecentlyTouchedId(panels: PanelWindow[], touchedAt: (id: string) => number, exclude: ReadonlySet<string> = new Set()): string | null {
-  let best: { id: string; at: number } | null = null;
-  for (const p of panels) {
-    if (!p.live || !parksForRoom(p) || exclude.has(p.id)) continue;
-    const at = touchedAt(p.id);
-    if (best === null || at < best.at) best = { id: p.id, at };
-  }
-  return best?.id ?? null;
+export function waitsLeft(before: number, drawn: number): boolean {
+  return before <= 0 || (before < drawn && before <= drawn - before);
 }
 
 /**
@@ -218,44 +199,37 @@ export function sideOfLiveRange(panels: PanelWindow[], id: string): 'left' | 'ri
   return ownIndex < firstOtherLiveIndex ? 'left' : 'right';
 }
 
+/** Whether a step may bring `p` in: parked, not the marker, and not one the page keeps out of scrolling. */
+const revealable = (p: PanelWindow): boolean => !isPresent(p) && p.marker !== true;
+
 /**
- * The parked panel a step toward `direction` brings in, or null: of the parked panels the dot bar shows on that side, the one
- * nearest the drawn ones. A panel parked between two drawn ones counts on the side nearer its place in the row, as its dot does, so
- * every dot is reachable. One whose `revealOnScroll` is 'never' has no dot and is passed over.
+ * The parked panel a step toward `direction` brings in, or null: the one nearest the drawn parkable panels beyond that end of
+ * them, so a run of steps reaches each panel in the order the row lists them and never one past a nearer one. Only when nothing
+ * is parked beyond that end does a panel parked between two drawn ones come in, on the side nearer its place as the dot bar
+ * draws it, so every panel is still reachable.
  * @internal
  */
 export function parkedToReveal(panels: readonly PanelWindow[], direction: 'left' | 'right'): PanelWindow | null {
   const drawn = panels.filter(isPresent).length;
   let before = 0;
   const side: PanelWindow[] = [];
-  for (const p of panels) {
+  panels.forEach((p, k) => {
     if (isPresent(p)) before += 1;
-    else if (p.marker !== true && effective(p).revealOnScroll !== 'never' && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
-  }
+    else if (revealable(p) && waitsLeft(before, drawn) === (direction === 'left')) side.push(p);
+  });
   return (direction === 'left' ? side.at(-1) : side[0]) ?? null;
 }
 
 /**
- * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position.
- * Returns `null` for an unknown id or one already live (a legitimate no-op, not an error). When promoting
- * `id` would exceed `capacity`, demotes exactly one OTHER live panel: whichever `leastRecentlyTouchedId`
- * picks by `touchedAt`. Never demotes a `collapsible: false` entry or any id in `keep`.
+ * Activating ANY panel (live or parked) flips `live` in place, never moving the entry's array position, and never hides
+ * another panel: the row is one strip with room for all of them. Returns `null` for an unknown id or one already live
+ * (a legitimate no-op, not an error).
  * @internal
  */
-export function promoteToLive(panels: PanelWindow[], id: string, capacity: number, touchedAt: (id: string) => number, keep: ReadonlySet<string> = new Set()): PanelWindow[] | null {
+export function promoteToLive(panels: PanelWindow[], id: string): PanelWindow[] | null {
   const target = panels.find((p) => p.id === id);
   if (!target || target.live) return null;
-  const liveCountAfter = panels.filter((p) => p.live && parksForRoom(p)).length + (parksForRoom(target) ? 1 : 0);
-  let next = panels.map((p) => (p.id === id ? { ...p, live: true } : p));
-  if (liveCountAfter > capacity) {
-    // `panels` (pre-promotion): `id` itself still reads live:false there, so it is naturally excluded
-    // from the search without needing `keep`.
-    const demote = leastRecentlyTouchedId(panels, touchedAt, keep);
-    if (demote) {
-      next = next.map((p) => (p.id === demote ? { ...p, live: false } : p));
-    }
-  }
-  return next;
+  return panels.map((p) => (p.id === id ? { ...p, live: true } : p));
 }
 
 /**

@@ -6,7 +6,7 @@
 import type { ConfigureResult } from './panelManager.js';
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelRefusal } from './panelManagerError.js';
-import { PANEL_SETTINGS_CATALOG, applyTemplate, checkTuningLeaf, resolvePanelSettings, sameSettingsValue, viewMayAsk } from './panelSettings.js';
+import { PANEL_SETTINGS_CATALOG, REMOVED_TUNING_LEAVES, applyTemplate, checkTuningLeaf, removedTuningLeaf, resolvePanelSettings, sameSettingsValue, viewMayAsk } from './panelSettings.js';
 import type { PanelSettings, PanelSettingsResolution, PanelUserLayer, SettingConflict, SettingDescriptor, SettingNote, WorkspaceTuning } from './panelSettings.js';
 import { mergePatch, mergeTuningPatch, type SettingsPatch } from './settingsPatch.js';
 import type { PanelWindow } from './panelWindow.js';
@@ -49,6 +49,7 @@ function refusalFor(call: ConfigureCall, name: string, value: unknown): PatchRef
  * asked of the catalog because the setting no longer has a row there.
  */
 function isRemovedTuningLeaf(leaf: string, value: unknown, layer: string): boolean {
+  if (removedTuningLeaf(leaf)) return true;
   if (leaf !== 'shrinkOutOfView') return false;
   const problem = checkTuningLeaf(leaf, value).problems[0];
   if (problem !== undefined) throw new PanelManagerError('invalid-settings', `${layer}.${problem.key}: ${problem.problem}`, { layer, key: problem.key });
@@ -321,7 +322,7 @@ export function planTuning(current: WorkspaceTuning | undefined, patch: Record<s
       const problem = checked.problems[0];
       if (problem !== undefined) throw new PanelManagerError('invalid-settings', `tuning.${problem.key.replace(/^tuning\./, '')}: ${problem.problem}`, { layer: 'tuning', key: problem.key });
     }
-    if (leaf !== 'shrinkOutOfView' && !sameSettingsValue((current as Record<string, unknown> | undefined)?.[leaf], after)) names.push(`tuning.${leaf}`);
+    if (leaf !== 'shrinkOutOfView' && !REMOVED_TUNING_LEAVES.has(leaf) && !sameSettingsValue((current as Record<string, unknown> | undefined)?.[leaf], after)) names.push(`tuning.${leaf}`);
   }
   if (names.length === 0) return { changed: false };
   return { changed: true, input, now: names.filter((n) => actsNow(n, 'live')), later: names.filter((n) => !actsNow(n, 'live')), reprices: names.includes('tuning.rowGap') };

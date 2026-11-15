@@ -22,7 +22,7 @@ function invalidTemplate(t: unknown): PanelManagerError {
 }
 
 test('definePanel: returns the very template it was given, with its params and settings', () => {
-  const template: PanelTemplate<{ page: number }> = { id: 'notes', view: View, params: { page: 1 }, settings: { overflow: 'park', headerButtons: { size: { icon: 'i', label: 'Size', onClick: () => undefined } } } };
+  const template: PanelTemplate<{ page: number }> = { id: 'notes', view: View, params: { page: 1 }, settings: { headerButtons: { size: { icon: 'i', label: 'Size', onClick: () => undefined } } } };
   assert.equal(definePanel(template), template);
   const bare = { id: 'bare', view: View };
   assert.equal(definePanel(bare), bare);

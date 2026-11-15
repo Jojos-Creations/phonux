@@ -67,3 +67,18 @@ export function rowPanelIdOf(target: EventTarget | null): string | null {
 export function panelRootOf(target: EventTarget | null): HTMLElement | null {
   return target instanceof Element ? target.closest<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) : null;
 }
+
+/** On the element Embla is rooted on: the window that shows whole slots. @internal */
+export const EMBLA_WINDOW_ATTRIBUTE = 'data-row-embla-window';
+/** On each slot marker: an empty box one phone wide, at its slot's place in the strip. @internal */
+export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
+
+/** The custom properties a row slot carries: how far in from the slot's left and right its header and footer lie, in px. @internal */
+export const CHROME_CUT_LEFT_PROPERTY = '--phonux-chrome-cut-left';
+/** @internal */
+export const CHROME_CUT_RIGHT_PROPERTY = '--phonux-chrome-cut-right';
+/** A header's or footer's left and right offsets, plus `inset` px: the row's cut where the slot carries one, else just `inset`. @internal */
+export const chromeCutSides = (inset = 0): { left: string; right: string } => ({
+  left: `calc(var(${CHROME_CUT_LEFT_PROPERTY}, 0px) + ${inset}px)`,
+  right: `calc(var(${CHROME_CUT_RIGHT_PROPERTY}, 0px) + ${inset}px)`,
+});

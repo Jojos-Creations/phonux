@@ -25,7 +25,7 @@ const entry = (id: string, live: boolean, over: Partial<PanelWindow> = {}): Pane
   view: 'km-view',
   collapsible: true,
   listed: true,
-  settings: { ...base, overflow: 'park' },
+  settings: { ...base },
   ...over,
 });
 const root = (): PanelWindow => ({ id: 'root', url: '', title: 'History', live: true, view: 'km-root', collapsible: false, listed: false });

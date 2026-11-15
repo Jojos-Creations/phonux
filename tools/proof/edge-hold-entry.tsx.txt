@@ -56,7 +56,7 @@ function App() {
   const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref } as any);
   latest = p;
   const host = createFakeHost({ panels: p });
-  (window as any).__e = { container: () => ref.current, provided: () => latest, offset: () => rowScrollerFor(ref.current!).scrollLeft(), maxScroll: () => maxScrollOf(latest.rowNumbers), moveTo: (x: number) => rowScrollerFor(ref.current!).glideTo(x, { durationSec: 0, instant: true, ease: 'linear' }) };
+  (window as any).__e = { container: () => ref.current, provided: () => latest, offset: () => rowScrollerFor(ref.current!).scrollLeft(), maxScroll: () => maxScrollOf(latest.rowNumbers), moveTo: (x: number) => rowScrollerFor(ref.current!).glideTo(x, { durationSec: 0, instant: true, ease: 'linear' }), glideTo: (x: number, sec: number) => rowScrollerFor(ref.current!).glideTo(x, { durationSec: sec, instant: false, ease: 'linear' }) };
   return (
     <HostProvider host={host}>
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
