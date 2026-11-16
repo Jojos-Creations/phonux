@@ -8,6 +8,7 @@ import './support/jsdom-globals.js';
 import { act, createElement as h } from 'react';
 import { OfferCard, ShareSheet, SharedList } from '../index.js';
 import type { OfferCardProps, SharedListProps, ShareSheetProps } from '../index.js';
+import { daysUntil } from '../shareParts.js';
 import { cleanup, mount } from './support/mount-harness.js';
 
 afterEach(() => cleanup());
@@ -93,6 +94,50 @@ test('a tab list has one tab in the tab order, and the arrow keys move it', () =
   assert.deepEqual(tabs.map((t) => t.tabIndex), [-1, 0, -1]);
   act(() => void tab(m.container, 'People').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
   assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true');
+  assert.equal(document.activeElement, tab(m.container, 'Link'), 'focus follows the selection');
+});
+
+const key = (el: Element, k: string): void => act(() => void el.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true })));
+
+test('ArrowLeft moves back and wraps from the first tab to the last, and Home and End jump, with focus following', () => {
+  const { m } = sheet();
+  key(tab(m.container, 'People'), 'ArrowLeft');
+  assert.equal(tab(m.container, 'In person').getAttribute('aria-selected'), 'true');
+  assert.equal(document.activeElement, tab(m.container, 'In person'));
+  key(tab(m.container, 'In person'), 'ArrowLeft');
+  assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true', 'wraps to the last tab');
+  assert.equal(document.activeElement, tab(m.container, 'Link'));
+  key(tab(m.container, 'Link'), 'Home');
+  assert.equal(tab(m.container, 'In person').getAttribute('aria-selected'), 'true');
+  key(tab(m.container, 'In person'), 'End');
+  assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true');
+  assert.equal(document.activeElement, tab(m.container, 'Link'));
+});
+
+test('tabs, tab list and tab panel are wired by role and by id', () => {
+  const { m } = sheet({ defaultTab: 'link' });
+  const list = m.container.querySelector('[role="tablist"]');
+  assert.equal(list?.getAttribute('aria-label'), 'How to share');
+  const panel = m.container.querySelector('[role="tabpanel"]');
+  assert.ok(panel?.id);
+  for (const t of m.container.querySelectorAll('[role="tab"]')) assert.equal(t.getAttribute('aria-controls'), panel.id);
+  assert.equal(panel.getAttribute('aria-labelledby'), tab(m.container, 'Link').id);
+});
+
+test('the QR code sits on a white tile whatever the theme', () => {
+  const { m } = sheet({ defaultTab: 'nearby' });
+  const tile = m.container.querySelector('[data-qr]')?.parentElement;
+  assert.ok(tile);
+  assert.equal(window.getComputedStyle(tile).backgroundColor, 'rgb(255, 255, 255)');
+});
+
+test('days left round a part day up and never fall below one', () => {
+  assert.equal(daysUntil(NOW + 6.2 * DAY, NOW), 7);
+  assert.equal(daysUntil(NOW + 7 * DAY, NOW), 7);
+  assert.equal(daysUntil(NOW + 1000, NOW), 1);
+  assert.equal(daysUntil(NOW - 3 * DAY, NOW), 1);
+  const { m } = sheet({ defaultTab: 'link', link: { expiresAt: NOW + 6.2 * DAY } });
+  assert.match(text(m.container), /Link ends in 7 days\./);
 });
 
 test('a controlled tab follows the prop and reports the pick', () => {
@@ -101,6 +146,23 @@ test('a controlled tab follows the prop and reports the pick', () => {
   click(tab(m.container, 'Link'));
   assert.deepEqual(picked, ['link']);
   assert.equal(tab(m.container, 'People').getAttribute('aria-selected'), 'true', 'the prop, not the click, decides');
+});
+
+test('a controlled tab that differs from the default is shown, and follows a rerender', () => {
+  const props = (tabValue: 'nearby' | 'people' | 'link'): ShareSheetProps => ({
+    file: { name: 'f', size: 1 },
+    qr: h('i', { 'data-qr': '' }),
+    people: [],
+    onSend: () => {},
+    onCopyLink: () => {},
+    tab: tabValue,
+    defaultTab: 'people',
+  });
+  const m = mount(h(ShareSheet, props('link')));
+  assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true', 'the prop beats defaultTab');
+  m.rerender(h(ShareSheet, props('nearby')));
+  assert.equal(tab(m.container, 'In person').getAttribute('aria-selected'), 'true');
+  assert.ok(m.container.querySelector('[data-qr]'));
 });
 
 test('Send fires with the person id, and a person already sent to shows Sent with no button', () => {
@@ -116,7 +178,7 @@ test('Send fires with the person id, and a person already sent to shows Sent wit
 
 test('Add someone, back, Copy link, More apps and Change call back', () => {
   const { m, calls } = sheet();
-  click(byText(m.container, 'Add someone you trust') ?? m.container.querySelector('button:not([role="tab"]):not([aria-label])') ?? undefined);
+  click(buttons(m.container).find((b) => text(b).startsWith('Add someone you trust')));
   click(m.container.querySelector('[aria-label="Back"]') ?? undefined);
   click(tab(m.container, 'Link'));
   click(byText(m.container, 'Copy link'));
@@ -253,6 +315,47 @@ test('a person row menu leaves out the link entries', () => {
   const buttonsMore = m.container.querySelectorAll('[aria-label^="More for"]');
   click(buttonsMore[1]);
   assert.deepEqual([...document.body.querySelectorAll('[role="menuitem"]')].map(text), ['Change when it ends', 'Stop sharing']);
+});
+
+test('each menu button has its own name, and reports and controls its menu', () => {
+  const { m } = list();
+  const names = [...m.container.querySelectorAll('[aria-label^="More for"]')].map((b) => b.getAttribute('aria-label'));
+  assert.deepEqual(names, ['More for Trip photos.zip', 'More for Trip photos.zip to Mom']);
+  const first = m.container.querySelector<HTMLElement>('[aria-label="More for Trip photos.zip"]');
+  assert.equal(first?.getAttribute('aria-expanded'), 'false');
+  click(first ?? undefined);
+  assert.equal(first?.getAttribute('aria-expanded'), 'true');
+  const menu = document.body.querySelector('[role="menu"]');
+  assert.ok(menu?.id);
+  assert.equal(first?.getAttribute('aria-controls'), menu.id);
+});
+
+test('menu items are 44 px tall at every window width', () => {
+  const { m } = list();
+  click(m.container.querySelector('[aria-label="More for Trip photos.zip"]') ?? undefined);
+  const item = document.body.querySelector('[role="menuitem"]');
+  const cls = [...(item?.classList ?? [])].find((c) => c.startsWith('css-'));
+  assert.ok(cls, 'the item has an emotion class');
+  const rules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules].map((r) => r.cssText.replace(/\s+/g, ' ')));
+  const own = rules.filter((r) => r.includes(`.${cls}`));
+  assert.ok(own.some((r) => !r.startsWith('@media') && /min-height: 44px/.test(r)), 'control: the base rule sets 44px');
+  const wide = own.filter((r) => r.startsWith('@media') && /min-width:\s*600px/.test(r));
+  assert.ok(wide.length > 0, 'control: the wide-window rule exists');
+  assert.ok(wide.some((r) => /min-height: auto/.test(r)), 'control: the library default of auto is emitted');
+  assert.ok(/min-height: 44px/.test(wide[wide.length - 1] ?? ''), 'the last wide-window rule says 44px, after the library default of auto');
+});
+
+test('the destructive buttons are in the error color, unlike their neighbours', () => {
+  const { m } = list();
+  click(m.container.querySelector('[aria-label="More for Trip photos.zip"]') ?? undefined);
+  const color = (el: Element | undefined): string => (el === undefined ? '' : window.getComputedStyle(el).color);
+  const items = [...document.body.querySelectorAll('[role="menuitem"]')];
+  const stop = items.find((i) => text(i) === 'Stop sharing');
+  const keep = items.find((i) => text(i) === 'Copy link again');
+  assert.notEqual(color(stop), '');
+  assert.notEqual(color(stop), color(keep));
+  const o = offer();
+  assert.notEqual(color(byText(o.m.container, 'Report')), color(byText(o.m.container, 'Decline')));
 });
 
 test('an empty tab says so, and the labels replace the words', () => {

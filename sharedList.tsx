@@ -74,6 +74,7 @@ export function SharedList(props: SharedListProps): React.ReactElement {
   const labels = useShareLabels(props.labels);
   const [tab, setTab] = useTabState<SharedTab>(props.tab, props.defaultTab ?? 'byYou', props.onTabChange);
   const idPrefix = React.useId();
+  const menuId = `${idPrefix}-menu`;
   const rows = tab === 'byYou' ? props.byYou : props.withYou;
   const [menu, setMenu] = React.useState<{ id: string; anchor: HTMLElement } | null>(null);
   const menuRow = menu === null ? undefined : props.byYou.find((r) => r.id === menu.id);
@@ -135,7 +136,7 @@ export function SharedList(props: SharedListProps): React.ReactElement {
                     </Button>
                   ) : null}
                   {hasMenu ? (
-                    <IconButton aria-label={labels.sharedMore(row.name)} aria-haspopup="menu" onClick={(e) => setMenu({ id: row.id, anchor: e.currentTarget })} sx={{ width: MIN_TOUCH_PX, height: MIN_TOUCH_PX }}>
+                    <IconButton aria-label={labels.sharedMore(row.name, row.kind === 'person' ? row.person : undefined)} aria-haspopup="menu" aria-expanded={menu?.id === row.id} aria-controls={menu?.id === row.id ? menuId : undefined} onClick={(e) => setMenu({ id: row.id, anchor: e.currentTarget })} sx={{ width: MIN_TOUCH_PX, height: MIN_TOUCH_PX }}>
                       <MoreIcon />
                     </IconButton>
                   ) : null}
@@ -145,7 +146,7 @@ export function SharedList(props: SharedListProps): React.ReactElement {
           </Box>
         )}
       </Box>
-      <Menu open={menu !== null && menuEntries.length > 0} anchorEl={menu?.anchor ?? null} onClose={() => setMenu(null)}>
+      <Menu open={menu !== null && menuEntries.length > 0} anchorEl={menu?.anchor ?? null} onClose={() => setMenu(null)} slotProps={{ list: { id: menuId } }}>
         {menuEntries.map((entry) => (
           <MenuItem
             key={entry.key}
@@ -153,7 +154,7 @@ export function SharedList(props: SharedListProps): React.ReactElement {
               setMenu(null);
               entry.run();
             }}
-            sx={{ minHeight: MIN_TOUCH_PX, ...(entry.danger === true ? { color: 'error.main' } : {}) }}
+            sx={{ minHeight: MIN_TOUCH_PX, '@media (min-width:600px)': { minHeight: MIN_TOUCH_PX }, ...(entry.danger === true ? { color: 'error.main' } : {}) }}
           >
             {entry.label}
           </MenuItem>

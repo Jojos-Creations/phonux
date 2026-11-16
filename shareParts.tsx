@@ -134,6 +134,12 @@ export function SegmentedTabs<T extends string>({ name, tabs, value, onChange, i
               } else if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 move(i, -1);
+              } else if (e.key === 'Home') {
+                e.preventDefault();
+                move(0, 0);
+              } else if (e.key === 'End') {
+                e.preventDefault();
+                move(tabs.length - 1, 0);
               }
             }}
             sx={(t: Theme) => ({

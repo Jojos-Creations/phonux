@@ -118,8 +118,8 @@ export interface PhonuxLabels {
   sharedEmpty: string;
   /** The button on a row whose link ended. Default `Renew`. */
   sharedRenew: string;
-  /** The accessible name of a row's menu button, given the row's file name. Default `More for <name>`. */
-  sharedMore: (name: string) => string;
+  /** The accessible name of a row's menu button, given the row's file name and, for a `person` row, the other person's name. Default `More for <name>`, or `More for <name> to <person>`. */
+  sharedMore: (name: string, person?: string) => string;
   /** A row menu entry. Default `Copy link again`. */
   sharedCopyAgain: string;
   /** A row menu entry. Default `Show QR code`. */
@@ -196,7 +196,7 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   sharedWithYou: 'With you',
   sharedEmpty: 'Nothing here yet.',
   sharedRenew: 'Renew',
-  sharedMore: (name) => `More for ${name}`,
+  sharedMore: (name, person) => (person === undefined ? `More for ${name}` : `More for ${name} to ${person}`),
   sharedCopyAgain: 'Copy link again',
   sharedShowQr: 'Show QR code',
   sharedChangeEnd: 'Change when it ends',

@@ -33,7 +33,7 @@ export interface ShareLinkInfo {
   maxOpens?: number;
 }
 
-/** What `ShareSheet` takes. Every callback is optional except `onSend`; a control whose callback is missing is not drawn. @public */
+/** What `ShareSheet` takes. `onSend` and `onCopyLink` are required; every other callback is optional, and a control whose callback is missing is not drawn. @public */
 export interface ShareSheetProps {
   /** The file being shared. */
   file: ShareFile;
