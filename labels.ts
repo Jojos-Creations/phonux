@@ -60,6 +60,76 @@ export interface PhonuxLabels {
   couldNotFullscreen: string;
   /** The dot bar oval's spoken value: the places of the first and last panels the window shows, and how many panels the row has. Default `Panels <first> to <last> of <total>`, or `Panel <first> of <total>` for one. */
   dotBarView: (first: number, last: number, total: number) => string;
+  /** The accessible name of the row of share tabs. Default `How to share`. */
+  shareTabsName: string;
+  /** The share sheet's title. Default `Share`. */
+  shareTitle: string;
+  /** The accessible name of the share sheet's back button. Default `Back`. */
+  shareBack: string;
+  /** The share sheet's tab for showing a QR code to someone nearby. Default `In person`. */
+  shareTabInPerson: string;
+  /** The share sheet's tab for sending to people the person trusts. Default `People`. */
+  shareTabPeople: string;
+  /** The share sheet's tab for a web link. Default `Link`. */
+  shareTabLink: string;
+  /** The line under the QR code. Default `Show this to someone next to you. Their phone gets the file over your Wi-Fi, or the web if that is faster.`. */
+  shareInPersonHint: string;
+  /** The line above the list of trusted people. Default `People who trust you get "Accept file from you?" on their phone. Nobody else can send them files.`. */
+  sharePeopleHint: string;
+  /** A trusted person's send button. Default `Send`. */
+  shareSend: string;
+  /** The accessible name of the send button for the person called `name`. Default `Send to <name>`. */
+  shareSendTo: (name: string) => string;
+  /** What a person already sent to shows in place of the send button. Default `Sent`. */
+  shareSent: string;
+  /** The row that adds a trusted person. Default `Add someone you trust`. */
+  shareAddPerson: string;
+  /** The line under `shareAddPerson`. Default `Trade a code once, then send any time`. */
+  shareAddPersonHint: string;
+  /** The note at the foot of the People tab. Default `An offer waits 7 days, then goes away by itself.`. */
+  shareOfferWaits: string;
+  /** The link tab's copy button. Default `Copy link`. */
+  shareCopyLink: string;
+  /** The link tab's button that opens the system share sheet. Default `More apps`. */
+  shareMoreApps: string;
+  /** When the link ends: whole days left, or null for no expiry, and the opens allowed, or null for no limit. Default `Link ends in 7 days or after 20 opens.`. */
+  shareLinkEnds: (days: number | null, opens: number | null) => string;
+  /** The button that changes when the link ends. Default `Change`. */
+  shareChange: string;
+  /** The title of the card that offers a file, given the sender's saved name. Default `<from> wants to send you a file`. */
+  offerTitle: (from: string) => string;
+  /** The line under the offer's title. Default `<from> is on your trusted list`. */
+  offerTrusted: (from: string) => string;
+  /** The offer's reassurance, given the whole days before it goes away. Default `Nothing downloads until you accept. The offer goes away in 7 days.`. */
+  offerNote: (days: number) => string;
+  /** The offer's main button. Default `Accept and save`. */
+  offerAccept: string;
+  /** The offer's decline button. Default `Decline`. */
+  offerDecline: string;
+  /** The offer's report button. Default `Report`. */
+  offerReport: string;
+  /** The accessible name of the shared list's tabs. Default `Shared files`. */
+  sharedTabsName: string;
+  /** The shared list's tab for what the person shared. Default `By you`. */
+  sharedByYou: string;
+  /** The shared list's tab for what others shared with the person. Default `With you`. */
+  sharedWithYou: string;
+  /** Shown when a shared list tab has no rows. Default `Nothing here yet.`. */
+  sharedEmpty: string;
+  /** The button on a row whose link ended. Default `Renew`. */
+  sharedRenew: string;
+  /** The accessible name of a `Renew` button, given the row's file name and detail line, so no two buttons in a list share a name. Default `Renew <name>, <detail>`. */
+  sharedRenewFor: (name: string, detail?: string) => string;
+  /** The accessible name of a row's menu button, given the row's file name, the other person's name for a `person` row, and the row's detail line, so no two buttons in a list share a name. Default `More for <name>`, then ` to <person>` and `, <detail>` when given. */
+  sharedMore: (name: string, person?: string, detail?: string) => string;
+  /** A row menu entry. Default `Copy link again`. */
+  sharedCopyAgain: string;
+  /** A row menu entry. Default `Show QR code`. */
+  sharedShowQr: string;
+  /** A row menu entry. Default `Change when it ends`. */
+  sharedChangeEnd: string;
+  /** A row menu entry. Default `Stop sharing`. */
+  sharedStop: string;
 }
 
 const SIZE_NAMES = ['Phone', 'Fold', 'Tablet', 'Desktop', 'Ultrawide'] as const;
@@ -94,6 +164,46 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   couldNotResize: 'Could not resize this panel',
   couldNotFullscreen: 'Could not make this panel fullscreen',
   dotBarView: (first, last, total) => (first === last ? `Panel ${first} of ${total}` : `Panels ${first} to ${last} of ${total}`),
+  shareTabsName: 'How to share',
+  shareTitle: 'Share',
+  shareBack: 'Back',
+  shareTabInPerson: 'In person',
+  shareTabPeople: 'People',
+  shareTabLink: 'Link',
+  shareInPersonHint: 'Show this to someone next to you. Their phone gets the file over your Wi-Fi, or the web if that is faster.',
+  sharePeopleHint: 'People who trust you get "Accept file from you?" on their phone. Nobody else can send them files.',
+  shareSend: 'Send',
+  shareSendTo: (name) => `Send to ${name}`,
+  shareSent: 'Sent',
+  shareAddPerson: 'Add someone you trust',
+  shareAddPersonHint: 'Trade a code once, then send any time',
+  shareOfferWaits: 'An offer waits 7 days, then goes away by itself.',
+  shareCopyLink: 'Copy link',
+  shareMoreApps: 'More apps',
+  shareLinkEnds: (days, opens) => {
+    const inDays = days === null ? null : `in ${days} ${days === 1 ? 'day' : 'days'}`;
+    const afterOpens = opens === null ? null : `after ${opens} ${opens === 1 ? 'open' : 'opens'}`;
+    const when = [inDays, afterOpens].filter((x) => x !== null).join(' or ');
+    return when === '' ? 'Link does not end.' : `Link ends ${when}.`;
+  },
+  shareChange: 'Change',
+  offerTitle: (from) => `${from} wants to send you a file`,
+  offerTrusted: (from) => `${from} is on your trusted list`,
+  offerNote: (days) => `Nothing downloads until you accept. The offer goes away in ${days} ${days === 1 ? 'day' : 'days'}.`,
+  offerAccept: 'Accept and save',
+  offerDecline: 'Decline',
+  offerReport: 'Report',
+  sharedTabsName: 'Shared files',
+  sharedByYou: 'By you',
+  sharedWithYou: 'With you',
+  sharedEmpty: 'Nothing here yet.',
+  sharedRenew: 'Renew',
+  sharedRenewFor: (name, detail) => `Renew ${name}${detail === undefined ? '' : `, ${detail}`}`,
+  sharedMore: (name, person, detail) => `More for ${name}${person === undefined ? '' : ` to ${person}`}${detail === undefined ? '' : `, ${detail}`}`,
+  sharedCopyAgain: 'Copy link again',
+  sharedShowQr: 'Show QR code',
+  sharedChangeEnd: 'Change when it ends',
+  sharedStop: 'Stop sharing',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

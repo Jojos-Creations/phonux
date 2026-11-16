@@ -22,6 +22,13 @@ export type {
 export type { PhonuxLabels } from './labels.js';
 export type { PhonuxIcons } from './icons.js';
 
+export { ShareSheet } from './shareSheet.js';
+export type { ShareSheetProps, ShareFile, SharePerson, ShareLinkInfo, ShareTab } from './shareSheet.js';
+export { OfferCard } from './offerCard.js';
+export type { OfferCardProps, OfferFile } from './offerCard.js';
+export { SharedList } from './sharedList.js';
+export type { SharedListProps, SharedRow, SharedTab } from './sharedList.js';
+
 export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
 

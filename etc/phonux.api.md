@@ -565,6 +565,28 @@ export const noopCaptureTrigger: CaptureTrigger;
 export type OccupantMove = 'shift-left' | 'shift-right' | 'close';
 
 // @public
+export function OfferCard(props: OfferCardProps): React_2.ReactElement;
+
+// @public
+export interface OfferCardProps {
+    expiresAt: number;
+    file: OfferFile;
+    from: string;
+    labels?: Partial<PhonuxLabels>;
+    now?: number;
+    onAccept: () => void;
+    onDecline: () => void;
+    onReport: () => void;
+}
+
+// @public
+export interface OfferFile {
+    name: string;
+    size: number;
+    type: string;
+}
+
+// @public
 export interface OpenPlacement {
     enterFrom?: EnterFrom;
     occupant?: OccupantMove;
@@ -1237,10 +1259,45 @@ export interface PhonuxLabels {
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
+    offerAccept: string;
+    offerDecline: string;
+    offerNote: (days: number) => string;
+    offerReport: string;
+    offerTitle: (from: string) => string;
+    offerTrusted: (from: string) => string;
     panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
     row: string;
+    shareAddPerson: string;
+    shareAddPersonHint: string;
+    shareBack: string;
+    shareChange: string;
+    shareCopyLink: string;
+    sharedByYou: string;
+    sharedChangeEnd: string;
+    sharedCopyAgain: string;
+    sharedEmpty: string;
+    sharedMore: (name: string, person?: string, detail?: string) => string;
+    sharedRenew: string;
+    sharedRenewFor: (name: string, detail?: string) => string;
+    sharedShowQr: string;
+    sharedStop: string;
+    sharedTabsName: string;
+    sharedWithYou: string;
+    shareInPersonHint: string;
+    shareLinkEnds: (days: number | null, opens: number | null) => string;
+    shareMoreApps: string;
+    shareOfferWaits: string;
+    sharePeopleHint: string;
+    shareSend: string;
+    shareSendTo: (name: string) => string;
+    shareSent: string;
+    shareTabInPerson: string;
+    shareTabLink: string;
+    shareTabPeople: string;
+    shareTabsName: string;
+    shareTitle: string;
     sizeName: (slots: number) => string;
     tryAgain: string;
     undo: string;
@@ -1545,6 +1602,81 @@ export type SettingValues = {
     restoreVisibility: 'saved' | 'live' | 'parked';
     afterClose: 'stay-closed' | 'return-next-launch';
 };
+
+// @public
+export function SharedList(props: SharedListProps): React_2.ReactElement;
+
+// @public
+export interface SharedListProps {
+    byYou: readonly SharedRow[];
+    defaultTab?: SharedTab;
+    labels?: Partial<PhonuxLabels>;
+    onChangeEnd?: (id: string) => void;
+    onCopyLink?: (id: string) => void;
+    onRenew?: (id: string) => void;
+    onShowQr?: (id: string) => void;
+    onStopSharing?: (id: string) => void;
+    onTabChange?: (tab: SharedTab) => void;
+    tab?: SharedTab;
+    withYou: readonly SharedRow[];
+}
+
+// @public
+export interface SharedRow {
+    detail?: string;
+    ended?: boolean;
+    id: string;
+    kind: 'link' | 'person';
+    name: string;
+    person?: string;
+}
+
+// @public
+export type SharedTab = 'byYou' | 'withYou';
+
+// @public
+export interface ShareFile {
+    name: string;
+    size: number;
+}
+
+// @public
+export interface ShareLinkInfo {
+    expiresAt?: number;
+    maxOpens?: number;
+}
+
+// @public
+export interface SharePerson {
+    id: string;
+    name: string;
+}
+
+// @public
+export function ShareSheet(props: ShareSheetProps): React_2.ReactElement;
+
+// @public
+export interface ShareSheetProps {
+    defaultTab?: ShareTab;
+    file: ShareFile;
+    labels?: Partial<PhonuxLabels>;
+    link?: ShareLinkInfo;
+    now?: number;
+    onAddPerson?: () => void;
+    onChangeLink?: () => void;
+    onClose?: () => void;
+    onCopyLink: () => void;
+    onMoreApps?: () => void;
+    onSend: (id: string) => void;
+    onTabChange?: (tab: ShareTab) => void;
+    people: readonly SharePerson[];
+    qr: React_2.ReactNode;
+    sentTo?: readonly string[];
+    tab?: ShareTab;
+}
+
+// @public
+export type ShareTab = 'nearby' | 'people' | 'link';
 
 // @public
 export function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe' | 'swap'>, show: readonly (PanelId | {
