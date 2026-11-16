@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `ShareSheet`, `OfferCard` and `SharedList`: three props-driven MUI components for sharing a file. `ShareSheet` has the
+  In person (QR code), People (send to trusted people, with `Sent` for those already sent to) and Link (copy, more apps,
+  when it ends) tabs; `OfferCard` is the "Accept file from <name>?" card, all text with no picture of the file or sender;
+  `SharedList` is the By you / With you list, with Renew on an ended row and a menu on the others. The app passes data and
+  callbacks; the components fetch and store nothing. Their words are new `PhonuxLabels` keys (`share*`, `offer*`,
+  `shared*`), and each component also takes a `labels` prop for its own words.
+
 ## 0.2.0-rc.7
 
 rc.7 replaces the panel row. From rc.6 to rc.7 the row is one continuous strip drawn by Embla Carousel 8.6
