@@ -457,8 +457,9 @@ export interface PhonuxLabels {
     sharedChangeEnd: string;
     sharedCopyAgain: string;
     sharedEmpty: string;
-    sharedMore: (name: string, person?: string) => string;
+    sharedMore: (name: string, person?: string, detail?: string) => string;
     sharedRenew: string;
+    sharedRenewFor: (name: string, detail?: string) => string;
     sharedShowQr: string;
     sharedStop: string;
     sharedTabsName: string;

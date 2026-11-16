@@ -8,6 +8,7 @@ import './support/jsdom-globals.js';
 import { act, createElement as h } from 'react';
 import { OfferCard, ShareSheet, SharedList } from '../index.js';
 import type { OfferCardProps, SharedListProps, ShareSheetProps } from '../index.js';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { daysUntil } from '../shareParts.js';
 import { cleanup, mount } from './support/mount-harness.js';
 
@@ -24,6 +25,7 @@ const tab = (root: ParentNode, label: string): HTMLButtonElement => {
   assert.ok(t, `a tab named ${label}`);
   return t;
 };
+const same = (a: unknown, b: unknown, why: string): void => assert.ok(a === b, why);
 const click = (el: Element | undefined): void => {
   assert.ok(el, 'the element to click exists');
   act(() => (el as HTMLElement).click());
@@ -79,9 +81,9 @@ test('the tabs switch what the sheet shows', () => {
   assert.equal(tab(m.container, 'In person').getAttribute('aria-selected'), 'true');
   assert.ok(m.container.querySelector('[data-qr]'), 'the QR code is on the In person tab');
   assert.match(text(m.container), /Show this to someone next to you/);
-  assert.equal(byText(m.container, 'Copy link'), undefined, 'control: the link tab is not shown');
+  assert.ok(byText(m.container, 'Copy link') === undefined, 'control: the link tab is not shown');
   click(tab(m.container, 'People'));
-  assert.equal(m.container.querySelector('[data-qr]'), null);
+  assert.ok(m.container.querySelector('[data-qr]') === null, 'the QR code leaves with its tab');
   assert.match(text(m.container), /Add someone you trust/);
   click(tab(m.container, 'Link'));
   assert.ok(byText(m.container, 'Copy link'));
@@ -94,7 +96,7 @@ test('a tab list has one tab in the tab order, and the arrow keys move it', () =
   assert.deepEqual(tabs.map((t) => t.tabIndex), [-1, 0, -1]);
   act(() => void tab(m.container, 'People').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
   assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true');
-  assert.equal(document.activeElement, tab(m.container, 'Link'), 'focus follows the selection');
+  same(document.activeElement, tab(m.container, 'Link'), 'focus follows the selection');
 });
 
 const key = (el: Element, k: string): void => act(() => void el.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true })));
@@ -103,15 +105,15 @@ test('ArrowLeft moves back and wraps from the first tab to the last, and Home an
   const { m } = sheet();
   key(tab(m.container, 'People'), 'ArrowLeft');
   assert.equal(tab(m.container, 'In person').getAttribute('aria-selected'), 'true');
-  assert.equal(document.activeElement, tab(m.container, 'In person'));
+  same(document.activeElement, tab(m.container, 'In person'), 'focus follows the selection');
   key(tab(m.container, 'In person'), 'ArrowLeft');
   assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true', 'wraps to the last tab');
-  assert.equal(document.activeElement, tab(m.container, 'Link'));
+  same(document.activeElement, tab(m.container, 'Link'), 'focus follows the selection');
   key(tab(m.container, 'Link'), 'Home');
   assert.equal(tab(m.container, 'In person').getAttribute('aria-selected'), 'true');
   key(tab(m.container, 'In person'), 'End');
   assert.equal(tab(m.container, 'Link').getAttribute('aria-selected'), 'true');
-  assert.equal(document.activeElement, tab(m.container, 'Link'));
+  same(document.activeElement, tab(m.container, 'Link'), 'focus follows the selection');
 });
 
 test('tabs, tab list and tab panel are wired by role and by id', () => {
@@ -126,6 +128,14 @@ test('tabs, tab list and tab panel are wired by role and by id', () => {
 
 test('the QR code sits on a white tile whatever the theme', () => {
   const { m } = sheet({ defaultTab: 'nearby' });
+  const tile = m.container.querySelector('[data-qr]')?.parentElement;
+  assert.ok(tile);
+  assert.equal(window.getComputedStyle(tile).backgroundColor, 'rgb(255, 255, 255)');
+});
+
+test('the QR tile is white in a dark theme too', () => {
+  const dark = createTheme({ palette: { mode: 'dark' } });
+  const m = mount(h(ThemeProvider, { theme: dark }, h(ShareSheet, { file: { name: 'f', size: 1 }, qr: h('i', { 'data-qr': '' }), people: [], onSend: () => {}, onCopyLink: () => {}, defaultTab: 'nearby' })));
   const tile = m.container.querySelector('[data-qr]')?.parentElement;
   assert.ok(tile);
   assert.equal(window.getComputedStyle(tile).backgroundColor, 'rgb(255, 255, 255)');
@@ -196,7 +206,7 @@ test('the link line says when it ends, and leaves out what is unset', () => {
   days.m.unmount();
   const none = sheet({ defaultTab: 'link', link: undefined, onMoreApps: undefined });
   assert.doesNotMatch(text(none.m.container), /Link ends/);
-  assert.equal(byText(none.m.container, 'More apps'), undefined);
+  assert.ok(byText(none.m.container, 'More apps') === undefined, 'no More apps without its callback');
 });
 
 test('the sheet speaks in the labels it is given', () => {
@@ -298,14 +308,14 @@ test('the row menu offers four entries on a link row, and each calls back with t
   const { m, calls } = list();
   const open = (name: string): void => click(m.container.querySelector(`[aria-label="${name}"]`) ?? undefined);
   const item = (label: string): HTMLElement | undefined => [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => text(i) === label);
-  open('More for Trip photos.zip');
+  open('More for Trip photos.zip, Link, opened 3 times, ends Nov 23');
   assert.deepEqual([...document.body.querySelectorAll('[role="menuitem"]')].map(text), ['Copy link again', 'Show QR code', 'Change when it ends', 'Stop sharing']);
   click(item('Copy link again'));
-  open('More for Trip photos.zip');
+  open('More for Trip photos.zip, Link, opened 3 times, ends Nov 23');
   click(item('Show QR code'));
-  open('More for Trip photos.zip');
+  open('More for Trip photos.zip, Link, opened 3 times, ends Nov 23');
   click(item('Change when it ends'));
-  open('More for Trip photos.zip');
+  open('More for Trip photos.zip, Link, opened 3 times, ends Nov 23');
   click(item('Stop sharing'));
   assert.deepEqual(calls, ['copy:l1', 'qr:l1', 'change:l1', 'stop:l1']);
 });
@@ -317,11 +327,21 @@ test('a person row menu leaves out the link entries', () => {
   assert.deepEqual([...document.body.querySelectorAll('[role="menuitem"]')].map(text), ['Change when it ends', 'Stop sharing']);
 });
 
+test('the shared list is a tab panel named by its selected tab', () => {
+  const { m } = list();
+  const panel = m.container.querySelector('[role="tabpanel"]');
+  assert.ok(panel?.id, 'the list has a tabpanel');
+  assert.equal(panel.getAttribute('aria-labelledby'), tab(m.container, 'By you').id);
+  for (const t of m.container.querySelectorAll('[role="tab"]')) assert.equal(t.getAttribute('aria-controls'), panel.id);
+  click(tab(m.container, 'With you'));
+  assert.equal(m.container.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby'), tab(m.container, 'With you').id);
+});
+
 test('each menu button has its own name, and reports and controls its menu', () => {
   const { m } = list();
   const names = [...m.container.querySelectorAll('[aria-label^="More for"]')].map((b) => b.getAttribute('aria-label'));
-  assert.deepEqual(names, ['More for Trip photos.zip', 'More for Trip photos.zip to Mom']);
-  const first = m.container.querySelector<HTMLElement>('[aria-label="More for Trip photos.zip"]');
+  assert.deepEqual(names, ['More for Trip photos.zip, Link, opened 3 times, ends Nov 23', 'More for Trip photos.zip to Mom, Sent to Mom, ends Nov 23']);
+  const first = m.container.querySelector<HTMLElement>('[aria-label^="More for Trip photos.zip,"]');
   assert.equal(first?.getAttribute('aria-expanded'), 'false');
   click(first ?? undefined);
   assert.equal(first?.getAttribute('aria-expanded'), 'true');
@@ -330,9 +350,26 @@ test('each menu button has its own name, and reports and controls its menu', () 
   assert.equal(first?.getAttribute('aria-controls'), menu.id);
 });
 
+test('every button in a list has its own name, even with two ended rows and two link rows for one file', () => {
+  const { m } = list({
+    byYou: [
+      { id: 'a', kind: 'link', name: 'Trip photos.zip', detail: 'Link, opened 3 times, ends Nov 23' },
+      { id: 'b', kind: 'link', name: 'Trip photos.zip', detail: 'Link, opened 9 times, ends Nov 30' },
+      { id: 'c', kind: 'link', name: 'Old mixtape.mp3', detail: 'Link ended after 20 opens', ended: true },
+      { id: 'd', kind: 'link', name: 'Old tape.mp3', detail: 'Link ended after 5 opens', ended: true },
+    ],
+  });
+  const names = buttons(m.container)
+    .filter((b) => b.getAttribute('role') !== 'tab')
+    .map((b) => b.getAttribute('aria-label') ?? text(b));
+  assert.equal(names.length, 4, 'control: two menu buttons and two Renew buttons');
+  assert.equal(new Set(names).size, names.length, names.join(' | '));
+  assert.ok(names.filter((n) => n.startsWith('Renew')).length === 2, 'the Renew buttons keep their visible word first');
+});
+
 test('menu items are 44 px tall at every window width', () => {
   const { m } = list();
-  click(m.container.querySelector('[aria-label="More for Trip photos.zip"]') ?? undefined);
+  click(m.container.querySelector('[aria-label^="More for Trip photos.zip,"]') ?? undefined);
   const item = document.body.querySelector('[role="menuitem"]');
   const cls = [...(item?.classList ?? [])].find((c) => c.startsWith('css-'));
   assert.ok(cls, 'the item has an emotion class');
@@ -347,7 +384,7 @@ test('menu items are 44 px tall at every window width', () => {
 
 test('the destructive buttons are in the error color, unlike their neighbours', () => {
   const { m } = list();
-  click(m.container.querySelector('[aria-label="More for Trip photos.zip"]') ?? undefined);
+  click(m.container.querySelector('[aria-label^="More for Trip photos.zip,"]') ?? undefined);
   const color = (el: Element | undefined): string => (el === undefined ? '' : window.getComputedStyle(el).color);
   const items = [...document.body.querySelectorAll('[role="menuitem"]')];
   const stop = items.find((i) => text(i) === 'Stop sharing');

@@ -4,6 +4,7 @@ import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import type { Theme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import type { PhonuxLabels } from './labels.js';
 import { Avatar, EndedIcon, FileIcon, GlyphTile, LinkIcon, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, useShareLabels, useTabState } from './shareParts.js';
@@ -131,12 +132,12 @@ export function SharedList(props: SharedListProps): React.ReactElement {
                     )}
                   </Box>
                   {ended && props.onRenew !== undefined ? (
-                    <Button variant="outlined" color="inherit" onClick={() => props.onRenew?.(row.id)} sx={{ minHeight: MIN_TOUCH_PX, borderRadius: 4, borderColor: 'divider', fontWeight: 600, textTransform: 'none' }}>
+                    <Button variant="outlined" color="inherit" aria-label={labels.sharedRenewFor(row.name, row.detail)} onClick={() => props.onRenew?.(row.id)} sx={{ minHeight: MIN_TOUCH_PX, borderRadius: 4, borderColor: 'divider', fontWeight: 600, textTransform: 'none' }}>
                       {labels.sharedRenew}
                     </Button>
                   ) : null}
                   {hasMenu ? (
-                    <IconButton aria-label={labels.sharedMore(row.name, row.kind === 'person' ? row.person : undefined)} aria-haspopup="menu" aria-expanded={menu?.id === row.id} aria-controls={menu?.id === row.id ? menuId : undefined} onClick={(e) => setMenu({ id: row.id, anchor: e.currentTarget })} sx={{ width: MIN_TOUCH_PX, height: MIN_TOUCH_PX }}>
+                    <IconButton aria-label={labels.sharedMore(row.name, row.kind === 'person' ? row.person : undefined, row.detail)} aria-haspopup="menu" aria-expanded={menu?.id === row.id} aria-controls={menu?.id === row.id ? menuId : undefined} onClick={(e) => setMenu({ id: row.id, anchor: e.currentTarget })} sx={{ width: MIN_TOUCH_PX, height: MIN_TOUCH_PX }}>
                       <MoreIcon />
                     </IconButton>
                   ) : null}
@@ -154,7 +155,7 @@ export function SharedList(props: SharedListProps): React.ReactElement {
               setMenu(null);
               entry.run();
             }}
-            sx={{ minHeight: MIN_TOUCH_PX, '@media (min-width:600px)': { minHeight: MIN_TOUCH_PX }, ...(entry.danger === true ? { color: 'error.main' } : {}) }}
+            sx={(t: Theme) => ({ minHeight: MIN_TOUCH_PX, [t.breakpoints.up('sm')]: { minHeight: MIN_TOUCH_PX }, ...(entry.danger === true ? { color: 'error.main' } : {}) })}
           >
             {entry.label}
           </MenuItem>

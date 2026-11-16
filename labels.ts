@@ -118,8 +118,10 @@ export interface PhonuxLabels {
   sharedEmpty: string;
   /** The button on a row whose link ended. Default `Renew`. */
   sharedRenew: string;
-  /** The accessible name of a row's menu button, given the row's file name and, for a `person` row, the other person's name. Default `More for <name>`, or `More for <name> to <person>`. */
-  sharedMore: (name: string, person?: string) => string;
+  /** The accessible name of a `Renew` button, given the row's file name and detail line, so no two buttons in a list share a name. Default `Renew <name>, <detail>`. */
+  sharedRenewFor: (name: string, detail?: string) => string;
+  /** The accessible name of a row's menu button, given the row's file name, the other person's name for a `person` row, and the row's detail line, so no two buttons in a list share a name. Default `More for <name>`, then ` to <person>` and `, <detail>` when given. */
+  sharedMore: (name: string, person?: string, detail?: string) => string;
   /** A row menu entry. Default `Copy link again`. */
   sharedCopyAgain: string;
   /** A row menu entry. Default `Show QR code`. */
@@ -196,7 +198,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   sharedWithYou: 'With you',
   sharedEmpty: 'Nothing here yet.',
   sharedRenew: 'Renew',
-  sharedMore: (name, person) => (person === undefined ? `More for ${name}` : `More for ${name} to ${person}`),
+  sharedRenewFor: (name, detail) => `Renew ${name}${detail === undefined ? '' : `, ${detail}`}`,
+  sharedMore: (name, person, detail) => `More for ${name}${person === undefined ? '' : ` to ${person}`}${detail === undefined ? '' : `, ${detail}`}`,
   sharedCopyAgain: 'Copy link again',
   sharedShowQr: 'Show QR code',
   sharedChangeEnd: 'Change when it ends',
