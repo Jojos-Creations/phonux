@@ -64,7 +64,7 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
 export interface ColumnWorkspaceOptions {
   /** The workspace's stable id. Unset: `workspace-<n>`. A second workspace with the same id throws `invalid-options`. */
   id?: string;
-  /** The workspace's name. Unset: `Workspace <n>`, the smallest number no workspace in the column uses. */
+  /** The workspace's name. Unset: `Space <n>`, the smallest number no workspace in the column uses. */
   name?: string;
   /** Where in the column the workspace goes, counting from the top. Unset: at the bottom. */
   index?: number;
