@@ -1,5 +1,5 @@
 /**
- * The engine's reading of the scroll settings it owns: edgeHold, scrollOnOpen, scrollOnMove, tuning.rowGesture
+ * The engine's reading of the scroll settings it owns: sticky, stickyRank, tuning.minScrollSlots, scrollOnOpen, scrollOnMove, tuning.rowGesture
  * and tuning.initialScroll. One differential per name through the real hook and Workspace: the same scenario under
  * two values must give different outputs. The literal rows are in row-scroll-mount.test.ts and row-gesture.test.ts.
  */
@@ -19,26 +19,58 @@ afterEach(() => {
   cleanup();
 });
 
-const OWNED = ['edgeHold', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll'];
+const OWNED = ['sticky', 'stickyRank', 'tuning.minScrollSlots', 'scrollOnOpen', 'scrollOnMove', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll'];
 
-/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, held by its host when held. */
-function drawnAt(edgeHold: PanelSettings['edgeHold']): 'held' | 'strip' | 'missing' {
-  const m = mountRow(row(rootEntry(), made('b', { edgeHold }), made('c'), made('d')), 1000);
-  const slot = rowBoxOf(m.container)?.querySelector<HTMLElement>('[data-row-id="b"]') ?? null;
-  const where = slot === null ? 'missing' : slot.closest<HTMLElement>('[data-row-hold]')?.hasAttribute('data-hold-at') ? 'held' : 'strip';
+/** Where panel b is drawn in a row of root, b, c and d at 1000 px: in the strip, or in the group beside it when sticky. */
+function drawnAt(sticky: PanelSettings['sticky']): 'sticky' | 'strip' | 'missing' {
+  const m = mountRow(row(rootEntry(), made('b', { sticky }), made('c'), made('d')), 1000);
+  const slot = m.container.querySelector<HTMLElement>('[data-row-id="b"]');
+  const where = slot === null ? 'missing' : slot.closest('[data-row-sticky]') === null ? 'strip' : 'sticky';
   cleanup();
   return where;
 }
 
-test('differential edgeHold: a panel held at the left edge is pinned by its host in the strip, and off has no host', () => {
+test('differential sticky: a sticky panel is drawn in its own group beside the strip, and off draws it in the strip', () => {
   const outcomes = new Map([
     ['off', drawnAt('off')],
-    ['left', drawnAt('left')],
+    ['start', drawnAt('start')],
   ]);
-  assert.deepEqual([...outcomes.values()], ['strip', 'held']);
-  differential('edgeHold', (run) => {
+  assert.deepEqual([...outcomes.values()], ['strip', 'sticky']);
+  differential('sticky', (run) => {
     run('off', () => outcomes.get('off'));
-    run('left', () => outcomes.get('left'));
+    run('start', () => outcomes.get('start'));
+  });
+});
+
+/** The sticky panels of root, b and c at 1000 px (two slots: one sticky and one for the row), b and c both asked for the start. */
+function stickyIds(rankOfC: number, minScrollSlots?: number): string[] {
+  const m = mountRow(row(rootEntry(), made('b', { sticky: 'start' }), made('c', { sticky: 'start', stickyRank: rankOfC })), 1000, minScrollSlots === undefined ? {} : { tuning: { minScrollSlots } });
+  const ids = m.latest().rowNumbers.held.map((h) => h.id);
+  cleanup();
+  return ids;
+}
+
+test('differential stickyRank: of two sticky panels with room for one, the higher rank stays sticky', () => {
+  const outcomes = new Map([
+    [0, stickyIds(0)],
+    [3, stickyIds(3)],
+  ]);
+  assert.deepEqual([...outcomes.values()], [['b'], ['c']]);
+  differential('stickyRank', (run) => {
+    run(0, () => outcomes.get(0)!.join());
+    run(3, () => outcomes.get(3)!.join());
+  });
+});
+
+test('differential tuning.minScrollSlots: a larger minimum gives the sticky panels back to the row', () => {
+  const outcomes = new Map([
+    [1, stickyIds(0, 1).length],
+    [2, stickyIds(0, 2).length],
+  ]);
+  assert.deepEqual([...outcomes.values()], [1, 0]);
+  differential('tuning.minScrollSlots', (run) => {
+    run(1, () => outcomes.get(1));
+    run(2, () => outcomes.get(2));
   });
 });
 

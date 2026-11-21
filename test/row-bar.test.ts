@@ -116,7 +116,7 @@ function generate(r: () => number): Row {
   slots[from] = 1;
   const live = (k: number): boolean => k >= from && k < from + runLength;
   const hold = kind === 'held' || kind === 'parkedHeld' ? 'left' : kind === 'heldRight' ? 'right' : undefined;
-  const root = { id: 'root', slots: 1, live: kind !== 'aside', collapsible: false, settings: { overflow: 'scroll', ...(hold === undefined ? {} : { edgeHold: hold }) } };
+  const root = { id: 'root', slots: 1, live: kind !== 'aside', collapsible: false, settings: { overflow: 'scroll', ...(hold === undefined ? {} : { sticky: hold === 'left' ? 'start' : 'end' }) } };
   const rest = slots.map((s, k) => ({ id: `p${k}`, slots: s, live: live(k), collapsible: true, settings: { overflow: 'scroll' } }));
   const entries = [root, ...rest] as unknown as WorkspaceRowEntry[];
   const n = computeRowNumbers({ entries: entries as never, phoneWidth: PHONE, containerWidth, gap: GAP, wholePanels: true });

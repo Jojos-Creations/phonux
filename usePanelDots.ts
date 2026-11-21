@@ -5,7 +5,7 @@
  */
 import * as React from 'react';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
-import { useEmblaPanelDots } from './emblaDots.js';
+import { idleDots, useEmblaPanelDots } from './emblaDots.js';
 import type { PhonuxLabels } from './labels.js';
 
 /** What the bar draws and where: `dots` and `oval` in track px, from the left edge of the track. @public */
@@ -16,9 +16,14 @@ export interface PanelDots {
   readonly oval: { readonly left: number; readonly width: number };
   /** The bar's total width in px: its dots and the gaps between them. The app sizes the track to this. */
   readonly width: number;
-  /** The ids of the panels the row's window shows now, wholly or in part. */
+  /** The ids of the panels the row's window shows now, wholly or in part. A sticky panel is never listed: it is always in view. */
   readonly shown: readonly string[];
-  /** Glides the row to the rest nearest to centring the panel `id`, when it is not wholly in view already. Does nothing while a drag holds the row. */
+  /**
+   * The sticky panels, which have no dot in `dots` because they never scroll. Draw each as a small square mark at the bar's end on its side: the start group's marks at the
+   * left end in row order, the end group's at the right end. `selectDot(id)` with a sticky panel's id focuses the panel. Empty when no panel is sticky.
+   */
+  readonly sticky: readonly { readonly id: string; readonly side: 'start' | 'end'; readonly hollow: boolean }[];
+  /** Glides the row to the rest nearest to centring the panel `id`, when it is not wholly in view already; for a sticky panel's id it focuses the panel instead. Does nothing while a drag holds the row. */
   selectDot(id: string): void;
   /** Begins dragging the oval. Null while the row is held elsewhere (a gesture or another drag). Call `drag` with the pointer's track dx and `end` on release or cancel. */
   startOvalDrag(): { drag(dx: number): void; end(): void } | null;
@@ -81,17 +86,5 @@ export function usePanelDots(i: {
   return useEmblaPanelDots(i) ?? NO_DOTS;
 }
 
-const noop = (): void => undefined;
 /** Before the Embla row is mounted and measured: no dots, and the handlers do nothing. */
-const NO_DOTS: PanelDots = {
-  dots: [],
-  oval: { left: 0, width: 0 },
-  width: 0,
-  shown: [],
-  selectDot: noop,
-  startOvalDrag: () => null,
-  cursor: 'default',
-  barProps: { onPointerDown: noop, onPointerMove: noop, onPointerUp: noop, onPointerLeave: noop, onPointerCancel: noop, onWheel: noop, style: { touchAction: 'none', cursor: 'default' }, 'data-dot-bar': '' },
-  ovalProps: { role: 'slider', tabIndex: 0, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': 0, 'aria-valuetext': '', onKeyDown: noop },
-  dotProps: (id) => ({ 'data-dot': id, onClick: noop }),
-};
+const NO_DOTS: PanelDots = idleDots();

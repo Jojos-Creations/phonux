@@ -4,7 +4,7 @@
  * workspace tuning, leaf by leaf and member by member.
  */
 
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import { resolvePanelSettings } from '../panelSettings.js';
@@ -32,13 +32,27 @@ function copy<T>(value: T): T {
 }
 
 test('mergePatch: null deletes a value from the layer and the result resolves, where a kept null would be refused', () => {
-  const layer: PanelSettings = { closable: false, title: 'Mine', edgeHold: 'left' };
-  const next = mergePatch(layer, { title: null, edgeHold: null });
+  const layer: PanelSettings = { closable: false, title: 'Mine', sticky: 'start' };
+  const next = mergePatch(layer, { title: null, sticky: null });
   assert.deepEqual(next, { closable: false });
   assert.equal('title' in next, false, 'the key is gone, not set to null');
-  assert.deepEqual(layer, { closable: false, title: 'Mine', edgeHold: 'left' }, 'the input is unchanged');
+  assert.deepEqual(layer, { closable: false, title: 'Mine', sticky: 'start' }, 'the input is unchanged');
   assert.equal(resolvePanelSettings({ instance: next }).value.title, undefined);
-  assert.equal(resolvePanelSettings({ instance: next }).value.edgeHold, 'off');
+  assert.equal(resolvePanelSettings({ instance: next }).value.sticky, 'off');
+});
+
+test('mergePatch: the deprecated edgeHold in a patch writes sticky, null deletes it, and a sticky in the same patch wins', () => {
+  const log = mock.method(console, 'warn', () => undefined);
+  try {
+    assert.deepEqual(mergePatch({ closable: false }, { edgeHold: 'left' }), { closable: false, sticky: 'start' });
+    assert.deepEqual(mergePatch({ closable: false }, { edgeHold: 'right' }), { closable: false, sticky: 'end' });
+    assert.deepEqual(mergePatch({ sticky: 'end' }, { edgeHold: null }), {}, 'null removes the sticky the old name stands for');
+    assert.deepEqual(mergePatch({}, { edgeHold: 'left', sticky: 'end' }), { sticky: 'end' }, 'the new name wins');
+    assert.deepEqual(mergePatch({}, { edgeHold: 'off' }), { sticky: 'off' });
+    assert.equal(resolvePanelSettings({ instance: mergePatch({}, { edgeHold: 'right' }) }).value.sticky, 'end', 'control: the result resolves');
+  } finally {
+    log.mock.restore();
+  }
 });
 
 test('mergePatch: a value replaces the key, and placeOnAdd is replaced whole', () => {

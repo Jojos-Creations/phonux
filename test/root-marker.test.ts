@@ -40,8 +40,8 @@ const NONE: ReadonlySet<string> = new Set();
 const rowOf = (entries: PanelWindow[], rootId: string): React.ReactElement =>
   withHost(React.createElement(StaticRow, { entries, rootId, closingIds: NONE, enteringViaAnchorIds: NONE }));
 const slotOf = (container: HTMLElement, id: string): HTMLElement | null => container.querySelector(`[data-slot="${id}"]`)?.closest<HTMLElement>('[data-row-slot]') ?? null;
-/** The row root: the parent of the panel's hold line, which every panel has (the host is `display: contents` unless held). */
-const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-hold]')!.parentElement!;
+/** The strip's window, the element that is as wide as the row's strip is seen through: the box a panel's slot is drawn in sits in it. */
+const rowRootOf = (container: HTMLElement, id: string): HTMLElement => slotOf(container, id)!.closest<HTMLElement>('[data-row-embla-window]')!;
 const slotIds = (container: HTMLElement): string[] => [...container.querySelectorAll('[data-slot]')].map((n) => (n as HTMLElement).dataset.slot!);
 const xOf = (container: HTMLElement, id: string): number => {
   const slot = slotOf(container, id);
@@ -96,10 +96,10 @@ test('a row of only a marker draws nothing, is hidden and reserves no width', ()
   const box = mounted.container.firstElementChild as HTMLElement;
   assert.ok(box, 'the row element is mounted');
   assert.equal(getComputedStyle(box).display, 'none', 'hidden, so it takes no flex gap from its siblings');
-  assert.equal(getComputedStyle(box).width, '0px');
+  assert.equal(box.querySelector('[data-row-slot]'), null, 'and reserves no slot');
   cleanup();
   const shown = mount(rowOf([marker(), entry('a')], MARKER));
-  assert.equal(getComputedStyle(shown.container.firstElementChild as HTMLElement).display, 'block', 'control: one present panel shows the row');
+  assert.equal(getComputedStyle(shown.container.firstElementChild as HTMLElement).display, 'flex', 'control: one present panel shows the row');
 });
 
 test('usePanelNeighborWidths for A in [marker, A, B] sees nothing on the left and one panel on the right', () => {

@@ -420,6 +420,8 @@ export interface EmblaStrip {
   gap: number;
   /** `tuning.chrome.fitVisibleMaxSlots`: the widest panel, in slots, whose header and footer follow the part the window shows. */
   chromeFollowSlots: number;
+  /** The sticky panels drawn beside the strip, never in it: the start group's in row order, then the end group's. */
+  sticky: readonly { id: string; side: 'start' | 'end' }[];
 }
 
 const strips = new WeakMap<Element, EmblaStrip>();
@@ -441,7 +443,7 @@ export function subscribeEmblaRows(listener: () => void): () => void {
 export const emblaRowsVersion = (): number => rowVersion;
 
 const sameStrip = (a: EmblaStrip | undefined, b: EmblaStrip): boolean =>
-  a !== undefined && a.windowWidth === b.windowWidth && a.stripWidth === b.stripWidth && a.pitch === b.pitch && a.chromeFollowSlots === b.chromeFollowSlots && a.gap === b.gap && a.layout.ids.join(' ') === b.layout.ids.join(' ') && a.layout.lefts.join() === b.layout.lefts.join() && a.layout.widths.join() === b.layout.widths.join();
+  a !== undefined && a.windowWidth === b.windowWidth && a.stripWidth === b.stripWidth && a.pitch === b.pitch && a.chromeFollowSlots === b.chromeFollowSlots && a.gap === b.gap && a.sticky.map((x) => `${x.id}:${x.side}`).join() === b.sticky.map((x) => `${x.id}:${x.side}`).join() && a.layout.ids.join(' ') === b.layout.ids.join(' ') && a.layout.lefts.join() === b.layout.lefts.join() && a.layout.widths.join() === b.layout.widths.join();
 /** Records what the Embla row rooted on `win` lays out now. @internal */
 export function publishEmblaStrip(win: Element, strip: EmblaStrip): void {
   if (sameStrip(strips.get(win), strip)) return;
@@ -526,7 +528,6 @@ export function writeEmbla(embla: EmblaCarouselType, px: number): void {
  * @internal
  */
 export function markAwaySlots(win: Element): number {
-  drawHeldSlots(win);
   const view = win.getBoundingClientRect();
   const store = awayStores.get(win);
   const strip = strips.get(win);
@@ -535,29 +536,19 @@ export function markAwaySlots(win: Element): number {
   const seen = new Set<string>();
   // Written after every slot is read, so a write never forces the next read to lay the row out again.
   const cuts: [HTMLElement, { left: number; right: number }][] = [];
-  const hidden: [HTMLElement, string][] = [];
   let sum = 0;
   let k = 0;
   const all = [...win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)];
-  // A strip slot that a stuck 'both' panel covers whole is out of sight, as one past the window's edge is.
-  const covers = all.filter((slot) => holdOf(slot)?.hasAttribute(HOLD_STICK_ATTRIBUTE) === true).map((slot) => slot.getBoundingClientRect());
-  // Every held or stuck panel as drawn this frame: a strip slot passing under one is hidden there, its header too (the window's cut
-  // reaches over a left or right hold, and a 'both' panel is inside the window).
-  const holds = all.filter((slot) => isHeldSlot(slot)).map((slot) => slot.getBoundingClientRect());
-  const middle = (view.left + view.right) / 2;
   for (const slot of all) {
     const r = slot.getBoundingClientRect();
-    const hold = holdOf(slot);
-    const held = hold !== null && (hold.hasAttribute(HOLD_AT_ATTRIBUTE) || hold.hasAttribute(HOLD_STICK_ATTRIBUTE));
-    hidden.push([slot, held ? '' : heldCoverClip(r.left, r.width, holds, middle, Number.parseFloat(slot.style.width) || r.width)]);
     k += 1;
     sum += k * r.left + r.width;
     if (strip !== undefined) {
       const slots = Math.round((r.width + strip.gap) / strip.pitch);
       const follows = !lifted && slots >= 2 && slots <= strip.chromeFollowSlots;
-      cuts.push([slot, follows && !held ? chromeCutOf(r.left, r.width, view.left, view.right, strip.pitch - strip.gap) : NO_CUT]);
+      cuts.push([slot, follows ? chromeCutOf(r.left, r.width, view.left, view.right, strip.pitch - strip.gap) : NO_CUT]);
     }
-    const away = !held && r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5 || covers.some((c) => r.left >= c.left - 0.5 && r.right <= c.right + 0.5));
+    const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
     if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
     const id = slot.dataset.rowId;
     if (id !== undefined) {
@@ -567,67 +558,10 @@ export function markAwaySlots(win: Element): number {
   }
   store?.retain(seen);
   for (const [slot, cut] of cuts) writeChromeCut(slot, cut);
-  for (const [slot, clip] of hidden) if (slot.style.clipPath !== clip) slot.style.clipPath = clip;
   return sum;
-}
-const FAR = 100000;
-/**
- * The clip that hides the part of a strip slot drawn `slotLeft`, `width` px wide (on screen) under the held or stuck panels drawn at
- * `holds`: a panel at the window's left half hides the slot from its left end to the panel's right edge, one at the right half from the
- * panel's left edge to the slot's right end. Elsewhere it cuts nothing (a focus halo past the slot still shows). '' when no held panel
- * covers any of it. `ownWidth` is the slot's own layout width, which its clip is written in.
- * @internal
- */
-export function heldCoverClip(slotLeft: number, width: number, holds: readonly { left: number; right: number }[], middle: number, ownWidth = width): string {
-  if (width <= 0.5) return '';
-  const slotRight = slotLeft + width;
-  let left = 0;
-  let right = 0;
-  for (const c of holds) {
-    if (c.right <= slotLeft + 0.5 || c.left >= slotRight - 0.5) continue;
-    if ((c.left + c.right) / 2 < middle) left = Math.max(left, Math.min(width, c.right - slotLeft));
-    else right = Math.max(right, Math.min(width, slotRight - c.left));
-  }
-  if (left <= 0.5 && right <= 0.5) return '';
-  const scale = ownWidth / width;
-  const from = left <= 0.5 ? -FAR : Math.round(left * scale * 100) / 100;
-  const to = right <= 0.5 ? ownWidth + FAR : Math.round((width - right) * scale * 100) / 100;
-  return `polygon(${from}px ${-FAR}px, ${to}px ${-FAR}px, ${to}px ${FAR}px, ${from}px ${FAR}px)`;
 }
 const awayStores = new WeakMap<Element, AwayStore>();
 
-/** On a slot's hold host: a left or right hold's x in the row's window, in px; the slot is drawn there whatever the row's scroll. @internal */
-export const HOLD_AT_ATTRIBUTE = 'data-hold-at';
-/** On a slot's hold host: an edgeHold 'both' panel, drawn at its place in the strip but kept `left right` px inside the window's edges. @internal */
-export const HOLD_STICK_ATTRIBUTE = 'data-hold-stick';
-const holdOf = (slot: Element): Element | null => slot.parentElement?.closest('[data-row-hold]') ?? null;
-/** Whether `slot` is drawn by `drawHeldSlots` rather than at its rest in the strip. @internal */
-export const isHeldSlot = (slot: Element): boolean => {
-  const hold = holdOf(slot);
-  return hold !== null && (hold.hasAttribute(HOLD_AT_ATTRIBUTE) || hold.hasAttribute(HOLD_STICK_ATTRIBUTE));
-};
-/** Where `drawHeldSlots` last drew a held slot, in px from the strip's origin; null for a slot drawn at its rest. @internal */
-export const heldRestOf = (slot: HTMLElement): number | null => (isHeldSlot(slot) ? Number.parseFloat(slot.style.translate) || 0 : null);
-/**
- * Draws the held slots of the row rooted on `win` against where Embla draws the strip this frame: a left or right hold at its x in
- * the window, a 'both' panel at its rest moved back inside the window's edges. Run with the row's draw and every frame it moves.
- * @internal
- */
-export function drawHeldSlots(win: Element): void {
-  const embla = instances.get(win);
-  const at = embla === undefined ? 0 : emblaDrawnOf(embla);
-  const windowWidth = Number.parseFloat((win as HTMLElement).style.width) || 0;
-  for (const hold of win.querySelectorAll<HTMLElement>(`[${HOLD_AT_ATTRIBUTE}],[${HOLD_STICK_ATTRIBUTE}]`)) {
-    const slot = hold.querySelector<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`);
-    if (slot === null) continue;
-    const [left = 0, right = 0] = (hold.getAttribute(HOLD_STICK_ATTRIBUTE) ?? '').split(' ').map(Number);
-    const x = hold.hasAttribute(HOLD_AT_ATTRIBUTE)
-      ? Number(hold.getAttribute(HOLD_AT_ATTRIBUTE))
-      : Math.min(Math.max(Number(slot.dataset.rowSlot) - at, left), Math.max(left, windowWidth - right - (Number.parseFloat(slot.style.width) || 0)));
-    const translate = `${Math.round((at + x) * 100) / 100}px`;
-    if (slot.style.translate !== translate) slot.style.translate = translate;
-  }
-}
 const NO_CUT = { left: 0, right: 0 } as const;
 
 /**
@@ -1073,7 +1007,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     // A panel focused while partly out of the window comes into it: Embla moves only for slides, and its slides are the markers.
     const onFocus = (e: FocusEvent): void => {
       const slot = (e.target as Element | null)?.closest<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`);
-      if (slot == null || !box.contains(slot) || isHeldSlot(slot) || maximizedIn(win)) return;
+      if (slot == null || !box.contains(slot) || maximizedIn(win)) return;
       const to = revealScroll(Number(slot.dataset.rowSlot) || 0, slot.offsetWidth, emblaScrollOf(embla), box.offsetWidth);
       if (to === null) return;
       endEmblaWheel(embla);

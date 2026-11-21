@@ -35,6 +35,8 @@ export interface RowBar {
   readonly run: { readonly left: number; readonly right: number };
   /** Track px to one px of scroll. */
   readonly scale: number;
+  /** The sticky panels, which have no dot on the ruler: the start group's in row order, then the end group's. */
+  readonly sticky: readonly { readonly id: string; readonly side: 'start' | 'end' }[];
 }
 
 /** Drops the float noise of scaling, so a dot on a whole slot compares equal to that slot. */
@@ -54,30 +56,26 @@ interface Item {
  * panel rides only while the window at `scroll` shows it: scrolled out it is in `gone`, and its dot keeps its own place outside the oval.
  */
 function rulerOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], slotsOf: (w: number) => number, scroll: number): { items: Item[]; left: string[]; right: string[]; gone: string[] } {
-  const heldRight = n.held.filter((h) => h.side === 'right');
-  const widthOf = new Map<string, number>([...n.ids.map((id, k): [string, number] => [id, n.widths[k]!]), ...n.held.map((h): [string, number] => [h.id, h.width])]);
+  // A sticky panel is never on the ruler: it never leaves view, so it has no dot to scroll to.
+  const sticky = new Set(n.held.map((h) => h.id));
+  const widthOf = new Map<string, number>(n.ids.map((id, k): [string, number] => [id, n.widths[k]!]));
   const hollowOf = (id: string): boolean => entries.find((e) => e.id === id)?.settings?.hollowDot === true;
   const item = (id: string, slots: number, drawn: boolean): Item => ({ id, slots, hollow: hollowOf(id), drawn, shown: drawn && entries.find((e) => e.id === id)?.collapsible === false });
   const items: Item[] = [];
   for (const e of entries) {
+    if (sticky.has(e.id)) continue;
     const w = widthOf.get(e.id);
-    if (heldRight.some((h) => h.id === e.id)) continue;
     if (w !== undefined) items.push(item(e.id, slotsOf(w), true));
     else if (e.live === false && e.marker !== true) items.push(item(e.id, Math.max(1, Math.round(e.slots ?? 1)), false));
   }
-  for (const id of widthOf.keys()) if (!items.some((p) => p.id === id) && !heldRight.some((h) => h.id === id)) items.push(item(id, slotsOf(widthOf.get(id)!), true));
-  for (const h of heldRight) items.push(item(h.id, slotsOf(h.width), true));
+  for (const id of widthOf.keys()) if (!items.some((p) => p.id === id)) items.push(item(id, slotsOf(widthOf.get(id)!), true));
   const at = items.flatMap((p, k) => (p.drawn ? [k] : []));
   const first = at[0];
   const last = at[at.length - 1];
-  const left = n.held.filter((h) => h.side === 'left').map((h) => h.id);
-  const right = heldRight.map((h) => h.id);
+  const left: string[] = [];
+  const right: string[] = [];
   const gone: string[] = [];
   if (first === undefined || last === undefined) return { items, left, right, gone };
-  for (const s of n.stuck) {
-    if (items[first]!.id === s.id) left.push(s.id);
-    else if (items[last]!.id === s.id) right.push(s.id);
-  }
   const rides = (k: number): boolean => items[k]!.shown && !left.includes(items[k]!.id) && !right.includes(items[k]!.id);
   const grid = gridEdgesOf(n);
   const outOfWindow = (id: string): boolean => {
@@ -149,6 +147,7 @@ export function barOf(n: RowNumbers, entries: readonly WorkspaceRowEntry[], scro
     parked: new Set(items.filter((p) => !p.drawn).map((p) => p.id)),
     run: { left: tidy(scale * (run[0]?.x ?? 0)), right: lastRun === undefined ? 0 : tidy(scale * (lastRun.x + lastRun.w + gapPx)) },
     scale,
+    sticky: n.held.map((h) => ({ id: h.id, side: h.side === 'left' ? 'start' : 'end' })),
   };
 }
 

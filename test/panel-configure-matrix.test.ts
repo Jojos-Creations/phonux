@@ -604,16 +604,48 @@ test('matrix:startVisibility', async () => {
 
 const swipeRight = (r: MatrixRig, dx = 50): void => act(() => void r.m.container.dispatchEvent(new WheelEvent('wheel', { deltaX: dx, cancelable: true, bubbles: true })));
 
-test('matrix:edgeHold', async () => {
-  probe('edgeHold');
-  // Width 1000 gives a 968 window: the row scrolls, and b holds at the left edge beside one phone of strip.
+test('matrix:sticky', async () => {
+  probe('sticky');
+  // Width 1000 gives a 968 window of two slots: b takes one as a sticky panel and the scrolling row keeps the other.
   const r = await matrixRig({ ids: ['b', 'c'], width: 1000 });
   await r.settle();
   assert.deepEqual(r.provided().rowNumbers.held, []);
-  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ edgeHold: 'left' }))), { now: ['edgeHold'], later: [], shadowed: [] });
-  assert.deepEqual(r.provided().rowNumbers.held.map((h) => [h.id, h.side]), [[r.entry('b').id, 'left']], 'in that commit b is drawn at the left edge');
-  done(r.turn(() => r.h.b!.configure({ edgeHold: 'off' })));
-  assert.deepEqual(r.provided().rowNumbers.held, [], 'off releases it in the same commit');
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ sticky: 'start' }))), { now: ['sticky'], later: [], shadowed: [] });
+  assert.deepEqual(r.provided().rowNumbers.held.map((h) => [h.id, h.side]), [[r.entry('b').id, 'left']], 'in that commit b sits outside the scrolling row');
+  assert.deepEqual(r.provided().rowSegments.map((g) => g.kind), ['sticky', 'scroll'], 'control: the segments name it too');
+  done(r.turn(() => r.h.b!.configure({ sticky: 'off' })));
+  assert.deepEqual(r.provided().rowNumbers.held, [], 'off puts it back in the scrolling row in the same commit');
+  assert.equal(thrownCode(() => r.h.b!.configure({ sticky: 'middle' } as never)), 'invalid-settings', 'a word outside off, start and end throws');
+  r.m.unmount();
+});
+
+test('alias: the deprecated edgeHold is the same ask as sticky, and the result names sticky', async () => {
+  const warn = mock.method(console, 'warn', () => undefined);
+  const r = await matrixRig({ ids: ['b', 'c'], width: 1000 });
+  await r.settle();
+  assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ edgeHold: 'right' } as never))), { now: ['sticky'], later: [], shadowed: [] });
+  assert.deepEqual(r.provided().rowNumbers.held.map((h) => [h.id, h.side]), [[r.entry('b').id, 'right']]);
+  assert.equal(r.h.b!.getSettings().value.sticky, 'end');
+  assert.equal(thrownCode(() => r.h.b!.configure({ edgeHold: 'maybe' } as never)), 'invalid-settings');
+  done(r.turn(() => r.h.b!.configure({ edgeHold: null } as never)));
+  assert.deepEqual(r.provided().rowNumbers.held, [], 'null drops it');
+  assert.ok(warn.mock.calls.length >= 1, 'control: the alias warned in development');
+  r.m.unmount();
+});
+
+test('matrix:stickyRank', async () => {
+  probe('stickyRank');
+  // Two slots hold one sticky panel and the row's one slot, so of two sticky panels the one with the lower rank goes back into the row.
+  const r = await matrixRig({ ids: ['b', 'c'], width: 1000 });
+  await r.settle();
+  done(r.turn(() => r.h.b!.configure({ sticky: 'start' })));
+  done(r.turn(() => r.h.c!.configure({ sticky: 'end' })));
+  const heldIds = (): string[] => r.provided().rowNumbers.held.map((h) => h.id);
+  assert.deepEqual(heldIds(), [r.entry('b').id], 'equal ranks: the later one in the row gives up');
+  assert.deepEqual(shape(r.turn(() => r.h.c!.configure({ stickyRank: 5 }))), { now: ['stickyRank'], later: [], shadowed: [] });
+  assert.deepEqual(heldIds(), [r.entry('c').id], 'a higher rank stays sticky, in that commit');
+  assert.equal(r.h.b!.getSettings().value.sticky, 'start', "the one that gave up keeps its setting");
+  assert.equal(thrownCode(() => r.h.c!.configure({ stickyRank: 1.5 } as never)), 'invalid-settings');
   r.m.unmount();
 });
 
@@ -1321,6 +1353,23 @@ test('matrix:tuning.initialScroll', async () => {
   assert.equal(r.ws.tuning.initialScroll, 'end', 'the workspace now holds it for its next mount');
 });
 
+test('matrix:tuning.minScrollSlots', async () => {
+  probe('tuning.minScrollSlots');
+  await wrongScopeInEveryStatus({ tuning: { minScrollSlots: 2 } }, 'tuning.minScrollSlots');
+  // Two slots, root and b and c: with b sticky the row keeps its one slot, and with a minimum of two b goes back into the row.
+  const r = await matrixRig({ ids: ['b', 'c'], width: 1000 });
+  await r.settle();
+  done(r.turn(() => r.h.b!.configure({ sticky: 'start' })));
+  assert.deepEqual(r.provided().rowNumbers.held.map((h) => h.id), [r.entry('b').id], 'before: the default minimum of one leaves b sticky');
+  assert.deepEqual({ ...done(r.turn(() => r.ws.panels.configureTuning({ minScrollSlots: 2 }))) }, { ok: true, changed: true, now: ['tuning.minScrollSlots'], later: [], shadowed: [], notes: [] });
+  assert.deepEqual(r.provided().rowNumbers.held, [], 'in that commit the row keeps two slots, so b gave up');
+  assert.equal(r.h.b!.getSettings().value.sticky, 'start', 'its setting did not change');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ minScrollSlots: -1 } as never)), 'invalid-settings');
+  assert.equal(thrownCode(() => r.ws.panels.configureTuning({ minScrollSlots: 1.5 } as never)), 'invalid-settings');
+  assert.equal(r.ws.tuning.minScrollSlots, 2, 'a refused value changed nothing');
+  r.m.unmount();
+});
+
 test('matrix:tuning.chrome', async () => {
   probe('tuning.chrome');
   await wrongScopeInEveryStatus({ tuning: { chrome: { mode: 'hover-or-active' } } }, 'tuning.chrome');
@@ -1479,13 +1528,13 @@ test('the class table ran every cell: executed cells equal 4 classes by 7 status
 
 // The design copy is frozen; a catalog key added or removed after it is listed here, never in the copy.
 const REMOVED_AFTER_DESIGN: readonly string[] = ['formFactor', 'formFactors', 'hideWhenLast', 'returnPriority', 'evictionRank', 'evictionOrder', 'scrollOnDrag', 'viewState', 'keepMounted', 'placeOnReturn', 'placeFallback', 'undoPlacement', 'closeExit', 'animated', 'persist', 'rememberLayout', 'undoWindowMs', 'reportClose', 'snapshot', 'draggable', 'placeable', 'hideStickiness', 'capacityReturn', 'revealOnScroll', 'tuning.gestureLockMs', 'tuning.returnTieBreak', 'tuning.dropTieBreak', 'overflow'];
-const ADDED_AFTER_DESIGN: readonly string[] = ['edgeHold', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused', 'tuning.fastScroll', 'tuning.firstPressFocusOnly'];
+const ADDED_AFTER_DESIGN: readonly string[] = ['sticky', 'stickyRank', 'tuning.minScrollSlots', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.maxLivePanels', 'tuning.chrome', 'slots', 'maxSlots', 'tuning.resizeSettleSlides', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'hollowDot', 'movable', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.shrinkUnfocused', 'tuning.fastScroll', 'tuning.firstPressFocusOnly'];
 
-test('the probes ran every catalog name once: 50 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
+test('the probes ran every catalog name once: 52 executed, equal to the catalog and to the design copy of it plus the names added after it', () => {
   const design = JSON.parse(readFileSync(new URL('./fixtures/catalog-design-copy.json', import.meta.url), 'utf8')) as { name: string }[];
   assert.equal(design.length, 60);
-  assert.equal(CATALOG_NAMES.length, 50);
-  assert.equal(probesExecuted().size, 50);
+  assert.equal(CATALOG_NAMES.length, 52);
+  assert.equal(probesExecuted().size, 52);
   assert.deepEqual([...probesExecuted()].sort(), [...CATALOG_NAMES].sort());
   assert.deepEqual([...probesExecuted()].sort(), [...design.map((d) => d.name).filter((name) => !REMOVED_AFTER_DESIGN.includes(name)), ...ADDED_AFTER_DESIGN].sort());
 });

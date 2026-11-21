@@ -93,7 +93,8 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
   multiple: BOOL,
   maxInstances: ['unlimited', 1, 2, 50],
   startVisibility: ['live', 'parked'],
-  edgeHold: ['off', 'left', 'right', 'both'],
+  sticky: ['off', 'start', 'end'],
+  stickyRank: [0, 1, -3, 1_000_000],
   scrollOnOpen: ['into-view', 'start', 'center', 'none'],
   scrollOnMove: ['follow', 'none'],
   toggleWhenClosed: ['ignore', 'reopen'],
@@ -111,7 +112,7 @@ const ENUMERATED: Record<string, readonly unknown[]> = {
 };
 
 /** The names the enumeration table leaves to a test of their own. */
-const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.firstPressFocusOnly', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax'];
+const ELSEWHERE: readonly CatalogName[] = ['headerButtons', 'tuning.defaultEnterFrom', 'tuning.defaultExitTo', 'tuning.shrinkUnfocused', 'tuning.firstPressFocusOnly', 'tuning.rowGap', 'tuning.rowTop', 'tuning.phoneHeight', 'tuning.dragToClose', 'tuning.slide', 'tuning.hopFraction', 'tuning.edgeScroll', 'tuning.saveQuietMs', 'tuning.gestureQuietMs', 'tuning.resizeSettleSlides', 'tuning.rowGesture', 'tuning.fastScroll', 'tuning.initialScroll', 'tuning.maxLivePanels', 'tuning.chrome', 'tuning.phoneFit', 'tuning.phoneFitMin', 'tuning.phoneFitMax', 'tuning.minScrollSlots'];
 
 type Probe = readonly [what: string, layers: PanelSettingsLayers, layer: string, key: string | undefined];
 const PROBES: readonly Probe[] = [
@@ -136,6 +137,9 @@ const PROBES: readonly Probe[] = [
   ['unknown key at the instance layer', { instance: asSettings({ nope: 1 }) }, 'instance', 'nope'],
   ['unknown key at the host layer', { host: asSettings({ nope: 1 }) }, 'host', 'nope'],
   ['unknown key at the workspace layer', { workspace: asSettings({ nope: 1 }) }, 'workspace', 'nope'],
+  ["sticky 'left', a side of the old name", { template: asSettings({ sticky: 'left' }) }, 'template', 'sticky'],
+  ["stickyRank a fraction", { template: asSettings({ stickyRank: 1.5 }) }, 'template', 'stickyRank'],
+  ["stickyRank a string", { template: asSettings({ stickyRank: '1' }) }, 'template', 'stickyRank'],
   ["edgeHold 'maybe'", { template: asSettings({ edgeHold: 'maybe' }) }, 'template', 'edgeHold'],
   ["enterFrom 'diagonal'", { template: asSettings({ enterFrom: 'diagonal' }) }, 'template', 'enterFrom'],
   ["enterFrom 'shrink', an exit", { template: asSettings({ enterFrom: 'shrink' }) }, 'template', 'enterFrom'],
@@ -156,7 +160,7 @@ const PROBES: readonly Probe[] = [
   ['an instance layer that is a list', { instance: [] as unknown as PanelSettings }, 'instance', undefined],
 ];
 
-test('enumerations: the enumeration table and its companions cover every one of the 51 catalog names exactly once', () => {
+test('enumerations: the enumeration table and its companions cover every one of the 52 catalog names exactly once', () => {
   const covered = [...Object.keys(ENUMERATED), ...ELSEWHERE];
   assert.equal(new Set(covered).size, covered.length, 'a name is listed twice');
   assert.deepEqual([...covered].sort(), [...CATALOG_NAMES].sort());
@@ -458,11 +462,11 @@ test('cascade: the source map names the winner of each key, from every layer at 
     workspace: { scrollOnMove: 'none' },
     template: { layer: 'raised', closable: false },
     host: { title: 'From the view' },
-    instance: { closable: true, edgeHold: 'left' },
+    instance: { closable: true, sticky: 'start' },
     user: { slots: 2 },
   });
   assert.deepEqual(
-    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.edgeHold, res.source.slots, res.source.startVisibility],
+    [res.source.scrollOnMove, res.source.layer, res.source.title, res.source.closable, res.source.sticky, res.source.slots, res.source.startVisibility],
     ['workspace', 'template', 'host', 'instance', 'instance', 'user', 'library'],
   );
 });
@@ -663,16 +667,16 @@ test('conflicts: one per kind of rule, each carrying key, layer, kind, asked, ap
 // Scope: not-view-settable and wrong-scope
 // ---------------------------------------------------------------------------
 
-test('host layer: closable true, headerButtons and edgeHold are not-view-settable and change nothing', () => {
+test('host layer: closable true, headerButtons and sticky are not-view-settable and change nothing', () => {
   const res = resolve({
-    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, edgeHold: 'left' }),
+    host: asSettings({ closable: true, headerButtons: { size: slot('Size') }, sticky: 'start' }),
   });
   assert.deepEqual(res.conflicts.map((c) => [c.key, c.layer, c.kind]).sort(), [
     ['closable', 'host', 'not-view-settable'],
-    ['edgeHold', 'host', 'not-view-settable'],
     ['headerButtons', 'host', 'not-view-settable'],
+    ['sticky', 'host', 'not-view-settable'],
   ]);
-  assert.deepEqual([res.value.closable, res.value.edgeHold, res.value.headerButtons, res.source.closable, res.source.edgeHold], [true, 'off', {}, 'library', 'library']);
+  assert.deepEqual([res.value.closable, res.value.sticky, res.value.headerButtons, res.source.closable, res.source.sticky], [true, 'off', {}, 'library', 'library']);
 });
 
 test('host layer: the keys a view may set are accepted: title, listed, layer, slots, placeOnAdd with an anchor and enterFrom anchor', () => {
@@ -805,16 +809,16 @@ test('user layer: only slots, anchor and parkable are accepted; anything else, o
 // Lenient mode
 // ---------------------------------------------------------------------------
 
-const SAVED_INSTANCE = asSettings({ closable: false, bogus: 1, listed: 'yes', edgeHold: 'evictable', parkable: 'yes', tuning: { rowGap: 999, hopFraction: 0.7 } });
+const SAVED_INSTANCE = asSettings({ closable: false, bogus: 1, listed: 'yes', sticky: 'evictable', parkable: 'yes', tuning: { rowGap: 999, hopFraction: 0.7 } });
 const SAVED_USER = { slots: 2, bogus: 1, parkable: 'yes', anchor: 5 } as unknown as PanelSettingsLayers['user'];
 
 test('lenient: an instance and a user layer holding bad keys return the others intact with one invalid-saved-setting note per drop and never throw', () => {
   const res = resolve({ instance: SAVED_INSTANCE, user: SAVED_USER }, { lenient: true });
-  assert.deepEqual([res.value.closable, res.value.slots, res.value.listed, res.value.edgeHold, res.value.parkable], [false, 2, true, 'off', true]);
+  assert.deepEqual([res.value.closable, res.value.slots, res.value.listed, res.value.sticky, res.value.parkable], [false, 2, true, 'off', true]);
   assert.ok(res.notes.every((n) => n.code === 'invalid-saved-setting'));
   const instanceNotes = res.notes.filter((n) => n.message.startsWith('instance.'));
   const userNotes = res.notes.filter((n) => n.message.startsWith('user.'));
-  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'edgeHold', 'listed', 'parkable', 'tuning']);
+  assert.deepEqual(instanceNotes.map((n) => n.key).sort(), ['bogus', 'listed', 'parkable', 'sticky', 'tuning']);
   assert.deepEqual(userNotes.map((n) => n.key).sort(), ['anchor', 'bogus', 'parkable']);
   assert.equal(res.notes.length, 8, 'one note per drop');
   assert.deepEqual(res.conflicts, []);
@@ -831,7 +835,7 @@ test('lenient: each kind of bad saved value is dropped alone: unknown key, wrong
     ['unknown key', asSettings({ gone: true }), 'gone'],
     ['wrong type', asSettings({ title: 5 }), 'title'],
     ['a saved tuning, whatever it holds', asSettings({ tuning: { rowGap: 8 } }), 'tuning'],
-    ['removed enum member', asSettings({ edgeHold: 'evictable' }), 'edgeHold'],
+    ['removed enum member', asSettings({ sticky: 'evictable' }), 'sticky'],
     ['non-boolean parkable', asSettings({ parkable: 1 }), 'parkable'],
     ['a saved tuning that is no object', asSettings({ tuning: 5 }), 'tuning'],
   ];
@@ -878,7 +882,7 @@ test('lenient: a layer that is not an object is dropped whole with one note; the
     refuses({ workspace: asSettings({ bogus: 1 }) }, 'workspace', 'bogus', { lenient });
     refuses({ template: asSettings({ bogus: 1 }) }, 'template', 'bogus', { lenient });
     refuses({ host: asSettings({ bogus: 1 }) }, 'host', 'bogus', { lenient });
-    refuses({ template: asSettings({ edgeHold: 'evictable' }) }, 'template', 'edgeHold', { lenient });
+    refuses({ template: asSettings({ sticky: 'evictable' }) }, 'template', 'sticky', { lenient });
     refuses({ workspace: asSettings({ tuning: { rowGap: 1 } }) }, 'workspace', 'tuning', { lenient });
     refuses({ template: asSettings({ tuning: { rowGap: 1 } }) }, 'template', 'tuning', { lenient });
   }

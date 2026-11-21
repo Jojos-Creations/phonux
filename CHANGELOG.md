@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Sticky panels. The panel setting `sticky` (`'off'` by default, `'start'` or `'end'`) takes the panel's slots out of the
+  scrolling row at that end of the row, and the panel never moves while the row scrolls: `[sticky | row of 4]`,
+  `[sticky | row of 3 | sticky]`, `[sticky | sticky | row of 3]`, up to every slot. It takes its slots whether or not the
+  row would overflow, and no panel is ever cut off. `stickyRank` (an integer, 0 by default) says which sticky panel stays
+  sticky longest.
+- `tuning.minScrollSlots` (default 1, 0 or more): the fewest slots the scrolling row keeps. When the window is too narrow
+  for the sticky panels and that minimum, the lowest `stickyRank` panel goes back into the scrolling row (of equal rank,
+  the later one in the row) and is sticky again when room returns; its setting never changes. A window of one slot has
+  no sticky panels. With `minScrollSlots` 0 every slot can be sticky; a panel that is not sticky still gets a one-slot row.
+- `useProvidePanels(...).rowSegments` (and the `RowSegment` type) reads the row as `{ kind: 'sticky', panelId, slots, side }`
+  and `{ kind: 'scroll', slots, panelIds }` segments, left to right.
+- `usePanelDots(...).sticky` lists the sticky panels by side: they get no dot and the app draws a small square at that end
+  of the bar. `selectDot(id)` with a sticky panel's id focuses the panel.
+
+### Changed
+
+- A sticky panel is drawn outside the scrolling strip, as a flex sibling (`[start group][strip][end group]`), so nothing is
+  redrawn per frame. The old per-frame drawing could put a held panel off screen and cut a page at some window widths.
+  The row's root element is now a wrapper box (`data-row-root`) holding the strip's window.
+- `RowNumbers.stuck` is gone, and `RowNumbers.held` lists the sticky panels. A slot that turns sticky or stops being sticky
+  is drawn again in the other place.
+- `edgeHold: 'both'` (a panel that sticks once the row scrolls past it) is gone and is read as `sticky: 'off'` with a development
+  warning; it never stuck on the Embla row.
+
+### Deprecated
+
+- `edgeHold` is the old name of `sticky`: `'left'` is read as `'start'` and `'right'` as `'end'`, in a settings layer, in
+  a saved layer and in a `configure` patch, with a development warning. A `sticky` in the same layer wins. It is removed
+  before 0.2.0 final.
+
 ## 0.2.0-rc.8
 
 ### Added

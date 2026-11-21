@@ -10,7 +10,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
-import { computeRowNumbers, type RowNumbers } from '../rowNumbers.js';
+import { computeRowNumbers, rowSegmentsOf, type RowNumbers, type RowSegment } from '../rowNumbers.js';
 import { resolveLabels, type PhonuxLabels } from '../labels.js';
 import { isPresent, summarisePanel } from '../panelRowEntry.js';
 import { entryNamed } from '../panelIds.js';
@@ -248,6 +248,11 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly rowScroll: boolean;
   /** The row's one set of numbers, the same value the shell, the row and the capacity are priced from. Hand it to a Workspace's and a PanelRow's `rowNumbers`. */
   readonly rowNumbers: RowNumbers;
+  /**
+   * The row read left to right as pieces: each sticky panel at the start in row order, the scrolling row (its room in whole slots and the panels it draws), then each sticky panel
+   * at the end. A sticky panel the window has no room for is not a sticky segment: it is among the scrolling row's `panelIds`. The scrolling row is left out only when it has no room and no panel.
+   */
+  readonly rowSegments: readonly RowSegment[];
   /** the workspace's tuning over the library defaults, leaf by leaf: the one value this render's capacity and widths were priced from. Hand it to `usePhoneFit`. */
   readonly tuning: ResolvedWorkspaceTuning;
   /**
@@ -311,7 +316,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row is one continuous strip (Embla): nothing parks for room or for the cap, so the list is the row as it is.
   const panels = rawPanels;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step' };
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step', minScrollSlots: tuning.minScrollSlots };
   const rowNumbers = ((): RowNumbers => {
     return computeRowNumbers(rowInput);
   })();
@@ -1186,6 +1191,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     maxLiveWidth,
     rowScroll: rowNumbers.rowScroll,
     rowNumbers,
+    rowSegments: rowSegmentsOf(rowNumbers, i.phoneWidth + tuning.rowGap, tuning.rowGap),
     tuning,
     scrollTo: (id, align) => requestOpen(engineIdOf(id), { align: align ?? null, forced: true }),
     followPanel: (id) => followPanel(engineIdOf(id)),

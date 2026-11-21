@@ -99,3 +99,6 @@ export const PanelSlotContext = React.createContext<PanelSlotValue | undefined>(
 
 /** True under a template declared with `verticalDrag: true`; a grab bar in a row drags up and down only then. */
 export const PanelVerticalDragContext = React.createContext(false);
+
+/** The ids of the panels that changed between the strip and a sticky group in this commit: the slot leaving one place and the one arriving in the other take no time. @internal */
+export const HandoffContext = React.createContext<ReadonlySet<string>>(new Set());

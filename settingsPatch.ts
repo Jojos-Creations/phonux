@@ -4,7 +4,7 @@
  * produces is validated when the whole stack is resolved again.
  */
 
-import { sameSettingsValue } from './panelSettings.js';
+import { EDGE_HOLD_AS_STICKY, sameSettingsValue, stickyFromEdgeHold } from './panelSettings.js';
 import type { AnchorRequest, PanelId, PanelSettings, WorkspaceTuning } from './panelSettings.js';
 
 /** A change to one settings layer; `null` deletes that key from the layer. @public */
@@ -67,7 +67,14 @@ export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSet
   for (const key of Object.keys(asked)) {
     const value = asked[key];
     if (value === undefined) continue;
-    if (value === null) {
+    if (key === 'edgeHold' && (value === null || (typeof value === 'string' && Object.hasOwn(EDGE_HOLD_AS_STICKY, value)))) {
+      // The deprecated name is the layer's `sticky`; a `sticky` in the same patch wins. A value it does not know stays, for the resolver to refuse.
+      delete next.edgeHold;
+      if (asked.sticky === undefined) {
+        if (value === null) delete next.sticky;
+        else next.sticky = stickyFromEdgeHold(value as 'off' | 'left' | 'right' | 'both');
+      }
+    } else if (value === null) {
       delete next[key];
     } else if (key === 'headerButtons') {
       const merged = mergeMembers(next[key], value, false);
