@@ -85,7 +85,17 @@ const slotIn = (s: Snap, id: string): Slot => {
   return slot;
 };
 
-/** Waits until the row has stopped: the drawn scroll holds for 300 ms. */
+/** Every slot not marked out of sight, and the strip's window, lie wholly inside the viewport: a panel drawn partly off screen fails here. */
+function assertInViewport(s: Snap, view: { width: number; height: number }): void {
+  const inside = (name: string, r: Rect): void =>
+    assert.ok(r.left >= -0.5 && r.right <= view.width + 0.5 && r.top >= -0.5 && r.bottom <= view.height + 0.5, `${name} lies wholly inside the ${view.width}x${view.height} viewport: x ${r.left}..${r.right}, y ${r.top}..${r.bottom}`);
+  inside('the strip window', s.win);
+  const seen = s.slots.filter((x) => !x.inert);
+  assert.ok(seen.length > 0, 'control: some slot is in sight, so the loop below checks something');
+  for (const x of seen) inside(`slot ${x.id}`, x);
+}
+
+/** Waits until the row has stopped: the drawn scroll holds for 300 ms, then every slot in sight is checked against the viewport. */
 async function atRest(page: Page): Promise<Snap> {
   let last = Number.NaN;
   let still = 0;
@@ -93,7 +103,10 @@ async function atRest(page: Page): Promise<Snap> {
     const s = await snap(page);
     still = s.offset === last ? still + 1 : 0;
     last = s.offset;
-    if (still >= 6) return s;
+    if (still >= 6) {
+      assertInViewport(s, page.viewportSize());
+      return s;
+    }
     await sleep(50);
   }
   throw new Error('the row never came to rest');
@@ -117,7 +130,7 @@ const leftsOf = (all: Snap[], id: string): number[] => all.map((s) => slotIn(s, 
 const PAGES12 = Array.from({ length: 12 }, () => 1).join(',');
 
 // ---------------------------------------------------------------------------
-// H1: a 1800 px window, History and twelve pages, History sticky at the start
+// A 1800 px window, History and twelve pages, History sticky at the start: no page is cut and History never moves
 // ---------------------------------------------------------------------------
 
 test('1800 px, History sticky at the start: it does not move while the row scrolls by key and by wheel, and no page is cut at rest', async (t) => {

@@ -119,6 +119,16 @@ test('a phone-width window has no sticky panel, and the panel scrolls like any o
   assert.equal(control.held.length, 1, 'control: the same row in two slots holds it, so the phone result was the rule and not the row');
 });
 
+test('a window of one slot has no sticky panel even when minScrollSlots is 0 and every panel is sticky', () => {
+  const onlyRoot = (containerWidth: number): RowNumbers => numbers([scrollRoot({ sticky: 'start' })], containerWidth, { minScrollSlots: 0 });
+  const one = onlyRoot(422);
+  assert.equal(one.stripWindow, 422 - 2 * GAP, 'a 422 px container has a window of 390 px: one slot');
+  assert.deepEqual(one.held, [], 'the slot is not sticky, though the minimum and the row both leave it free');
+  assert.deepEqual([one.ids.includes(ROOT), one.leftInset, one.rightInset], [true, 0, 0], 'the panel is drawn in the scrolling row instead');
+  const two = onlyRoot(2 * PITCH + 2 * GAP - GAP);
+  assert.deepEqual(two.held.map((h) => h.id), [ROOT], 'control: at two slots the same row holds it, so the one-slot result was the rule');
+});
+
 // ---------------------------------------------------------------------------
 // Rules that do not depend on the width
 // ---------------------------------------------------------------------------
