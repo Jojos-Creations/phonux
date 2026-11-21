@@ -27,11 +27,18 @@ async function rig() {
   });
   const other = definePanel({ id: 'other', settings: { multiple: true }, view: ({ handle }) => React.createElement('i', { 'data-slot': handle.id }) });
   await resize(1600);
-  const ws = track(createWorkspace({ templates: [probe, other] }));
+  // Every panel carries host data, so a key that is copied only when present still shows up here.
+  let given = 0;
+  const defaultHostData = () => {
+    given += 1;
+    return { tabSlot: 7 };
+  };
+  const ws = track(createWorkspace({ templates: [probe, other], panels: { defaultHostData } }));
   ws.addPanel(probe);
   ws.addPanel(other, { id: 'one' });
   ws.addPanel(other, { id: 'two' });
   await until('the panels', () => slots(document.body).length === 3);
+  assert.ok(given >= 3, `precondition: every panel was given host data (${given} calls)`);
   return { ws, seen };
 }
 
@@ -47,4 +54,11 @@ test('recentlyClosed holds exactly the PanelSummary keys as well', async () => {
   act(() => ws.panels.get('one')!.close());
   await until('the close is in the undo window', () => (seen.panels!.recentlyClosed?.length ?? 0) > 0);
   assert.deepEqual(seen.panels!.recentlyClosed!.map((p) => Object.keys(p).sort()), seen.panels!.recentlyClosed!.map(() => SUMMARY_KEYS));
+});
+
+test('closedByPerson holds exactly the PanelSummary keys as well', async () => {
+  const { seen } = await rig();
+  act(() => void seen.panels!.close('one'));
+  await until('the person close is in the undo window', () => (seen.panels!.closedByPerson?.length ?? 0) > 0);
+  assert.deepEqual(seen.panels!.closedByPerson!.map((p) => Object.keys(p).sort()), seen.panels!.closedByPerson!.map(() => SUMMARY_KEYS));
 });
