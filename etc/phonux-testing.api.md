@@ -31,7 +31,7 @@ export type AnchorRequest = {
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
-export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'edgeHold'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export type ChromeTuning = {
@@ -325,6 +325,7 @@ export type PanelSettings = {
     headerButtons?: {
         [id: string]: HeaderButton | false;
     };
+    edgeHold?: 'off' | 'left' | 'right' | 'both';
 };
 
 // @public
@@ -500,6 +501,7 @@ export type ResolvedPanelSettings = {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
+    readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 // @public
@@ -565,7 +567,8 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    edgeHold: 'off' | 'left' | 'right' | 'both';
+    sticky: 'off' | 'start' | 'end';
+    stickyRank: number;
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -731,6 +734,7 @@ export type WorkspaceTuning = {
     defaultExitTo?: ExitTo;
     shrinkUnfocused?: boolean;
     firstPressFocusOnly?: boolean;
+    minScrollSlots?: number;
 };
 
 // (No @packageDocumentation comment for this package)

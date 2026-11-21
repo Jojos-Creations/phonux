@@ -5,7 +5,6 @@
  * on a style of the same property does not run on the compositor.
  */
 
-import { heldRestOf } from './emblaRow.js';
 import { cubicBezier } from 'motion/react';
 import { sharedStartTime } from './rowClock.js';
 
@@ -154,11 +153,10 @@ export interface ScreenBox {
   readonly height: number;
 }
 
-/** Everything that moves a slot without laying it out again: the strip's translate, a held panel's shift, the slot's rest and its pose. */
+/** Everything that moves a slot without laying it out again: the strip's translate, the slot's rest and its pose. */
 function motionOf(el: HTMLElement, stripX: () => number): { dx: number; dy: number; scale: number } {
   const pose = moverOf(el)?.pose();
-  // A held slot is drawn against the strip each frame (drawHeldSlots): its translate, not its rest, is where it is.
-  const rest = heldRestOf(el) ?? (Number(el.dataset.rowSlot) || 0);
+  const rest = Number(el.dataset.rowSlot) || 0;
   return { dx: stripX() + rest + (pose?.x ?? 0), dy: pose?.y ?? 0, scale: pose?.scale ?? 1 };
 }
 
@@ -169,7 +167,7 @@ const originXOf = (el: HTMLElement): number => {
 
 /**
  * Measures `el` once and returns where it is drawn at any later moment, from the numbers that move it: the strip's translate
- * (`stripX`), a held panel's shift, the slot's rest and its pose. Reading it lays nothing out, so a frame loop can call it freely.
+ * (`stripX`), the slot's rest and its pose. Reading it lays nothing out, so a frame loop can call it freely.
  * @internal
  */
 export function screenBoxOf(el: HTMLElement, stripX: () => number): () => ScreenBox {

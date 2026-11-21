@@ -66,8 +66,13 @@ export function focusEdgePanel(container: HTMLElement, active: string | null, di
   // Every workspace in a column keeps its row mounted and hears every key; only the one the key went to answers it.
   if (target instanceof Element && target.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`) !== null && cell !== null && !cell.contains(target)) return false;
   // On an Embla row the view is its window, which the container is wider than (the window is cut to whole slots and centered).
-  const view = (container.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`) ?? container).getBoundingClientRect();
-  const slots = [...container.querySelectorAll<HTMLElement>(`[${ROW_ID_ATTRIBUTE}]`)].map((el) => {
+  const win = container.querySelector(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
+  const view = (win ?? container).getBoundingClientRect();
+  const all = [...container.querySelectorAll<HTMLElement>(`[${ROW_ID_ATTRIBUTE}]`)];
+  // A sticky panel sits outside the window and is always in view, so it never needs a hand-over, and the edge a key lands on is the strip's.
+  const stripSlots = win === null ? all : all.filter((el) => win.contains(el));
+  if (win !== null && all.some((el) => el.getAttribute(ROW_ID_ATTRIBUTE) === active && !win.contains(el))) return false;
+  const slots = stripSlots.map((el) => {
     const box = el.getBoundingClientRect();
     return { el, id: el.getAttribute(ROW_ID_ATTRIBUTE), left: box.left, right: box.right };
   });
@@ -75,12 +80,16 @@ export function focusEdgePanel(container: HTMLElement, active: string | null, di
   if (own !== undefined && isShown(own, view)) return false;
   const edge = edgeSlotInView(slots, view, direction);
   if (edge === undefined) return false;
-  // The panel's own ring marks it, so the browser's square outline is dropped; no scroll, as the panel is already in view.
-  const root = edge.el.querySelector<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) ?? panelRootOf(edge.el) ?? edge.el;
+  focusPanelSlot(edge.el);
+  return true;
+}
+
+/** Focuses the panel drawn in `slot` without scrolling: the panel's own ring marks it, so the browser's square outline is dropped. @internal */
+export function focusPanelSlot(slot: HTMLElement): void {
+  const root = slot.querySelector<HTMLElement>(`[${PANEL_ROOT_ATTRIBUTE}]`) ?? panelRootOf(slot) ?? slot;
   if (!root.hasAttribute('tabindex')) root.tabIndex = -1;
   root.style.outline = 'none';
   root.focus({ preventScroll: true });
-  return true;
 }
 
 /**

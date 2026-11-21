@@ -98,7 +98,7 @@ test('a hold flip does not move the row: the numbers give the same centering, an
   };
   let flips = 0;
   for (const container of [900, 1000, 1100, 1300, 1500, 1700]) {
-    const input = (hold: boolean) => ({ entries: [0, 1, 2, 3, 4, 5].map((k) => made(`p${k}`, k === 0 && hold ? { edgeHold: 'left' as const } : {})), phoneWidth: 390, containerWidth: container, gap: 16, wholePanels: true });
+    const input = (hold: boolean) => ({ entries: [0, 1, 2, 3, 4, 5].map((k) => made(`p${k}`, k === 0 && hold ? { sticky: 'start' as const } : {})), phoneWidth: 390, containerWidth: container, gap: 16, wholePanels: true });
     const off = computeRowNumbers(input(false));
     const on = computeRowNumbers(input(true));
     if (on.held.length === 0) continue;

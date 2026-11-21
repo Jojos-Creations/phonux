@@ -192,8 +192,14 @@ export type SettingValues = {
   listed: boolean;
   /** Whether a panel made from this setting starts live or parked. */
   startVisibility: 'live' | 'parked';
-  /** Which edge the panel stays at while the row scrolls: 'off' lets it scroll away, 'left' keeps it at the left edge and 'right' at the right, with the other panels sliding under it. 'both' is in the strip while it is in view, and holds at whichever edge the scroll takes it past. A held panel that cannot fit beside the others, or sits in a row that does not scroll, lets go and scrolls normally. */
-  edgeHold: 'off' | 'left' | 'right' | 'both';
+  /**
+   * Whether the panel is sticky: 'off' lets it scroll with the row, 'start' takes its slots at the left end of the row and 'end' at the right end, and a sticky panel never moves
+   * while the row scrolls. The scrolling row keeps at least `tuning.minScrollSlots` slots, so a window too narrow for every sticky panel gives the lowest `stickyRank` ones back to the
+   * scrolling row, where they draw at their own place; they are sticky again when room returns, and this setting never changes.
+   */
+  sticky: 'off' | 'start' | 'end';
+  /** Which sticky panel stays sticky longest when the window narrows: an integer, and the higher one stays. Of equal rank, the one later in the row gives up first. Default 0. */
+  stickyRank: number;
   /** Where the row scrolls the panel to on its next open, show or click. */
   scrollOnOpen: ScrollOnOpen;
   /** Whether the row follows the panel when it is moved, placed, resized or its layout reset. */
@@ -360,6 +366,12 @@ export type WorkspaceTuning = {
    * the next press. Default false: the first press reaches the content and puts the panel in use at once.
    */
   firstPressFocusOnly?: boolean;
+  /**
+   * The fewest slots the scrolling row keeps when panels are sticky: an integer of at least 0. Sticky panels that would leave it less go back into the scrolling row, the lowest
+   * `stickyRank` first. 0 lets every slot be sticky; the row then has no scrolling room, and a panel that is not sticky is given a one-slot row by the lowest-ranked sticky panel
+   * going back into it. Default 1.
+   */
+  minScrollSlots?: number;
 };
 
 /** Every tuning leaf after resolving, each present. @public */
@@ -408,6 +420,8 @@ export type ResolvedWorkspaceTuning = {
   shrinkUnfocused: boolean;
   /** Whether a press on a panel not in use only puts it in use, its content seeing no click. */
   firstPressFocusOnly: boolean;
+  /** The fewest slots the scrolling row keeps when panels are sticky. */
+  minScrollSlots: number;
 };
 
 /** Deeply frozen; every key is present after a resolve except `title`. @public */
@@ -418,12 +432,24 @@ export type ResolvedPanelSettings = {
   readonly title?: string;
   /** The panel's header buttons by slot id. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
+  /**
+   * The old name of `sticky`, read-only and derived from it: 'left' when `sticky` is 'start', 'right' when it is 'end', 'off' otherwise.
+   * It is a property of the value that does not show in `Object.keys` or a spread, so code that copies the value does not carry it.
+   * @deprecated Read `sticky` instead. It is removed before 0.2.0 final.
+   */
+  readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 /** What one settings layer may hold. Tuning is the workspace's, so a layer carrying `tuning` is refused (a saved instance layer loads with a note). @public */
 export type PanelSettings = { [K in keyof SettingValues]?: SettingValues[K] } & {
   /** Header buttons by slot id; `false` removes a slot an earlier layer set. */
   headerButtons?: { [id: string]: HeaderButton | false };
+  /**
+   * The name `sticky` replaced. 'left' is read as sticky 'start' and 'right' as sticky 'end'; 'both' (a panel that stuck when scrolled past) no longer exists and is read as sticky 'off' with a
+   * development warning. A layer that sets `sticky` too ignores this.
+   * @deprecated Set `sticky` instead. It is removed before 0.2.0 final.
+   */
+  edgeHold?: 'off' | 'left' | 'right' | 'both';
 };
 
 /** A diagnostic that never throws: what a rule or a restore did and which setting it concerns. @public */
@@ -459,7 +485,7 @@ export type SettingConflict = {
 };
 
 /** Every catalog name: a setting key, `headerButtons` as one name, and a dotted name per tuning leaf. @public */
-export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'edgeHold'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 /** The class word that opens a descriptor's on_configure rule. @public */
 export type SettingClass = 'NOW' | 'NEXT' | 'STATE' | 'SCOPE';
@@ -725,10 +751,21 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     configure: { cls: 'NEXT', doors: ['instance'] },
   },
   {
-    name: 'edgeHold',
+    name: 'sticky',
     group: 'scrolling',
-    values: 'off, left, right, both',
+    values: 'off, start, end',
     default: 'off',
+    scope: 'instance',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-row-scroll-gesture-and-requests',
+    configure: { cls: 'NOW', doors: ['instance'] },
+  },
+  {
+    name: 'stickyRank',
+    group: 'scrolling',
+    values: 'integer',
+    default: '0',
     scope: 'instance',
     viewSettable: false,
     exists: 'new',
@@ -1142,6 +1179,17 @@ const CATALOG_ROWS: readonly SettingDescriptor[] = [
     ownerEntry: 'lib-first-press',
     configure: { cls: 'NEXT', doors: ['tuning'] },
   },
+  {
+    name: 'tuning.minScrollSlots',
+    group: 'tuning',
+    values: 'integer of at least 0 (workspace only)',
+    default: '1',
+    scope: 'workspace',
+    viewSettable: false,
+    exists: 'new',
+    ownerEntry: 'phonux-row-scroll-gesture-and-requests',
+    configure: { cls: 'NOW', doors: ['tuning'] },
+  },
 ];
 
 /**
@@ -1183,7 +1231,8 @@ export const LIBRARY_PANEL_DEFAULTS: LibraryPanelDefaults = freezeClone({
   multiple: false,
   maxInstances: 'unlimited' as number | 'unlimited',
   startVisibility: 'live' as const,
-  edgeHold: 'off' as const,
+  sticky: 'off' as const,
+  stickyRank: 0,
   scrollOnOpen: 'into-view' as ScrollOnOpen,
   scrollOnMove: 'follow' as ScrollOnMove,
   toggleWhenClosed: 'ignore' as const,
@@ -1235,6 +1284,7 @@ export const LIBRARY_TUNING_DEFAULTS: ResolvedWorkspaceTuning = freezeClone({
   defaultExitTo: 'shrink',
   shrinkUnfocused: false,
   firstPressFocusOnly: false,
+  minScrollSlots: 1,
 });
 
 // ---------------------------------------------------------------------------
@@ -1355,7 +1405,7 @@ export interface FixedBehaviour {
 
 /**
  * What the per-panel settings this version removed do now: each is fixed at one value for every panel, its old default but for
- * `evictionOrder` and `resize` (a size glide lays the content out at the eased size on every frame, as rc.6's `'reflow'` did). A template that still names one is told once in development and the value is ignored; a later rc refuses it.
+ * `evictionOrder` and `resize` (a size glide lays the content out at the eased size on every frame). A template that still names one is told once in development and the value is ignored.
  * @internal
  */
 export const FIXED: FixedBehaviour = Object.freeze({
@@ -1413,6 +1463,30 @@ export function removedTuningLeaf(leaf: string): boolean {
   return true;
 }
 
+/** The deprecated `edgeHold` a resolved `sticky` reads as. @internal */
+export const STICKY_AS_EDGE_HOLD: Readonly<Record<SettingValues['sticky'], 'off' | 'left' | 'right'>> = { off: 'off', start: 'left', end: 'right' };
+
+/** Adds the deprecated read-only `edgeHold` to a resolved value under construction, derived from its `sticky`; not enumerable, so it is not part of the value's shape. */
+function withEdgeHoldRead<T extends { sticky: SettingValues['sticky'] }>(value: T): T {
+  return Object.defineProperty(value, 'edgeHold', { value: STICKY_AS_EDGE_HOLD[value.sticky], enumerable: false });
+}
+
+export const EDGE_HOLD_AS_STICKY: Readonly<Record<'off' | 'left' | 'right' | 'both', SettingValues['sticky']>> = { off: 'off', left: 'start', right: 'end', both: 'off' };
+const warnedEdgeHold = new Set<string>();
+
+/** The `sticky` a layer's deprecated `edgeHold` reads as; warns once per value, in development only. 'both' no longer exists and reads as 'off'. @internal */
+export function stickyFromEdgeHold(value: 'off' | 'left' | 'right' | 'both'): SettingValues['sticky'] {
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production' && !warnedEdgeHold.has(value)) {
+    warnedEdgeHold.add(value);
+    console.warn(
+      value === 'both'
+        ? "phonux: the setting 'edgeHold' was replaced by 'sticky'; the value 'both' (stick when scrolled past) no longer exists and is read as sticky 'off'. Remove it from your settings."
+        : `phonux: the setting 'edgeHold' was replaced by 'sticky'; '${value}' is read as sticky '${EDGE_HOLD_AS_STICKY[value]}'. Set 'sticky' instead; 'edgeHold' is removed before 0.2.0 final.`,
+    );
+  }
+  return EDGE_HOLD_AS_STICKY[value];
+}
+
 /** The keys `movable` replaced. */
 const MERGED_INTO_MOVABLE: ReadonlySet<string> = new Set(['draggable', 'placeable']);
 
@@ -1430,7 +1504,7 @@ type SettingKey = Exclude<CatalogName, `tuning.${string}`>;
 const ENTER_FROM: readonly EnterFrom[] = ['auto', 'left', 'right', 'anchor', 'top', 'bottom', 'fade', 'expand'];
 const EXIT_TO: readonly ExitTo[] = ['auto', 'left', 'right', 'top', 'bottom', 'fade', 'shrink'];
 
-const SETTING_CHECKS: Record<SettingKey, Check> = {
+const SETTING_CHECKS: Record<SettingKey | 'edgeHold', Check> = {
   closable: bool,
   parkable: bool,
   movable: bool,
@@ -1443,6 +1517,8 @@ const SETTING_CHECKS: Record<SettingKey, Check> = {
   maxInstances: maxInstancesProblem,
   listed: bool,
   startVisibility: oneOf('live', 'parked'),
+  sticky: oneOf('off', 'start', 'end'),
+  stickyRank: integer(-1_000_000, 1_000_000),
   edgeHold: oneOf('off', 'left', 'right', 'both'),
   scrollOnOpen: oneOf('into-view', 'start', 'center', 'none'),
   scrollOnMove: oneOf('follow', 'none'),
@@ -1498,7 +1574,7 @@ const TUNING_MEMBER_CHECKS: Record<'dragToClose' | 'slide' | 'edgeScroll' | 'chr
   },
 };
 
-const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'rowGesture' | 'fastScroll' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused' | 'firstPressFocusOnly', Check> = {
+const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneHeight' | 'saveQuietMs' | 'gestureQuietMs' | 'resizeSettleSlides' | 'rowGesture' | 'fastScroll' | 'initialScroll' | 'maxLivePanels' | 'shrinkOutOfView' | 'phoneFit' | 'phoneFitMin' | 'phoneFitMax' | 'defaultEnterFrom' | 'defaultExitTo' | 'shrinkUnfocused' | 'firstPressFocusOnly' | 'minScrollSlots', Check> = {
   hopFraction: num(0, 1, { minOpen: true }),
   rowGap: integer(0, 200),
   rowTop: (v) => (v === null ? undefined : integer(0, 400)(v)),
@@ -1522,6 +1598,7 @@ const TUNING_SCALAR_CHECKS: Record<'hopFraction' | 'rowGap' | 'rowTop' | 'phoneH
   defaultExitTo: oneOf(...EXIT_TO),
   shrinkUnfocused: bool,
   firstPressFocusOnly: bool,
+  minScrollSlots: integer(0, 64),
 };
 
 const isObjectLeaf = (leaf: string): leaf is keyof typeof TUNING_MEMBER_CHECKS => Object.hasOwn(TUNING_MEMBER_CHECKS, leaf);
@@ -1621,6 +1698,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
     reject(layer, '', 'a settings layer must be an object', lenientLayer, env.notes);
     return accepted;
   }
+  let edgeHold: 'off' | 'left' | 'right' | 'both' | undefined;
   for (const key of Object.keys(raw)) {
     const value = raw[key];
     if (value === undefined) continue;
@@ -1665,8 +1743,14 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
       env.pending.push({ key, layer, kind: 'not-view-settable', asked: value });
       continue;
     }
+    if (key === 'edgeHold') {
+      edgeHold = value as 'off' | 'left' | 'right' | 'both';
+      continue;
+    }
     accepted.flat.set(key, value);
   }
+  // `sticky` named in the same layer wins over the alias.
+  if (edgeHold !== undefined && !accepted.flat.has('sticky')) accepted.flat.set('sticky', stickyFromEdgeHold(edgeHold));
   return accepted;
 }
 
@@ -1850,7 +1934,7 @@ export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: 
   for (const id of Object.keys(resolved.headerButtons as Plain)) slots[id] = Object.freeze({ ...((resolved.headerButtons as Plain)[id] as Plain) });
   value.headerButtons = Object.freeze(slots);
 
-  const result: PanelSettingsResolution = { value: Object.freeze(value) as unknown as ResolvedPanelSettings, source: state.source, conflicts, notes };
+  const result: PanelSettingsResolution = { value: Object.freeze(withEdgeHoldRead(value as Plain & { sticky: SettingValues['sticky'] })) as unknown as ResolvedPanelSettings, source: state.source, conflicts, notes };
   if (user.anchor !== undefined) result.userAnchor = user.anchor;
   return result;
 }
@@ -1886,7 +1970,7 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
     maxSlots: parkable ? ALL_SLOTS : 1,
     ...(p.title !== undefined ? { title: p.title } : {}),
   };
-  return Object.freeze(legacy);
+  return Object.freeze(withEdgeHoldRead(legacy));
 }
 
 /** The note raised when a hold keeps an unlisted panel parked: nothing in the list can show it, so only code can. @internal */

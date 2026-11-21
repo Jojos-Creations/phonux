@@ -76,7 +76,7 @@ test('PanelRow: for widths [390, 796, 390] the slot offsets are 0, 406 and 1218 
   assert.equal(slotX(mounted.container, 'root'), 0);
   assert.equal(slotX(mounted.container, 't'), 390 + 16);
   assert.equal(slotX(mounted.container, 'p'), 390 + 16 + 796 + 16);
-  const box = mounted.container.firstElementChild as HTMLElement;
+  const box = mounted.container.querySelector<HTMLElement>('[data-row-embla-window]')!;
   assert.equal(getComputedStyle(box).width, `${390 + 16 + 796 + 16 + 390}px`);
   mounted.unmount();
 });

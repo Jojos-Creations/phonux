@@ -6,20 +6,15 @@
 
 import * as React from 'react';
 import { restTranslate } from './slotMover.js';
-import { drawHeldSlots, isHeldSlot } from './emblaRow.js';
-import { EMBLA_WINDOW_ATTRIBUTE } from './rowDom.js';
 
-/** Writes every slot's rest under `boxRef` after each commit. A leaving slot keeps the rest it last rendered, so its exit is not carried along by the row it left. @internal */
-export function useRowDraw(boxRef: React.RefObject<HTMLElement | null>): void {
+/** Writes every slot's rest under `rootRef`, the strip's and the sticky groups' alike, after each commit. A leaving slot keeps the rest it last rendered, so its exit is not carried along by the row it left. @internal */
+export function useRowDraw(rootRef: React.RefObject<HTMLElement | null>): void {
   React.useLayoutEffect(() => {
-    const anchor = boxRef.current;
+    const anchor = rootRef.current;
     if (anchor === null) return;
     for (const slot of anchor.querySelectorAll<HTMLElement>('[data-row-slot]')) {
-      if (isHeldSlot(slot)) continue;
       const rest = restTranslate(Number(slot.dataset.rowSlot));
       if (slot.style.translate !== rest) slot.style.translate = rest;
     }
-    const win = anchor.closest(`[${EMBLA_WINDOW_ATTRIBUTE}]`);
-    if (win !== null) drawHeldSlots(win);
   });
 }
