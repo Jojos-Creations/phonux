@@ -18,6 +18,10 @@ export interface PhonuxLabels {
   goToWorkspace: (name: string) => string;
   /** The accessible name of the input that holds a workspace's name. Default `Space name`. */
   workspaceName: string;
+  /** The accessible name of the divider between two spaces shown side by side, a slider the person drags or moves with the arrow keys. Default `Resize spaces`. */
+  splitDivider: string;
+  /** The spoken value of a divider: the space on its left and its row panels, the space on its right and its row panels. Default `<left> <n> panels, <right> <n> panels`. */
+  splitValue: (left: string, leftPanels: number, right: string, rightPanels: number) => string;
   /** The accessible name of the row of panels, a region. Default `Panels`. */
   row: string;
   /** The accessible name of one panel's group: its title and its place among the panels drawn. Default `<title>, <place> of <total>`. */
@@ -143,6 +147,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   newWorkspace: 'New space',
   goToWorkspace: (name) => `Go to ${name}`,
   workspaceName: 'Space name',
+  splitDivider: 'Resize spaces',
+  splitValue: (left, leftPanels, right, rightPanels) => `${left} ${leftPanels} ${leftPanels === 1 ? 'panel' : 'panels'}, ${right} ${rightPanels} ${rightPanels === 1 ? 'panel' : 'panels'}`,
   row: 'Panels',
   panelPosition: (title, place, total) => `${title}, ${place} of ${total}`,
   grabStrip: (title) => `Move or close ${title}`,
