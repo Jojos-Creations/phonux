@@ -25,10 +25,10 @@ test('findPhoneModel finds a known id and returns undefined for an unknown one',
   assert.equal(findPhoneModel('not-a-real-model'), undefined);
 });
 
-test('PHONE_MODELS has exactly the models and sizes of vendor/device-specs/viewport-sizes.json', () => {
-  const specs = JSON.parse(readFileSync(new URL('../vendor/device-specs/viewport-sizes.json', import.meta.url), 'utf8')) as Record<string, { portraitWidth: number; landscapeWidth: number }>;
+test('PHONE_MODELS has exactly the models, names and sizes of vendor/device-specs/viewport-sizes.json', () => {
+  const specs = JSON.parse(readFileSync(new URL('../vendor/device-specs/viewport-sizes.json', import.meta.url), 'utf8')) as Record<string, { name: string; portraitWidth: number; landscapeWidth: number }>;
   assert.deepEqual(
-    PHONE_MODELS.map((m) => [m.id, m.width, m.height]).sort(),
-    Object.entries(specs).map(([id, s]) => [id, s.portraitWidth, s.landscapeWidth]).sort(),
+    PHONE_MODELS.map((m) => [m.id, m.label, m.width, m.height]).sort(),
+    Object.entries(specs).map(([id, s]) => [id, `${s.name} (${s.portraitWidth} × ${s.landscapeWidth})`, s.portraitWidth, s.landscapeWidth]).sort(),
   );
 });

@@ -15,11 +15,12 @@ export interface PhoneModel {
 }
 
 /**
- * The known phone models, in the order the Settings dropdown lists them. There is no 'default' entry: that is
- * DEFAULT_PHONE_SIZE, so upgrading never resizes anyone who has not chosen a model.
+ * The known phone models, in the order the Settings dropdown lists them. There is no 'default' entry; the size for
+ * someone who has chosen no model is DEFAULT_PHONE_SIZE.
  * @public
  */
-// Same models and sizes as vendor/device-specs/viewport-sizes.json; test/phone-models.test.ts fails on any difference.
+// No 'default' entry, so upgrading never resizes anyone who has not chosen a model.
+// Same models, names and sizes as vendor/device-specs/viewport-sizes.json; test/phone-models.test.ts fails on any difference.
 export const PHONE_MODELS: readonly PhoneModel[] = [
   { id: 'iphone8', label: 'iPhone 8 / SE (2nd/3rd gen) (375 × 667)', width: 375, height: 667 },
   { id: 'iphonex', label: 'iPhone X (375 × 812)', width: 375, height: 812 },
