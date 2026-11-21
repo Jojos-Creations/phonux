@@ -130,6 +130,90 @@ export interface PhonuxLabels {
   sharedChangeEnd: string;
   /** A row menu entry. Default `Stop sharing`. */
   sharedStop: string;
+  /** The trust screen's first title. Default `Add someone you trust`. */
+  trustTitle: string;
+  /** The accessible name of the trust screen's close button. Default `Close`. */
+  trustClose: string;
+  /** The field for the name the person goes by to the other side. Default `What you call yourself`. */
+  trustNameLabel: string;
+  /** The button that makes a code. Default `Make a code`. */
+  trustMakeCode: string;
+  /** The accessible name of the code's QR code. Default `QR code for the code below`. */
+  trustQr: string;
+  /** The button that copies the code. Default `Copy`. */
+  trustCopy: string;
+  /** The copy button once the code is copied. Default `Copied`. */
+  trustCopied: string;
+  /** The line under the code. Default `Works for 24 hours, for one person.`. */
+  trustCodeNote: string;
+  /** The button that leaves the code to wait for the other side. Default `Done, wait for them`. */
+  trustDoneWait: string;
+  /** The button that switches to typing a code. Default `I have a code`. */
+  trustHaveCode: string;
+  /** The button that switches back to making a code. Default `Make a code instead`. */
+  trustMakeInstead: string;
+  /** The title while typing a code. Default `Join with a code`. */
+  trustJoinTitle: string;
+  /** The field for a code. Default `Code`. */
+  trustCodeLabel: string;
+  /** The button that takes a typed code. Default `Join`. */
+  trustJoin: string;
+  /** Shown when the typed text is no code. Default `That is not a code. Check what they sent you.`. */
+  trustNotACode: string;
+  /** Shown when a typed code has ended. Default `That code has ended. Ask them for a new one.`. */
+  trustCodeEnded: string;
+  /** Shown when the person's own code ended before anyone joined. Default `This code has ended. Make a new one.`. */
+  trustCodeEndedMaker: string;
+  /** Shown when a code could not be checked. Default `Could not check the code. Try again.`. */
+  trustCouldNotReach: string;
+  /** The title while waiting, given the other side's name once known. Default `Waiting for <name>`, or `Waiting for them` while the name is null. */
+  trustWaitingFor: (name: string | null) => string;
+  /** The line while nobody has joined the person's code. Default `Nobody has joined yet. You can close the app, this picks up when you open it again.`. */
+  trustWaitingBody: string;
+  /** The line while waiting for the code's maker to answer. Default `<name> has not answered yet. You can close the app, this picks up when you open it again.` */
+  trustWaitingAnswer: (name: string) => string;
+  /** How long the person's code still works, in whole hours. Default `<hours> more hours on this code.`, or `Less than 1 more hour on this code.` at 1 or less. */
+  trustHoursLeft: (hours: number) => string;
+  /** The button that shows the code again. Default `Show code`. */
+  trustShowCode: string;
+  /** The button that drops the exchange. Default `Cancel`. */
+  trustCancel: string;
+  /** The title when someone joined the person's code. Default `<name> wants to be able to send you files`. */
+  trustWantsToSend: (name: string) => string;
+  /** The field for the name the other side is saved under. Default `Save them as`. */
+  trustSaveAs: string;
+  /** The accessible name of the choice of how long they can send. Default `How long they can send`. */
+  trustHowLong: string;
+  /** A choice of how long they can send. Default `No end`. */
+  trustNoEnd: string;
+  /** A choice of how long they can send. Default `1 week`. */
+  trustOneWeek: string;
+  /** A choice of how long they can send. Default `1 month`. */
+  trustOneMonth: string;
+  /** The maker's button that says no. Default `Decline`. */
+  trustDecline: string;
+  /** The maker's button that says yes. Default `Allow`. */
+  trustAllow: string;
+  /** The title when the person joined someone's code. Default `Let <name> send you files`. */
+  trustLetThemTitle: (name: string) => string;
+  /** The line under that title. Default `<name> made this code. Say yes and <name> can send files to you. <name> then decides whether you can send to them.` */
+  trustLetThemBody: (name: string) => string;
+  /** The joiner's button that says no. Default `Not now`. */
+  trustNotNow: string;
+  /** The joiner's button that says yes. Default `Let them`. */
+  trustLetThem: string;
+  /** The title when the maker said yes. Default `<name> said yes`. */
+  trustSaidYes: (name: string) => string;
+  /** The line under that title. Default `You can send files to <name> now.` */
+  trustSaidYesBody: (name: string) => string;
+  /** The title when the maker said no. Default `<name> declined`. */
+  trustDeclined: (name: string) => string;
+  /** The line under that title. Default `<name> did not add you, so you cannot send files to them.` */
+  trustDeclinedBody: (name: string) => string;
+  /** The button that ends the exchange. Default `Done`. */
+  trustDone: string;
+  /** Shown when an answer did not go through. Default `That did not work. Try again.`. */
+  trustFailed: string;
 }
 
 const SIZE_NAMES = ['Phone', 'Fold', 'Tablet', 'Desktop', 'Ultrawide'] as const;
@@ -204,6 +288,48 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   sharedShowQr: 'Show QR code',
   sharedChangeEnd: 'Change when it ends',
   sharedStop: 'Stop sharing',
+  trustTitle: 'Add someone you trust',
+  trustClose: 'Close',
+  trustNameLabel: 'What you call yourself',
+  trustMakeCode: 'Make a code',
+  trustQr: 'QR code for the code below',
+  trustCopy: 'Copy',
+  trustCopied: 'Copied',
+  trustCodeNote: 'Works for 24 hours, for one person.',
+  trustDoneWait: 'Done, wait for them',
+  trustHaveCode: 'I have a code',
+  trustMakeInstead: 'Make a code instead',
+  trustJoinTitle: 'Join with a code',
+  trustCodeLabel: 'Code',
+  trustJoin: 'Join',
+  trustNotACode: 'That is not a code. Check what they sent you.',
+  trustCodeEnded: 'That code has ended. Ask them for a new one.',
+  trustCodeEndedMaker: 'This code has ended. Make a new one.',
+  trustCouldNotReach: 'Could not check the code. Try again.',
+  trustWaitingFor: (name) => (name ? `Waiting for ${name}` : 'Waiting for them'),
+  trustWaitingBody: 'Nobody has joined yet. You can close the app, this picks up when you open it again.',
+  trustWaitingAnswer: (name) => `${name} has not answered yet. You can close the app, this picks up when you open it again.`,
+  trustHoursLeft: (hours) => (hours <= 1 ? 'Less than 1 more hour on this code.' : `${hours} more hours on this code.`),
+  trustShowCode: 'Show code',
+  trustCancel: 'Cancel',
+  trustWantsToSend: (name) => `${name} wants to be able to send you files`,
+  trustSaveAs: 'Save them as',
+  trustHowLong: 'How long they can send',
+  trustNoEnd: 'No end',
+  trustOneWeek: '1 week',
+  trustOneMonth: '1 month',
+  trustDecline: 'Decline',
+  trustAllow: 'Allow',
+  trustLetThemTitle: (name) => `Let ${name} send you files`,
+  trustLetThemBody: (name) => `${name} made this code. Say yes and ${name} can send files to you. ${name} then decides whether you can send to them.`,
+  trustNotNow: 'Not now',
+  trustLetThem: 'Let them',
+  trustSaidYes: (name) => `${name} said yes`,
+  trustSaidYesBody: (name) => `You can send files to ${name} now.`,
+  trustDeclined: (name) => `${name} declined`,
+  trustDeclinedBody: (name) => `${name} did not add you, so you cannot send files to them.`,
+  trustDone: 'Done',
+  trustFailed: 'That did not work. Try again.',
 };
 
 /** `given` over the defaults, key by key; a key given as `undefined` keeps its default. @internal */

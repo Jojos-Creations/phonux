@@ -9,6 +9,7 @@ import { useFrameClaim } from './panelFrameClaim.js';
 import { CHROME_ATTRIBUTE, CHROME_PARTS, PanelChromeVisibleContext, useChromeFade } from './panelChrome.js';
 import { BAR_HEIGHT_PX } from './panelChromeSize.js';
 import { FOOTER_PAD_X_PX, FOOTER_PAD_Y_PX, HEADER_GAP_PX } from './rowConstants.js';
+import { chromeBandSx } from './chromeBand.js';
 import { chromeCutSides } from './rowDom.js';
 
 /** The footer element of the template view above, or null; provided by the view adapter, read by `PanelFooter`. @internal */
@@ -30,7 +31,7 @@ class FooterBoundary extends React.Component<{ children: React.ReactNode }, { fa
 
 /**
  * Draws the footer the panel's template declares, floating below the frame as the header floats above it: outside the panel's own
- * space, so it takes no height, and it is bare like the header (no border, shadow or fill; the header's height). The parent must be `position: relative`, as for `PanelHeader`.
+ * space, so it takes no height, and like the header it sits on a solid band of the frame's surface (the header's height). The parent must be `position: relative`, as for `PanelHeader`.
  * `PanelFrame` draws it by default; a view that does not use `PanelFrame` renders this itself. Outside a template's view, or
  * for a template that declares no footer, it draws nothing. A footer that throws while rendering is hidden and the
  * rest of the panel stays. `sx` is layered over the footer's box (its offset below the frame, its padding): to restyle the footer
@@ -45,7 +46,7 @@ export function PanelFooter({ sx }: { sx?: CssStyle }): React.ReactElement | nul
   if (footer === null) return null;
   return (
     <FooterBoundary>
-      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${HEADER_GAP_PX}px)`, ...chromeCutSides(), boxSizing: 'border-box', height: `${BAR_HEIGHT_PX}px`, display: 'flex', alignItems: 'center', px: `${FOOTER_PAD_X_PX}px`, py: `${FOOTER_PAD_Y_PX}px`, '&::before': { content: '""', position: 'absolute', left: 0, right: 0, bottom: '100%', height: `${HEADER_GAP_PX}px` }, ...sx }}>
+      <Box data-panel-footer="" {...{ [CHROME_ATTRIBUTE]: CHROME_PARTS.footer }} ref={fade} sx={{ position: 'absolute', top: `calc(100% + ${HEADER_GAP_PX}px)`, ...chromeCutSides(), boxSizing: 'border-box', height: `${BAR_HEIGHT_PX}px`, display: 'flex', alignItems: 'center', px: `${FOOTER_PAD_X_PX}px`, py: `${FOOTER_PAD_Y_PX}px`, ...chromeBandSx, '&::before': { content: '""', position: 'absolute', left: 0, right: 0, bottom: '100%', height: `${HEADER_GAP_PX}px` }, ...sx }}>
         {footer}
       </Box>
     </FooterBoundary>

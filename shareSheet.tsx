@@ -37,7 +37,7 @@ export interface ShareLinkInfo {
 export interface ShareSheetProps {
   /** The file being shared. */
   file: ShareFile;
-  /** The QR code, drawn by the app in whatever way it makes them; the sheet frames it on a white tile so it stays scannable in a dark theme. */
+  /** The QR code, such as a `QrCode`; the sheet frames it on a white tile so it stays scannable in a dark theme. */
   qr: React.ReactNode;
   /** The trusted people the People tab lists, in order. */
   people: readonly SharePerson[];
