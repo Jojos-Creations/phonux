@@ -152,6 +152,27 @@ test('the joiner takes a code, lets them send, and hears the answer', async () =
   assert.ok(events.includes('done'));
 });
 
+test('Done on the result closes the exchange the screen joined, and pending() is read only on mount', async () => {
+  let reads = 0;
+  const { trust, calls, made } = service({
+    pending: () => {
+      reads += 1;
+      return null;
+    },
+  });
+  const { m } = screen(trust);
+  await press(button(m.container, 'I have a code'));
+  await type(field(m.container, 'Code'), 'KW-7Q4M-ZX2P');
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  await press(button(m.container, 'Join'));
+  await press(button(m.container, 'Let them'));
+  made[0]!.progress = { theirName: 'Sam', answered: true, canSendToThem: true };
+  await until('the result shows', () => title(m.container) === 'Sam said yes');
+  await press(button(m.container, 'Done'));
+  assert.equal(calls.at(-1), 'close:joiner', 'the joined exchange is closed');
+  assert.equal(reads, 1, 'pending() is not read again on Done');
+});
+
 test('text that is no code says so, and a code that ended says so', async () => {
   const { trust } = service();
   const { m } = screen(trust);

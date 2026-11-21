@@ -49,7 +49,7 @@ export interface TrustExchanges {
   invite(name: string): Promise<TrustExchange>;
   /** Takes a code someone made. Rejects with an error `failureOf` can name. */
   join(code: string, name: string): Promise<TrustExchange>;
-  /** The exchange left open earlier, or null. Read once, on mount, and must answer at once. */
+  /** The exchange left open earlier, or null. Read only once, on mount, and must answer at once. */
   pending(): TrustExchange | null;
   /** Names why a call rejected. */
   failureOf(error: unknown): TrustFailure;
@@ -78,7 +78,7 @@ type Step =
   | { id: 'decide'; exchange: TrustExchange; theirName: string }
   | { id: 'join' }
   | { id: 'answer'; exchange: TrustExchange; theirName: string }
-  | { id: 'result'; yes: boolean; theirName: string }
+  | { id: 'result'; exchange: TrustExchange; yes: boolean; theirName: string }
   | { id: 'ended'; role: 'maker' | 'joiner' };
 
 type Length = 'none' | 'week' | 'month';
@@ -188,7 +188,7 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     if (!current.answered()) {
       setSaveAs(seen.theirName ?? '');
       setStep({ id: 'answer', exchange: current, theirName: seen.theirName ?? '' });
-    } else if (seen.answered) setStep({ id: 'result', yes: seen.canSendToThem, theirName: seen.theirName ?? '' });
+    } else if (seen.answered) setStep({ id: 'result', exchange: current, yes: seen.canSendToThem, theirName: seen.theirName ?? '' });
     else setStep({ id: 'waiting', exchange: current, theirName: seen.theirName });
   }, []);
 
@@ -403,7 +403,7 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
           variant="contained"
           disableElevation
           onClick={() => {
-            trust.pending()?.close();
+            step.exchange.close();
             finish();
           }}
           sx={pill}
