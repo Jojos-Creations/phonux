@@ -201,7 +201,7 @@ test('the close button is drawn only with onClose, and labels replace the words'
   assert.ok(own.m.container.querySelector('[aria-label="Close"]'));
 });
 
-test('the QR code is the same for the same text and differs for other text', () => {
+test('the QR code is the same for the same text, differs for other text, and keeps a four-module quiet zone', () => {
   const path = (value: string): string => {
     const m = mount(h(QrCode, { value, label: 'code' }));
     const d = m.container.querySelector('path')!.getAttribute('d')!;
@@ -212,6 +212,12 @@ test('the QR code is the same for the same text and differs for other text', () 
   assert.ok(a.length > 100, 'the code has modules');
   assert.equal(path('KW-7Q4M-ZX2P'), a);
   assert.notEqual(path('KW-7Q4M-ZX2Q'), a);
+  const quiet = mount(h(QrCode, { value: 'KW-7Q4M-ZX2P', label: 'code' }));
+  const span = Number(quiet.container.querySelector('svg')!.getAttribute('viewBox')!.split(' ')[2]);
+  const xs = [...quiet.container.querySelector('path')!.getAttribute('d')!.matchAll(/M(\d+) (\d+)/g)].flatMap((m) => [Number(m[1]), Number(m[2])]);
+  assert.equal(Math.min(...xs), 4, 'four light modules before the first dark one on each side');
+  assert.equal(Math.max(...xs) + 1 + 4, span, 'and four after the last');
+  quiet.unmount();
   const sized = mount(h(QrCode, { value: 'x', label: 'code', size: 96 }));
   assert.equal(sized.container.querySelector('svg')!.getAttribute('width'), '96');
 });

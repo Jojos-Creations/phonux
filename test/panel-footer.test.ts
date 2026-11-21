@@ -6,7 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { HostProvider, Panel, PanelFooter, PanelFrame, PanelManagerError, createWorkspace, definePanel } from '../index.js';
+import { HostProvider, Panel, PanelFooter, PanelFrame, PanelHeader, PanelManagerError, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { cleanup, mount } from './support/mount-harness.js';
@@ -136,6 +136,14 @@ test('PanelFooter sx is layered last, so a developer can restyle the padding the
   const style = getComputedStyle(m.container.querySelector('[data-panel-footer]') as HTMLElement);
   assert.equal(style.paddingLeft, '3px');
   assert.equal(style.borderRadius, '2px');
+});
+
+test('PanelHeader sx is layered over the band, so a developer can restyle or remove it', () => {
+  const m = mount(h(HostProvider, { host: createFakeHost(), children: h('div', { style: { position: 'relative' } }, h(PanelHeader, { sx: { bgcolor: 'rgb(255, 0, 0)', boxShadow: 'none', borderRadius: '3px' }, children: 'T' })) }));
+  const style = getComputedStyle(m.container.firstElementChild!.firstElementChild as HTMLElement);
+  assert.equal(style.backgroundColor, 'rgb(255, 0, 0)');
+  assert.equal(style.borderRadius, '3px');
+  assert.ok(['none', ''].includes(style.boxShadow), `no shadow: ${style.boxShadow}`);
 });
 
 test('the header floats 4 px above the frame and the grab handle stays a 24 px target', () => {

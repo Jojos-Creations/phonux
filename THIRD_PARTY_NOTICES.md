@@ -22,6 +22,6 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 
 ## Material Icons
 
-The default icons in `icons.tsx`, except Fold and Ultrawide, are SVG paths from Google's
+The default icons in `icons.tsx` (except Fold and Ultrawide) and the icons drawn by `shareParts.tsx` and `trustScreen.tsx` are SVG paths from Google's
 [Material Icons](https://github.com/google/material-design-icons), licensed under the Apache License 2.0
 (https://www.apache.org/licenses/LICENSE-2.0). Copyright Google LLC.

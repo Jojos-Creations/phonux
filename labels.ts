@@ -164,21 +164,21 @@ export interface PhonuxLabels {
   trustCodeEnded: string;
   /** Shown when the person's own code ended before anyone joined. Default `This code has ended. Make a new one.`. */
   trustCodeEndedMaker: string;
-  /** Shown when a code could not be checked. Default `Could not reach Tiamat. Try again.`. */
+  /** Shown when a code could not be checked. Default `Could not check the code. Try again.`. */
   trustCouldNotReach: string;
-  /** The title while waiting, given the other side's name once known. */
+  /** The title while waiting, given the other side's name once known. Default `Waiting for <name>`, or `Waiting for them` while the name is null. */
   trustWaitingFor: (name: string | null) => string;
   /** The line while nobody has joined the person's code. Default `Nobody has joined yet. You can close the app, this picks up when you open it again.`. */
   trustWaitingBody: string;
-  /** The line while waiting for the code's maker to answer. */
+  /** The line while waiting for the code's maker to answer. Default `<name> has not answered yet. You can close the app, this picks up when you open it again.` */
   trustWaitingAnswer: (name: string) => string;
-  /** How long the person's code still works, in whole hours. */
+  /** How long the person's code still works, in whole hours. Default `<hours> more hours on this code.`, or `Less than 1 more hour on this code.` at 1 or less. */
   trustHoursLeft: (hours: number) => string;
   /** The button that shows the code again. Default `Show code`. */
   trustShowCode: string;
   /** The button that drops the exchange. Default `Cancel`. */
   trustCancel: string;
-  /** The title when someone joined the person's code. */
+  /** The title when someone joined the person's code. Default `<name> wants to be able to send you files`. */
   trustWantsToSend: (name: string) => string;
   /** The field for the name the other side is saved under. Default `Save them as`. */
   trustSaveAs: string;
@@ -194,21 +194,21 @@ export interface PhonuxLabels {
   trustDecline: string;
   /** The maker's button that says yes. Default `Allow`. */
   trustAllow: string;
-  /** The title when the person joined someone's code. */
+  /** The title when the person joined someone's code. Default `Let <name> send you files`. */
   trustLetThemTitle: (name: string) => string;
-  /** The line under that title. */
+  /** The line under that title. Default `<name> made this code. Say yes and <name> can send files to you. <name> then decides whether you can send to them.` */
   trustLetThemBody: (name: string) => string;
   /** The joiner's button that says no. Default `Not now`. */
   trustNotNow: string;
   /** The joiner's button that says yes. Default `Let them`. */
   trustLetThem: string;
-  /** The title when the maker said yes. */
+  /** The title when the maker said yes. Default `<name> said yes`. */
   trustSaidYes: (name: string) => string;
-  /** The line under that title. */
+  /** The line under that title. Default `You can send files to <name> now.` */
   trustSaidYesBody: (name: string) => string;
-  /** The title when the maker said no. */
+  /** The title when the maker said no. Default `<name> declined`. */
   trustDeclined: (name: string) => string;
-  /** The line under that title. */
+  /** The line under that title. Default `<name> did not add you, so you cannot send files to them.` */
   trustDeclinedBody: (name: string) => string;
   /** The button that ends the exchange. Default `Done`. */
   trustDone: string;
@@ -305,7 +305,7 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   trustNotACode: 'That is not a code. Check what they sent you.',
   trustCodeEnded: 'That code has ended. Ask them for a new one.',
   trustCodeEndedMaker: 'This code has ended. Make a new one.',
-  trustCouldNotReach: 'Could not reach Tiamat. Try again.',
+  trustCouldNotReach: 'Could not check the code. Try again.',
   trustWaitingFor: (name) => (name ? `Waiting for ${name}` : 'Waiting for them'),
   trustWaitingBody: 'Nobody has joined yet. You can close the app, this picks up when you open it again.',
   trustWaitingAnswer: (name) => `${name} has not answered yet. You can close the app, this picks up when you open it again.`,

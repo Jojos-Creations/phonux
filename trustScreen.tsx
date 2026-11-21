@@ -49,7 +49,7 @@ export interface TrustExchanges {
   invite(name: string): Promise<TrustExchange>;
   /** Takes a code someone made. Rejects with an error `failureOf` can name. */
   join(code: string, name: string): Promise<TrustExchange>;
-  /** The exchange left open earlier, or null. Called on mount and must answer at once. */
+  /** The exchange left open earlier, or null. Read once, on mount, and must answer at once. */
   pending(): TrustExchange | null;
   /** Names why a call rejected. */
   failureOf(error: unknown): TrustFailure;
@@ -57,7 +57,7 @@ export interface TrustExchanges {
 
 /** What `TrustScreen` takes. @public */
 export interface TrustScreenProps {
-  /** The exchanges the screen makes, joins and answers. */
+  /** The exchanges the screen makes, joins and answers. Its `pending()` is read once, on mount: to show another account's exchanges, remount the screen (give it a new `key`). */
   trust: TrustExchanges;
   /** Called when the exchange is over and the screen has nothing left to show. */
   onDone: () => void;
@@ -145,7 +145,8 @@ function CodeBlock({ code, labels }: { code: string; labels: PhonuxLabels }): Re
 /**
  * The code exchange that adds someone the person trusts: make a code (shown as text and a QR code) or join with one, wait
  * for the other side, and answer. It draws no frame or backdrop, so the app places it in a dialog or a page.
- * @remarks An exchange `trust.pending()` names on mount is picked up where it was. The screen asks the other side every
+ * @remarks An exchange `trust.pending()` names on mount is picked up where it was; a later `trust` is used for new calls, but
+ * the screen does not read `pending()` again, so a different account needs a remount with a new `key`. The screen asks the other side every
  * `pollMs` only while it is mounted and a step is waiting, and stops on unmount.
  * @public
  */
