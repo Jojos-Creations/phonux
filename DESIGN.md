@@ -413,8 +413,8 @@ the sticky panels whose `sticky` is `'start'` in row order, the strip Embla move
   slots, the window being the container less one gap each side. A sticky panel takes as many slots as it is wide. The scrolling row keeps at least
   `tuning.minScrollSlots` slots (default 1), and at least one while any panel is left in it. A panel that is sticky takes its slots whether or not the
   row would overflow, so a row of five slots with one sticky panel is `[sticky | row of 4]`.
-- While the sticky panels and that minimum do not fit, the panel with the lowest `stickyRank` goes back into the scrolling row and is drawn there at its
-  own place; of equal rank, the one later in the row goes first. It is sticky again by itself when room returns, and its setting never changes.
+- `stickyRank` is an integer, 0 by default, and the higher rank stays sticky longer. While the sticky panels and that minimum do not fit, the panel with
+  the lowest `stickyRank` goes back into the scrolling row and is drawn there at its own place; of equal rank, the later panel in the row gives up first. It is sticky again by itself when room returns, and its setting never changes.
   A window of one slot has no sticky panels. With `minScrollSlots` 0 every slot may be sticky and the scrolling window has no width; as soon as a
   panel is not sticky, the lowest-ranked sticky panel goes back so that panel has a one-slot row, and nothing is hidden.
 - Nothing about a sticky panel is drawn per frame. `PanelRow` renders `[start group][Embla window][end group]` as flex siblings, a group being a box as wide
@@ -432,7 +432,9 @@ the sticky panels whose `sticky` is `'start'` in row order, the strip Embla move
   `selectDot(id)` with one of their ids focuses the panel.
 - `edgeHold` is the deprecated name. A settings layer, a saved instance layer and a `configure` patch read `edgeHold: 'left'` as `sticky: 'start'` and
   `'right'` as `'end'`; `'both'` (a panel that stuck when scrolled past) no longer exists and reads as `'off'`, all with a development warning. A
-  `sticky` in the same layer wins. It is removed before 0.2.0 final (the alias policy).
+  `sticky` in the same layer wins. A resolved value (`getSettings().value`) keeps a read-only `edgeHold` derived from `sticky` (`'start'` reads `'left'`,
+  `'end'` reads `'right'`, `'off'` reads `'off'`); it is not enumerable, so it is not part of the value's key set. It is removed before 0.2.0 final
+  (the alias policy).
 
 ### Scrolling to a panel
 

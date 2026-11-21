@@ -8,10 +8,10 @@
   scrolling row at that end of the row, and the panel never moves while the row scrolls: `[sticky | row of 4]`,
   `[sticky | row of 3 | sticky]`, `[sticky | sticky | row of 3]`, up to every slot. It takes its slots whether or not the
   row would overflow, and no panel is ever cut off. `stickyRank` (an integer, 0 by default) says which sticky panel stays
-  sticky longest.
+  sticky longest when the window narrows: the higher rank stays, and of equal rank the later panel in the row gives up first.
 - `tuning.minScrollSlots` (default 1, 0 or more): the fewest slots the scrolling row keeps. When the window is too narrow
-  for the sticky panels and that minimum, the lowest `stickyRank` panel goes back into the scrolling row (of equal rank,
-  the later one in the row) and is sticky again when room returns; its setting never changes. A window of one slot has
+  for the sticky panels and that minimum, the panel with the lowest `stickyRank` goes back into the scrolling row (of equal rank,
+  the later panel in the row goes first) and is sticky again when room returns; its setting never changes. A window of one slot has
   no sticky panels. With `minScrollSlots` 0 every slot can be sticky; a panel that is not sticky still gets a one-slot row.
 - `useProvidePanels(...).rowSegments` (and the `RowSegment` type) reads the row as `{ kind: 'sticky', panelId, slots, side }`
   and `{ kind: 'scroll', slots, panelIds }` segments, left to right.
@@ -31,18 +31,22 @@
 
 ### Changed
 
-- A sticky panel is drawn outside the scrolling strip, as a flex sibling (`[start group][strip][end group]`), so nothing is
-  redrawn per frame. The old per-frame drawing could put a held panel off screen and cut a page at some window widths.
-  The row's root element is now a wrapper box (`data-row-root`) holding the strip's window.
+- `sticky` replaces `edgeHold` as the sticky-panel model: a sticky panel always takes its slots at its end of the row, whether
+  or not the row would overflow, and when the window cannot hold them the `stickyRank` fallback puts the lowest-ranked one
+  back in the scrolling row. Sticky panels are drawn outside the scrolling strip, as flex siblings
+  (`[start group][strip][end group]`), so no sticky position is computed per frame. The row's root element is now a wrapper
+  box (`data-row-root`) holding the strip's window.
 - `RowNumbers.stuck` is gone, and `RowNumbers.held` lists the sticky panels. A slot that turns sticky or stops being sticky
   is drawn again in the other place.
-- `edgeHold: 'both'` (a panel that sticks once the row scrolls past it) is gone and is read as `sticky: 'off'` with a development
-  warning; it never stuck on the Embla row.
+- `edgeHold: 'both'` (a panel that sticks once the row scrolls past it) has no equivalent in the sticky model and is read as
+  `sticky: 'off'`, with a development warning.
 
 ### Deprecated
 
-- `edgeHold` is the old name of `sticky`: `'left'` is read as `'start'` and `'right'` as `'end'`, in a settings layer, in
-  a saved layer and in a `configure` patch, with a development warning. A `sticky` in the same layer wins. It is removed
+- `edgeHold` is the old name of `sticky`. Reads and writes of it keep working: `'left'` is written as `'start'` and `'right'`
+  as `'end'`, in a settings layer, in a saved layer and in a `configure` patch, with a development warning, and `'both'`
+  reads as `'off'`; a `sticky` in the same layer wins. A resolved value (`getSettings().value`) still has a read-only
+  `edgeHold` derived from `sticky` (`'start'` reads `'left'`, `'end'` reads `'right'`, `'off'` reads `'off'`). It is removed
   before 0.2.0 final.
 
 ## 0.2.0-rc.8

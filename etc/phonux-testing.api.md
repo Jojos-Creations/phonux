@@ -503,6 +503,7 @@ export type ResolvedPanelSettings = {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
+    readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 // @public

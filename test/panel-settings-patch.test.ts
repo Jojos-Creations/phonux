@@ -55,6 +55,15 @@ test('mergePatch: the deprecated edgeHold in a patch writes sticky, null deletes
   }
 });
 
+test('the deprecated edgeHold reads from a resolved value as sticky says: start is left, end is right, off is off, and it is not a key of the value', () => {
+  const read = (sticky?: 'off' | 'start' | 'end'): unknown => resolvePanelSettings({ instance: sticky === undefined ? {} : { sticky } }).value.edgeHold;
+  assert.deepEqual([read(), read('off'), read('start'), read('end')], ['off', 'off', 'left', 'right']);
+  const { value } = resolvePanelSettings({ instance: { sticky: 'end' } });
+  assert.equal(Object.keys(value).includes('edgeHold'), false, 'it is not enumerable, so a copy of the value does not carry it');
+  assert.equal('edgeHold' in { ...value }, false);
+  assert.throws(() => { (value as unknown as Loose).edgeHold = 'left'; }, TypeError, 'it is read-only');
+});
+
 test('mergePatch: a value replaces the key, and placeOnAdd is replaced whole', () => {
   const next = mergePatch({ placeOnAdd: { before: 'a' }, title: 'A' }, { placeOnAdd: { after: 'b' }, title: 'B' });
   assert.deepEqual(next, { placeOnAdd: { after: 'b' }, title: 'B' });

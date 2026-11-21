@@ -626,6 +626,8 @@ test('alias: the deprecated edgeHold is the same ask as sticky, and the result n
   assert.deepEqual(shape(r.turn(() => r.h.b!.configure({ edgeHold: 'right' } as never))), { now: ['sticky'], later: [], shadowed: [] });
   assert.deepEqual(r.provided().rowNumbers.held.map((h) => [h.id, h.side]), [[r.entry('b').id, 'right']]);
   assert.equal(r.h.b!.getSettings().value.sticky, 'end');
+  assert.equal(r.h.b!.getSettings().value.edgeHold, 'right', 'the deprecated read is derived from sticky');
+  assert.equal(r.h.c!.getSettings().value.edgeHold, 'off', 'control: a panel that is not sticky reads off');
   assert.equal(thrownCode(() => r.h.b!.configure({ edgeHold: 'maybe' } as never)), 'invalid-settings');
   done(r.turn(() => r.h.b!.configure({ edgeHold: null } as never)));
   assert.deepEqual(r.provided().rowNumbers.held, [], 'null drops it');

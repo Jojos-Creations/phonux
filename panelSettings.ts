@@ -432,6 +432,12 @@ export type ResolvedPanelSettings = {
   readonly title?: string;
   /** The panel's header buttons by slot id. */
   readonly headerButtons: { readonly [id: string]: HeaderButton };
+  /**
+   * The old name of `sticky`, read-only and derived from it: 'left' when `sticky` is 'start', 'right' when it is 'end', 'off' otherwise.
+   * It is a property of the value that does not show in `Object.keys` or a spread, so code that copies the value does not carry it.
+   * @deprecated Read `sticky` instead. It is removed before 0.2.0 final.
+   */
+  readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 /** What one settings layer may hold. Tuning is the workspace's, so a layer carrying `tuning` is refused (a saved instance layer loads with a note). @public */
@@ -1457,6 +1463,14 @@ export function removedTuningLeaf(leaf: string): boolean {
   return true;
 }
 
+/** The deprecated `edgeHold` a resolved `sticky` reads as. @internal */
+export const STICKY_AS_EDGE_HOLD: Readonly<Record<SettingValues['sticky'], 'off' | 'left' | 'right'>> = { off: 'off', start: 'left', end: 'right' };
+
+/** Adds the deprecated read-only `edgeHold` to a resolved value under construction, derived from its `sticky`; not enumerable, so it is not part of the value's shape. */
+function withEdgeHoldRead<T extends { sticky: SettingValues['sticky'] }>(value: T): T {
+  return Object.defineProperty(value, 'edgeHold', { value: STICKY_AS_EDGE_HOLD[value.sticky], enumerable: false });
+}
+
 export const EDGE_HOLD_AS_STICKY: Readonly<Record<'off' | 'left' | 'right' | 'both', SettingValues['sticky']>> = { off: 'off', left: 'start', right: 'end', both: 'off' };
 const warnedEdgeHold = new Set<string>();
 
@@ -1920,7 +1934,7 @@ export function resolvePanelSettings(layers: PanelSettingsLayers = {}, options: 
   for (const id of Object.keys(resolved.headerButtons as Plain)) slots[id] = Object.freeze({ ...((resolved.headerButtons as Plain)[id] as Plain) });
   value.headerButtons = Object.freeze(slots);
 
-  const result: PanelSettingsResolution = { value: Object.freeze(value) as unknown as ResolvedPanelSettings, source: state.source, conflicts, notes };
+  const result: PanelSettingsResolution = { value: Object.freeze(withEdgeHoldRead(value as Plain & { sticky: SettingValues['sticky'] })) as unknown as ResolvedPanelSettings, source: state.source, conflicts, notes };
   if (user.anchor !== undefined) result.userAnchor = user.anchor;
   return result;
 }
@@ -1956,7 +1970,7 @@ export function effective(p: PanelWindow | PanelRowEntry): ResolvedPanelSettings
     maxSlots: parkable ? ALL_SLOTS : 1,
     ...(p.title !== undefined ? { title: p.title } : {}),
   };
-  return Object.freeze(legacy);
+  return Object.freeze(withEdgeHoldRead(legacy));
 }
 
 /** The note raised when a hold keeps an unlisted panel parked: nothing in the list can show it, so only code can. @internal */
