@@ -68,8 +68,8 @@ export interface PanelDots {
  * row's scroll container (the element with `data-row-scroller`). The bar grows and shrinks with the panels; the app sets no width
  * for it. Reduce Motion snaps its glides, under either the OS query or `MotionConfig`.
  *
- * Every panel has a dot at its place on the row's one strip and the oval spans
- * the panels the window shows, both read from where the strip is drawn this frame. Dragging the oval moves the row with the pointer,
+ * Every panel in the row's one strip has a dot at its place on it, and the oval spans
+ * the panels the window shows; a sticky panel has no dot and is listed in `sticky`, both read from where the strip is drawn this frame. Dragging the oval moves the row with the pointer,
  * one dot of travel to one slot, and on release the row glides to the nearest rest; a pointer held at the bar's visible end (its box
  * cut by any ancestor that clips it) keeps the row moving, faster the further past the end it is. A dot press glides the row to show
  * that panel; a wheel over the bar steps one slot.
