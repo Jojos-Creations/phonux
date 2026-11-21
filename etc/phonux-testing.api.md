@@ -479,6 +479,8 @@ export interface PhonuxLabels {
     shareTabsName: string;
     shareTitle: string;
     sizeName: (slots: number) => string;
+    splitDivider: string;
+    splitValue: (left: string, leftPanels: number, right: string, rightPanels: number) => string;
     tryAgain: string;
     undo: string;
     undoCloseMessage: (titles: readonly string[]) => string;

@@ -860,7 +860,7 @@ the input shows the old name again; Escape discards the draft; two workspaces ma
 
 **Switch motion.** Every way of moving the column (the app's key bound to `step`, the neighbor buttons, `scrollTo`, `step`, and a new workspace made current) changes the track's `translateY` with the slide from `resolveWorkspaceTuning(...).slide`. The track snaps instead when Reduce Motion is on, from MotionConfig or from the system query alone, and the regression tests pin each source (`test/workspace-switch-scroll*.test.ts`). A row that moves horizontally inside a workspace is a separate mechanism (`rowScroller.ts`) and is not part of this.
 
-**Saved list.** `ColumnState` is `{ version: 1, workspaces: [{ id, name }], current }`. It is read once; workspaces code added before it
+**Saved list.** `ColumnState` is `{ version: 1 | 2, workspaces: [{ id, name }], current, side? }`; `side` and version 2 are explained in "Side by side". It is read once; workspaces code added before it
 arrived keep their handle and take the saved name, the saved order wins, and any that the list does not know follow it. A record that
 fails the guard reads as nothing saved. Saves run one after another after each change to the list, a name or the current workspace.
 
@@ -880,8 +880,8 @@ held, the key repeats or an IME composes, the target or the focused element is a
 with a role that owns the arrows (textbox, searchbox, combobox, listbox, slider, spinbutton, menu, menubar, tablist, tree, grid,
 radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being dragged, or a modal dialog is open. A web view swallows keys, so the buttons are the way out of one.
 
-**Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not current are `inert` and
-`aria-hidden`. When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
+**Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not shown are `inert` and
+`aria-hidden` (with `sideBySide` off the only shown cell is the current one). When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
 
 **Vertical budget.** Each cell is as tall as the column. The numbers below are the default bands' (see "Column bands and slots"). The column's `topInset` is clearance for chrome the app draws over the window (0 by default): the controls start below it, and the row's top padding is `topInset` plus `COLUMN_TOP_BAND` (76) plus the row gap (16), 92 px with no inset. Every control is 24 px high, the least pointer target. A panel's header hangs 56 px above its 700 px body, so from the window's top edge down: the button naming the workspace above at 0 to 24 px, the name input at 24 to 48 px, the headers from 48 px, the bodies, then the bottom button 24 px high ending 2 px above the bottom edge (`COLUMN_BOTTOM_BAND` is 26). The phone keeps its height. Measured in Chromium (`phonux-workspace-column-proof`): at 832 px high the headers start at 48, the bodies run 104 to 804 and the bottom button 806 to 830, so nothing overlaps and 832 is the least window height for that. With a `topInset` the least height is the inset plus 830: at 832 with an inset of 32 the input ends at 80 over headers that start at 68. At 1080 the row is centered in the 972 px between its paddings: headers at 172, bodies 228 to 928, bottom button 1054 to 1078. Under 832 the row sits at the top of its padding and the headers climb under the name input; the phone never shrinks for it.
 
@@ -914,6 +914,66 @@ through that height by `justify`; the room is still the slots' sum, the least th
 **Clicks.** A band is laid over the cell and passes pointer events through; only a slot's content box takes them, so a
 band's empty width never blocks the row under it. Each band carries `COLUMN_BAND_ATTRIBUTE` and each slot's box
 `COLUMN_SLOT_ATTRIBUTE`, set to its id.
+
+## Side by side
+
+A column made with `sideBySide: true` can show several workspaces at once, each a cell of its own with its own row, its own sticky
+panels and its own dot bar, in the window's width. Without the option nothing here applies: one cell is shown, `shown` lists the
+current workspace alone, and every method below answers `not-enabled`. The arithmetic is `columnSplit.ts` (React-free); the column
+handle keeps the saved intent and `WorkspaceColumn` draws the cells and `ColumnDivider`.
+
+**Slots.** The window is counted in whole slots of one phone plus one gap (`phone + gap`, 406 px with the defaults): `max(1, floor((width -
+gap) / pitch))`, 6 at 2560 px. A cell is `rowSlots` (the scrolling row, a sticky panel that went back into it included) plus the slots of its
+sticky panels in effect, drawn `slots * pitch + gap` wide with the row's own padding, so adjacent cells overlap by one gap and no panel
+of either is cut at rest. Slots are priced at the preferred phone width, so `phoneFit: 'fit'` does not change the count. Six slots
+divide as 2 spaces of 3, 3 of 2 or 6 of 1; seven spaces do not fit six slots, and `showSide` answers `no-room`.
+
+**The intent and the plan.** The column saves an intent, the shown workspaces left to right with the row slots each was given, and a plan
+derived from it and the window width. The plan is recomputed, never saved: narrowing the window changes what is shown, widening it restores
+the intent, so a window dragged narrow and back loses nothing. A workspace's sticky panels count in its cell, so a cell's slots can exceed its
+saved `rowSlots`.
+
+**Narrowing order.** When the intent and the sticky panels ask for more than the window holds: (1) sticky panels go back into their rows,
+lowest `stickyRank` first, of equal rank the one in the space farthest from the current one, so a sticky panel is given up before any
+space shrinks; (2) the widest cell then gives up a row slot, of equal width the one farthest from the current space; (3) a window too
+narrow for every side to keep its least row slots (`max(1, tuning.minScrollSlots)`) drops the space farthest from the current one, one at a
+time; it stays in the column and returns when the window widens. A window with slots to spare gives them to the current space, then to the
+nearest ones in turn. A single space alone gets every slot and the row's own rule for its sticky panels. The current workspace is always
+shown. A cell is exactly its row slots plus its sticky slots, and a cell tells its row `rowSlots` as the least scrolling room
+(`RowFloorContext`, internal), so the row works out from its own width the same sticky panels the column planned and nothing is ever cut.
+
+**The column handle.** `shown` lists `{ workspace, slots, rowSlots }` per cell (a new array only when the plan changes, so it is safe
+to read in a render and `subscribe` fires when the window shows something else, not when only pixels moved). `showSide(workspace, { at? })`
+shows another workspace: it takes half of the current space's row slots (its own sticky panels counted), is put right of the current space
+or at the cell position `at` (0 is left of all), and does not change the current workspace. `hideSide(workspace)` takes a side out of the
+window, not out of the column, and gives its slots to the current space. `setSplit(rowSlots[])` sets every cell's row slots at once. These
+answer `{ ok: true }` or `{ ok: false, code, message }` and never throw, since a person's gesture reaches them. Codes: `disposed`,
+`not-enabled`, `not-ready` (the saved list is still being read), `not-measured` (the window has no width yet), `unknown-workspace`,
+`already-shown`, `not-shown`, `current` (the current workspace cannot be hidden), `no-room` (the current space has fewer than two sides' worth
+of row slots) and `invalid-split` (wrong count, a side under the least, a non-integer, or more than the window holds; the message names which).
+A refused call changes nothing.
+
+**The divider.** Between two adjacent cells is a `role="separator"` that is focusable and reads as a slider: `aria-valuenow` is the left
+side's row panels, `aria-valuemin` and `aria-valuemax` the least and most it may have while the right side keeps its least, and `aria-valuetext`
+is `labels.splitValue(...)`, such as "Research 2 panels, Trip food 2 panels". Left and Right move it one slot, Home and End to the minimums, a
+double click evens the split out, and a pointer drag moves it by whole slots (`Math.round(dx / pitch)` from where the drag began, so a
+move of under half a slot changes nothing and the sides never show a partial slot). The divider owns its arrows: the row's key handlers ignore
+a key aimed at a separator. Geometry snaps between whole-slot sizes and never glides, so there is no frame in which a panel is cut and no motion
+for Reduce Motion to turn off.
+
+**Keys and focus.** A press or focus inside a cell that is not current makes it the current workspace (`scrollTo`). `focusSide('left' | 'right')`
+moves current to the shown space on that side, and returns `false` where there is none. `step('up' | 'down')` moves to the next workspace in
+the list that is not shown, from the current one, so it never lands on a space the window already shows. The row's arrow stepping acts only
+on the row it belongs to: `keyBelongsToRow` says a key aimed at a cell goes to that cell's row, and a key aimed at the page to the current
+workspace's row (the cell marked `data-workspace-active`). Scrolling one row never moves another row or any sticky panel. Each cell has its
+own dot bar, so a window of two spaces has two bars; the bar of a cell the window does not show stays mounted but inert and hidden from
+assistive technology, like the rest of that cell.
+
+**Saved state.** With `sideBySide` the column writes version 2: `{ version: 2, workspaces, current, side: { shown: string[], split: number[] } }`,
+the intent in workspace ids and row slots. A column without `sideBySide` writes version 1 as before and ignores `side` when it reads. A version 1
+record reads as only the current workspace shown. A `side` that does not read (wrong shape) is ignored and the workspaces beside it
+are kept; ids that name a workspace that is gone are dropped, and a `side` that leaves out the current workspace has it added with one row slot.
+Removing a workspace gives its side to the one that becomes current, unless another side shows it already.
 
 ## Naming rules R1-R4
 

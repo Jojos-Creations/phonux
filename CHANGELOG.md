@@ -17,6 +17,17 @@
   and `{ kind: 'scroll', slots, panelIds }` segments, left to right.
 - `usePanelDots(...).sticky` lists the sticky panels by side: they get no dot and the app draws a small square at that end
   of the bar. `selectDot(id)` with a sticky panel's id focuses the panel.
+- Side by side. A column made with `createWorkspaceColumn({ sideBySide: true })` shows several workspaces at once, each with its own
+  row, sticky panels and dot bar, in whole slots of one phone and one gap (6 at 2560 px: 2 spaces of 3, 3 of 2 or 6 of 1). New on the
+  handle: `shown` (`ColumnShown[]`: `workspace`, `slots`, `rowSlots`), `showSide(workspace, { at? })`, `hideSide(workspace)`,
+  `setSplit(rowSlots)` (all three answer `{ ok: true }` or `{ ok: false, code, message }` as `SideResult`, with `SideRefusal` codes
+  and never throw) and `focusSide('left' | 'right')`. `step` acts on the focused side and skips a workspace shown elsewhere.
+  A narrow window gives up sticky panels first, then the widest space's slots, and drops the space farthest from the current one
+  only when each side cannot keep one row slot; a wider window restores them all. A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
+  (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
+  labels `splitDivider` and `splitValue`.
+- `ColumnState.version` is now `1 | 2`, and a version 2 record carries `side: { shown, split }`. A column without `sideBySide` still
+  writes version 1, and a version 1 record reads as only the current workspace shown.
 
 ### Changed
 
