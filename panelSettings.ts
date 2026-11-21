@@ -1399,7 +1399,7 @@ export interface FixedBehaviour {
 
 /**
  * What the per-panel settings this version removed do now: each is fixed at one value for every panel, its old default but for
- * `evictionOrder` and `resize` (a size glide lays the content out at the eased size on every frame, as rc.6's `'reflow'` did). A template that still names one is told once in development and the value is ignored; a later rc refuses it.
+ * `evictionOrder` and `resize` (a size glide lays the content out at the eased size on every frame). A template that still names one is told once in development and the value is ignored.
  * @internal
  */
 export const FIXED: FixedBehaviour = Object.freeze({

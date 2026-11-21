@@ -1090,8 +1090,8 @@ export function wholeInView(layout: StripLayout, k: number, scroll: number, wind
 }
 
 /**
- * Where a summon moves root `rootId` on a strip laid out as `layout`, with the row heading for `at` in a window `windowWidth` wide
- * (owner ruling 2026-11-09): into the slot just outside the view on the side it lies on, the left when it lies on neither (wider than
+ * Where a summon moves root `rootId` on a strip laid out as `layout`, with the row heading for `at` in a window `windowWidth` wide:
+ * into the slot just outside the view on the side it lies on, the left when it lies on neither (wider than
  * the view). `beside` is the page it goes next to: the first page reaching into the view on the left, the last one on the right; null
  * when there is none (the root goes to that end). Null when the root stands whole in the view or is not on the strip.
  * @internal
