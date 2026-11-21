@@ -347,8 +347,8 @@ test('defaults: a resolve holds no tuning and no tuning source: tuning is the wo
   assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('tuning.')), []);
 });
 
-/** Every key of ResolvedPanelSettings but title, as literals: a key missing here fails the typecheck. */
-const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title'>]: unknown } = {
+/** Every enumerable key of ResolvedPanelSettings (not title, and not the deprecated read-only edgeHold), as literals: a key missing here fails the typecheck. */
+const RESOLVED_DEFAULTS: { [K in Exclude<keyof ResolvedPanelSettings, 'title' | 'edgeHold'>]: unknown } = {
   closable: true,
   parkable: true,
   movable: true,
