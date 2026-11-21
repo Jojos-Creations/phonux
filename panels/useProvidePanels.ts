@@ -1,7 +1,7 @@
 /**
  * The app's implementation of PanelsAPI: the panel list, create/activate/close/undo/clear-all. Wraps
  * usePanelManager, composes usePanelClosing and owns the row's scroll gesture. panelList and recentlyClosed hold
- * PanelSummary objects built here, never PanelWindow records (phonux-app's provide-panels test pins their key set); `entries`
+ * PanelSummary objects built here, never PanelWindow records (test/panel-window.test.ts pins their key set); `entries`
  * is the raw list, hostData included, for the app and PanelRow only: an app keeps it out of the bag its views read,
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */

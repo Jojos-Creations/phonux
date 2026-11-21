@@ -1,6 +1,7 @@
 /** phoneModels.ts's pure lookup helpers. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { findPhoneModel, PHONE_MODELS } from '../index.js';
 
 test('PHONE_MODELS is a real, non-trivial curated list', () => {
@@ -22,4 +23,12 @@ test('findPhoneModel finds a known id and returns undefined for an unknown one',
   const first = PHONE_MODELS[0]!;
   assert.deepEqual(findPhoneModel(first.id), first);
   assert.equal(findPhoneModel('not-a-real-model'), undefined);
+});
+
+test('PHONE_MODELS has exactly the models and sizes of vendor/device-specs/viewport-sizes.json', () => {
+  const specs = JSON.parse(readFileSync(new URL('../vendor/device-specs/viewport-sizes.json', import.meta.url), 'utf8')) as Record<string, { portraitWidth: number; landscapeWidth: number }>;
+  assert.deepEqual(
+    PHONE_MODELS.map((m) => [m.id, m.width, m.height]).sort(),
+    Object.entries(specs).map(([id, s]) => [id, s.portraitWidth, s.landscapeWidth]).sort(),
+  );
 });

@@ -1,0 +1,15 @@
+{
+  "iphone8": { "name": "iPhone 8 / SE (2nd/3rd gen)", "portraitWidth": 375, "landscapeWidth": 667 },
+  "iphonex": { "name": "iPhone X", "portraitWidth": 375, "landscapeWidth": 812 },
+  "iphonexr": { "name": "iPhone XR", "portraitWidth": 414, "landscapeWidth": 896 },
+  "iphone11": { "name": "iPhone 11", "portraitWidth": 414, "landscapeWidth": 896 },
+  "samsunggalaxys10": { "name": "Samsung Galaxy S10", "portraitWidth": 360, "landscapeWidth": 740 },
+  "googlepixel3": { "name": "Google Pixel 3", "portraitWidth": 393, "landscapeWidth": 786 },
+  "iphone1214": { "name": "iPhone 12/13/14", "portraitWidth": 390, "landscapeWidth": 844 },
+  "iphonepromax": { "name": "iPhone 14/15 Pro Max", "portraitWidth": 430, "landscapeWidth": 932 },
+  "galaxys21": { "name": "Samsung Galaxy S21/S22", "portraitWidth": 360, "landscapeWidth": 800 },
+  "galaxys23ultra": { "name": "Samsung Galaxy S23 Ultra", "portraitWidth": 384, "landscapeWidth": 824 },
+  "pixel67": { "name": "Google Pixel 6/7", "portraitWidth": 412, "landscapeWidth": 915 },
+  "pixel8pro": { "name": "Google Pixel 8 Pro", "portraitWidth": 412, "landscapeWidth": 892 },
+  "oneplus11": { "name": "OnePlus 11", "portraitWidth": 412, "landscapeWidth": 919 }
+}

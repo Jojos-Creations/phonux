@@ -15,11 +15,11 @@ export interface PhoneModel {
 }
 
 /**
- * Hand-copied from phonux-app's vendor/device-specs/viewport-sizes.json; keep
- * the two in sync by hand (that directory's README.md says which entries are verbatim). No 'default' entry:
- * that is DEFAULT_PHONE_SIZE (hostApi.tsx), so upgrading never resizes anyone who has not chosen a model.
+ * The known phone models, in the order the Settings dropdown lists them. There is no 'default' entry: that is
+ * DEFAULT_PHONE_SIZE, so upgrading never resizes anyone who has not chosen a model.
  * @public
  */
+// Same models and sizes as vendor/device-specs/viewport-sizes.json; test/phone-models.test.ts fails on any difference.
 export const PHONE_MODELS: readonly PhoneModel[] = [
   { id: 'iphone8', label: 'iPhone 8 / SE (2nd/3rd gen) (375 × 667)', width: 375, height: 667 },
   { id: 'iphonex', label: 'iPhone X (375 × 812)', width: 375, height: 812 },
