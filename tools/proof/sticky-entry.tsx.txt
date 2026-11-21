@@ -1,0 +1,114 @@
+// A row with sticky panels, as the app builds one: History as the root, pages of the given slots, each panel boxed with its id as its
+// text so a test reads where it is drawn from the page. Built by test/sticky-rendered.test.ts, which drives it in headless Chromium.
+// Query: slots=1,1,1 (each page's slots) sticky=root:start,p3:end (panel:start|end) rank=p3:2 min=<tuning.minScrollSlots>
+//        gesture=step|off (default step)
+// `window.__s` reads the page: every slot's rect, the strip window's rect, the drawn scroll, and `configure` asks the workspace.
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { HostProvider, PanelRow, Workspace, createWorkspace, definePanel, useProvidePanels } from 'LIB/index.js';
+import { createFakeHost } from 'LIB/fakeHost.js';
+
+const q = new URLSearchParams(location.search);
+const SLOTS = (q.get('slots') ?? '1,1,1').split(',').map(Number);
+const pairs = (name: string): Map<string, string> => new Map((q.get(name) ?? '').split(',').filter(Boolean).map((pair) => pair.split(':') as [string, string]));
+const STICKY = pairs('sticky');
+const RANK = pairs('rank');
+const GAP = 16;
+const PHONE = 390;
+const ROOT = 'root';
+const NONE = new Set<string>();
+const ids = SLOTS.map((_, k) => `p${k + 1}`);
+const settingsOf = (id: string): Record<string, unknown> => ({
+  ...(STICKY.has(id) ? { sticky: STICKY.get(id) } : {}),
+  ...(RANK.has(id) ? { stickyRank: Number(RANK.get(id)) } : {}),
+});
+
+// Each view keeps its DOM node and counts its mounts, so a test can tell a view that stayed mounted from one that was re-created.
+function View({ name, k }: { name: string; k: number }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const w = window as any;
+    w.__mounts = w.__mounts ?? {};
+    w.__mounts[name] = (w.__mounts[name] ?? 0) + 1;
+  }, []);
+  const hue = (k * 47) % 360;
+  return (
+    <div ref={ref} data-box={name} tabIndex={-1} style={{ boxSizing: 'border-box', height: '100%', padding: 12, color: '#fff', font: '24px sans-serif', background: name === ROOT ? '#243' : `hsl(${hue} 50% 30%)` }}>
+      {name}
+    </div>
+  );
+}
+
+const ws = createWorkspace({
+  mount: false,
+  root: definePanel({ id: ROOT, view: ((props: any) => <View {...props} name={ROOT} k={0} />) as any, settings: { title: 'History', frame: 'none', ...settingsOf(ROOT) } as any }),
+  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k + 1} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, frame: 'none', ...settingsOf(id) } as any })),
+  tuning: { rowGesture: (q.get('gesture') ?? 'step') as 'step' | 'off', rowGap: GAP, ...(q.get('min') === null ? {} : { minScrollSlots: Number(q.get('min')) }) } as any,
+});
+for (const id of ids) ws.addPanel(id);
+
+let latest: any;
+function App() {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const [w, setW] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const el = ref.current!;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    setW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+  const p = useProvidePanels({ workspace: ws, rootId: ws.rootId, phoneWidth: PHONE, containerWidth: w, overflowContainerRef: ref } as any);
+  latest = p;
+  const host = createFakeHost({ panels: p });
+  return (
+    <HostProvider host={host}>
+      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
+          <PanelRow entries={p.entries} rootId={ws.rootId} closingIds={NONE} enteringViaAnchorIds={NONE} rowNumbers={p.rowNumbers} maxLiveWidth={p.maxLiveWidth} workspace={ws} />
+        </Workspace>
+      </div>
+    </HostProvider>
+  );
+}
+
+// The engine gives each page an id of its own; a test names a panel by the text its view draws.
+const nameOf = (engineId: string): string => document.querySelector(`[data-row-id="${CSS.escape(engineId)}"] [data-box]`)?.getAttribute('data-box') ?? engineId;
+const rectOf = (el: Element) => {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+};
+(window as any).__s = {
+  ready: () => document.querySelector('[data-row-embla-window]') !== null && document.querySelectorAll('[data-row-slot]').length > 0,
+  /** Every slot: where it is drawn now, whether the row marks it out of sight, and which sticky group (if any) it is in. */
+  slots: () =>
+    [...document.querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => ({
+      id: nameOf(el.dataset.rowId!),
+      ...rectOf(el),
+      inert: el.closest('[inert]') !== null,
+      group: el.closest<HTMLElement>('[data-row-sticky]')?.dataset.rowSticky ?? null,
+      // What a pointer at the slot's centre would hit: the slot itself when nothing is drawn over it.
+      topmost: el.contains(document.elementFromPoint((el.getBoundingClientRect().left + el.getBoundingClientRect().right) / 2, (el.getBoundingClientRect().top + el.getBoundingClientRect().bottom) / 2)),
+    })),
+  window: () => rectOf(document.querySelector('[data-row-embla-window]')!),
+  /** How far the strip is drawn along, as the browser computes its transform this frame. */
+  offset: () => -new DOMMatrixReadOnly(getComputedStyle(document.querySelector<HTMLElement>('[data-row-embla-window]')!.firstElementChild as HTMLElement).transform).m41,
+  held: () => latest.rowNumbers.held.map((h: any) => `${nameOf(h.id)}:${h.side}`),
+  segments: () => latest.rowSegments.map((g: any) => (g.kind === 'sticky' ? { ...g, panelId: nameOf(g.panelId) } : { ...g, panelIds: g.panelIds.map(nameOf) })),
+  mounts: () => (window as any).__mounts ?? {},
+  configure: (key: string, patch: Record<string, unknown>) => ws.panels.configure(key, patch as any),
+  /** Samples `read()` on every animation frame for `ms`, then resolves with the samples. */
+  sample: (ms: number, read: () => unknown) =>
+    new Promise<unknown[]>((resolve) => {
+      const out: unknown[] = [];
+      const t0 = performance.now();
+      const tick = () => {
+        out.push(read());
+        if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+        else resolve(out);
+      };
+      requestAnimationFrame(tick);
+    }),
+};
+createRoot(document.getElementById('root')!).render(<App />);
