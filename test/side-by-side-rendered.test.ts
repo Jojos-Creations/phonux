@@ -931,3 +931,143 @@ for (const [what, html] of Object.entries(UNDRAWN)) {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Controls the document's own queries do not see: shadow roots
+// ---------------------------------------------------------------------------
+
+/** Where focus is, read through shadow roots (a closed one is kept on its host as `__root` by the test that made it). */
+const WHERE_DEEP = `(() => {
+  let a = document.activeElement;
+  if (a === null || a === document.body) return 'BODY';
+  if (a.id === 'before' || a.id === 'after') return a.id;
+  if (a.getAttribute('role') === 'separator') return 'div' + a.getAttribute('data-column-divider');
+  const c = a.closest('[data-workspace-cell]')?.dataset.workspaceId ?? '?';
+  for (;;) {
+    const inner = (a.shadowRoot ?? a.__root)?.activeElement;
+    if (!inner) break;
+    a = inner;
+  }
+  if (a.tagName === 'IFRAME') return c + ':' + a.getAttribute('data-tab') + '>' + (a.contentDocument?.activeElement?.id || 'doc');
+  return c + ':' + (a.getAttribute('data-tab') ?? (a.hasAttribute('data-column-sentinel') ? 'column-' + a.getAttribute('data-column-sentinel') : null) ?? a.tagName);
+})()`;
+
+/** What a component holds, by kind: the markup of its shadow root (`@` stands for the host's tag, `A.` or `Z.`) and its stops in order. */
+const COMPONENTS: Record<string, { mode: 'open' | 'closed'; html: string; inner?: string; stops: string[] }> = {
+  'an open shadow root': { mode: 'open', html: '<button data-tab="@s1">1</button><button data-tab="@s2">2</button><button data-tab="@s3">3</button>', stops: ['s1', 's2', 's3'] },
+  'a shadow root inside a shadow root': { mode: 'open', html: '<button data-tab="@n1">1</button><x-inner></x-inner><button data-tab="@n4">4</button>', inner: '<button data-tab="@n2">2</button><button data-tab="@n3">3</button>', stops: ['n1', 'n2', 'n3', 'n4'] },
+  'a frame inside a shadow root': { mode: 'open', html: '<button data-tab="@f1">1</button><iframe data-tab="@fr" srcdoc="<button id=inner>i</button>" style="width:60px;height:30px"></iframe><button data-tab="@f2">2</button>', stops: ['f1', 'fr>inner', 'f2'] },
+  'a closed shadow root': { mode: 'closed', html: '<button data-tab="@c1">1</button><button data-tab="@c2">2</button><button data-tab="@c3">3</button>', stops: ['c1', 'c2', 'c3'] },
+};
+
+/** A component first in the first panel (`A.`) and last in the last panel in sight (`Z.`) of each shown space. */
+const plantComponents = (page: Page, spec: { mode: string; html: string; inner?: string }): Promise<void> =>
+  page.evaluate(async (c: { mode: 'open' | 'closed'; html: string; inner?: string }) => {
+    for (const s of (window as any).__s.shown()) {
+      const cell = document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${s.id}"]`)!;
+      const boxes = [...cell.querySelectorAll('[data-row-slot]')].filter((x) => x.closest('[inert]') === null).map((x) => x.querySelector('[data-box]')!);
+      for (const tag of ['A.', 'Z.']) {
+        const host = document.createElement('x-host');
+        host.setAttribute('data-host', tag);
+        const root = host.attachShadow({ mode: c.mode });
+        root.innerHTML = c.html.replaceAll('@', tag);
+        if (c.inner !== undefined) root.querySelector('x-inner')!.attachShadow({ mode: 'open' }).innerHTML = c.inner.replaceAll('@', tag);
+        (host as any).__root = root;
+        if (tag === 'A.') boxes[0]!.prepend(host);
+        else boxes[boxes.length - 1]!.append(host);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }, spec);
+
+/** Focuses the component's first (`last`: last) own control, by script, as a click on it would. */
+const focusInComponent = (page: Page, cell: string, tag: string, last: boolean): Promise<void> =>
+  page.evaluate(([c, t, l]: [string, string, boolean]) => {
+    const root = (document.querySelector(`[data-workspace-id="${c}"] [data-host="${t}"]`) as any).__root as ShadowRoot;
+    const deep = [...root.querySelectorAll<HTMLElement>('button,x-inner')].flatMap((el) => (el.localName === 'x-inner' ? [...el.shadowRoot!.querySelectorAll<HTMLElement>('button')] : [el]));
+    deep[l ? deep.length - 1 : 0]!.focus();
+  }, [cell, tag, last] as [string, string, boolean]);
+
+for (const [what, spec] of Object.entries(COMPONENTS)) {
+  for (const outside of [true, false]) {
+    test(`Tab inside ${what} at either end of a space, ${outside ? 'between two buttons' : 'the column alone'}: every control of the component is walked before the column takes the key`, async (t) => {
+      if (!(await ready(t))) return;
+      await onPage(2560, 'n=3&bands=none', async (page) => {
+        assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+        await page.evaluate(PLANT_BUTTONS);
+        const base: string[] = await page.evaluate(STOPS);
+        await plantComponents(page, spec);
+        if (outside) await page.evaluate(PLANT_OUTSIDE);
+        const at = base.indexOf('div0');
+        const sides = { w3: base.slice(0, at), w2: base.slice(at + 1) };
+        // Presses from inside a component, with the page's body dropped: what a browser rests on outside the page is its own.
+        const from = async (cell: string, tag: string, shift: boolean, n: number): Promise<string[]> => {
+          await focusInComponent(page, cell, tag, shift);
+          const start: string = await page.evaluate(WHERE_DEEP);
+          assert.equal(start, `${cell}:${tag}${spec.stops[shift ? spec.stops.length - 1 : 0]!.split('>')[0]}`, 'focus starts inside the component');
+          const out: string[] = [];
+          for (let k = 0; k < n + 2 && out.length < n; k += 1) {
+            await page.keyboard.press(shift ? 'Shift+Tab' : 'Tab');
+            await sleep(80);
+            const now: string = await page.evaluate(WHERE_DEEP);
+            if (now !== 'BODY') out.push(now);
+          }
+          return out;
+        };
+        const rest = (cell: string, tag: string, shift: boolean): string[] => (shift ? [...spec.stops].reverse() : spec.stops).slice(1).map((x) => `${cell}:${tag}${x}`);
+        // A closed root cannot be read, so the step out of it is spent on the cell's own end before focus moves on; with something
+        // after the column that costs no press, with nothing it costs the one the browser needs to leave.
+        const spent = (cell: string, end: string): string[] => (spec.mode === 'closed' && !outside ? [`${cell}:column-cell-${end}`] : []);
+        const check = async (cell: 'w3' | 'w2', tag: string, shift: boolean, after: string[]): Promise<void> => {
+          const want = [...rest(cell, tag, shift), ...after];
+          assert.deepEqual(await from(cell, tag, shift, want.length), want, `${shift ? 'Shift+Tab' : 'Tab'} from ${cell} ${tag}`);
+        };
+        // The component at a space's end: Tab walks it, then leaves the space. Notes is on the left, Trip food on the right.
+        await check('w3', 'Z.', false, ['div0', sides.w2[0]!]);
+        await check('w2', 'Z.', false, outside ? ['after'] : [...spent('w2', 'end'), sides.w3[0]!]);
+        await check('w3', 'Z.', true, [sides.w3[sides.w3.length - 1]!]);
+        await check('w2', 'Z.', true, [sides.w2[sides.w2.length - 1]!]);
+        // The component at a space's start: Shift+Tab walks it, then leaves the space.
+        await check('w2', 'A.', true, ['div0', sides.w3[sides.w3.length - 1]!]);
+        await check('w3', 'A.', true, outside ? ['before'] : [...spent('w3', 'start'), sides.w2[sides.w2.length - 1]!]);
+        await check('w3', 'A.', false, [sides.w3[0]!]);
+        await check('w2', 'A.', false, [sides.w2[0]!]);
+      });
+    });
+  }
+}
+
+test('Tab through a group of radio buttons, editable text and a scrolling box at a space’s end: each is walked as the browser walks it before the column takes the key', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&bands=none', async (page) => {
+    assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+    await page.evaluate(PLANT_BUTTONS);
+    await page.evaluate(PLANT_OUTSIDE);
+    const base: string[] = await page.evaluate(STOPS);
+    const first = base[base.indexOf('div0') + 1]!;
+    const plant = (html: string): Promise<void> =>
+      page.evaluate((markup: string) => {
+        document.querySelectorAll('[data-planted]').forEach((el) => void el.remove());
+        const boxes = [...document.querySelectorAll('[data-workspace-id="w3"] [data-row-slot]')].filter((x) => x.closest('[inert]') === null).map((x) => x.querySelector('[data-box]')!);
+        boxes[boxes.length - 1]!.insertAdjacentHTML('beforeend', `<div data-planted="">${markup}</div>`);
+        document.querySelector<HTMLElement>('[data-planted] [data-tab]')!.focus();
+      }, html);
+    const walk = async (n: number): Promise<string[]> => {
+      const out: string[] = [];
+      for (let k = 0; k < n; k += 1) {
+        await page.keyboard.press('Tab');
+        await sleep(80);
+        out.push(await page.evaluate(WHERE_DEEP));
+      }
+      return out;
+    };
+    await plant('<div contenteditable="plaintext-only" data-tab="e1">e</div><div contenteditable="plaintext-only" data-tab="e2">e</div>');
+    assert.deepEqual(await walk(3), ['w3:e2', 'div0', first], 'editable text is a stop although its tabIndex property says -1');
+    await plant('<input type="radio" name="one" data-tab="r1"><input type="radio" name="one" data-tab="r2" checked><input type="radio" name="one" data-tab="r3">');
+    assert.deepEqual(await walk(2), ['w3:r2', 'div0'], 'from an unchecked radio button Tab goes to the checked one of its group, and from there out');
+    await plant('<input type="radio" name="none" data-tab="r1"><input type="radio" name="none" data-tab="r2">');
+    assert.deepEqual(await walk(1), ['div0'], 'a group with none checked is one stop');
+    await plant('<div data-tab="sc1" style="height:30px;width:80px;overflow:auto"><div style="height:300px">t</div></div><div data-tab="sc2" style="height:30px;width:80px;overflow:auto"><div style="height:300px">t</div></div>');
+    assert.deepEqual(await walk(2), ['w3:sc2', 'div0'], 'a box that scrolls and holds nothing focusable is a stop of the browser’s own');
+  });
+});

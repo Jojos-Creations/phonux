@@ -625,6 +625,33 @@ test('Tab walks the spaces as they are drawn, left to right with the divider bet
   at(three.last, 'a Tab a handler inside the cell already took is not steered again');
 });
 
+test('Tab inside a shadow root is left to the browser while the root holds a control further on, and one the column cannot read is never stepped out of', async () => {
+  const c = await drawn();
+  const last = cellEl(c, c.shown[c.shown.length - 1]!.workspace.name);
+  const host = (mode: 'open' | 'closed'): { el: HTMLElement; buttons: HTMLElement[] } => {
+    const el = document.createElement('x-host');
+    const root = el.attachShadow({ mode });
+    root.innerHTML = '<button></button><x-inner></x-inner>';
+    root.querySelector('x-inner')!.attachShadow({ mode: 'open' }).innerHTML = '<button></button>';
+    cellEnd(c, c.shown[c.shown.length - 1]!.workspace.name, 'end').before(el);
+    return { el, buttons: [root.querySelector('button')!, root.querySelector('x-inner')!.shadowRoot!.querySelector('button')!] };
+  };
+  const tab = (from: HTMLElement, at: Element): boolean => {
+    act(() => from.focus());
+    return press(at, 'Tab').defaultPrevented;
+  };
+  const open = host('open');
+  assert.equal(tab(open.buttons[0]!, open.el), false);
+  assert.ok(open.el.shadowRoot!.activeElement === open.buttons[0], 'a control of a nested root is still ahead: focus is where it was for the browser to step');
+  assert.equal(tab(open.buttons[1]!, open.el), false);
+  assert.ok(document.activeElement === columnEnd('end'), 'from the last control of the innermost root the column is left');
+  open.el.remove();
+  const closed = host('closed');
+  assert.equal(tab(closed.buttons[0]!, closed.el), false);
+  assert.ok(document.activeElement === closed.el, 'what a closed root holds cannot be read, so the browser steps');
+  assert.ok(last.contains(closed.el));
+});
+
 test('Tab on a cell’s own element goes into that cell, and Shift+Tab to the stop on its left, not to the element before it in the DOM', async () => {
   const c = await drawn();
   act(() => void c.step('down'));

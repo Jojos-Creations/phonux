@@ -6,31 +6,100 @@
 import type * as React from 'react';
 import { focusAsTab, isParking, park } from './panelRowTabOrder.js';
 
-const TABBABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable=""],[contenteditable="true"]';
+const TABBABLE =
+  'a[href],area[href],button,input,select,textarea,summary,iframe,audio[controls],video[controls],[tabindex],[contenteditable]:not([contenteditable="false"])';
 
 /** Marks the column's own tab stops: `start` and `end` at the column's two ends, `cell-start` and `cell-end` at each cell's. */
 export const COLUMN_SENTINEL = 'data-column-sentinel';
 
 // An element's own style does not say whether it is drawn: one inside a `hidden` panel, a closed dialog or a closed `details` has
 // no box, takes no focus and is passed over by the browser. `checkVisibility` knows, also for fixed and content-visibility content.
-function usable(el: HTMLElement): boolean {
-  if (el.tabIndex < 0 || el.matches(':disabled') || el.closest('[inert]') !== null) return false;
+function drawn(el: HTMLElement): boolean {
+  if (el.closest('[inert]') !== null) return false;
   if (typeof el.checkVisibility === 'function') return el.checkVisibility({ visibilityProperty: true });
   const style = getComputedStyle(el);
   return style.visibility !== 'hidden' && style.display !== 'none';
 }
 
+// The attribute, not the `tabIndex` property: Chromium answers -1 for an editing host that Tab does stop at.
+const tabIndexed = (el: HTMLElement): boolean => !el.hasAttribute('tabindex') || el.tabIndex >= 0;
+
+const usable = (el: HTMLElement): boolean => tabIndexed(el) && !el.matches(':disabled') && drawn(el);
+
 const isDivider = (stop: HTMLElement): boolean => stop.getAttribute('role') === 'separator';
 
-/** Where the browser's own step can land inside a stop: a row's sentinels are among them, the column's are a stop's ends and not inside it. */
+/**
+ * Every element of `el`'s subtree in the order the browser's Tab walks it: an open shadow root's content stands in for its host's
+ * children, and a slot's assigned elements for the slot's. `querySelectorAll` sees neither. Inert subtrees are left out.
+ */
+function composed(el: Element, out: HTMLElement[] = []): HTMLElement[] {
+  if (el.hasAttribute('inert')) return out;
+  out.push(el as HTMLElement);
+  const assigned = el.localName === 'slot' ? (el as HTMLSlotElement).assignedElements() : [];
+  for (const kid of el.shadowRoot !== null ? el.shadowRoot.children : assigned.length > 0 ? assigned : el.children) composed(kid, out);
+  return out;
+}
+
+/** Chromium gives a scroll container a tab stop of its own when it scrolls and holds nothing focusable. Asked last: it reads layout. */
+function scrolls(el: HTMLElement): boolean {
+  if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) return false;
+  const style = getComputedStyle(el);
+  const y = el.scrollHeight > el.clientHeight && (style.overflowY === 'auto' || style.overflowY === 'scroll');
+  const x = el.scrollWidth > el.clientWidth && (style.overflowX === 'auto' || style.overflowX === 'scroll');
+  return (x || y) && !composed(el).some((inner) => inner !== el && inner.matches(TABBABLE) && tabIndexed(inner));
+}
+
+/** A radio button the browser passes over: its group has another one checked, and Tab stops at that one alone. */
+function passedRadio(el: HTMLElement): boolean {
+  if (!(el instanceof HTMLInputElement) || el.type !== 'radio' || el.checked || el.name === '') return false;
+  const group = (el.form ?? (el.getRootNode() as ParentNode)).querySelectorAll<HTMLInputElement>('input[type="radio"]');
+  return [...group].some((other) => other.name === el.name && other.form === el.form && other.checked);
+}
+
+/** A radio button of `from`'s own group with none checked: the whole group is one stop, and Tab from inside it leaves it. */
+const ownGroup = (el: HTMLElement, from: HTMLElement): boolean =>
+  el instanceof HTMLInputElement && from instanceof HTMLInputElement && el.type === 'radio' && from.type === 'radio' && !el.checked && el.name !== '' && el.name === from.name && el.form === from.form;
+
+/** A host whose shadow root passes focus on is not a stop of its own. */
+const tabStop = (el: HTMLElement): boolean =>
+  !el.hasAttribute(COLUMN_SENTINEL) && (el.matches(TABBABLE) ? el.shadowRoot?.delegatesFocus !== true && usable(el) && !passedRadio(el) : scrolls(el) && usable(el));
+
+/**
+ * An element whose inside cannot be read: a custom element with no open shadow root may keep controls in a closed one. It counts
+ * as somewhere the browser's step may land, so a key is never cancelled over it, and is never a place focus is sent.
+ */
+const sealed = (el: HTMLElement): boolean => el.localName.includes('-') && el.shadowRoot === null && !el.hasAttribute(COLUMN_SENTINEL);
+
+/** The elements of a stop in the browser's own order, with a row's sentinels among them; the column's are a stop's ends and not inside it. */
 function landingsOf(stop: HTMLElement): HTMLElement[] {
   if (isDivider(stop)) return usable(stop) ? [stop] : [];
-  return [...stop.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => !el.hasAttribute(COLUMN_SENTINEL) && usable(el));
+  return composed(stop).filter((el) => el !== stop && tabStop(el));
 }
 
 /** The row's end sentinels are not content, and a stop's own element is never a tabbable of itself. */
 function tabbablesOf(stop: HTMLElement): HTMLElement[] {
   return landingsOf(stop).filter((el) => !el.hasAttribute('data-row-sentinel'));
+}
+
+/** The element that holds focus, inside the open shadow roots that `document.activeElement` stops at. */
+function deepActive(doc: Document): HTMLElement | null {
+  let el = doc.activeElement as HTMLElement | null;
+  while (el?.shadowRoot?.activeElement != null) el = el.shadowRoot.activeElement as HTMLElement;
+  return el;
+}
+
+/**
+ * True when the browser's own step from `from` stays inside `stop`, or may: something it can land on lies ahead, or what lies ahead
+ * (or holds the focus) cannot be read. Only a certain no lets the column take the key, because a wrong no skips real controls and a
+ * wrong yes costs nothing: the step then lands on the cell's own sentinel, which passes focus on.
+ */
+function staysInside(stop: HTMLElement, from: HTMLElement, back: boolean): boolean {
+  const all = composed(stop);
+  const at = all.indexOf(from);
+  // Focus on an element that is no tab stop and has no tab index of its own sits inside something unreadable, a closed shadow root.
+  if (at < 0 || (!from.matches(TABBABLE) && !from.hasAttribute('data-row-sentinel') && !scrolls(from))) return true;
+  const ahead = back ? all.slice(1, at) : all.slice(at + 1);
+  return ahead.some((el) => (tabStop(el) && !ownGroup(el, from)) || (sealed(el) && !el.contains(from) && drawn(el)));
 }
 
 /** The tabbable element nearest the column on the side Tab is heading to, outside it. */
@@ -77,7 +146,7 @@ function advance(root: HTMLElement, stops: readonly HTMLElement[], at: number, b
 export type TabKey = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey' | 'defaultPrevented' | 'preventDefault'>;
 
 /**
- * A Tab pressed where the browser's own step would leave a stop goes to the next stop in `stops`, which are in screen order, or out
+ * A Tab pressed where the browser's own step is certain to leave a stop goes to the next stop in `stops`, which are in screen order, or out
  * of the column past the last one. A Tab the browser would keep inside the stop, and one a handler already took, is left alone.
  * Read from the focused element, not the event's target: a row that has found no panel to hand over to parks focus on a sentinel first.
  * `lost` stands in for the focused element when the page holds no focus: the element the column last held it on, where the browser's step still starts.
@@ -87,6 +156,8 @@ export function steerColumnTab(event: TabKey, root: HTMLElement, stops: readonly
   if (event.key !== 'Tab' || event.ctrlKey || event.altKey || event.metaKey || event.defaultPrevented) return;
   const from = lost ?? (root.ownerDocument.activeElement as HTMLElement | null);
   if (from === null || !root.contains(from)) return;
+  // The document names only the host of a shadow root that holds the focus; the controls after it inside the root are still ahead.
+  const deep = lost ?? deepActive(root.ownerDocument) ?? from;
   const back = event.shiftKey;
   const end = from.getAttribute(COLUMN_SENTINEL);
   let at: number;
@@ -99,8 +170,7 @@ export function steerColumnTab(event: TabKey, root: HTMLElement, stops: readonly
     const stop = stops[at]!;
     // The browser's step from a cell's own element would land on the cell's start sentinel, which reads as a step out of the cell.
     if (from === stop && !back && !isDivider(stop) && enter([stop], 0, false)) return void event.preventDefault();
-    const ahead = back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
-    if (from !== stop && landingsOf(stop).some((el) => el !== from && (from.compareDocumentPosition(el) & ahead) !== 0)) return;
+    if (from !== stop && staysInside(stop, deep, back)) return;
   }
   if (advance(root, stops, at, back, true)) event.preventDefault();
 }

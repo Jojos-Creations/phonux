@@ -33,7 +33,10 @@
   either end, also when the column is alone on the page. A Tab pressed inside a web view that is a space's last stop goes on to the
   divider; out of the last space, with nothing after the column on the page, it rests for one press first, as a row alone does, and
   so does Shift+Tab out of a web view that is the first space's first stop. A control that is in the page and not drawn (inside a
-  `hidden` panel, a closed `dialog` or a closed `details`) is no stop. While several spaces show, the column and each cell hold
+  `hidden` panel, a closed `dialog` or a closed `details`) is no stop. The controls of a web component are read through its shadow
+  roots, so a Tab pressed inside one walks all of them before it leaves the space; a closed shadow root is walked by the browser
+  and can cost one more press at the column's outer end when nothing else is on the page (DESIGN.md "Side by side" lists what is
+  not covered). While several spaces show, the column and each cell hold
   zero-size tab stops of their own (`data-column-sentinel`) that pass focus on.
   A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
