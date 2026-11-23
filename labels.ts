@@ -72,9 +72,9 @@ export interface PhonuxLabels {
   shareTabPeople: string;
   /** The share sheet's tab for a web link. Default `Link`. */
   shareTabLink: string;
-  /** The line under the QR code. Default `Show this to someone next to you. Their phone gets the file over your Wi-Fi, or the web if that is faster.`. */
+  /** The line under the QR code. Default `Show this to someone next to you. Their phone gets it over your Wi-Fi, or the web if that is faster.`. */
   shareInPersonHint: string;
-  /** The line above the list of trusted people. Default `People who trust you get "Accept file from you?" on their phone. Nobody else can send them files.`. */
+  /** The line above the list of trusted people. Default `Accounts and people you trust. They get an offer on their phone, and nothing downloads until they add it.`. */
   sharePeopleHint: string;
   /** A trusted person's send button. Default `Send`. */
   shareSend: string;
@@ -86,7 +86,7 @@ export interface PhonuxLabels {
   shareAddPerson: string;
   /** The line under `shareAddPerson`. Default `Trade a code once, then send any time`. */
   shareAddPersonHint: string;
-  /** The note at the foot of the People tab. Default `An offer waits 7 days, then goes away by itself.`. */
+  /** The note at the foot of the People tab. Default `An invite waits 7 days, then goes away by itself.`. */
   shareOfferWaits: string;
   /** The link tab's copy button. Default `Copy link`. */
   shareCopyLink: string;
@@ -96,18 +96,50 @@ export interface PhonuxLabels {
   shareLinkEnds: (days: number | null, opens: number | null) => string;
   /** The button that changes when the link ends. Default `Change`. */
   shareChange: string;
-  /** The title of the card that offers a file, given the sender's saved name. Default `<from> wants to send you a file`. */
-  offerTitle: (from: string) => string;
+  /** The title of the card that offers an item, given the sender's saved name and the item's kind in words (`space`, `file`). Default `<from> shared a <kind> with you`, with `an` before a vowel. */
+  offerTitle: (from: string, kind: string) => string;
   /** The line under the offer's title. Default `<from> is on your trusted list`. */
   offerTrusted: (from: string) => string;
-  /** The offer's reassurance, given the whole days before it goes away. Default `Nothing downloads until you accept. The offer goes away in 7 days.`. */
+  /** The offer's reassurance, given the whole days before it goes away. Default `Nothing downloads until you add it. The offer goes away in 7 days.`. */
   offerNote: (days: number) => string;
-  /** The offer's main button. Default `Accept and save`. */
-  offerAccept: string;
+  /** The offer's main button, given the item's kind in the plural (`spaces`). Default `Add to my <plural>`. */
+  offerAccept: (kindPlural: string) => string;
+  /** The offer's button that leaves the offer waiting. Default `Not now`. */
+  offerNotNow: string;
   /** The offer's decline button. Default `Decline`. */
   offerDecline: string;
   /** The offer's report button. Default `Report`. */
   offerReport: string;
+  /** The kind of a shared item in words, lower case and singular. Default the kind as given (`space`, `playlist`, `track`, `page`, `file`); a host in another language maps each kind. */
+  shareKind: (kind: string) => string;
+  /** The same kind in the plural, lower case. Default the kind with an `s`. */
+  shareKindPlural: (kind: string) => string;
+  /** The People tab's note when others can edit the item. Default `Accounts and people you trust. Can edit lets them change it, Can view lets them look.`. */
+  sharePeopleHintEdit: string;
+  /** The accessible name and placeholder of the field that names who to invite. Default `Email or saved name`. */
+  shareInviteField: string;
+  /** The accessible name of the choice between Can edit and Can view. Default `Access`. */
+  shareAccessName: string;
+  /** The access choice that lets the person change the item. Default `Can edit`. */
+  shareCanEdit: string;
+  /** The access choice that lets the person only look. Default `Can view`. */
+  shareCanView: string;
+  /** The button that invites the person in the field. Default `Invite`. */
+  shareInvite: string;
+  /** The name of the signed-in person's own row. Default `You`. */
+  shareYou: string;
+  /** The role of the item's owner. Default `Owner`. */
+  shareOwner: string;
+  /** The line of a person who was invited and has not joined. Default `Invited, not joined yet`. */
+  shareInvitedNotJoined: string;
+  /** The line of a trusted person the item can be sent to. Default `On your trusted list`. */
+  shareTrustedLine: string;
+  /** The accessible name of a person's menu button, given their name. Default `Change access or remove <name>`. */
+  shareMemberMore: (name: string) => string;
+  /** The menu entry that takes a person off the item. Default `Remove`. */
+  shareRemove: string;
+  /** The line under the link buttons about who can open it. Default `People who open it need an account, and nothing downloads until they add it.`. */
+  shareLinkNote: string;
   /** The accessible name of the shared list's tabs. Default `Shared files`. */
   sharedTabsName: string;
   /** The shared list's tab for what the person shared. Default `By you`. */
@@ -254,14 +286,14 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   shareTabInPerson: 'In person',
   shareTabPeople: 'People',
   shareTabLink: 'Link',
-  shareInPersonHint: 'Show this to someone next to you. Their phone gets the file over your Wi-Fi, or the web if that is faster.',
-  sharePeopleHint: 'People who trust you get "Accept file from you?" on their phone. Nobody else can send them files.',
+  shareInPersonHint: 'Show this to someone next to you. Their phone gets it over your Wi-Fi, or the web if that is faster.',
+  sharePeopleHint: 'Accounts and people you trust. They get an offer on their phone, and nothing downloads until they add it.',
   shareSend: 'Send',
   shareSendTo: (name) => `Send to ${name}`,
   shareSent: 'Sent',
   shareAddPerson: 'Add someone you trust',
   shareAddPersonHint: 'Trade a code once, then send any time',
-  shareOfferWaits: 'An offer waits 7 days, then goes away by itself.',
+  shareOfferWaits: 'An invite waits 7 days, then goes away by itself.',
   shareCopyLink: 'Copy link',
   shareMoreApps: 'More apps',
   shareLinkEnds: (days, opens) => {
@@ -271,12 +303,28 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
     return when === '' ? 'Link does not end.' : `Link ends ${when}.`;
   },
   shareChange: 'Change',
-  offerTitle: (from) => `${from} wants to send you a file`,
+  offerTitle: (from, kind) => `${from} shared ${/^[aeiou]/i.test(kind) ? 'an' : 'a'} ${kind} with you`,
   offerTrusted: (from) => `${from} is on your trusted list`,
-  offerNote: (days) => `Nothing downloads until you accept. The offer goes away in ${days} ${days === 1 ? 'day' : 'days'}.`,
-  offerAccept: 'Accept and save',
+  offerNote: (days) => `Nothing downloads until you add it. The offer goes away in ${days} ${days === 1 ? 'day' : 'days'}.`,
+  offerAccept: (kindPlural) => `Add to my ${kindPlural}`,
+  offerNotNow: 'Not now',
   offerDecline: 'Decline',
   offerReport: 'Report',
+  shareKind: (kind) => kind,
+  shareKindPlural: (kind) => `${kind}s`,
+  sharePeopleHintEdit: 'Accounts and people you trust. Can edit lets them change it, Can view lets them look.',
+  shareInviteField: 'Email or saved name',
+  shareAccessName: 'Access',
+  shareCanEdit: 'Can edit',
+  shareCanView: 'Can view',
+  shareInvite: 'Invite',
+  shareYou: 'You',
+  shareOwner: 'Owner',
+  shareInvitedNotJoined: 'Invited, not joined yet',
+  shareTrustedLine: 'On your trusted list',
+  shareMemberMore: (name) => `Change access or remove ${name}`,
+  shareRemove: 'Remove',
+  shareLinkNote: 'People who open it need an account, and nothing downloads until they add it.',
   sharedTabsName: 'Shared files',
   sharedByYou: 'By you',
   sharedWithYou: 'With you',
