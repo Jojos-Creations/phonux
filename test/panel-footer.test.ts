@@ -6,7 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
-import { HostProvider, Panel, PanelFooter, PanelFrame, PanelManagerError, createWorkspace, definePanel } from '../index.js';
+import { HostProvider, Panel, PanelFooter, PanelFrame, PanelHeader, PanelManagerError, createWorkspace, definePanel } from '../index.js';
 import type { PanelTemplate } from '../index.js';
 import { createFakeHost } from '../fakeHost.js';
 import { cleanup, mount } from './support/mount-harness.js';
@@ -108,17 +108,23 @@ test('a footer that throws while rendering is hidden, the panel stays, and the c
   }
 });
 
-test('the footer is bare like the header: no shadow, border or fill, the header height, 4 px below the frame', () => {
+test('the header and the footer sit on a solid band of the frame\'s surface, the header height, 4 px below the frame', () => {
   const m = mountWith({ footer: Footer });
   const box = m.container.querySelector('[data-panel-footer]') as HTMLElement;
   const style = getComputedStyle(box);
-  assert.ok(['', 'none'].includes(style.boxShadow), `no shadow: ${style.boxShadow}`);
   const header = m.container.querySelector('[data-panel-chrome-part="header"]') as HTMLElement | null;
   assert.ok(header !== null, 'control: the panel draws a header');
+  const frame = m.container.querySelector('[data-phone-frame]') as HTMLElement | null;
+  assert.ok(frame !== null, 'control: the panel draws a frame');
+  const surface = getComputedStyle(frame).backgroundColor;
+  assert.ok(!['', 'transparent', 'rgba(0, 0, 0, 0)'].includes(surface), `control: the frame has a fill to compare with (${surface})`);
+  for (const [name, el] of [['footer', box], ['header', header]] as const) {
+    const s = getComputedStyle(el);
+    assert.equal(s.backgroundColor, surface, `the ${name} band is the frame's surface`);
+    assert.match(s.boxShadow, /inset 0 0 0 1px/, `the ${name} band has the frame's 1 px edge`);
+  }
   assert.equal(style.height, getComputedStyle(header).height, 'the footer is as tall as the header');
   assert.match(style.top, /calc\(100% \+ 4px\)/, 'the footer sits one header gap below the frame');
-  for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) assert.ok(['', '0px'].includes(style[`border${side}Width`]), `no ${side.toLowerCase()} border`);
-  assert.ok(['', 'transparent', 'rgba(0, 0, 0, 0)'].includes(style.backgroundColor), `no fill: ${style.backgroundColor}`);
 });
 
 test('PanelFooter sx is layered last, so a developer can restyle the padding the library sets', () => {
@@ -130,6 +136,14 @@ test('PanelFooter sx is layered last, so a developer can restyle the padding the
   const style = getComputedStyle(m.container.querySelector('[data-panel-footer]') as HTMLElement);
   assert.equal(style.paddingLeft, '3px');
   assert.equal(style.borderRadius, '2px');
+});
+
+test('PanelHeader sx is layered over the band, so a developer can restyle or remove it', () => {
+  const m = mount(h(HostProvider, { host: createFakeHost(), children: h('div', { style: { position: 'relative' } }, h(PanelHeader, { sx: { bgcolor: 'rgb(255, 0, 0)', boxShadow: 'none', borderRadius: '3px' }, children: 'T' })) }));
+  const style = getComputedStyle(m.container.firstElementChild!.firstElementChild as HTMLElement);
+  assert.equal(style.backgroundColor, 'rgb(255, 0, 0)');
+  assert.equal(style.borderRadius, '3px');
+  assert.ok(['none', ''].includes(style.boxShadow), `no shadow: ${style.boxShadow}`);
 });
 
 test('the header floats 4 px above the frame and the grab handle stays a 24 px target', () => {

@@ -1306,6 +1306,48 @@ export interface PhonuxLabels {
     shareTabsName: string;
     shareTitle: string;
     sizeName: (slots: number) => string;
+    trustAllow: string;
+    trustCancel: string;
+    trustClose: string;
+    trustCodeEnded: string;
+    trustCodeEndedMaker: string;
+    trustCodeLabel: string;
+    trustCodeNote: string;
+    trustCopied: string;
+    trustCopy: string;
+    trustCouldNotReach: string;
+    trustDecline: string;
+    trustDeclined: (name: string) => string;
+    trustDeclinedBody: (name: string) => string;
+    trustDone: string;
+    trustDoneWait: string;
+    trustFailed: string;
+    trustHaveCode: string;
+    trustHoursLeft: (hours: number) => string;
+    trustHowLong: string;
+    trustJoin: string;
+    trustJoinTitle: string;
+    trustLetThem: string;
+    trustLetThemBody: (name: string) => string;
+    trustLetThemTitle: (name: string) => string;
+    trustMakeCode: string;
+    trustMakeInstead: string;
+    trustNameLabel: string;
+    trustNoEnd: string;
+    trustNotACode: string;
+    trustNotNow: string;
+    trustOneMonth: string;
+    trustOneWeek: string;
+    trustQr: string;
+    trustSaidYes: (name: string) => string;
+    trustSaidYesBody: (name: string) => string;
+    trustSaveAs: string;
+    trustShowCode: string;
+    trustTitle: string;
+    trustWaitingAnswer: (name: string) => string;
+    trustWaitingBody: string;
+    trustWaitingFor: (name: string | null) => string;
+    trustWantsToSend: (name: string) => string;
     tryAgain: string;
     undo: string;
     undoCloseMessage: (titles: readonly string[]) => string;
@@ -1366,6 +1408,16 @@ export interface ProvidedPanels extends PanelsAPI {
     setSlots(id: string, slots: number): void;
     readonly swapExitIds: ReadonlySet<string>;
     readonly tuning: ResolvedWorkspaceTuning;
+}
+
+// @public
+export function QrCode(input: QrCodeProps): React_2.ReactElement;
+
+// @public
+export interface QrCodeProps {
+    label: string;
+    size?: number;
+    value: string;
 }
 
 // @public
@@ -1780,6 +1832,52 @@ export interface TileRequest {
 
 // @public
 export function toggleMaximize(target?: EventTarget | null): boolean;
+
+// @public
+export interface TrustExchange {
+    allow(options: {
+        name: string;
+        expiresAt?: number;
+    }): Promise<void>;
+    answered(): boolean;
+    check(): Promise<TrustProgress>;
+    close(): void;
+    readonly code: string;
+    decline(): Promise<void>;
+    readonly endsAt: number;
+    readonly role: 'maker' | 'joiner';
+}
+
+// @public
+export interface TrustExchanges {
+    failureOf(error: unknown): TrustFailure;
+    invite(name: string): Promise<TrustExchange>;
+    join(code: string, name: string): Promise<TrustExchange>;
+    pending(): TrustExchange | null;
+}
+
+// @public
+export type TrustFailure = 'not-a-code' | 'ended' | 'other';
+
+// @public
+export interface TrustProgress {
+    answered: boolean;
+    canSendToThem: boolean;
+    theirName: string | null;
+}
+
+// @public
+export function TrustScreen(props: TrustScreenProps): React_2.ReactElement;
+
+// @public
+export interface TrustScreenProps {
+    labels?: Partial<PhonuxLabels>;
+    onChanged?: () => void;
+    onClose?: () => void;
+    onDone: () => void;
+    pollMs?: number;
+    trust: TrustExchanges;
+}
 
 // @public
 export const UNDO_CLOSE_TOAST_ATTRIBUTE = "data-undo-close-toast";

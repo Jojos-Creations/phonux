@@ -17,6 +17,12 @@
   and `{ kind: 'scroll', slots, panelIds }` segments, left to right.
 - `usePanelDots(...).sticky` lists the sticky panels by side: they get no dot and the app draws a small square at that end
   of the bar. `selectDot(id)` with a sticky panel's id focuses the panel.
+- `TrustScreen`: the props-driven code exchange that adds someone the person trusts. The person makes a code (shown as
+  text and a QR code) or joins with one, waits for the other side, and answers; the maker chooses how long the other side
+  may send. The app passes a `TrustExchanges` object (invite, join, the exchange left open, and why a call failed) and
+  places the screen in its own dialog or page. Its words are new `PhonuxLabels` keys (`trust*`).
+- `QrCode`: a QR code of a string, black on white in any theme, for `ShareSheet`'s `qr` and anywhere else.
+  `qrcode-generator` 2.0.4 (MIT, pinned exactly) is a new runtime dependency.
 
 ### Changed
 
@@ -29,6 +35,9 @@
   is drawn again in the other place.
 - `edgeHold: 'both'` (a panel that sticks once the row scrolls past it) has no equivalent in the sticky model and is read as
   `sticky: 'off'`, with a development warning.
+- A panel's header and footer now sit on a solid band: the frame's surface (`background.paper`) with its 1 px divider
+  edge, opaque in light and dark, so their words read the same over any page or background picture behind the row. The
+  band is drawn on their own floating boxes and adds no height to the panel. A caller's `sx` still layers over it.
 
 ### Deprecated
 

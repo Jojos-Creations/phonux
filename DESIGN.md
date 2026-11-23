@@ -1272,7 +1272,13 @@ its `collapsible` value.
 `HEADER_GAP_PX` (`rowConstants.ts`, 4) is the space between a panel's header and its frame, and the one number `PanelFrame`'s
 header offset and the footer's padding measure against. It is a constant, not tuning: a developer who wants another look
 passes `sx` to `PanelFrame` or `PanelFooter`. The grab handle is `GRAB_HANDLE_PX` (24), WCAG 2.5.8's minimum pointer target
-both ways, so changing the gap never shrinks the handle. The footer is bare like the header (no border, shadow or fill) and has the header's height.
+both ways, so changing the gap never shrinks the handle. The footer has the header's height.
+
+The header and the footer each sit on a solid band (`chromeBandSx`, `chromeBand.ts`): the frame's own surface
+(`background.paper`) with its 1 px divider edge, opaque in light and dark. They float over whatever is behind the row (the
+app's background, a background picture or ad), so a bare row of words had no contrast it could count on; on the band their
+`text.primary` and `text.secondary` read as they do inside the frame. The band is drawn on the header's and footer's own
+absolutely placed boxes, so it adds no height to the panel. A caller's `sx` still layers over it.
 
 The footer floats `HEADER_GAP_PX` below the frame, mirroring the header's gap above it, and is `BAR_HEIGHT_PX` (36, `panelChromeSize.ts`) tall, the same constant the header's height reads, in every theme. The row's bottom padding and the phone-fit height budget both use `rowBottomReservePx(gap)` = `max(gap, FOOTER_ROOM_PX)` (`panelChromeSize.ts`, 4 + 36 = 40), so the footer's whole box lies inside the row and a click at its center reaches it. `test/footer-room.test.ts` and `test/phone-fit-reserve.test.ts` pin the chain.
 

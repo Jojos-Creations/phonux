@@ -28,6 +28,10 @@ export { OfferCard } from './offerCard.js';
 export type { OfferCardProps, OfferFile } from './offerCard.js';
 export { SharedList } from './sharedList.js';
 export type { SharedListProps, SharedRow, SharedTab } from './sharedList.js';
+export { TrustScreen } from './trustScreen.js';
+export type { TrustScreenProps, TrustExchanges, TrustExchange, TrustProgress, TrustFailure } from './trustScreen.js';
+export { QrCode } from './qrCode.js';
+export type { QrCodeProps } from './qrCode.js';
 
 export { useViewSnapshot, CaptureRegistryProvider, noopCaptureTrigger } from './snapshots.js';
 export type { ViewId, ViewSnapshot, SnapshotsAPI, CaptureRegistry, CaptureTrigger } from './snapshots.js';
