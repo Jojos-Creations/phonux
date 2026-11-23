@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "timezone": "America/Los_Angeles",
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "7 days",
+  "prConcurrentLimit": 4,
+  "prHourlyLimit": 2,
+  "automerge": false,
+  "dependencyDashboard": {"enabled": true},
+  "packageRules": [
+    {
+      "description": "One PR for routine updates; majors stay separate.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "non-major dependencies"
+    }
+  ]
+}
