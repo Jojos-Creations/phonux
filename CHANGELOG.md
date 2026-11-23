@@ -23,10 +23,13 @@
   `setSplit(rowSlots)` (all three answer `{ ok: true }` or `{ ok: false, code, message }` as `SideResult`, with `SideRefusal` codes
   and never throw) and `focusSide('left' | 'right')`. `step` acts on the focused side and skips a workspace shown elsewhere.
   A narrow window gives up sticky panels first (lowest `stickyRank`, then the later panel in the column), then the sides the person is
-  not in give up slots, each down to one row panel, and only then the current side; the space farthest from the current one leaves
-  only when each side cannot keep one row slot, and a wider window restores them all. Stepping to a workspace the window does not
-  show takes the current one's place without discarding any saved side. The shown cells are in the DOM left to right with each
-  divider between its two cells. A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
+  not in give up slots, each down to `max(1, minScrollSlots)` row panels, and only then the current side; the space farthest from the
+  current one leaves only when each side cannot keep that, and a wider window restores them all. `step` onto a workspace the window
+  left out makes it current and it keeps its own saved side, so the window plans again around it and every saved side survives, and
+  after the window widens the saved order and split come back; a workspace with no saved side takes the current one's, and that
+  side is gone. Cells never move in the DOM, so no web view reloads and no scroll position resets as the window shows other spaces;
+  Tab is steered across them instead, so it walks the spaces left to right with each divider between its two cells.
+  A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
   labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell
   on its left.

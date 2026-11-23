@@ -138,9 +138,10 @@ export interface WorkspaceColumnHandle {
   /** Makes `target` (a handle of this column, or an index) the current workspace. An unknown handle or an index out of range changes nothing. */
   scrollTo(target: WorkspaceHandle | number): void;
   /**
-   * Moves to the workspace above or below; false at the end of the column. With `sideBySide` it changes the workspace shown in the side
-   * that holds focus (the current one), skipping a workspace another side already shows, so every side shows a different workspace.
-   * A workspace the window left out for lack of room is not skipped: it takes the side.
+   * Moves to the workspace above or below; false at the end of the column. With `sideBySide` it changes the current workspace, the one
+   * in the side that holds focus, skipping a workspace the window already shows in another side. A workspace the window left out for
+   * lack of room is not skipped: it becomes current and keeps its own saved side, so the window plans again around it and the one it
+   * replaces keeps its saved side too. A workspace with no saved side takes the current workspace's, and that side is gone.
    */
   step(direction: 'up' | 'down'): boolean;
   /**
@@ -492,9 +493,9 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     return out;
   };
   /**
-   * Makes list[i] the current workspace. A workspace the window shows takes the focus and nothing else changes. One it does not show
-   * takes the current one's place in the window, and no saved side is discarded: a space that left the window for lack of room keeps its
-   * entry, so a wider window brings the saved order and split back. Only a space with no entry takes the current one's.
+   * Makes list[i] the current workspace. A workspace the window shows takes the focus and nothing else changes. One with a saved side
+   * keeps it and the window plans around it, so a space that left for lack of room comes back to its own place when the window widens.
+   * One with none takes the current workspace's side, which is then gone.
    */
   const moveTo = (i: number): void => {
     const was = list[current];

@@ -17,6 +17,8 @@ import { ColumnDivider } from './ColumnDivider.js';
 import { DEFAULT_PHONE_SIZE } from './hostApi.js';
 import { WORKSPACE_ACTIVE_ATTRIBUTE } from './rowDom.js';
 import { RowFloorContext } from './rowFloor.js';
+import { steerColumnEntry, steerColumnTab } from './columnTabOrder.js';
+import { useTabPress } from './panelRowTabOrder.js';
 
 /** The room above a workspace's row that the default bands keep, in px, below the column's `topInset`. With bands of its own, `columnBandRoom(bands).above`. @public */
 export const COLUMN_TOP_BAND = columnBandRoom(DEFAULT_COLUMN_BANDS).above;
@@ -132,6 +134,17 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
     column.scrollTo(column.addWorkspace({ index }));
   };
 
+  const tabPress = useTabPress();
+  // The stops Tab walks side by side, in screen order: each shown cell, the divider after it, and so on.
+  const screenStops = (): HTMLElement[] => {
+    const root = rootRef.current;
+    if (root === null) return [];
+    return snap.shown.flatMap((c, k) => {
+      const cell = cells.current.get(c.id);
+      const divider = k < snap.shown.length - 1 ? root.querySelector<HTMLElement>(`[data-column-divider="${k}"]`) : null;
+      return [cell, divider].filter((el): el is HTMLElement => el !== null && el !== undefined);
+    });
+  };
   const base = React.useId();
   const cellIdOf = (id: string): string => `${base}-cell-${snap.workspaces.findIndex((w) => w.id === id)}`;
   const cellOf = (ws: WorkspaceHandle, i: number): React.ReactNode => {
@@ -201,26 +214,26 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
       />
     );
   };
-  // Side by side the DOM follows the screen, left to right with each divider between its two cells, so Tab and a screen reader meet
-  // the spaces in the order they are drawn; the cells the window does not show follow, inert.
-  const inOrder = (): React.ReactNode[] => {
-    if (!split) return snap.workspaces.map((ws, i) => cellOf(ws, i));
-    const out: React.ReactNode[] = [];
-    snap.shown.forEach((c, k) => {
-      const i = snap.workspaces.findIndex((w) => w.id === c.id);
-      if (i >= 0) out.push(cellOf(snap.workspaces[i]!, i));
-      if (k < snap.shown.length - 1) out.push(dividerAt(k));
-    });
-    snap.workspaces.forEach((ws, i) => {
-      if (!shownIds.has(ws.id)) out.push(cellOf(ws, i));
-    });
-    return out;
-  };
-
   return (
-    <Box ref={rootRef} data-workspace-column="" sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+    <Box
+      ref={rootRef}
+      data-workspace-column=""
+      onKeyDown={split ? (e: React.KeyboardEvent<HTMLElement>) => steerColumnTab(e, rootRef.current!, screenStops()) : undefined}
+      onFocus={
+        split
+          ? (e: React.FocusEvent<HTMLElement>) => {
+              steerColumnEntry(e, rootRef.current!, screenStops(), tabPress.current);
+              // Focus a Tab steered into another cell makes that cell the current one, as focus there by any other way does.
+              const held = document.activeElement;
+              const ws = snap.workspaces.find((w) => cells.current.get(w.id)?.contains(held) === true);
+              if (ws !== undefined && shownIds.has(ws.id)) column.scrollTo(ws);
+            }
+          : undefined
+      }
+      sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <div style={{ position: 'relative', height: '100%' }}>
-        {inOrder()}
+        {snap.workspaces.map((ws, i) => cellOf(ws, i))}
+        {split ? snap.shown.slice(0, -1).map((_, k) => dividerAt(k)) : null}
       </div>
       {snap.workspaces.length === 0 ? (
         <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', height: TARGET, minHeight: 0, textTransform: 'none' }}>

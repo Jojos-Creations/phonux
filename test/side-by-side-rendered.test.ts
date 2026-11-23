@@ -361,7 +361,7 @@ test('every shown space has its own dot bar under its row, inside its own cell',
 // The window narrows and widens
 // ---------------------------------------------------------------------------
 
-test('narrowing: sticky panels go back into their rows first, then the widest space gives up a slot, then the farthest leaves; widening restores', async (t) => {
+test('narrowing: sticky panels go back into their rows first, then the side the person is not in gives up a slot, then the current one; widening restores', async (t) => {
   if (!(await ready(t))) return;
   await onPage(2560, 'n=3&sticky=1', async (page) => {
     await twoSides(page);
@@ -373,7 +373,7 @@ test('narrowing: sticky panels go back into their rows first, then the widest sp
     };
     assert.equal(named(await shown(page)), 'Research 3/2, Trip food 3/2');
 
-    // 2240 px is five slots: the six the split asks for do not fit, so the sticky panel of the space farther from the current one goes back.
+    // 2240 px is five slots: the six the split asks for do not fit, so a sticky panel goes back, and of equal rank the later one in the column.
     await settle(2240);
     assert.equal(named(await shown(page)), 'Research 3/2, Trip food 2/2');
     assert.deepEqual(await grouped('w1'), ['root'], 'Research keeps its sticky panel');
@@ -386,7 +386,7 @@ test('narrowing: sticky panels go back into their rows first, then the widest sp
     assert.deepEqual([await grouped('w1'), await grouped('w2')], [[], []]);
     for (const id of ['w1', 'w2']) assert.deepEqual(await cutPages(page, id), [], `${id}: nothing cut at four slots`);
 
-    // 1280 px is three: with no sticky panel left, the widest space gives up a slot, and of equal ones the farther from the current one.
+    // 1280 px is three: with no sticky panel left, the side the person is not in gives up the slot.
     await settle(1280);
     assert.equal(named(await shown(page)), 'Research 2/2, Trip food 1/1');
     for (const id of ['w1', 'w2']) assert.deepEqual(await cutPages(page, id), [], `${id}: nothing cut at three slots`);
@@ -402,5 +402,101 @@ test('narrowing: sticky panels go back into their rows first, then the widest sp
     assert.equal(named(await shown(page)), 'Research 3/2, Trip food 3/2');
     assert.deepEqual([await grouped('w1'), await grouped('w2')], [['root'], ['root']], 'and both sticky panels are sticky again');
     for (const id of ['w1', 'w2']) assert.deepEqual(await cutPages(page, id), [], `${id}: nothing cut once the window is wide again`);
+  });
+});
+
+test('narrowing a split whose current side is the wider: the other side gives up its slots first, the current one only after', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3', async (page) => {
+    await twoSides(page, [4, 2]);
+    const settle = async (width: number): Promise<void> => {
+      await page.setViewportSize({ width, height: 900 });
+      await sleep(1000);
+      await atRest(page, (await cells(page)).filter((c) => c.shown).map((c) => c.id));
+    };
+    assert.equal(named(await shown(page)), 'Research 4/4, Trip food 2/2');
+    await settle(2240);
+    assert.equal(named(await shown(page)), 'Research 4/4, Trip food 1/1', 'five slots: Trip food gives one up, though Research is the wider');
+    await settle(1920);
+    assert.equal(named(await shown(page)), 'Research 3/3, Trip food 1/1', 'four slots: only now the current side gives one up');
+    for (const id of ['w1', 'w2']) assert.deepEqual(await cutPages(page, id), [], `${id}: nothing cut`);
+    await settle(2560);
+    assert.equal(named(await shown(page)), 'Research 4/4, Trip food 2/2', 'and widening restores the split');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A cell never moves in the DOM
+// ---------------------------------------------------------------------------
+
+/** Plants an iframe that counts its loads and carries a mark in its window, and a box scrolled to 300, in every cell. */
+async function plant(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    for (const cell of document.querySelectorAll<HTMLElement>('[data-workspace-cell]')) {
+      const wrap = document.createElement('div');
+      wrap.setAttribute('data-plant', '');
+      wrap.style.cssText = 'position:absolute;top:0;left:0;width:120px;height:60px;pointer-events:none;';
+      const frame = document.createElement('iframe');
+      frame.srcdoc = '<p>plant</p>';
+      frame.style.cssText = 'width:60px;height:60px;border:0;';
+      const loads = { n: 0 };
+      (frame as any).__loads = loads;
+      frame.addEventListener('load', () => {
+        loads.n += 1;
+        if (loads.n === 1) (frame.contentWindow as any).__mark = true;
+      });
+      const box = document.createElement('div');
+      box.style.cssText = 'position:absolute;left:60px;top:0;width:60px;height:60px;overflow:auto;';
+      box.innerHTML = '<div style="height:1000px"></div>';
+      wrap.append(frame, box);
+      cell.append(wrap);
+      box.scrollTop = 300;
+    }
+  });
+  await sleep(300);
+}
+/** Per cell: how many times its frame loaded, whether the mark set in its window is still there, and how far its box is scrolled. */
+const planted = (page: Page): Promise<Record<string, { loads: number; mark: boolean; scrollTop: number }>> =>
+  page.evaluate(() => {
+    const out: Record<string, { loads: number; mark: boolean; scrollTop: number }> = {};
+    for (const cell of document.querySelectorAll<HTMLElement>('[data-workspace-cell]')) {
+      const frame = cell.querySelector<HTMLIFrameElement>('[data-plant] iframe')!;
+      out[cell.dataset.workspaceId!] = { loads: (frame as any).__loads.n, mark: (frame.contentWindow as any)?.__mark === true, scrollTop: cell.querySelector<HTMLElement>('[data-plant] div')!.scrollTop };
+    }
+    return out;
+  });
+
+test('no cell moves in the DOM: a frame and a scrolled box in every cell survive a step, a space shown at the left, and a resize to one slot and back', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3', async (page) => {
+    await until(page, 'c.showSide(ws[1])');
+    await sleep(700);
+    await plant(page);
+    const whole = { loads: 1, mark: true, scrollTop: 300 };
+    const unchanged = async (what: string): Promise<void> => {
+      await sleep(600);
+      assert.deepEqual(await planted(page), { w1: whole, w2: whole, w3: whole }, what);
+    };
+    await unchanged('before anything moves');
+    assert.equal(await call(page, 'c.step("down")'), true);
+    await unchanged('after step("down"): Notes takes the left, Trip food stays on the right');
+    assert.deepEqual((await shown(page)).map((x) => x.name), ['Notes', 'Trip food']);
+    await until(page, 'c.showSide(ws[0], { at: 0 })');
+    await unchanged('after Research is shown at the left');
+    assert.deepEqual((await shown(page)).map((x) => x.name), ['Research', 'Notes', 'Trip food']);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await unchanged('after the window narrows to one slot');
+    await page.setViewportSize({ width: 2560, height: 900 });
+    await unchanged('and widens again');
+    // Control: moving a cell in the DOM does reload its frame and reset its scroll, so the checks above can see a move.
+    await page.evaluate(() => {
+      const cell = document.querySelector<HTMLElement>('[data-workspace-cell][data-workspace-id="w1"]')!;
+      cell.parentElement!.append(cell);
+    });
+    await sleep(600);
+    const after = await planted(page);
+    assert.equal(after.w1!.loads, 2, 'a cell moved by hand reloads its frame');
+    assert.equal(after.w1!.mark, false);
+    assert.equal(after.w1!.scrollTop, 0);
   });
 });

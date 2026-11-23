@@ -12,6 +12,7 @@ import type { ColumnState, ColumnStorage, WorkspaceColumnHandle } from '../index
 import { columnCoreOf } from '../columnHandle.js';
 import { dividerRange, evenRows, minRowSlots, planSides, shiftDivider, splitProblem, type SideSpace } from '../columnSplit.js';
 import { keyBelongsToRow } from '../rowStep.js';
+import { stickyKept } from '../rowNumbers.js';
 import { rigCleanup, until } from './support/auto-rig.js';
 
 const columns: WorkspaceColumnHandle[] = [];
@@ -221,6 +222,18 @@ test('narrowing order: sticky panels go back into rows first, lowest rank first 
   const wide = [space('a', 3, sticky([2, 0])), space('b', 1)];
   assert.equal(cellsOf(wide, 6), 'a 5/3+2, b 1/1+0');
   assert.equal(cellsOf(wide, 4), 'a 3/3+0, b 1/1+0', 'a two-slot sticky panel goes back whole');
+});
+
+test('equal-rank sticky panels inside one space go back later-first, and the plan agrees with the cell’s own row', () => {
+  const panels = sticky([2, 0], [1, 0]);
+  const spaces = [space('a', 2, panels), space('b', 2)];
+  assert.equal(cellsOf(spaces, 6), 'a 4/2+2, b 2/2+0', 'the one-slot panel, later in the row, goes back and the two-slot one stays');
+  const cell = planSides({ spaces, current: 0, windowSlots: 6, minScrollSlots: 1 })[0]!;
+  assert.deepEqual(
+    stickyKept(panels, 8, cell.slots, cell.rowSlots).map((c) => c.k),
+    [0],
+    'the row, given the cell’s slots and its row slots as its least, keeps the same panel',
+  );
 });
 
 test('a cell is exactly its rows and its sticky panels, so the row can work the same out from its own width', () => {
@@ -547,19 +560,93 @@ test('two dividers have distinct names and each names its own left cell', async 
   assert.equal(document.getElementById(b.getAttribute('aria-controls')!)?.getAttribute('data-workspace-id'), c.workspaces[1]!.id);
 });
 
-/** What the column's element holds, in document order: the cells by workspace name, the dividers, and the hidden cells last. */
-const domOrder = (c: WorkspaceColumnHandle): string[] =>
-  [...document.querySelectorAll<HTMLElement>('[data-workspace-cell], [role="separator"]')].map((el) => (el.hasAttribute('data-workspace-cell') ? c.workspaces.find((w) => w.id === el.dataset.workspaceId)!.name : '|'));
+const cellEl = (c: WorkspaceColumnHandle, name: string): HTMLElement => document.querySelector<HTMLElement>(`[data-workspace-id="${c.workspaces.find((w) => w.name === name)!.id}"]`)!;
 
-test('the DOM holds the shown spaces left to right with each divider between its two cells, hidden cells last', async () => {
+test('cells keep the DOM order they were mounted in whatever the screen order, so none is ever moved', async () => {
   const c = await drawn();
-  assert.deepEqual(domOrder(c), ['Space 1', '|', 'Space 2', 'Space 3']);
+  const parent = cellEl(c, 'Space 1').parentElement!;
+  const order = (): string[] => [...parent.children].map((el) => el.getAttribute('data-workspace-id') ?? '|');
+  const before = order();
+  assert.deepEqual(before.slice(0, 3), c.workspaces.map((w) => w.id), 'the cells are in list order, the dividers after them');
+  const nodes = ['Space 1', 'Space 2', 'Space 3'].map((n) => cellEl(c, n));
   act(() => void c.step('down'));
   assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 3', 'Space 2']);
-  assert.deepEqual(domOrder(c), ['Space 3', '|', 'Space 2', 'Space 1'], 'on screen Space 3 | Space 2, and so for Tab and a screen reader');
   act(() => void c.showSide(0, { at: 1 }));
-  await until('three cells', () => separators().length === 2);
-  assert.deepEqual(domOrder(c), ['Space 3', '|', 'Space 1', '|', 'Space 2']);
+  await until('three shown', () => separators().length === 2);
+  assert.deepEqual(order().slice(0, 3), before.slice(0, 3), 'a step and a new side left the order alone');
+  assert.deepEqual(['Space 1', 'Space 2', 'Space 3'].map((n) => cellEl(c, n)), nodes, 'and every cell is the node it was');
+});
+
+/** A button first and a button last in a cell, so its first and last tabbable element are known. */
+function ends(el: HTMLElement): { first: HTMLElement; last: HTMLElement } {
+  const first = document.createElement('button');
+  const last = document.createElement('button');
+  el.prepend(first);
+  el.append(last);
+  return { first, last };
+}
+
+test('Tab walks the spaces as they are drawn, left to right with the divider between, and skips a space the window left out', async () => {
+  const c = await drawn();
+  act(() => void c.step('down'));
+  assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 3', 'Space 2'], 'on screen Space 3 | Space 2');
+  const [one, two, three] = ['Space 1', 'Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>, ReturnType<typeof ends>];
+  const before = document.createElement('button');
+  const after = document.createElement('button');
+  document.body.prepend(before);
+  document.body.append(after);
+  const divider = separators()[0]!;
+  const at = (el: Element): void => assert.ok(document.activeElement === el, 'focus is on the element expected');
+  const tab = (from: HTMLElement, shift = false): boolean => {
+    from.focus();
+    return press(from, 'Tab', { shiftKey: shift }).defaultPrevented;
+  };
+  try {
+    assert.equal(tab(three.last), true);
+    at(divider);
+    assert.equal(tab(divider), true);
+    at(two.first);
+    assert.equal(tab(two.last), true, 'out of the last stop');
+    at(after);
+    assert.equal(tab(two.first, true), true);
+    at(divider);
+    assert.equal(tab(divider, true), true);
+    at(three.last);
+    assert.equal(tab(three.first, true), true, 'out of the first stop, backward');
+    at(before);
+    assert.equal(tab(three.first), false, 'inside a stop the browser moves it, so the key is left alone');
+    assert.equal(tab(one.last), false, 'a space the window left out is no stop');
+    assert.ok(document.activeElement !== one.first, 'and is never entered');
+  } finally {
+    before.remove();
+    after.remove();
+  }
+});
+
+test('a Tab from outside the column lands on the first (Shift+Tab: last) tabbable element in screen order, not the DOM-first cell', async () => {
+  const c = await drawn();
+  act(() => void c.step('down'));
+  const stops = ['Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>];
+  const [two, three] = stops;
+  const outside = document.createElement('button');
+  document.body.prepend(outside);
+  try {
+    outside.focus();
+    press(outside, 'Tab');
+    act(() => two.first.focus());
+    assert.ok(document.activeElement === three.first, 'the browser picked the DOM-first cell, Space 2; the screen starts at Space 3');
+    assert.equal(c.current, 2, 'and the space that holds focus is the current one');
+    outside.focus();
+    press(outside, 'Tab', { shiftKey: true });
+    act(() => three.last.focus());
+    assert.ok(document.activeElement === two.last, 'and Shift+Tab ends at the right-most');
+    outside.focus();
+    document.dispatchEvent(new Event('pointerdown'));
+    act(() => two.first.focus());
+    assert.ok(document.activeElement === two.first, 'focus a click causes stays where it went');
+  } finally {
+    outside.remove();
+  }
 });
 
 test('focus in a cell the window stops showing goes to the current space’s cell', async () => {
