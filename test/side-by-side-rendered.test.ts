@@ -531,8 +531,8 @@ const STOPS = `(() => {
     const cell = document.querySelector('[data-workspace-cell][data-workspace-id="' + s.id + '"]');
     const found = [];
     let inRow = false;
-    for (const el of cell.querySelectorAll('button,input,iframe,[tabindex]')) {
-      if (el.closest('[inert]') !== null || el.tabIndex < 0 || el.hasAttribute('data-column-sentinel') || el.hasAttribute('data-row-sentinel')) continue;
+    for (const el of cell.querySelectorAll('button,input,iframe,summary,[tabindex]')) {
+      if (el.closest('[inert]') !== null || el.tabIndex < 0 || !el.checkVisibility() || el.hasAttribute('data-column-sentinel') || el.hasAttribute('data-row-sentinel')) continue;
       const slot = el.closest('[data-row-slot]');
       inRow = inRow || slot !== null;
       const x = slot !== null ? slot.getBoundingClientRect().left : inRow ? Infinity : -Infinity;
@@ -876,3 +876,58 @@ test('a column without sideBySide has no stop of the column’s own, and Tab wal
     assert.deepEqual(await tabUntil(page, 'before', 3 * stops.length, true), [...[...stops].reverse(), 'before']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Content that is in the DOM and not drawn
+// ---------------------------------------------------------------------------
+
+const UNDRAWN: Record<string, string> = {
+  'a hidden panel': '<div role="tabpanel" hidden><button data-tab="undrawn">x</button></div>',
+  'a closed dialog': '<dialog><button data-tab="undrawn">x</button></dialog>',
+  // The button is before the summary at a cell's start and after it at its end, so it is the cell's outermost element either way.
+  'a closed details': '<details>@first<summary data-tab="summary">s</summary>@last</details>',
+};
+
+/** Puts `html` first in the first panel and last in the last panel in sight of each shown space: the two ends of what the cell holds. */
+const plantUndrawn = (page: Page, html: string): Promise<number> =>
+  page.evaluate((markup: string) => {
+    const button = '<button data-tab="undrawn">x</button>';
+    let count = 0;
+    for (const s of (window as any).__s.shown()) {
+      const cell = document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${s.id}"]`)!;
+      const boxes = [...cell.querySelectorAll('[data-row-slot]')].filter((x) => x.closest('[inert]') === null).map((x) => x.querySelector('[data-box]')!);
+      boxes[0]!.insertAdjacentHTML('afterbegin', markup.replace('@first', button).replace('@last', ''));
+      boxes[boxes.length - 1]!.insertAdjacentHTML('beforeend', markup.replace('@first', '').replace('@last', button));
+      const all = [...cell.querySelectorAll<HTMLElement>('button,summary')].filter((el) => el.closest('[inert]') === null);
+      if (all[0]!.dataset.tab === 'undrawn' && all[all.length - 1]!.dataset.tab === 'undrawn') count += 1;
+    }
+    return count;
+  }, html);
+
+for (const [what, html] of Object.entries(UNDRAWN)) {
+  for (const outside of [true, false]) {
+    test(`Tab past ${what} at both ends of each space, ${outside ? 'between two buttons' : 'the column alone'}: a button that is not drawn is no stop, and no press is spent on it`, async (t) => {
+      if (!(await ready(t))) return;
+      await onPage(2560, 'n=3&bands=none', async (page) => {
+        assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+        await page.evaluate(PLANT_BUTTONS);
+        assert.equal(await plantUndrawn(page, html), 2, 'in both shown cells the outermost buttons are the ones not drawn');
+        const stops: string[] = await page.evaluate(STOPS);
+        assert.ok(!stops.some((x) => x.endsWith(':undrawn')) && stops.length >= 5, stops.join(' '));
+        if (outside) {
+          await page.evaluate(PLANT_OUTSIDE);
+          await page.focus('#before');
+          assert.deepEqual(await tabWalk(page, stops.length + 1), [...stops, 'after']);
+          assert.deepEqual(await tabWalk(page, stops.length + 1, true), [...[...stops].reverse(), 'before']);
+          await page.focus('#after');
+          assert.deepEqual(await tabWalk(page, 2, true), [stops[stops.length - 1], stops[stops.length - 2]], 'Shift+Tab from after the column comes into it');
+        } else {
+          await page.evaluate(WATCH_ENTRY);
+          await focusStop(page, stops[0]!);
+          assert.deepEqual(await tabRound(page, stops.length), [...stops.slice(1), 'OUT', stops[0]]);
+          assert.deepEqual(await tabRound(page, stops.length, true), ['OUT', ...[...stops].reverse()]);
+        }
+      });
+    });
+  }
+}

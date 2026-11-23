@@ -677,6 +677,22 @@ test('focus that comes out of a cell onto its end goes on to the next stop on sc
   }
 });
 
+test('a key is cancelled only when focus really moved: stops whose elements refuse focus are passed over', async () => {
+  const c = await drawn();
+  act(() => void c.step('down'));
+  ends(cellEl(c, 'Space 2'));
+  const three = ends(cellEl(c, 'Space 3'));
+  for (const el of cellEl(c, 'Space 2').querySelectorAll<HTMLElement>('a,button,input,select,textarea,[tabindex]')) el.focus = () => undefined;
+  const divider = separators()[0]!;
+  act(() => divider.focus());
+  assert.equal(press(divider, 'Tab').defaultPrevented, false, 'nothing in Space 2 took focus, so the browser’s own step runs');
+  assert.ok(document.activeElement === columnEnd('end'), 'from the column’s end, as past the last stop');
+  three.last.focus = () => undefined;
+  act(() => divider.focus());
+  assert.equal(press(divider, 'Tab', { shiftKey: true }).defaultPrevented, true);
+  assert.ok(document.activeElement !== divider && cellEl(c, 'Space 3').contains(document.activeElement), 'the element before the one that refused takes it');
+});
+
 test('a Tab pressed while the page holds no focus is steered from the element the column last held it on', async () => {
   const c = await drawn();
   act(() => void c.step('down'));

@@ -31,8 +31,10 @@
   Tab is steered across them instead, so Tab and Shift+Tab walk the spaces left to right as they are drawn, with each divider between its
   two cells, whatever order the column lists them in: into the column at the end the key comes from, and out of it by one press at
   either end, also when the column is alone on the page. A Tab pressed inside a web view that is a space's last stop goes on to the
-  divider; out of the last space, with nothing after the column on the page, it rests for one press first, as a row alone does. While
-  several spaces show, the column and each cell hold zero-size tab stops of their own (`data-column-sentinel`) that pass focus on.
+  divider; out of the last space, with nothing after the column on the page, it rests for one press first, as a row alone does, and
+  so does Shift+Tab out of a web view that is the first space's first stop. A control that is in the page and not drawn (inside a
+  `hidden` panel, a closed `dialog` or a closed `details`) is no stop. While several spaces show, the column and each cell hold
+  zero-size tab stops of their own (`data-column-sentinel`) that pass focus on.
   A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
   labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell

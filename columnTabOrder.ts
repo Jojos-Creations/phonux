@@ -11,8 +11,11 @@ const TABBABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex]
 /** Marks the column's own tab stops: `start` and `end` at the column's two ends, `cell-start` and `cell-end` at each cell's. */
 export const COLUMN_SENTINEL = 'data-column-sentinel';
 
+// An element's own style does not say whether it is drawn: one inside a `hidden` panel, a closed dialog or a closed `details` has
+// no box, takes no focus and is passed over by the browser. `checkVisibility` knows, also for fixed and content-visibility content.
 function usable(el: HTMLElement): boolean {
   if (el.tabIndex < 0 || el.matches(':disabled') || el.closest('[inert]') !== null) return false;
+  if (typeof el.checkVisibility === 'function') return el.checkVisibility({ visibilityProperty: true });
   const style = getComputedStyle(el);
   return style.visibility !== 'hidden' && style.display !== 'none';
 }
@@ -38,13 +41,19 @@ function elementBeyond(root: HTMLElement, back: boolean): HTMLElement | undefine
   return beyond[back ? beyond.length - 1 : 0];
 }
 
-/** Focuses the first (`back`: last) tabbable element of the first stop from `from` in that direction that has one; false when none has. */
+/**
+ * Focuses the first (`back`: last) tabbable element of the first stop from `from` in that direction that takes it. True only when
+ * focus really moved: a key cancelled for an element that then refused focus would leave the person where they were, at every press.
+ */
 function enter(stops: readonly HTMLElement[], from: number, back: boolean): boolean {
   for (let k = from; k >= 0 && k < stops.length; k += back ? -1 : 1) {
     const found = tabbablesOf(stops[k]!);
-    if (found.length === 0) continue;
-    focusAsTab(found[back ? found.length - 1 : 0]!, back);
-    return true;
+    for (const el of back ? found.reverse() : found) {
+      const was = el.ownerDocument.activeElement;
+      focusAsTab(el, back);
+      // The row may have passed the focus on to the panel its reading order starts at, so any move counts.
+      if (el.ownerDocument.activeElement !== was) return true;
+    }
   }
   return false;
 }
