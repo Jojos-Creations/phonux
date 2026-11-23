@@ -479,7 +479,7 @@ export interface PhonuxLabels {
     shareTabsName: string;
     shareTitle: string;
     sizeName: (slots: number) => string;
-    splitDivider: string;
+    splitDivider: (left: string, right: string) => string;
     splitValue: (left: string, leftPanels: number, right: string, rightPanels: number) => string;
     trustAllow: string;
     trustCancel: string;

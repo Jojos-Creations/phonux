@@ -22,12 +22,19 @@
   handle: `shown` (`ColumnShown[]`: `workspace`, `slots`, `rowSlots`), `showSide(workspace, { at? })`, `hideSide(workspace)`,
   `setSplit(rowSlots)` (all three answer `{ ok: true }` or `{ ok: false, code, message }` as `SideResult`, with `SideRefusal` codes
   and never throw) and `focusSide('left' | 'right')`. `step` acts on the focused side and skips a workspace shown elsewhere.
-  A narrow window gives up sticky panels first, then the widest space's slots, and drops the space farthest from the current one
-  only when each side cannot keep one row slot; a wider window restores them all. A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
+  A narrow window gives up sticky panels first (lowest `stickyRank`, then the later panel in the column), then the sides the person is
+  not in give up slots, each down to one row panel, and only then the current side; the space farthest from the current one leaves
+  only when each side cannot keep one row slot, and a wider window restores them all. Stepping to a workspace the window does not
+  show takes the current one's place without discarding any saved side. The shown cells are in the DOM left to right with each
+  divider between its two cells. A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
-  labels `splitDivider` and `splitValue`.
+  labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell
+  on its left.
 - `ColumnState.version` is now `1 | 2`, and a version 2 record carries `side: { shown, split }`. A column without `sideBySide` still
-  writes version 1, and a version 1 record reads as only the current workspace shown.
+  writes version 1, and a version 1 record reads as only the current workspace shown. An older phonux reads a version 2 record as
+  nothing saved.
+- `arrowKeyBelongsElsewhere` is now also true for a key aimed at a `[role="separator"][aria-valuenow]`, the divider between spaces, so an
+  app's own arrow handler leaves its arrows alone as it does for a slider.
 - `TrustScreen`: the props-driven code exchange that adds someone the person trusts. The person makes a code (shown as
   text and a QR code) or joins with one, waits for the other side, and answers; the maker chooses how long the other side
   may send. The app passes a `TrustExchanges` object (invite, join, the exchange left open, and why a call failed) and

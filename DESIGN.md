@@ -880,7 +880,7 @@ setting or an app `MotionConfig`). A button where there is no neighbor reads `la
 **Keys.** The column binds no key: an app binds one to `step` (Option+Up/Down in phonux-app). An app binding an arrow applies the row's guard, `arrowKeyBelongsElsewhere`, which is false for a key that is none of: a handler already took the key (`defaultPrevented`), a modifier is
 held, the key repeats or an IME composes, the target or the focused element is an input, textarea, select, contenteditable or an element
 with a role that owns the arrows (textbox, searchbox, combobox, listbox, slider, spinbutton, menu, menubar, tablist, tree, grid,
-radiogroup), the item is pressed under dnd-kit's keyboard drag, a panel is being dragged, or a modal dialog is open. A web view swallows keys, so the buttons are the way out of one.
+radiogroup, or a separator with `aria-valuenow`, the divider between spaces), the item is pressed under dnd-kit's keyboard drag, a panel is being dragged, or a modal dialog is open. A web view swallows keys, so the buttons are the way out of one.
 
 **Mounted, inert, focus.** Every cell stays mounted, so panels keep their state, and the cells that are not shown are `inert` and
 `aria-hidden` (with `sideBySide` off the only shown cell is the current one). When the current cell changes while focus was inside the one left, focus moves to the new cell (`tabIndex -1`), so the arrow keys keep working.
@@ -936,13 +936,16 @@ the intent, so a window dragged narrow and back loses nothing. A workspace's sti
 saved `rowSlots`.
 
 **Narrowing order.** When the intent and the sticky panels ask for more than the window holds: (1) sticky panels go back into their rows,
-lowest `stickyRank` first, of equal rank the one in the space farthest from the current one, so a sticky panel is given up before any
-space shrinks; (2) the widest cell then gives up a row slot, of equal width the one farthest from the current space; (3) a window too
-narrow for every side to keep its least row slots (`max(1, tuning.minScrollSlots)`) drops the space farthest from the current one, one at a
-time; it stays in the column and returns when the window widens. A window with slots to spare gives them to the current space, then to the
-nearest ones in turn. A single space alone gets every slot and the row's own rule for its sticky panels. The current workspace is always
-shown. A cell is exactly its row slots plus its sticky slots, and a cell tells its row `rowSlots` as the least scrolling room
-(`RowFloorContext`, internal), so the row works out from its own width the same sticky panels the column planned and nothing is ever cut.
+lowest `stickyRank` first, of equal rank the later panel, the column read as one row left to right (the rule of `stickyKept` and
+`returnsBefore`; no space is favoured by being near the current one), so a sticky panel is given up before any space shrinks; (2) the
+sides the person is not in give up row slots, the widest first and of equal width the one farthest from the current space, each down to
+its least (`max(1, tuning.minScrollSlots)`); (3) only then the current side gives up row slots, down to its least too; (4) a window too
+narrow for every side to keep its least drops the space farthest from the current one, one at a time, and it returns when the window
+widens. A split of 4 and 2 with the left side current narrows to 4|1 at five slots and 3|1 at four. A window with slots to spare deals
+them out one at a time, to the current space first and then the nearest ones. A single space alone gets every slot and the row's own
+rule for its sticky panels. The current workspace is always shown. A cell is exactly its row slots plus its sticky slots, and a cell tells
+its row `rowSlots` as the least scrolling room (`RowFloorContext`, internal), so the row works out from its own width the same sticky
+panels the column planned and nothing is ever cut.
 
 **The column handle.** `shown` lists `{ workspace, slots, rowSlots }` per cell (a new array only when the plan changes, so it is safe
 to read in a render and `subscribe` fires when the window shows something else, not when only pixels moved). `showSide(workspace, { at? })`
@@ -960,14 +963,14 @@ side's row panels, `aria-valuemin` and `aria-valuemax` the least and most it may
 is `labels.splitValue(...)`, such as "Research 2 panels, Trip food 2 panels". Left and Right move it one slot, Home and End to the minimums, a
 double click evens the split out, and a pointer drag moves it by whole slots (`Math.round(dx / pitch)` from where the drag began, so a
 move of under half a slot changes nothing and the sides never show a partial slot). The divider owns its arrows: the row's key handlers ignore
-a key aimed at a separator. Geometry snaps between whole-slot sizes and never glides, so there is no frame in which a panel is cut and no motion
+a key aimed at a separator. Its accessible name is `labels.splitDivider(left, right)`, which names the two spaces it parts ("Resize Research and Trip food"), so two dividers differ, and `aria-controls` names the cell on its left, the pane whose row panels `aria-valuenow` counts. Geometry snaps between whole-slot sizes and never glides, so there is no frame in which a panel is cut and no motion
 for Reduce Motion to turn off.
 
 **Keys and focus.** A press or focus inside a cell that is not current makes it the current workspace (`scrollTo`). `focusSide('left' | 'right')`
 moves current to the shown space on that side, and returns `false` where there is none. `step('up' | 'down')` moves to the next workspace in
-the list that is not shown, from the current one, so it never lands on a space the window already shows. The row's arrow stepping acts only
+the list that is not shown, from the current one, so it never lands on a space the window already shows. A workspace the window does not show takes the current one's place in the window and nobody's saved side is discarded: one that left for lack of room keeps its entry, so after the window widens the saved order and split come back whole (saved 2, 2, 2, narrowed to two slots, stepped down, widened to six: three spaces of two again). Only a workspace with no saved side at all takes the current one's. The row's arrow stepping acts only
 on the row it belongs to: `keyBelongsToRow` says a key aimed at a cell goes to that cell's row, and a key aimed at the page to the current
-workspace's row (the cell marked `data-workspace-active`). Scrolling one row never moves another row or any sticky panel. Each cell has its
+workspace's row (the cell marked `data-workspace-active`). Scrolling one row never moves another row or any sticky panel. The DOM follows the screen: the shown cells are rendered left to right with each divider between its two cells, and the cells the window does not show follow, inert, so Tab and a screen reader meet the spaces as they are drawn (a column that shows one cell keeps the list's order). Focus that sits in a cell the window stops showing goes to the current space's cell. Each cell has its
 own dot bar, so a window of two spaces has two bars; the bar of a cell the window does not show stays mounted but inert and hidden from
 assistive technology, like the rest of that cell.
 
