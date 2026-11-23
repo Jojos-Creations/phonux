@@ -70,7 +70,7 @@ export interface CaptureTrigger {
 }
 
 // @public
-export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'edgeHold'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
@@ -213,6 +213,7 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
+    minScrollSlots?: number;
 }): RowNumbers;
 
 // @public
@@ -709,6 +710,11 @@ export interface PanelDots {
         drag(dx: number): void;
         end(): void;
     } | null;
+    readonly sticky: readonly {
+        readonly id: string;
+        readonly side: 'start' | 'end';
+        readonly hollow: boolean;
+    }[];
     readonly width: number;
 }
 
@@ -1019,6 +1025,7 @@ export type PanelSettings = {
     headerButtons?: {
         [id: string]: HeaderButton | false;
     };
+    edgeHold?: 'off' | 'left' | 'right' | 'both';
 };
 
 // @public
@@ -1396,6 +1403,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly maxLiveWidth: number;
     readonly rowNumbers: RowNumbers;
     readonly rowScroll: boolean;
+    readonly rowSegments: readonly RowSegment[];
     scrollTo(id: string, align?: ScrollAlign): boolean;
     setSlots(id: string, slots: number): void;
     readonly swapExitIds: ReadonlySet<string>;
@@ -1443,6 +1451,7 @@ export type ResolvedPanelSettings = {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
+    readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 // @public
@@ -1471,6 +1480,7 @@ export type ResolvedWorkspaceTuning = {
     defaultExitTo: ExitTo;
     shrinkUnfocused: boolean;
     firstPressFocusOnly: boolean;
+    minScrollSlots: number;
 };
 
 // @public
@@ -1550,17 +1560,24 @@ export interface RowNumbers {
     stripStart: number;
     stripWidth: number;
     stripWindow: number;
-    stuck: readonly {
-        id: string;
-        left: number;
-        right: number;
-    }[];
     widths: readonly number[];
     windowWidth: number;
 }
 
 // @public
 export function rowPanelIdOf(target: EventTarget | null): string | null;
+
+// @public
+export type RowSegment = {
+    kind: 'sticky';
+    panelId: string;
+    slots: number;
+    side: 'start' | 'end';
+} | {
+    kind: 'scroll';
+    slots: number;
+    panelIds: readonly string[];
+};
 
 // @public
 export type ScrollAlign = 'into-view' | 'start' | 'center';
@@ -1638,7 +1655,8 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    edgeHold: 'off' | 'left' | 'right' | 'both';
+    sticky: 'off' | 'start' | 'end';
+    stickyRank: number;
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -2350,6 +2368,7 @@ export type WorkspaceTuning = {
     defaultExitTo?: ExitTo;
     shrinkUnfocused?: boolean;
     firstPressFocusOnly?: boolean;
+    minScrollSlots?: number;
 };
 
 // @public

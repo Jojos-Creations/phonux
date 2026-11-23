@@ -38,7 +38,7 @@ const REMOVED = Object.keys(FROZEN);
 
 /** The settings that stay (`overflow` left them 2026-11-14, with the parking engine's other keys): what the app sets, what a verb or a view patch reads, and the two template and clear-all readers. */
 const KEPT = [
-  'multiple', 'hostCreatable', 'hollowDot', 'restoreVisibility', 'edgeHold', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
+  'multiple', 'hostCreatable', 'hollowDot', 'restoreVisibility', 'sticky', 'stickyRank', 'headerButtons', 'title', 'listed', 'layer', 'resizable', 'closable', 'scrollOnMove',
   'parkable', 'slots', 'maxSlots', 'movable', 'crossable', 'startVisibility', 'placeOnAdd', 'placeOnShow', 'scrollOnOpen', 'showWhenClosed', 'toggleWhenClosed', 'afterClose', 'enterFrom', 'exitTo',
   'clearable', 'maxInstances',
 ];

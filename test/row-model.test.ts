@@ -626,7 +626,7 @@ type Moves = { before: Map<string, number>; after: Map<string, number>; kept: st
  */
 function todayAcrossHoldFlip(c: FlipCase): Moves | null {
   const holdAt = c.holdAt % c.slots.length;
-  const entries = (held: boolean): PanelWindow[] => c.slots.map((slots, k) => made(`p${k}`, { slots, ...(held && k === holdAt ? { edgeHold: 'left' as const } : {}) }));
+  const entries = (held: boolean): PanelWindow[] => c.slots.map((slots, k) => made(`p${k}`, { slots, ...(held && k === holdAt ? { sticky: 'start' as const } : {}) }));
   const run = (held: boolean) => computeRowNumbers({ entries: entries(held), phoneWidth: 390, containerWidth: c.container, gap: 16, wholePanels: true });
   const from = run(c.on);
   const to = run(!c.on);

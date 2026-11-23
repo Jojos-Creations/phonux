@@ -1,5 +1,5 @@
 /**
- * Locking a panel at an edge while the row rests moves nothing on screen but what the lock itself requires: the panels of
+ * Making a panel sticky while the row rests moves nothing on screen but what the lock itself requires: the panels of
  * the strip are carried by the left group's width at the commit, so their own slide does not start from a place the group
  * has already moved them out of.
  */
@@ -25,7 +25,7 @@ function screenX(m: ReturnType<typeof mountRow>, id: string): number {
 
 /** Every unheld slot draws at the offset its numbers give it: the slot's own translate is its `data-row-slot`. */
 function drawnOffNumbers(m: ReturnType<typeof mountRow>): string[] {
-  const held = new Set([...m.latest().rowNumbers.held.map((h) => h.id), ...m.latest().rowNumbers.stuck.map((s) => s.id)]);
+  const held = new Set(m.latest().rowNumbers.held.map((h) => h.id));
   const off: string[] = [];
   for (const slot of m.container.querySelectorAll<HTMLElement>('[data-row-slot]')) {
     const id = slot.dataset.rowId!;
@@ -36,12 +36,12 @@ function drawnOffNumbers(m: ReturnType<typeof mountRow>): string[] {
   return off;
 }
 
-test('locking a middle panel at the left draws every panel where the numbers put it, at rest and after scrolling away and back', async () => {
+test('making a middle panel sticky at the start draws every panel where the numbers put it, at rest and after scrolling away and back', async () => {
   const m = mountRow(row(rootEntry(), made('a'), made('b'), made('c'), made('d'), made('e')), 1000, { tuning: { rowGesture: 'step' } });
   await advanceFrames(2000);
   assert.deepEqual(drawnOffNumbers(m), [], 'control: the check passes with nothing held');
   await act(async () => {
-    m.workspace.panels.configure('b', { edgeHold: 'left' });
+    m.workspace.panels.configure('b', { sticky: 'start' });
   });
   await advanceFrames(2000);
   assert.deepEqual(m.latest().rowNumbers.held.map((h) => h.id), ['b'], 'control: b took the left group');
@@ -54,8 +54,8 @@ test('locking a middle panel at the left draws every panel where the numbers put
   assert.deepEqual(drawnOffNumbers(m), [], 'after scrolling to the far end and back');
 });
 
-test('a held middle panel growing leaves every strip panel where the numbers put it', async () => {
-  const m = mountRow(row(rootEntry(), made('a', { edgeHold: 'left' }), made('b'), made('c'), made('d'), made('e'), made('f'), made('g')), 1500, { tuning: { rowGesture: 'step' } });
+test('a sticky middle panel growing leaves every strip panel where the numbers put it', async () => {
+  const m = mountRow(row(rootEntry(), made('a', { sticky: 'start' }), made('b'), made('c'), made('d'), made('e'), made('f'), made('g')), 1500, { tuning: { rowGesture: 'step' } });
   await advanceFrames(2000);
   assert.deepEqual(drawnOffNumbers(m), [], 'control: the check passes before the growth');
   const inset = m.latest().rowNumbers.leftInset;

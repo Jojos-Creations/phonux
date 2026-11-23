@@ -116,17 +116,16 @@ function generate(r: () => number): Row {
   slots[from] = 1;
   const live = (k: number): boolean => k >= from && k < from + runLength;
   const hold = kind === 'held' || kind === 'parkedHeld' ? 'left' : kind === 'heldRight' ? 'right' : undefined;
-  const root = { id: 'root', slots: 1, live: kind !== 'aside', collapsible: false, settings: { overflow: 'scroll', ...(hold === undefined ? {} : { edgeHold: hold }) } };
+  const root = { id: 'root', slots: 1, live: kind !== 'aside', collapsible: false, settings: { overflow: 'scroll', ...(hold === undefined ? {} : { sticky: hold === 'left' ? 'start' : 'end' }) } };
   const rest = slots.map((s, k) => ({ id: `p${k}`, slots: s, live: live(k), collapsible: true, settings: { overflow: 'scroll' } }));
   const entries = [root, ...rest] as unknown as WorkspaceRowEntry[];
   const n = computeRowNumbers({ entries: entries as never, phoneWidth: PHONE, containerWidth, gap: GAP, wholePanels: true });
-  const held = n.held[0];
-  const order = entries.map((e) => e.id);
-  if (held?.side === 'right') order.push(order.shift()!);
-  const drawn = [...n.held.map((h) => h.id), ...n.ids];
-  const rootDrawn = drawn.includes('root');
-  const passed = rootDrawn && held === undefined && from > 0;
-  return { name: `${kind} slots ${slots.join(',')} live ${from}+${runLength} in ${containerWidth}`, entries, n, order, drawn, rider: held?.id ?? (passed ? 'root' : null), side: held?.side ?? 'left' };
+  // A sticky panel never scrolls, so it has no dot on the ruler: the ruler is the strip's panels and the ones parked beside them.
+  const stickyIds = new Set(n.held.map((h) => h.id));
+  const order = entries.map((e) => e.id).filter((id) => !stickyIds.has(id));
+  const drawn = [...n.ids];
+  const passed = drawn.includes('root') && n.held.length === 0 && from > 0;
+  return { name: `${kind} slots ${slots.join(',')} live ${from}+${runLength} in ${containerWidth}`, entries, n, order, drawn, rider: passed ? 'root' : null, side: 'left' };
 }
 
 test('property: every dot is its panel on the ruler scaled and the oval is the window on it, in rows held, parked and stepped aside', () => {
@@ -134,6 +133,7 @@ test('property: every dot is its panel on the ruler scaled and the oval is the w
   let rows = 0;
   let riders = 0;
   let scrolled = 0;
+  let sticky = 0;
   for (let seed = 1; seed <= 3000; seed += 1) {
     const r = rng(seed);
     const row = generate(r);
@@ -155,7 +155,9 @@ test('property: every dot is its panel on the ruler scaled and the oval is the w
     const riderAt = row.rider === null ? -1 : n.ids.indexOf(row.rider);
     const riderOut = riderAt >= 0 && (slotSpanAt(n, riderAt, at).right <= gridEdgesOf(n).lo || slotSpanAt(n, riderAt, at).left >= gridEdgesOf(n).hi);
     near(bar.width, x * SLOT - DOT_GAP_PX, `${what}: the bar is the ruler's length`);
-    assert.equal(bar.dots.length, order.length, `${what}: every panel has a dot`);
+    assert.equal(bar.dots.length, order.length, `${what}: every panel but the sticky ones has a dot`);
+    assert.deepEqual(bar.sticky.map((x) => x.id), n.held.map((h) => h.id), `${what}: the bar lists the sticky panels apart from the dots`);
+    assert.equal(bar.dots.some((d) => n.held.some((h) => h.id === d.id)), false, `${what}: no sticky panel has a dot`);
     near(bar.scale, SLOT / (PHONE + GAP), `${what}: one slot of row is one slot of bar`);
     const firstRun = order.find((id) => id !== row.rider && row.drawn.includes(id))!;
     const riderSlots = row.rider !== null && row.side === 'left' ? slotsOf(entries.find((e) => e.id === row.rider)!) * SLOT : 0;
@@ -175,10 +177,11 @@ test('property: every dot is its panel on the ruler scaled and the oval is the w
     rows += 1;
     if (row.rider !== null && !riderOut) riders += 1;
     if (at > 0) scrolled += 1;
+    if (n.held.length > 0) sticky += 1;
     kinds.add(row.name.split(' ')[0]!);
   }
   assert.deepEqual([...kinds].sort(), ['aside', 'held', 'heldRight', 'parked', 'parkedHeld', 'passed', 'scroll'], 'every kind of row was generated');
-  assert.ok(rows > 1500 && riders > 300 && scrolled > 300, `the property saw enough: ${rows} rows, ${riders} with a rider, ${scrolled} scrolled`);
+  assert.ok(rows > 1500 && riders > 300 && scrolled > 300 && sticky > 300, `the property saw enough: ${rows} rows, ${riders} with a rider, ${scrolled} scrolled, ${sticky} with a sticky panel`);
 });
 
 test('a root scrolled out of the window rides nothing: seven dots stand apart, in list order, and the oval holds only the panels in view', () => {

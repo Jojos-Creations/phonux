@@ -104,7 +104,7 @@ test('the hold at each of three stops: the others keep their widths through a re
 });
 
 test('slotEdgesAt: a panel fades across the held gap, and one past the grid runs to the window edge only by what it has inside', () => {
-  const n = computeRowNumbers({ entries: [made('root', { edgeHold: 'left' }, { collapsible: false }), ...[1, 1, 2, 1].map((slots, k) => made(`s${k + 1}`, { slots, maxSlots: 64 }))], phoneWidth: 320, containerWidth: 1700, gap: 24, wholePanels: true });
+  const n = computeRowNumbers({ entries: [made('root', { sticky: 'start' }, { collapsible: false }), ...[1, 1, 2, 1].map((slots, k) => made(`s${k + 1}`, { slots, maxSlots: 64 }))], phoneWidth: 320, containerWidth: 1700, gap: 24, wholePanels: true });
   assert.ok(n.leftInset > 0, 'control: the root is held');
   const k = n.ids.indexOf('s3');
   const { lo, hi } = { lo: gridEdgesOf(n).lo + n.leftInset, hi: gridEdgesOf(n).hi };

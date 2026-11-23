@@ -10,6 +10,7 @@ import { DOT_GAP_PX, DOT_PHONE_PX } from './rowBar.js';
 import { emblaDrawnOf, emblaOf, endEmblaWheel, glideEmbla, emblaRowsVersion, emblaStripOf, nearestStop, emblaTargetOf, subscribeEmblaRows, watchEmblaRest, writeEmbla, type EmblaStrip } from './emblaRow.js';
 import type { PanelDots } from './usePanelDots.js';
 import { resolveLabels, type PhonuxLabels } from './labels.js';
+import { focusPanelSlot } from './rowStep.js';
 import type { WorkspaceRowEntry } from './workspaceRow.js';
 
 /** A press that moves this far across the bar drags the oval; a shorter one is a click. */
@@ -103,6 +104,24 @@ interface OvalDrag {
   last: number;
 }
 
+const noop = (): void => undefined;
+/** A bar with no dots whose handlers do nothing, listing only the sticky panels `sticky` names. @internal */
+export function idleDots(sticky: PanelDots['sticky'] = []): PanelDots {
+  return {
+    dots: [],
+    oval: { left: 0, width: 0 },
+    width: 0,
+    shown: [],
+    sticky,
+    selectDot: noop,
+    startOvalDrag: () => null,
+    cursor: 'default',
+    barProps: { onPointerDown: noop, onPointerMove: noop, onPointerUp: noop, onPointerLeave: noop, onPointerCancel: noop, onWheel: noop, style: { touchAction: 'none', cursor: 'default' }, 'data-dot-bar': '' },
+    ovalProps: { role: 'slider', tabIndex: 0, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': 0, 'aria-valuetext': '', onKeyDown: noop },
+    dotProps: (id) => ({ 'data-dot': id, onClick: noop }),
+  };
+}
+
 /** The dot bar on an Embla row, or null when `scroller` is not an Embla row that has drawn. Same shape as `usePanelDots`. @internal */
 export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; scroller: React.RefObject<HTMLElement | null>; ovalSide?: number; labels?: Partial<PhonuxLabels> }): PanelDots | null {
   const { entries, scroller, ovalSide = 0 } = i;
@@ -125,8 +144,10 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
   );
   const el = scroller.current;
   const embla = el === null ? undefined : emblaOf(el);
-  const strip = el === null || embla === undefined ? undefined : emblaStripOf(el);
-  if (embla === undefined || strip === undefined) return null;
+  const strip = el === null ? undefined : emblaStripOf(el);
+  if (strip === undefined) return null;
+  // Every slot sticky: the strip is empty and Embla is not running, but the sticky marks still draw.
+  if (embla === undefined) return strip.sticky.length === 0 ? null : idleDots(strip.sticky.map((x) => ({ id: x.id, side: x.side, hollow: entries.find((e) => e.id === x.id)?.settings?.hollowDot === true })));
   const hollowOf = (id: string): boolean => entries.find((e) => e.id === id)?.settings?.hollowDot === true;
   const bar = emblaBarOf(strip, emblaDrawnOf(embla), hollowOf);
 
@@ -176,6 +197,12 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
   };
 
   const selectDot = (id: string): void => {
+    // A sticky panel is always in view: its mark takes the focus there and the row stays where it is.
+    if (strip.sticky.some((x) => x.id === id)) {
+      const slot = el?.querySelector<HTMLElement>(`[data-row-sticky] [data-row-id="${CSS.escape(id)}"]`);
+      if (slot != null) focusPanelSlot(slot);
+      return;
+    }
     const k = strip.layout.ids.indexOf(id);
     if (k < 0 || drag.current !== null || embla.internalEngine().dragHandler.pointerDown()) return;
     const left = strip.layout.lefts[k]!;
@@ -276,5 +303,5 @@ export function useEmblaPanelDots(i: { entries: readonly WorkspaceRowEntry[]; sc
       if (e.detail === 0) selectDot(id);
     },
   });
-  return { dots: bar.dots, oval: bar.oval, width: bar.width, shown: bar.shown, selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
+  return { dots: bar.dots, oval: bar.oval, width: bar.width, shown: bar.shown, sticky: strip.sticky.map((x) => ({ id: x.id, side: x.side, hollow: hollowOf(x.id) })), selectDot, startOvalDrag, cursor, barProps, ovalProps, dotProps };
 }

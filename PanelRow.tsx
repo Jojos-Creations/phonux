@@ -13,7 +13,7 @@ import { resolveLabels } from './labels.js';
 import { LandingContext, usePhoneSize } from './phoneFit.js';
 import { isPresent, summarisePanel, type NeighborWidths, type PanelRowEntry } from './panelRowEntry.js';
 import { anchorTargetOf, resolveEnterDirection, type EnterDirection } from './panelRowOrder.js';
-import { PanelSlotContext, type DragScroll } from './panelSlotContext.js';
+import { HandoffContext, PanelSlotContext, type DragScroll } from './panelSlotContext.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelViewContextValue } from './panelViewContext.js';
 import { HEADER_ROW_ATTRIBUTE, headerButtonsOf } from './panelHeaderButtons.js';
@@ -38,7 +38,7 @@ import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
 import { useViewState } from './viewState.js';
-import { HOLD_AT_ATTRIBUTE, HOLD_STICK_ATTRIBUTE, EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaPlaceOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaFastScroll, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
+import { EMBLA_SLOT_ATTRIBUTE, EMBLA_UNLOADED_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, RowNearContext, emblaAheadOf, emblaDrawnOf, emblaRests, nearestStop, revealScroll, emblaMoveOf, emblaPlaceOf, emblaOf, emblaScrollOf, emblaTargetOf, emblaWindowOf, keptScroll, kickEmblaAway, loadedNear, moveEmbla, sameLayout, publishEmblaStrip, setEmblaFastScroll, setEmblaReduced, slotMarkerLefts, subscribeEmblaRows, useEmblaRow, type StripLayout } from './emblaRow.js';
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 // A host may apply a person's move a task or two after the drop or key that asked for it; a note older than this was refused.
@@ -106,20 +106,6 @@ export const usePanelCapabilities = (): Pick<ResolvedPanelSettings, 'closable' |
  * @public */
 export const usePanelNeighborWidths = (): NeighborWidths => React.useContext(PanelSlotContext)?.neighborWidths ?? NO_NEIGHBORS;
 const OUTSIDE_ROW_TUNING: SlotTuning = slotTuning(LIBRARY_TUNING_DEFAULTS);
-/**
- * The host of every slot, held or not, so a panel's React place never changes as its hold starts or lets go. Embla moves the
- * strip by a transform, so a held slot is drawn against it each frame (`drawHeldSlots`): `at` is a left or right hold's x in the
- * window, outside the strip's window in its edge's group; `stick` is an edgeHold 'both' panel, drawn at its place in the strip
- * but kept `left` px inside the window's left edge and `right` px inside its right one (the 'both' panels stacked on that edge).
- */
-function PanelHold({ at, stick, children }: { at: number | null; stick: { left: number; right: number } | null; children: React.ReactNode }): React.ReactElement {
-  return (
-    <Box data-row-hold="" {...{ [HOLD_AT_ATTRIBUTE]: at ?? undefined, [HOLD_STICK_ATTRIBUTE]: stick === null ? undefined : `${stick.left} ${stick.right}` }} style={{ display: 'contents' }}>
-      {children}
-    </Box>
-  );
-}
-
 type PanelRowTuning = Pick<ResolvedWorkspaceTuning, 'rowGap' | 'dragToClose' | 'slide' | 'hopFraction' | 'edgeScroll'>;
 const OUTSIDE_ROW_VIEW_TUNING: PanelRowTuning = OUTSIDE_ROW_TUNING.view;
 /**
@@ -241,11 +227,21 @@ export function PanelRow({
   const phoneHeight = phoneSize.height;
   // View state is held by the key, the id a recentlyClosed summary carries, so a closed panel's state survives until its undo window ends.
   useViewState.useRetainOnly([...entries.map((p) => panelKey(p)), ...(panels.recentlyClosed ?? []).map((p) => p.id)]);
-  // The strip's widths and rests are the present entries the row does not hold at an edge. A held one keeps its React place in
-  // the strip and is positioned by its PanelHold host, so holding or releasing it never remounts its view.
+  // The strip's widths and rests are the present entries that are not sticky. A sticky one is drawn in its edge's group beside the strip,
+  // so a panel that turns sticky or stops being sticky draws again in the other place and its view state is read back by its key.
   const presentAll = entries.filter(isPresent);
   const heldById = new Map((rowNumbers?.held ?? []).map((h) => [h.id, h] as const));
   const present = presentAll.filter((p) => !heldById.has(p.id));
+  const startGroupIds = (rowNumbers?.held ?? []).filter((h) => h.side === 'left').map((h) => h.id);
+  const endGroupIds = (rowNumbers?.held ?? []).filter((h) => h.side === 'right').map((h) => h.id);
+  // The panels that changed between the strip and a group in this commit: the one that leaves and the one that arrives swap at once.
+  const placeOf = new Map<string, 'strip' | 'left' | 'right'>(presentAll.map((p) => [p.id, heldById.get(p.id)?.side ?? 'strip']));
+  const placedBefore = React.useRef<ReadonlyMap<string, 'strip' | 'left' | 'right'>>(placeOf);
+  const swapped = presentAll.filter((p) => placedBefore.current.has(p.id) && placedBefore.current.get(p.id) !== placeOf.get(p.id)).map((p) => p.id);
+  const handoff: ReadonlySet<string> = swapped.length === 0 ? EMPTY_SET : new Set(swapped);
+  React.useLayoutEffect(() => {
+    placedBefore.current = placeOf;
+  });
   chrome.setKeys(new Map(entries.map((p) => [p.id, panelKey(p)])));
   // A panel this row showed and no longer shows (closed or parked) stops being the active or dragged one.
   const presentBefore = React.useRef<ReadonlySet<string>>(new Set());
@@ -325,12 +321,14 @@ export function PanelRow({
   // walk is over every array slot and stops at the first entry that is not crossable, a parked one included,
   // because that is where movePanel refuses the hop.
   const neighborsAt = (entry: PanelRowEntry): Walk => {
+    // A sticky panel is never crossed or dragged, so it has no neighbors to hop over.
+    if (heldById.has(entry.id)) return { left: [], right: [] };
     const at = entries.indexOf(entry);
     const side = (step: 1 | -1) => {
       const out: Neighbor[] = [];
       for (let i = at + step; i >= 0 && i < entries.length; i += step) {
         const next = entries[i]!;
-        // A held panel is never crossed: it is not in the strip, so a drag that passed it would move it out of its edge.
+        // A sticky panel is never crossed: it is not in the strip, so a drag that passed it would move it out of its edge.
         if (!effective(next).crossable || heldById.has(next.id)) break;
         const width = widthById.get(next.id);
         if (width !== undefined) out.push({ id: next.id, width });
@@ -350,7 +348,7 @@ export function PanelRow({
   // The one hop rule: the header drag and a drag that starts outside the row both count their hops through it.
   const stepsFor = (entry: PanelRowEntry, offset: number): number => reorderStepsForOffset(offset, neighborWidthsAt(entry), gap, rowTuning.hopFraction);
   const boxRef = React.useRef<HTMLDivElement>(null);
-  // A root no drag may cross that starts the strip is where a drag stops and its left band ends; a held root is already the inset.
+  // A root no drag may cross that starts the strip is where a drag stops and its left band ends; a sticky root is already outside the strip.
   const rootEntry = present[0]?.id === rootId ? present[0] : undefined;
   const barrierEl = (): HTMLElement | null | undefined => boxRef.current?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rootId)}"]`);
   // The root's nudge is added back, so the band stays where the root rests.
@@ -424,7 +422,7 @@ export function PanelRow({
   const reducedMotion = configReduced || systemReduced;
   const windowRef = React.useRef<HTMLDivElement>(null);
   const stripPx = reservedWidth + gapSpan;
-  // A left or right hold takes its group out of the window: the strip is seen through the rest, and the groups sit beside it.
+  // A sticky panel takes its group out of the window: the strip is seen through the rest, and the groups sit beside it.
   const insetLeft = rowNumbers?.leftInset ?? 0;
   const insetRight = rowNumbers?.rightInset ?? 0;
   const emblaWindow = emblaWindowOf((rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY) - insetLeft - insetRight, phoneWidth, gap, stripPx);
@@ -480,7 +478,7 @@ export function PanelRow({
   // Before the window is measured it is drawn the whole strip wide: load only the cap's nearest then, not every page for one commit.
   const windowKnown = Number.isFinite(rowNumbers?.windowWidth ?? Number.POSITIVE_INFINITY);
   const loadedAt = (scroll: number, ahead: number, toward: number | null): Set<string> =>
-    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && !heldById.has(id) && !(rowNumbers?.stuck.some((st) => st.id === id) ?? false) && present.some((p) => p.id === id && p.collapsible && (workspaceTuning.maxLivePanels !== null || p.settings === undefined)), was: loadedRef.current, ahead, toward });
+    loadedNear({ layout: layoutNow, scroll, windowWidth: windowKnown ? emblaWindow.width : 0, pitch: phoneWidth + gap, gap, near: windowKnown ? nearSlots : Number.POSITIVE_INFINITY, limit: workspaceTuning.maxLivePanels, unloadable: (id) => id !== dragging?.id && present.some((p) => p.id === id && p.collapsible && (workspaceTuning.maxLivePanels !== null || p.settings === undefined)), was: loadedRef.current, ahead, toward });
   // Read where the strip is drawn, not Embla's location: mid-glide the location runs up to a frame's travel ahead of the drawing.
   const loadedNow = emblaNow === undefined ? loadedAt(keepTo, 0, null) : loadedAt(drawnScrollNow + keepTo - scrollNow, emblaAheadOf(emblaNow), emblaTargetOf(emblaNow) + keepTo - scrollNow);
   loadedRef.current = loadedNow;
@@ -496,7 +494,7 @@ export function PanelRow({
       if (next.size !== was.size || [...next].some((id) => !was.has(id))) reload();
     });
   }, []);
-  // One slot for a strip entry or a held one. A held entry is not draggable and is drawn in place with fades: it never moves.
+  // One slot for a strip entry or a sticky one. A sticky entry is not draggable and is drawn in its group: it never moves.
   const slotFor = (p: PanelRowEntry, rest: { leftOffset: number; width: number }, held: boolean): React.ReactElement => {
     const Component = resolveViewIn(templateOf, p.view);
     const { closable, movable, resizable, maxSlots, enterFrom, exitTo, layer, headerButtons } = effective(p);
@@ -507,11 +505,7 @@ export function PanelRow({
     // A panel whose last button was just removed while it held focus still gets the slot context for that one commit, so the hook that moves focus runs.
     const headerButtonSlots = headerButtonsOf(headerButtons, handle, report, note) ?? (handle !== undefined && focusInHeaderRow(handle.id) ? { slots: {}, handle, report, note } : undefined);
     const index = presentAll.indexOf(p);
-    const h = heldById.get(p.id);
-    const stuckAt = p.settings?.edgeHold === 'both' && h === undefined ? rowNumbers?.stuck.find((st) => st.id === p.id) : undefined;
-    // A left group ends one gap before the strip's window, a right one starts one gap after it (its offset holds that gap).
-    const holdAt = h === undefined ? null : h.side === 'left' ? h.offset - insetLeft : emblaWindow.width + h.offset;
-    const sticky = holdAt !== null || stuckAt !== undefined;
+    const sticky = held;
     const summary = renderedSummary(p, rest.width, phoneHeight, slotsOfWidth(rest.width), fitSlotsNow);
     return (
       <PanelSlotContext.Provider
@@ -545,18 +539,17 @@ export function PanelRow({
             }),
         }}
       >
-        <PanelHold at={holdAt} stick={stuckAt === undefined ? null : { left: stuckAt.left - insetLeft, right: stuckAt.right - gap - insetRight }}>
         <PanelRowSlot
           panelId={p.id}
           label={labels.panelPosition(p.title || labels.untitledPanel, index + 1, presentAll.length)}
-          leftOffset={(holdAt !== null ? 0 : rest.leftOffset) + (shiftById.get(p.id) ?? 0)}
+          leftOffset={rest.leftOffset + (shiftById.get(p.id) ?? 0)}
           width={rest.width}
           phoneHeight={rowHeight}
           height={p.slots === undefined ? undefined : phoneHeight}
           enterDirection={held ? 'fade' : enterDirectionOf(enterFrom, p.anchoredEnter ?? false, enterSideById.get(p.id), enteringViaAnchorIds.has(p.id), () => resolveEnterDirection(anchorIndexOf(p), index), workspaceTuning.defaultEnterFrom)}
           exitDirection={held ? 'fade' : exitStyleOf(exitTo, workspaceTuning.defaultExitTo, closingIds.has(p.id) || swapExitIds.has(p.id), exitRightIds.has(p.id))}
           zIndex={sticky || dragging?.id === p.id || drop?.id === p.id ? ROW_LAYER_Z.DRAGGED : layer === 'raised' ? ROW_LAYER_Z.RAISED : ROW_LAYER_Z.BASE}
-          tracking={slotTracking || keeping || moving || rowNumbers?.anchor !== undefined}
+          tracking={slotTracking || keeping || moving || rowNumbers?.anchor !== undefined || handoff.has(p.id)}
           gap={gap}
           slide={own.slide}
           rowScroll={rowScroll}
@@ -590,11 +583,11 @@ export function PanelRow({
             </SizeBox>
           )}
         </PanelRowSlot>
-        </PanelHold>
       </PanelSlotContext.Provider>
     );
   };
-  useRowDraw(boxRef);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  useRowDraw(rootRef);
   // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
   // Embla runs only on a row with a slot: built with no slides it has no stop, and its position reads that missing stop as NaN.
   useEmblaRow(windowRef, boxRef, markers.length > 0, workspaceTuning.gestureQuietMs, React.useContext(AwayContext), workspaceTuning.rowGesture);
@@ -639,10 +632,36 @@ export function PanelRow({
     if (lastLayout.current !== null && (shownRef.current === null || shownRef.current.task !== taskToken())) shownRef.current = { layout: lastLayout.current, drawn: drawnScrollNow, task: taskToken() };
     lastLayout.current = layoutNow;
     lastWindow.current = emblaWindow.width;
-    if (windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap, chromeFollowSlots: workspaceTuning.chrome.fitVisibleMaxSlots });
+    if (windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap, chromeFollowSlots: workspaceTuning.chrome.fitVisibleMaxSlots, sticky: [...startGroupIds.map((id) => ({ id, side: 'start' as const })), ...endGroupIds.map((id) => ({ id, side: 'end' as const }))] });
     // A commit can start slots moving on their own (an entrance, a glide, a reorder shift): the inert marks follow them frame by frame.
     if (windowRef.current !== null) kickEmblaAway(windowRef.current);
   });
+  // The slots of each sticky group, in row order, at their place in the group.
+  const groupOf = (side: 'left' | 'right'): { p: PanelRowEntry; width: number; leftOffset: number }[] =>
+    (rowNumbers?.held ?? []).filter((h) => h.side === side).flatMap((h) => {
+      const p = presentAll.find((x) => x.id === h.id);
+      return p === undefined ? [] : [{ p, width: h.width, leftOffset: h.offset - (side === 'right' ? gap : 0) }];
+    });
+  const startGroup = groupOf('left');
+  const endGroup = groupOf('right');
+  const groupWidth = (g: readonly { width: number }[]): number => (g.length === 0 ? 0 : g.reduce((sum, x) => sum + x.width, 0) + (g.length - 1) * gap);
+  const stripShown = present.length > 0;
+  const group = (side: 'start' | 'end', slots: readonly { p: PanelRowEntry; width: number; leftOffset: number }[]): React.ReactElement | null =>
+    slots.length === 0 ? null : (
+    <Box
+      data-row-sticky={side}
+      sx={{
+        position: 'relative',
+        flexShrink: 0,
+        height: rowHeight,
+        width: groupWidth(slots),
+        // One gap between a group and what follows it.
+        ...(side === 'start' ? { marginRight: stripShown || endGroup.length > 0 ? `${gap}px` : 0 } : { marginLeft: stripShown ? `${gap}px` : 0 }),
+      }}
+    >
+      <AnimatePresence initial={false}>{slots.map((x) => slotFor(x.p, { leftOffset: x.leftOffset, width: x.width }, true))}</AnimatePresence>
+    </Box>
+  );
   const box = (
     <>
     {/* Always mounted: an exiting entry needs AnimatePresence to animate inside, and `initial={false}` must see
@@ -650,44 +669,50 @@ export function PanelRow({
     empty row consumes no flex `gap` from its siblings. */}
     <Box
       ref={boxRef}
-      onKeyDown={(event) => steerTab(event, event.currentTarget, present.map((p) => p.id))}
-      onFocus={(event) => {
-        const ids = present.map((p) => p.id);
-        steerSentinel(event, event.currentTarget, ids);
-        steerEntry(event, event.currentTarget, ids, tabPress.current);
-      }}
       sx={{
         position: 'relative',
         flexShrink: 0,
         height: rowHeight,
-        display: presentAll.length > 0 ? 'block' : 'none',
+        display: 'block',
         width: emblaWindow.width,
       }}
     >
       {markers.map((left) => <div key={left} aria-hidden {...{ [EMBLA_SLOT_ATTRIBUTE]: left }} style={{ position: 'absolute', top: 0, left, width: phoneWidth, height: 0, pointerEvents: 'none' }} />)}
       {dropPartsNow?.gap == null ? null : <Box aria-hidden data-panel-row-drop-gap="" sx={{ position: 'absolute', top: 0, left: dropPartsNow.gap.left, width: dropPartsNow.gap.width, height: rowHeight, pointerEvents: 'none' }} />}
-      <SlotRanksContext.Provider value={slotRanks}>
       <AnimatePresence initial={false}>
-        {domOrder.map((p) => {
-          const h = heldById.get(p.id);
-          return h !== undefined
-            ? slotFor(p, { leftOffset: h.offset, width: h.width }, true)
-            : slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)]!, width: widths[present.indexOf(p)]! }, false);
-        })}
+        {domOrder.filter((p) => !heldById.has(p.id)).map((p) => slotFor(p, { leftOffset: leftOffsets[present.indexOf(p)]!, width: widths[present.indexOf(p)]! }, false))}
       </AnimatePresence>
-      </SlotRanksContext.Provider>
     </Box>
     </>
   );
   // Cut one gap past each window edge, as the old row's grid cut: a focus glow fades there and no neighbour starts inside it.
-  const emblaCut = `polygon(${-gap - insetLeft}px -100000px, ${emblaWindow.width + gap + insetRight}px -100000px, ${emblaWindow.width + gap + insetRight}px 100000px, ${-gap - insetLeft}px 100000px)`;
+  const emblaCut = `polygon(${-gap}px -100000px, ${emblaWindow.width + gap}px -100000px, ${emblaWindow.width + gap}px 100000px, ${-gap}px 100000px)`;
+  // Tab reads the sticky panels at the start, the strip, then the sticky panels at the end.
+  const readingIds = [...startGroup.map((x) => x.p.id), ...present.map((p) => p.id), ...endGroup.map((x) => x.p.id)];
   return (
     <ChromeStoreContext.Provider value={chrome}>
     <PanelViewContextValue.Provider value={viewContext}>
     <RowDropContext.Provider value={rowDrop}>
-    <div ref={windowRef} {...{ [EMBLA_WINDOW_ATTRIBUTE]: '' }} style={{ position: 'relative', flexShrink: 0, width: emblaWindow.width, marginLeft: insetLeft || undefined, marginRight: insetRight || undefined, clipPath: emblaCut, display: presentAll.length > 0 ? 'block' : 'none' }}>
-      {box}
-    </div>
+    <HandoffContext.Provider value={handoff}>
+    <SlotRanksContext.Provider value={slotRanks}>
+    <Box
+      ref={rootRef}
+      data-row-root=""
+      onKeyDown={(event) => steerTab(event, event.currentTarget, readingIds)}
+      onFocus={(event) => {
+        steerSentinel(event, event.currentTarget, readingIds);
+        steerEntry(event, event.currentTarget, readingIds, tabPress.current);
+      }}
+      sx={{ display: presentAll.length > 0 ? 'flex' : 'none', flexShrink: 0, position: 'relative' }}
+    >
+      {group('start', startGroup)}
+      <div ref={windowRef} {...{ [EMBLA_WINDOW_ATTRIBUTE]: '' }} style={{ position: 'relative', flexShrink: 0, width: emblaWindow.width, clipPath: emblaCut, display: stripShown ? 'block' : 'none' }}>
+        {box}
+      </div>
+      {group('end', endGroup)}
+    </Box>
+    </SlotRanksContext.Provider>
+    </HandoffContext.Provider>
     </RowDropContext.Provider>
     </PanelViewContextValue.Provider>
     </ChromeStoreContext.Provider>

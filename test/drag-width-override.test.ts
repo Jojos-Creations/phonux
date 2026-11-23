@@ -301,13 +301,15 @@ const monotone = (values: readonly number[]): boolean => values.every((v, k) => 
 
 test('the strip a pinned width leaves is as long as before; a start-pinned one grows by the width', async () => {
   const m = await opened(1800, {}, [1, 1, 1]);
-  const boxOf = () => Number.parseFloat(getComputedStyle(slotOf(m.container, 's2').parentElement!).width);
-  const rest = boxOf();
+  // Embla's markers are one per slot of the strip, so their count is the strip's length in slots; the box is capped at the window.
+  const slotsOfStrip = (): number => m.container.querySelectorAll('[data-row-embla-slot]').length;
+  const rest = slotsOfStrip();
+  assert.equal(rest, 4, 'control: the root and three pages are four slots');
   act(() => setters.get('s2')!.resizing(true));
   await drag('s2', 800, 'end');
-  assert.equal(boxOf(), rest, 'pinned at the end the row box keeps its length');
+  assert.equal(slotsOfStrip(), rest, 'pinned at the end the strip keeps its length');
   await drag('s2', 800, 'start');
-  assert.equal(boxOf(), rest + 800 - 390, 'pinned at the start it grows by the growth');
+  assert.equal(slotsOfStrip(), rest + 1, 'pinned at the start it grows by the growth, 410 px being one more slot');
 });
 
 test('a width narrower than the stored one never shortens the row box, so the browser cannot clamp the scroll under the pointer', async () => {

@@ -31,8 +31,8 @@ const outOfReach = (n: RowNumbers, at: number): boolean[] => n.ids.map((_, k) =>
  */
 const windowClip = (n: RowNumbers): string => {
   const { lo, hi } = gridEdgesOf(n);
-  const a = lo - n.leftInset - (n.leftInset === 0 && n.stuck.length === 0 ? GAP : 0);
-  const b = hi - n.leftInset + (n.rightInset === 0 && n.stuck.length === 0 ? GAP : 0);
+  const a = lo - n.leftInset - (n.leftInset === 0 ? GAP : 0);
+  const b = hi - n.leftInset + (n.rightInset === 0 ? GAP : 0);
   return `polygon(${a}px -100000px, ${b}px -100000px, ${b}px 100000px, ${a}px 100000px)`;
 };
 
