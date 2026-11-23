@@ -34,6 +34,8 @@ const VALUE_EXPORTS = [
   'ShareSheet',
   'OfferCard',
   'SharedList',
+  'TrustScreen',
+  'QrCode',
   'PanelHeaderRow',
   'useViewSnapshot',
   'CaptureRegistryProvider',
@@ -149,7 +151,7 @@ const VALUE_EXPORTS = [
   'withSlotChanges',
 ].sort();
 
-test('the phonux barrel exports exactly the 128 runtime values, no more, no fewer', () => {
+test('the phonux barrel exports exactly the 130 runtime values, no more, no fewer', () => {
   assert.deepEqual(Object.keys(phonux).sort(), VALUE_EXPORTS);
 });
 

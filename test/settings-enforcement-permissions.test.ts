@@ -531,6 +531,16 @@ test('effective of a hand-built entry reads its own legacy fields: collapsible, 
   assert.deepEqual([fixed.parkable, fixed.closable, fixed.movable, fixed.resizable, fixed.clearable, fixed.maxSlots], [false, false, false, false, false, 1]);
 });
 
+test('effective of a hand-built entry reads the deprecated edgeHold as off, read-only and not a key, as a resolved value does', () => {
+  const eff = effective(hand('a'));
+  assert.equal(eff.sticky, 'off');
+  assert.equal(eff.edgeHold, 'off', 'a hand-built entry is never sticky, so the old name reads off');
+  assert.equal(Object.keys(eff).includes('edgeHold'), false, 'it is not enumerable');
+  assert.equal('edgeHold' in { ...eff }, false, 'and a copy does not carry it');
+  assert.throws(() => { (eff as unknown as Record<string, unknown>).edgeHold = 'left'; }, TypeError, 'it is read-only');
+  assert.equal(effective(made('b', { sticky: 'start' })).edgeHold, 'left', 'control: an entry with settings reads its own sticky through the same name');
+});
+
 test('effective is frozen and a hand-built entry with no title has no title key', () => {
   const eff = effective(hand('a', { title: undefined }));
   assert.ok(Object.isFrozen(eff));

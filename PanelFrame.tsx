@@ -14,6 +14,7 @@ import { useOptionalHost, type PanelSize } from './hostApi.js';
 import { usePhoneSize } from './phoneFit.js';
 import { resolveIcons } from './icons.js';
 import { resolveLabels } from './labels.js';
+import { chromeBandSx } from './chromeBand.js';
 import { chromeCutSides } from './rowDom.js';
 import { PanelFooter } from './panelFooter.js';
 import { useFrameClaim } from './panelFrameClaim.js';
@@ -152,6 +153,7 @@ export function PanelHeader({ children, sx, ...rest }: PanelHeaderProps) {
         py: '1px',
         fontSize: 13,
         color: 'text.primary',
+        ...chromeBandSx,
         // The gap under the header counts as the header, so a pointer resting in it has not left the panel.
         '&::after': { content: '""', position: 'absolute', left: 0, right: 0, top: '100%', height: `${HEADER_GAP_PX}px` },
         ...sx,
