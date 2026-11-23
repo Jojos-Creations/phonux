@@ -1,0 +1,40 @@
+name: Workflow lint
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The two ignored shellcheck notes are an unread retry counter and an ls-in-a-pipeline note in existing workflows; every other finding blocks.
+      - name: actionlint
+        run: |
+          set -euo pipefail
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$RUNNER_TEMP/bin/actionlint" -color -ignore "SC2034:warning:.*attempt appears unused" -ignore "SC2012:info"
+      # zizmor still reports findings in the existing workflows, so only a broken run fails; findings land in the summary.
+      - name: zizmor (reports, does not block)
+        run: |
+          set -uo pipefail
+          status=0
+          pipx run zizmor==1.33.1 --offline --no-progress --min-severity high .github/workflows || status=$?
+          echo "zizmor exit code $status (0 clean, 10-14 findings)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ] && { [ "$status" -lt 10 ] || [ "$status" -gt 14 ]; }; then
+            echo "zizmor did not run to completion"
+            exit 1
+          fi
