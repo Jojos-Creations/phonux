@@ -267,6 +267,8 @@ try {
       '@types/react@^19.2.18',
       '@types/react-dom@^19.2.4',
       'esbuild@^0.28.1',
+      // csstype 3.2.4 breaks framer-motion's declarations under skipLibCheck false (TS2320); this is the version the lockfile holds.
+      'csstype@3.2.3',
       '--no-audit',
       '--no-fund',
       '--loglevel=error',
