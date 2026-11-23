@@ -119,79 +119,108 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
     if (from !== undefined && to !== undefined && from.contains(document.activeElement)) to.focus({ preventScroll: true });
   }, [snap.current, snap.workspaces]);
 
+  // A cell the window stops showing is inert, which drops the focus inside it; focus goes to the current space's cell instead of the page.
+  React.useLayoutEffect(() => {
+    const held = document.activeElement;
+    const now = snap.workspaces[snap.current];
+    const to = now === undefined ? undefined : cells.current.get(now.id);
+    if (to === undefined || held === null || to.contains(held)) return;
+    for (const [id, el] of cells.current) if (!shownIds.has(id) && el.contains(held)) return void to.focus({ preventScroll: true });
+  });
+
   const create = (index: number): void => {
     column.scrollTo(column.addWorkspace({ index }));
+  };
+
+  const base = React.useId();
+  const cellIdOf = (id: string): string => `${base}-cell-${snap.workspaces.findIndex((w) => w.id === id)}`;
+  const cellOf = (ws: WorkspaceHandle, i: number): React.ReactNode => {
+      const active = i === snap.current;
+      const shown = shownIds.has(ws.id);
+      const cell = snap.shown.find((c) => c.id === ws.id);
+      const above = snap.workspaces[i - 1];
+      const below = snap.workspaces[i + 1];
+      const own = drawn(children, ws);
+      const slotProps = { workspace: ws, column, index: i, above, below, active, labels };
+      return (
+        <Box
+          key={ws.id}
+          ref={(el: HTMLElement | null) => {
+            if (el === null) cells.current.delete(ws.id);
+            else cells.current.set(ws.id, el);
+          }}
+          id={cellIdOf(ws.id)}
+        data-workspace-cell=""
+          data-workspace-id={ws.id}
+          {...{ [WORKSPACE_ACTIVE_ATTRIBUTE]: active ? '' : undefined }}
+          data-workspace-shown={shown ? '' : undefined}
+          tabIndex={-1}
+          aria-hidden={shown ? undefined : true}
+          inert={!shown}
+          onTransitionEnd={(event: React.TransitionEvent<HTMLElement>) => {
+            if (active && event.target === event.currentTarget && event.propertyName === 'transform') setFromId(undefined);
+          }}
+          // A press or focus in a cell side by side makes it the current workspace, so the keys that step go to the side the person is in.
+          onPointerDownCapture={split && shown && !active ? () => column.scrollTo(ws) : undefined}
+          onFocusCapture={split && shown && !active ? () => column.scrollTo(ws) : undefined}
+          style={{ transform: `translateY(${shown ? 0 : i < snap.current ? -100 : 100}%)`, transition: shown || ws.id === fromId ? slide : 'none', ...(split ? (shown ? geometry.get(ws.id) : lastGeometry.current.get(ws.id)) : undefined) }}
+          sx={{ position: 'absolute', inset: 0, outline: 'none' }}
+        >
+          <RowFloorContext.Provider value={split ? cell?.rowSlots : undefined}>
+            <Band side="above" band={bands.above} inset={snap.topInset} props={slotProps} />
+            {own === undefined ? (
+              <React.Suspense fallback={null}>
+                <DefaultCell workspace={ws} columnTop={room.above} columnBottom={room.below - COLUMN_BOTTOM_BAND} themed={false} />
+              </React.Suspense>
+            ) : (
+              own
+            )}
+            <Band side="below" band={bands.below} inset={snap.topInset} props={slotProps} />
+          </RowFloorContext.Provider>
+        </Box>
+      );
+    };
+  const dividerAt = (k: number): React.ReactNode => {
+    const left = snap.shown[k]!;
+    const right = snap.shown[k + 1]!;
+    const through = snap.shown.slice(0, k + 1).reduce((sum, c) => sum + c.slots, 0);
+    const nameOf = (id: string): string => snap.workspaces.find((w) => w.id === id)?.name ?? '';
+    return (
+      <ColumnDivider
+        key={`${left.id}|${right.id}`}
+        column={column}
+        evenSplit={() => void core.evenSplit()}
+        rows={snap.shown.map((c) => c.rowSlots)}
+        at={k}
+        controls={cellIdOf(left.id)}
+        names={[nameOf(left.id), nameOf(right.id)]}
+        least={snap.leastRows}
+        pitch={pitch}
+        center={`calc(50% + ${(through - slotsAll / 2) * pitch}px)`}
+        labels={labels}
+      />
+    );
+  };
+  // Side by side the DOM follows the screen, left to right with each divider between its two cells, so Tab and a screen reader meet
+  // the spaces in the order they are drawn; the cells the window does not show follow, inert.
+  const inOrder = (): React.ReactNode[] => {
+    if (!split) return snap.workspaces.map((ws, i) => cellOf(ws, i));
+    const out: React.ReactNode[] = [];
+    snap.shown.forEach((c, k) => {
+      const i = snap.workspaces.findIndex((w) => w.id === c.id);
+      if (i >= 0) out.push(cellOf(snap.workspaces[i]!, i));
+      if (k < snap.shown.length - 1) out.push(dividerAt(k));
+    });
+    snap.workspaces.forEach((ws, i) => {
+      if (!shownIds.has(ws.id)) out.push(cellOf(ws, i));
+    });
+    return out;
   };
 
   return (
     <Box ref={rootRef} data-workspace-column="" sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <div style={{ position: 'relative', height: '100%' }}>
-        {snap.workspaces.map((ws, i) => {
-          const active = i === snap.current;
-          const shown = shownIds.has(ws.id);
-          const cell = snap.shown.find((c) => c.id === ws.id);
-          const above = snap.workspaces[i - 1];
-          const below = snap.workspaces[i + 1];
-          const own = drawn(children, ws);
-          const slotProps = { workspace: ws, column, index: i, above, below, active, labels };
-          return (
-            <Box
-              key={ws.id}
-              ref={(el: HTMLElement | null) => {
-                if (el === null) cells.current.delete(ws.id);
-                else cells.current.set(ws.id, el);
-              }}
-              data-workspace-cell=""
-              data-workspace-id={ws.id}
-              {...{ [WORKSPACE_ACTIVE_ATTRIBUTE]: active ? '' : undefined }}
-              data-workspace-shown={shown ? '' : undefined}
-              tabIndex={-1}
-              aria-hidden={shown ? undefined : true}
-              inert={!shown}
-              onTransitionEnd={(event: React.TransitionEvent<HTMLElement>) => {
-                if (active && event.target === event.currentTarget && event.propertyName === 'transform') setFromId(undefined);
-              }}
-              // A press or focus in a cell side by side makes it the current workspace, so the keys that step go to the side the person is in.
-              onPointerDownCapture={split && shown && !active ? () => column.scrollTo(ws) : undefined}
-              onFocusCapture={split && shown && !active ? () => column.scrollTo(ws) : undefined}
-              style={{ transform: `translateY(${shown ? 0 : i < snap.current ? -100 : 100}%)`, transition: shown || ws.id === fromId ? slide : 'none', ...(split ? (shown ? geometry.get(ws.id) : lastGeometry.current.get(ws.id)) : undefined) }}
-              sx={{ position: 'absolute', inset: 0, outline: 'none' }}
-            >
-              <RowFloorContext.Provider value={split ? cell?.rowSlots : undefined}>
-                <Band side="above" band={bands.above} inset={snap.topInset} props={slotProps} />
-                {own === undefined ? (
-                  <React.Suspense fallback={null}>
-                    <DefaultCell workspace={ws} columnTop={room.above} columnBottom={room.below - COLUMN_BOTTOM_BAND} themed={false} />
-                  </React.Suspense>
-                ) : (
-                  own
-                )}
-                <Band side="below" band={bands.below} inset={snap.topInset} props={slotProps} />
-              </RowFloorContext.Provider>
-            </Box>
-          );
-        })}
-        {split
-          ? snap.shown.slice(0, -1).map((left, k) => {
-              const right = snap.shown[k + 1]!;
-              const through = snap.shown.slice(0, k + 1).reduce((sum, c) => sum + c.slots, 0);
-              const nameOf = (id: string): string => snap.workspaces.find((w) => w.id === id)?.name ?? '';
-              return (
-                <ColumnDivider
-                  key={`${left.id}|${right.id}`}
-                  column={column}
-                  evenSplit={() => void core.evenSplit()}
-                  rows={snap.shown.map((c) => c.rowSlots)}
-                  at={k}
-                  names={[nameOf(left.id), nameOf(right.id)]}
-                  least={snap.leastRows}
-                  pitch={pitch}
-                  center={`calc(50% + ${(through - slotsAll / 2) * pitch}px)`}
-                  labels={labels}
-                />
-              );
-            })
-          : null}
+        {inOrder()}
       </div>
       {snap.workspaces.length === 0 ? (
         <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', height: TARGET, minHeight: 0, textTransform: 'none' }}>

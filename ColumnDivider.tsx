@@ -21,6 +21,8 @@ export interface ColumnDividerProps {
   rows: readonly number[];
   /** The index of the cell on this divider's left. */
   at: number;
+  /** The id of the cell it resizes, the one on its left, whose row panels `aria-valuenow` counts. */
+  controls: string;
   /** The names of the two spaces it parts. */
   names: readonly [string, string];
   /** The least row slots a side keeps. */
@@ -33,7 +35,7 @@ export interface ColumnDividerProps {
 }
 
 /** The divider. Pointer: a press and drag moves it a slot at a time; keys: Left and Right move it one slot, Home and End to the minimums; a double click evens the split. @internal */
-export function ColumnDivider({ column, evenSplit, rows, at, names, least, pitch, center, labels }: ColumnDividerProps): React.ReactElement {
+export function ColumnDivider({ column, evenSplit, rows, at, controls, names, least, pitch, center, labels }: ColumnDividerProps): React.ReactElement {
   const range = dividerRange(rows, at, least);
   const drag = React.useRef<{ x: number; rows: readonly number[] } | null>(null);
   const [dragging, setDragging] = React.useState(false);
@@ -44,7 +46,8 @@ export function ColumnDivider({ column, evenSplit, rows, at, names, least, pitch
     <Box
       role="separator"
       aria-orientation="vertical"
-      aria-label={labels.splitDivider}
+      aria-label={labels.splitDivider(names[0], names[1])}
+      aria-controls={controls}
       aria-valuemin={range.min}
       aria-valuemax={range.max}
       aria-valuenow={rows[at]}

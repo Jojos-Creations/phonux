@@ -51,8 +51,10 @@ const distance = (pos: number, current: number): number => Math.abs(pos - curren
  *
  * One space alone gets every slot and the row's own rule (`stickyKept`). Several spaces need `minRowSlots` each, so the one farthest
  * from the current space leaves until they fit (it stays in the saved list). Then, while the saved split and the sticky panels ask
- * for more than the window holds, sticky panels go back into their rows (the lowest rank first, of equal rank the farthest space),
- * then the widest space gives up a slot. A window with room to spare gives the rest to the current space and then the nearest ones.
+ * for more than the window holds: sticky panels go back into their rows first (the lowest rank first, of equal rank the later one in
+ * the column read as one row, as `stickyKept` does), then the sides the person is not in give up slots, the widest first, down to
+ * `minRowSlots`, and only then the current side. A window with room to spare gives the rest to the current space and then the
+ * nearest ones, one slot at a time.
  * Every cell is exactly `rowSlots` plus the slots of its sticky panels, which is what the cell's own row works out from its width
  * when it is told `rowSlots` as its least scrolling room.
  * @internal
@@ -92,7 +94,7 @@ export function planSides(i: SidePlanInput): SideCell[] {
   if (demand() > room) {
     const back = kept
       .flatMap((pos) => stays.get(pos)!.map((c) => ({ pos, c })))
-      .sort((a, b) => a.c.rank - b.c.rank || distance(b.pos, current) - distance(a.pos, current) || b.pos - a.pos || b.c.k - a.c.k);
+      .sort((a, b) => a.c.rank - b.c.rank || b.pos - a.pos || b.c.k - a.c.k);
     for (const { pos, c } of back) {
       if (demand() <= room) break;
       stays.set(pos, stays.get(pos)!.filter((x) => x !== c));
@@ -100,15 +102,17 @@ export function planSides(i: SidePlanInput): SideCell[] {
     if (demand() < room) share();
   }
   while (demand() > room) {
+    // The sides the person is not in give up slots first; the current side gives up only when every other is down to its least.
     let widest: number | undefined;
     for (const pos of kept) {
-      if (rows.get(pos)! <= least) continue;
+      if (pos === current || rows.get(pos)! <= least) continue;
       if (widest === undefined) widest = pos;
       else {
         const [a, b] = [size(pos), size(widest)];
         if (a > b || (a === b && (distance(pos, current) > distance(widest, current) || (distance(pos, current) === distance(widest, current) && pos > widest)))) widest = pos;
       }
     }
+    if (widest === undefined && rows.get(current)! > least) widest = current;
     if (widest === undefined) break;
     rows.set(widest, rows.get(widest)! - 1);
   }

@@ -163,14 +163,16 @@ test('hideSide gives the room to the current space, keeps the workspace in the c
   assert.equal((c.hideSide(9) as { code: string }).code, 'unknown-workspace');
 });
 
-test('narrowing keeps whole slots, drops the side farthest from the current one last, and widening restores the saved split', () => {
+test('narrowing: the sides the person is not in give up slots first, the current side only after them, and the farthest space leaves last', () => {
   const c = column(3);
   c.showSide(1, { at: 1 });
   c.showSide(2, { at: 2 });
   c.setSplit([3, 2, 1]);
   assert.equal(view(c), 'Space 1 3/3, Space 2 2/2, Space 3 1/1');
+  measure(c, 2240);
+  assert.equal(view(c), 'Space 1 3/3, Space 2 1/1, Space 3 1/1', 'five slots: the other sides give up slots, though the current one is the widest');
   measure(c, 1920);
-  assert.equal(view(c), 'Space 1 2/2, Space 2 1/1, Space 3 1/1', 'four slots: the widest gives up one, and the one nearer the current space is kept');
+  assert.equal(view(c), 'Space 1 2/2, Space 2 1/1, Space 3 1/1', 'four slots: only now the current side gives one up');
   measure(c, 1280);
   assert.equal(view(c), 'Space 1 1/1, Space 2 1/1, Space 3 1/1');
   measure(c, 890);
@@ -188,13 +190,30 @@ const sticky = (...slotsAndRank: [number, number][]): SideSpace['sticky'] => slo
 const space = (id: string, rows: number, stickies: SideSpace['sticky'] = [], panels = 8): SideSpace => ({ id, rows, sticky: stickies, panels });
 const cellsOf = (spaces: SideSpace[], windowSlots: number, current = 0, min = 1): string => planSides({ spaces, current, windowSlots, minScrollSlots: min }).map((c) => `${c.id} ${c.slots}/${c.rowSlots}+${c.sticky}`).join(', ');
 
-test('narrowing order: sticky panels go back into rows first, lowest rank first and of equal rank in the space farthest from the current one', () => {
+test('the current side keeps its room while another can give up: a split of 4 and 2 narrows to 4|1, then 3|1', () => {
+  const c = column(2);
+  c.showSide(1);
+  assert.deepEqual(c.setSplit([4, 2]), { ok: true });
+  measure(c, 2240);
+  assert.equal(view(c), 'Space 1 4/4, Space 2 1/1');
+  measure(c, 1920);
+  assert.equal(view(c), 'Space 1 3/3, Space 2 1/1');
+  const right = column(2);
+  right.showSide(1);
+  right.setSplit([2, 4]);
+  right.focusSide('right');
+  measure(right, 2240);
+  assert.equal(view(right), 'Space 1 1/1, Space 2 4/4', 'with the right side current it is the left one that gives up');
+});
+
+test('narrowing order: sticky panels go back into rows first, lowest rank first and of equal rank the later one in the column', () => {
   const two = [space('a', 2, sticky([1, 0])), space('b', 2, sticky([1, 0]))];
   assert.equal(cellsOf(two, 6), 'a 3/2+1, b 3/2+1');
-  assert.equal(cellsOf(two, 5), 'a 3/2+1, b 2/2+0', 'the farther space gives its sticky panel back first, and its row keeps its two slots');
-  assert.equal(cellsOf(two, 5, 1), 'a 2/2+0, b 3/2+1', 'with the other current space, the other one goes');
+  assert.equal(cellsOf(two, 5), 'a 3/2+1, b 2/2+0', 'of equal rank the later panel in the column goes back first, and its row keeps its two slots');
+  assert.equal(cellsOf(two, 5, 1), 'a 3/2+1, b 2/2+0', 'whichever space is current');
   assert.equal(cellsOf(two, 4), 'a 2/2+0, b 2/2+0');
-  assert.equal(cellsOf(two, 3), 'a 2/2+0, b 1/1+0', 'only then the widest gives up a slot, the farther of two equal ones');
+  assert.equal(cellsOf(two, 3), 'a 2/2+0, b 1/1+0', 'only then the side the person is not in gives up a slot');
+  assert.equal(cellsOf(two, 3, 1), 'a 1/1+0, b 2/2+0');
   assert.equal(cellsOf(two, 2), 'a 1/1+0, b 1/1+0');
   assert.equal(cellsOf(two, 1), 'a 1/1+0', 'and last the farthest space leaves');
   const ranked = [space('a', 2, sticky([1, 5])), space('b', 2, sticky([1, 1]))];
@@ -275,7 +294,25 @@ test('focusSide moves the focus to the shown space on the left or the right, and
   assert.equal(c.current, 0);
   assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 1']);
   measure(c, 2560);
-  assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 1'], 'the side Space 1 took is the one Space 2 held; the stepped-over copy is not kept');
+  assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 1', 'Space 2'], 'stepping discarded no saved side, so the window widens back to both');
+});
+
+test('stepping onto a space the window left out takes the current one’s place and keeps everyone’s saved side', () => {
+  const c = column(3);
+  c.showSide(1, { at: 1 });
+  c.showSide(2, { at: 2 });
+  c.setSplit([2, 2, 2]);
+  measure(c, 890);
+  assert.equal(view(c), 'Space 1 1/1, Space 2 1/1');
+  assert.equal(c.step('down'), true);
+  assert.equal(c.current, 2);
+  assert.equal(view(c), 'Space 2 1/1, Space 3 1/1', 'Space 3 came in as Space 1, farthest from it, left');
+  measure(c, 2560);
+  assert.equal(view(c), 'Space 1 2/2, Space 2 2/2, Space 3 2/2', 'the saved order and split come back whole');
+  const d = column(3);
+  d.showSide(1);
+  assert.equal(d.step('down'), true);
+  assert.equal(view(d), 'Space 3 3/3, Space 2 3/3', 'a space with no saved side takes the current one’s');
 });
 
 test('removing a workspace gives its side to the one that becomes current, unless that one is shown already', () => {
@@ -412,7 +449,9 @@ test('the divider is a focusable separator that reads as a slider with the two s
   const bar = separators()[0]!;
   assert.equal(bar.getAttribute('tabindex'), '0');
   assert.equal(bar.getAttribute('aria-orientation'), 'vertical');
-  assert.equal(bar.getAttribute('aria-label'), 'Resize spaces');
+  assert.equal(bar.getAttribute('aria-label'), 'Resize Space 1 and Space 2');
+  const controlled = document.getElementById(bar.getAttribute('aria-controls')!);
+  assert.equal(controlled?.getAttribute('data-workspace-id'), c.workspaces[0]!.id, 'it names the cell on its left, whose row panels it counts');
   assert.equal(bar.getAttribute('aria-valuenow'), '3');
   assert.equal(bar.getAttribute('aria-valuemin'), '1');
   assert.equal(bar.getAttribute('aria-valuemax'), '5');
@@ -496,4 +535,50 @@ test('a key aimed at a cell goes to that cell’s row, and one aimed at the page
   assert.equal(keyBelongsToRow(get('a'), document.body), true, 'a key aimed at the page goes to the current cell’s row');
   assert.equal(keyBelongsToRow(get('b'), document.body), false, 'and not to the other');
   assert.equal(keyBelongsToRow(get('alone'), get('ai')), true, 'a row outside any cell answers every key');
+});
+
+test('two dividers have distinct names and each names its own left cell', async () => {
+  const c = await drawn();
+  act(() => void c.showSide(2, { at: 2 }));
+  await until('two dividers', () => separators().length === 2);
+  const [a, b] = separators() as [HTMLElement, HTMLElement];
+  assert.deepEqual([a.getAttribute('aria-label'), b.getAttribute('aria-label')], ['Resize Space 1 and Space 2', 'Resize Space 2 and Space 3']);
+  assert.notEqual(a.getAttribute('aria-controls'), b.getAttribute('aria-controls'));
+  assert.equal(document.getElementById(b.getAttribute('aria-controls')!)?.getAttribute('data-workspace-id'), c.workspaces[1]!.id);
+});
+
+/** What the column's element holds, in document order: the cells by workspace name, the dividers, and the hidden cells last. */
+const domOrder = (c: WorkspaceColumnHandle): string[] =>
+  [...document.querySelectorAll<HTMLElement>('[data-workspace-cell], [role="separator"]')].map((el) => (el.hasAttribute('data-workspace-cell') ? c.workspaces.find((w) => w.id === el.dataset.workspaceId)!.name : '|'));
+
+test('the DOM holds the shown spaces left to right with each divider between its two cells, hidden cells last', async () => {
+  const c = await drawn();
+  assert.deepEqual(domOrder(c), ['Space 1', '|', 'Space 2', 'Space 3']);
+  act(() => void c.step('down'));
+  assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 3', 'Space 2']);
+  assert.deepEqual(domOrder(c), ['Space 3', '|', 'Space 2', 'Space 1'], 'on screen Space 3 | Space 2, and so for Tab and a screen reader');
+  act(() => void c.showSide(0, { at: 1 }));
+  await until('three cells', () => separators().length === 2);
+  assert.deepEqual(domOrder(c), ['Space 3', '|', 'Space 1', '|', 'Space 2']);
+});
+
+test('focus in a cell the window stops showing goes to the current space’s cell', async () => {
+  const c = await drawn();
+  const cellOf = (name: string): HTMLElement => document.querySelector<HTMLElement>(`[data-workspace-id="${c.workspaces.find((w) => w.name === name)!.id}"]`)!;
+  const inside = document.createElement('button');
+  cellOf('Space 2').appendChild(inside);
+  const focused: string[] = [];
+  const first = cellOf('Space 1');
+  first.focus = () => void focused.push('Space 1');
+  const was = Object.getOwnPropertyDescriptor(Document.prototype, 'activeElement')!;
+  // The page holds focus in Space 2, as a browser does until it drops the focus of a cell that went inert.
+  Object.defineProperty(document, 'activeElement', { configurable: true, get: () => inside });
+  try {
+    assert.equal(c.current, 0);
+    act(() => void c.hideSide(1));
+    assert.deepEqual(focused, ['Space 1'], 'focus went to the current space’s cell');
+  } finally {
+    delete (document as { activeElement?: unknown }).activeElement;
+    Object.defineProperty(Document.prototype, 'activeElement', was);
+  }
 });

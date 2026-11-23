@@ -161,15 +161,15 @@ export interface WorkspaceColumnHandle {
   showSide(workspace: WorkspaceHandle | number, options?: { at?: number }): SideResult;
   /**
    * Takes `workspace` out of the window; the room it had goes to the current workspace. The workspace stays in the column and one `step` away.
-   * Refuses, changing nothing, as `showSide` does for a column without `sideBySide`, a disposed or unready one and an unknown workspace, and
-   * with `not-shown` for one the window does not show and `current` for the current workspace, which is always shown.
+   * Refuses, changing nothing, as `showSide` does for a column without `sideBySide`, a disposed, unready or unmeasured one and an unknown
+   * workspace, and with `not-shown` for one the window does not show and `current` for the current workspace, which is always shown.
    */
   hideSide(workspace: WorkspaceHandle | number): SideResult;
   /**
    * Sets how many row slots each shown workspace gets, left to right, in `shown`'s order. Each is a whole number of at least 1, the
    * entries are as many as `shown` has, and together they are at most the window's slots; a split that is not is refused with
-   * `invalid-split` and changes nothing, and the message says which entry is wrong. Slots the entries leave unused go to the current
-   * workspace, and the sticky panels of a space take their own slots besides, so `shown` reports what the window really gives. The split
+   * `invalid-split` and changes nothing, and the message says which entry is wrong. Slots the entries leave unused are dealt one at a
+   * time, to the current workspace first and then to the nearest ones, and the sticky panels of a space take their own slots besides, so `shown` reports what the window really gives. The split
    * is saved with the column. Also refuses as `showSide` does for a column without `sideBySide`, a disposed or unready one, and an unmeasured one.
    */
   setSplit(rowSlots: readonly number[]): SideResult;
@@ -492,16 +492,17 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     return out;
   };
   /**
-   * Makes list[i] the current workspace. A workspace the window shows takes the focus and nothing else changes; any other takes the
-   * place of the side the current one held, and a copy of it the window left out for lack of room is dropped.
+   * Makes list[i] the current workspace. A workspace the window shows takes the focus and nothing else changes. One it does not show
+   * takes the current one's place in the window, and no saved side is discarded: a space that left the window for lack of room keeps its
+   * entry, so a wider window brings the saved order and split back. Only a space with no entry takes the current one's.
    */
   const moveTo = (i: number): void => {
     const was = list[current];
     const now = list[i];
     const showing = new Set(visibleIds());
     current = i;
-    if (!sideBySide || was === undefined || now === undefined || showing.has(now.id)) return;
-    sides = sides.filter((e) => e.id !== now.id).map((e) => (e.id === was.id ? { ...e, id: now.id } : e));
+    if (!sideBySide || was === undefined || now === undefined || showing.has(now.id) || sides.some((e) => e.id === now.id)) return;
+    sides = sides.map((e) => (e.id === was.id ? { ...e, id: now.id } : e));
     if (!sides.some((e) => e.id === now.id)) sides.push({ id: now.id, rows: 1 });
   };
   let shownMemo: { sig: string; list: readonly ColumnShown[] } | undefined;
