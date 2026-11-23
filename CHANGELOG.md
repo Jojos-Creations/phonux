@@ -29,15 +29,16 @@
   after the window widens the saved order and split come back; a workspace with no saved side takes the current one's, and that
   side is gone. Cells never move in the DOM, so no web view reloads and no scroll position resets as the window shows other spaces;
   Tab is steered across them instead, so Tab and Shift+Tab walk the spaces left to right as they are drawn, with each divider between its
-  two cells, whatever order the column lists them in: into the column at the end the key comes from, and out of it by one press at
-  either end, also when the column is alone on the page. A Tab pressed inside a web view that is a space's last stop goes on to the
-  divider; out of the last space, with nothing after the column on the page, it rests for one press first, as a row alone does, and
-  so does Shift+Tab out of a web view that is the first space's first stop. A control that is in the page and not drawn (inside a
-  `hidden` panel, a closed `dialog` or a closed `details`) is no stop. The controls of a web component are read through its shadow
-  roots, so a Tab pressed inside one walks all of them before it leaves the space; a closed shadow root is walked by the browser
-  and can cost one more press at the column's outer end when nothing else is on the page (DESIGN.md "Side by side" lists what is
-  not covered). While several spaces show, the column and each cell hold
-  zero-size tab stops of their own (`data-column-sentinel`) that pass focus on.
+  two cells, whatever order the column lists them in. Inside a space the browser alone moves focus, so everything it stops at is
+  walked: a web component's controls, an audio or video player's buttons, a date input's fields. The column acts only on its own
+  elements: zero-size sentinels (`data-column-sentinel`) at the ends of the column and of each cell catch the step out of a space and
+  send it to the divider, and a Tab on a divider is handed back to the browser at the next space's start. Where the space drawn
+  first (last) is also the first (last) shown one in the DOM, which is every layout drawn as mounted, the column has no tab stop of
+  its own there and costs no press. Where the two orders disagree at an end, Tab into or out of the column at that end rests for one
+  press on the column's sentinel, which is not drawn. The dividers take focus and are reached by Tab through the column only
+  (`tabindex="-1"`). DESIGN.md "Side by side" has the rules and what the row still chooses by itself.
+  A panel row's Tab hand-over cancels the key only when its target took focus, in a column or out of one, so a row whose next element
+  is inert under a modal dialog no longer holds the person on the dialog's last button.
   A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
   labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell

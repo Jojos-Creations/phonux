@@ -29,17 +29,10 @@ export function isParking(): boolean {
   return parking;
 }
 
-// The direction of a step a caller is making for a Tab the row's own record cannot hold: one pressed inside an iframe.
-let stepping: TabPress | null = null;
-
-/** Focuses `el` as a Tab (`back`: Shift+Tab) arriving there would, so a row it enters picks the panel by reading order. */
-export function focusAsTab(el: HTMLElement, back: boolean): void {
-  stepping = { shift: back };
-  try {
-    el.focus();
-  } finally {
-    stepping = null;
-  }
+/** True for a row in a cell of a column that shows several spaces: the column's own sentinels then catch every step out of the cell. */
+function inSplitColumn(row: HTMLElement): boolean {
+  const cell = row.closest('[data-workspace-cell]');
+  return cell !== null && cell.querySelector(':scope > [data-column-sentinel]') !== null;
 }
 
 function slotsOf(row: HTMLElement): Map<string, HTMLElement> {
@@ -55,8 +48,9 @@ function handOver(slot: HTMLElement, row: HTMLElement, readingIds: readonly stri
     const neighbour = slots.get(readingIds[k]!);
     const found = neighbour === undefined ? [] : tabbablesOf(neighbour);
     if (found.length === 0) continue;
-    found[back ? found.length - 1 : 0]!.focus();
-    return true;
+    const to = found[back ? found.length - 1 : 0]!;
+    to.focus();
+    if (to.ownerDocument.activeElement === to) return true;
   }
   return false;
 }
@@ -103,12 +97,17 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
   const extreme = slots[back ? 0 : slots.length - 1];
   const edge = extreme === undefined ? undefined : [...extreme.querySelectorAll<HTMLElement>(`[data-row-sentinel=${back ? 'start' : 'end'}]`)].find(usable);
   if (edge === undefined) {
+    // In a cell of a column that shows several spaces the column catches every step out of the cell. From the last panel in the DOM
+    // that Tab can be in, the browser's own step is then the right one, through whatever else the panel and the cell hold.
+    const live = slots.filter((s) => s.closest('[inert]') === null);
+    if (live[back ? 0 : live.length - 1] === slot && inSplitColumn(row)) return;
     const beyond = elementBeyond(row, back);
     if (beyond === undefined) return;
     // A column's sentinel ends the cell this row is in, and only the column knows which cell is drawn next: the step stays pending for it.
     if (beyond.hasAttribute('data-column-sentinel')) return void park(beyond);
-    event.preventDefault();
     beyond.focus();
+    // An element a modal dialog makes inert refuses focus: the key is then the browser's, or the person is held where they are.
+    if (beyond.ownerDocument.activeElement === beyond) event.preventDefault();
     return;
   }
   park(edge);
@@ -185,7 +184,14 @@ export function useTabPress(): React.RefObject<TabPress | null> {
 export function steerEntry(event: React.FocusEvent<HTMLElement>, row: HTMLElement, readingIds: readonly string[], tab: TabPress | null): void {
   const from = event.relatedTarget as Node | null;
   // A portaled dialog or popover is a React child of the row but not a DOM descendant; its focus is not the row's.
-  const by = stepping ?? tab;
-  if (by === null || !row.contains(event.target as Node) || (from !== null && row.contains(from))) return;
-  enterInReadingOrder(row, readingIds, by.shift);
+  if (tab === null || !row.contains(event.target as Node) || (from !== null && row.contains(from))) return;
+  // The browser came in by the cell's own end, which the column parked focus on. When the panel it picked is the one reading order
+  // starts at, the element it picked there is the right one too, also one no selector finds: inside a shadow root, a player's control.
+  const entered = (event.target as Element).closest<HTMLElement>('[data-row-slot]');
+  if (entered !== null && inSplitColumn(row)) {
+    const slots = slotsOf(row);
+    const live = readingIds.filter((id) => slots.get(id)?.closest('[inert]') === null);
+    if (entered.dataset.rowId === live[tab.shift ? live.length - 1 : 0]) return;
+  }
+  enterInReadingOrder(row, readingIds, tab.shift);
 }

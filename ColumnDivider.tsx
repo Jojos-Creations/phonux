@@ -52,7 +52,9 @@ export function ColumnDivider({ column, evenSplit, rows, at, controls, names, le
       aria-valuemax={range.max}
       aria-valuenow={rows[at]}
       aria-valuetext={labels.splitValue(names[0], rows[at]!, names[1], rows[at + 1]!)}
-      tabIndex={0}
+      // Focusable, and reached by Tab only through the column's steering: the dividers follow every cell in the DOM, where the
+      // browser's own step out of the last space would land on them.
+      tabIndex={-1}
       data-column-divider={at}
       data-column-divider-dragging={dragging ? '' : undefined}
       onPointerDown={(e) => {

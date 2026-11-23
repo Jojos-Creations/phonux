@@ -27,8 +27,8 @@ const TARGET = WORKSPACE_NAME_CONTROL_HEIGHT;
 
 // A tab stop of no size: the browser's own step lands on it, and focus is parked on it so that a pending step carries on from there.
 // No aria-hidden, which a focusable element must not carry. A tab stop on a non-interactive element is the point.
-function ColumnSentinel({ at }: { at: 'start' | 'end' | 'cell-start' | 'cell-end' }): React.ReactElement {
-  return <span {...{ tabIndex: 0, [COLUMN_SENTINEL]: at }} style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden', outline: 'none' }} />;
+function ColumnSentinel({ at, stop }: { at: 'start' | 'end' | 'cell-start' | 'cell-end'; stop: boolean }): React.ReactElement {
+  return <span {...{ tabIndex: stop ? 0 : -1, [COLUMN_SENTINEL]: at }} style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden', outline: 'none' }} />;
 }
 
 const DefaultCell = React.lazy(() => import('./autoMount.js').then((m) => ({ default: m.AutoRoot })));
@@ -56,7 +56,9 @@ const drawn = (children: WorkspaceColumnProps['children'], ws: WorkspaceHandle):
  * A column made with `sideBySide` and a window of several slots draws the cells `column.shown` lists next to one another, each as wide
  * as its slots, with a divider between each two; a press or focus in a cell makes it the current workspace. Tab and Shift+Tab then
  * walk the shown cells left to right as they are drawn, each divider between its two cells, whatever order the column lists them in.
- * For that the column and each cell hold zero-size tab stops of their own (`data-column-sentinel`), which pass focus on.
+ * Inside a cell the browser's own Tab order is untouched. For the steps between cells the column and each cell hold zero-size elements
+ * of their own (`data-column-sentinel`). Where the cell drawn first (last) is not the first (last) shown one in the DOM, Tab into or out
+ * of the column at that end rests on such an element for one press. The dividers take focus and are reached by Tab through the column.
  * @public
  */
 export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): React.ReactElement {
@@ -141,6 +143,10 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
     column.scrollTo(column.addWorkspace({ index }));
   };
 
+  // Where the space drawn first (last) is also the first (last) shown one in the DOM, the browser's own step into and out of the
+  // column at that end is already the right one, and the sentinels there are no stops.
+  const mounted = snap.workspaces.filter((w) => shownIds.has(w.id));
+  const native = { start: mounted[0]?.id === snap.shown[0]?.id, end: mounted[mounted.length - 1]?.id === snap.shown[snap.shown.length - 1]?.id };
   // The stops Tab walks side by side, in screen order: each shown cell, the divider after it, and so on.
   const screenStops = (): HTMLElement[] => {
     const root = rootRef.current;
@@ -210,7 +216,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           style={{ transform: `translateY(${shown ? 0 : i < snap.current ? -100 : 100}%)`, transition: shown || ws.id === fromId ? slide : 'none', ...(split ? (shown ? geometry.get(ws.id) : lastGeometry.current.get(ws.id)) : undefined) }}
           sx={{ position: 'absolute', inset: 0, outline: 'none' }}
         >
-          {split ? <ColumnSentinel at="cell-start" /> : null}
+          {split ? <ColumnSentinel at="cell-start" stop={!(native.start && ws.id === snap.shown[0]?.id)} /> : null}
           <RowFloorContext.Provider value={split ? cell?.rowSlots : undefined}>
             <Band side="above" band={bands.above} inset={snap.topInset} props={slotProps} />
             {own === undefined ? (
@@ -222,7 +228,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
             )}
             <Band side="below" band={bands.below} inset={snap.topInset} props={slotProps} />
           </RowFloorContext.Provider>
-          {split ? <ColumnSentinel at="cell-end" /> : null}
+          {split ? <ColumnSentinel at="cell-end" stop={!(native.end && ws.id === snap.shown[snap.shown.length - 1]?.id)} /> : null}
         </Box>
       );
     };
@@ -263,7 +269,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
         split
           ? (e: React.FocusEvent<HTMLElement>) => {
               steerColumnSentinel(e, rootRef.current!, screenStops());
-              // Focus a Tab steered into another cell makes that cell the current one, as focus there by any other way does.
+              // Focus a Tab brings into another cell makes that cell the current one, as focus there by any other way does.
               const held = document.activeElement;
               const ws = snap.workspaces.find((w) => cells.current.get(w.id)?.contains(held) === true);
               if (ws !== undefined && shownIds.has(ws.id)) column.scrollTo(ws);
@@ -271,12 +277,12 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           : undefined
       }
       sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      {split ? <ColumnSentinel at="start" /> : null}
+      {split ? <ColumnSentinel at="start" stop={!native.start} /> : null}
       <div style={{ position: 'relative', height: '100%' }}>
         {snap.workspaces.map((ws, i) => cellOf(ws, i))}
         {split ? snap.shown.slice(0, -1).map((_, k) => dividerAt(k)) : null}
       </div>
-      {split ? <ColumnSentinel at="end" /> : null}
+      {split ? <ColumnSentinel at="end" stop={!native.end} /> : null}
       {snap.workspaces.length === 0 ? (
         <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', height: TARGET, minHeight: 0, textTransform: 'none' }}>
           {labels.newWorkspace}
