@@ -21,12 +21,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # actionlint is clean in every repo today, so it blocks.
+      # The two ignored shellcheck notes are an unread retry counter and an ls-in-a-pipeline note in existing workflows; every other finding blocks.
       - name: actionlint
         run: |
           set -euo pipefail
           GOBIN="$RUNNER_TEMP/bin" go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          "$RUNNER_TEMP/bin/actionlint" -color
+          "$RUNNER_TEMP/bin/actionlint" -color -ignore "SC2034:warning:.*attempt appears unused" -ignore "SC2012:info"
       # zizmor still reports findings in the existing workflows, so only a broken run fails; findings land in the summary.
       - name: zizmor (reports, does not block)
         run: |
