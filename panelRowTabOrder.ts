@@ -14,6 +14,34 @@ function tabbablesOf(scope: Element): HTMLElement[] {
 // True while the code itself moves focus onto a sentinel to let the browser's pending step carry on from it.
 let parking = false;
 
+/** Moves focus onto a sentinel without the sentinel's own steering answering, so the browser's pending step carries on from it. */
+export function park(sentinel: HTMLElement): void {
+  parking = true;
+  try {
+    sentinel.focus();
+  } finally {
+    parking = false;
+  }
+}
+
+/** True while `park` is moving focus. */
+export function isParking(): boolean {
+  return parking;
+}
+
+// The direction of a step a caller is making for a Tab the row's own record cannot hold: one pressed inside an iframe.
+let stepping: TabPress | null = null;
+
+/** Focuses `el` as a Tab (`back`: Shift+Tab) arriving there would, so a row it enters picks the panel by reading order. */
+export function focusAsTab(el: HTMLElement, back: boolean): void {
+  stepping = { shift: back };
+  try {
+    el.focus();
+  } finally {
+    stepping = null;
+  }
+}
+
 function slotsOf(row: HTMLElement): Map<string, HTMLElement> {
   return new Map([...row.querySelectorAll<HTMLElement>('[data-row-slot]')].map((s) => [s.dataset.rowId ?? '', s]));
 }
@@ -77,16 +105,13 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
   if (edge === undefined) {
     const beyond = elementBeyond(row, back);
     if (beyond === undefined) return;
+    // A column's sentinel ends the cell this row is in, and only the column knows which cell is drawn next: the step stays pending for it.
+    if (beyond.hasAttribute('data-column-sentinel')) return void park(beyond);
     event.preventDefault();
     beyond.focus();
     return;
   }
-  parking = true;
-  try {
-    edge.focus();
-  } finally {
-    parking = false;
-  }
+  park(edge);
 }
 
 /**
@@ -160,6 +185,7 @@ export function useTabPress(): React.RefObject<TabPress | null> {
 export function steerEntry(event: React.FocusEvent<HTMLElement>, row: HTMLElement, readingIds: readonly string[], tab: TabPress | null): void {
   const from = event.relatedTarget as Node | null;
   // A portaled dialog or popover is a React child of the row but not a DOM descendant; its focus is not the row's.
-  if (tab === null || !row.contains(event.target as Node) || (from !== null && row.contains(from))) return;
-  enterInReadingOrder(row, readingIds, tab.shift);
+  const by = stepping ?? tab;
+  if (by === null || !row.contains(event.target as Node) || (from !== null && row.contains(from))) return;
+  enterInReadingOrder(row, readingIds, by.shift);
 }

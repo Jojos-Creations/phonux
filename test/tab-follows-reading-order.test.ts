@@ -13,6 +13,7 @@ import { advanceFrames, cleanup } from './support/mount-harness.js';
 import { drag, release } from './support/drag-gesture.js';
 import { made, mountRow, row, panelsOf, type MountedRow } from './support/scroll-row.js';
 import { registerTestView } from './support/test-views.js';
+import { focusAsTab } from '../panelRowTabOrder.js';
 
 afterEach(() => cleanup());
 
@@ -229,3 +230,56 @@ for (const framed of [false, true]) {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Inside a column that shows several spaces: the column decides what comes after the row
+// ---------------------------------------------------------------------------
+
+test('focus a caller moves into the row as a Tab enters by reading order, although the row heard no key', async () => {
+  for (const back of [false, true]) {
+    const { m, reading } = await reorderedRow(false, 's3', back ? 900 : -900);
+    const outside = document.createElement('button');
+    m.container.before(outside);
+    try {
+      outside.focus();
+      const all = stops(m);
+      const domEnd = all[back ? all.length - 1 : 0]!;
+      const want = `${reading[back ? reading.length - 1 : 0]}-${back ? 'b' : 'a'}`;
+      assert.notEqual(domEnd.dataset.stop, want, 'the DOM-end panel is not the reading-end one');
+      act(() => focusAsTab(domEnd, back));
+      assert.equal((document.activeElement as HTMLElement).dataset.stop, want);
+      outside.focus();
+      act(() => domEnd.focus());
+      assert.equal((document.activeElement as HTMLElement).dataset.stop, domEnd.dataset.stop, 'and a plain focus after it is not redirected');
+    } finally {
+      outside.remove();
+      cleanup();
+    }
+  }
+});
+
+test('a Tab out of the row whose next element is a column’s sentinel parks there and is not cancelled; before any other element it is cancelled and focus goes there', async () => {
+  const { m, reading } = await reorderedRow(false, 's3', -900);
+  const last = m.container.querySelector<HTMLElement>(`[data-stop="${reading[reading.length - 1]}-b"]`)!;
+  const tab = (): boolean => {
+    act(() => last.focus());
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    act(() => void last.dispatchEvent(event));
+    return event.defaultPrevented;
+  };
+  const sentinel = document.createElement('span');
+  sentinel.tabIndex = 0;
+  sentinel.setAttribute('data-column-sentinel', 'cell-end');
+  const plain = document.createElement('button');
+  try {
+    m.container.after(sentinel);
+    assert.equal(tab(), false, 'the step stays pending for the column');
+    assert.ok(document.activeElement === sentinel);
+    sentinel.replaceWith(plain);
+    assert.equal(tab(), true);
+    assert.ok(document.activeElement === plain);
+  } finally {
+    sentinel.remove();
+    plain.remove();
+  }
+});

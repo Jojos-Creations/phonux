@@ -500,3 +500,342 @@ test('no cell moves in the DOM: a frame and a scrolled box in every cell survive
     assert.equal(after.w1!.scrollTop, 0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tab and Shift+Tab, pressed for real
+// ---------------------------------------------------------------------------
+// A synthetic keydown has no default action, so only a real press shows where the browser's own step goes after the column's
+// handlers ran. Every walk below is read off `document.activeElement` after `page.keyboard.press`.
+
+/** Where focus is: `BODY` when the page holds none, `before` / `after`, `div<k>`, or `<workspace id>:<what>`. */
+const WHERE = `(() => {
+  const a = document.activeElement;
+  if (a === null || a === document.body) return 'BODY';
+  if (a.id === 'before' || a.id === 'after') return a.id;
+  if (a.getAttribute('role') === 'separator') return 'div' + a.getAttribute('data-column-divider');
+  const cell = a.closest('[data-workspace-cell]');
+  const c = cell ? cell.dataset.workspaceId : '?';
+  if (a.tagName === 'IFRAME') return c + ':frame>' + (a.contentDocument?.activeElement?.id || 'doc');
+  return c + ':' + (a.getAttribute('data-tab') ?? a.getAttribute('data-workspace-neighbour') ?? (a.hasAttribute('data-column-sentinel') ? 'column-' + a.getAttribute('data-column-sentinel') : null) ?? (a.hasAttribute('data-row-sentinel') ? 'row-' + a.getAttribute('data-row-sentinel') : null) ?? (a.hasAttribute('data-workspace-cell') ? 'CELL' : a.tagName));
+})()`;
+
+/**
+ * The stops a walk must make, worked out here and not by the column: for each shown space left to right, every button, input, frame and
+ * element with a tab index of its cell that is neither inert nor a sentinel, in the order the cell holds them, then the divider after that space.
+ */
+const STOPS = `(() => {
+  const out = [];
+  const shown = window.__s.shown();
+  shown.forEach((s, k) => {
+    const cell = document.querySelector('[data-workspace-cell][data-workspace-id="' + s.id + '"]');
+    for (const el of cell.querySelectorAll('button,input,iframe,[tabindex]')) {
+      if (el.closest('[inert]') !== null || el.tabIndex < 0 || el.hasAttribute('data-column-sentinel') || el.hasAttribute('data-row-sentinel')) continue;
+      out.push(s.id + ':' + (el.tagName === 'IFRAME' ? 'frame>inner' : el.getAttribute('data-tab') ?? el.getAttribute('data-workspace-neighbour') ?? el.tagName));
+    }
+    if (k < shown.length - 1) out.push('div' + k);
+  });
+  return out;
+})()`;
+
+/** A button in every panel of every cell, the ones the row keeps out of sight too; answers how many of them sit in an inert slot of a shown cell. */
+const PLANT_BUTTONS = `(() => {
+  let inert = 0;
+  for (const cell of document.querySelectorAll('[data-workspace-cell]')) {
+    for (const box of cell.querySelectorAll('[data-box]')) {
+      const b = document.createElement('button');
+      b.setAttribute('data-tab', box.getAttribute('data-box'));
+      b.textContent = box.getAttribute('data-box');
+      box.appendChild(b);
+      if (!cell.hasAttribute('inert') && b.closest('[inert]') !== null) inert += 1;
+    }
+  }
+  return inert;
+})()`;
+
+/** A real button first and last in the page, outside the column. */
+const PLANT_OUTSIDE = `(() => {
+  const b = document.createElement('button'); b.id = 'before'; document.body.prepend(b);
+  const a = document.createElement('button'); a.id = 'after'; document.body.append(a);
+})()`;
+
+/** A frame holding one button as the last thing in the last panel in sight of each shown space, so a cell's last stop is inside a frame. */
+const PLANT_FRAMES = `(async () => {
+  const loaded = [];
+  for (const s of window.__s.shown()) {
+    const cell = document.querySelector('[data-workspace-cell][data-workspace-id="' + s.id + '"]');
+    const boxes = [...cell.querySelectorAll('[data-row-slot]')].filter((x) => x.closest('[inert]') === null).map((x) => x.querySelector('[data-box]'));
+    const f = document.createElement('iframe');
+    f.srcdoc = '<button id="inner">inner</button>';
+    f.style.cssText = 'width:100px;height:40px';
+    loaded.push(new Promise((r) => f.addEventListener('load', r)));
+    boxes[boxes.length - 1].appendChild(f);
+  }
+  await Promise.all(loaded);
+})()`;
+
+async function tabWalk(page: Page, n: number, shift = false): Promise<string[]> {
+  const out: string[] = [];
+  for (let k = 0; k < n; k += 1) {
+    await page.keyboard.press(shift ? 'Shift+Tab' : 'Tab');
+    await sleep(80);
+    out.push(await page.evaluate(WHERE));
+  }
+  return out;
+}
+
+/** A frame is one stop however many presses the row spends in and around it. */
+const frameAsOne = (walk: string[]): string[] => walk.map((x) => x.replace(/:frame>.*/, ':frame')).filter((x, k, all) => !(x.endsWith(':frame') && all[k - 1] === x));
+
+/** Presses until focus is on `target`, giving up after `most` presses; the walk with a frame as one stop. */
+async function tabUntil(page: Page, target: string, most: number, shift = false): Promise<string[]> {
+  const out: string[] = [];
+  while (out[out.length - 1] !== target && out.length < most) out.push(...(await tabWalk(page, 1, shift)));
+  return frameAsOne(out);
+}
+
+/**
+ * A walk that goes out of the page and comes in again at its other end. What a browser does between the two is its own: the headless
+ * shell rests on the page's body for one press, the full browser sometimes does and sometimes comes straight back in. So `OUT` stands
+ * for the step out, whether or not it took a press of its own, and anything else the walk rests on outside the stops fails the comparison.
+ * `n` counts the stops reached, a frame as one.
+ */
+async function tabRound(page: Page, n: number, shift = false): Promise<string[]> {
+  const out: string[] = [];
+  let was: string = await page.evaluate(WHERE);
+  while (frameAsOne(out).filter((x) => x !== 'OUT').length < n) {
+    assert.ok(out.length < 3 * n + 3, `the walk never came round: ${out.join(' ')}`);
+    await page.keyboard.press(shift ? 'Shift+Tab' : 'Tab');
+    await sleep(80);
+    const now: string = await page.evaluate(WHERE);
+    const entered: number = await page.evaluate('window.__entered.splice(0).length');
+    if (now === 'BODY') out.push('OUT');
+    else {
+      if (was !== 'BODY' && entered > 0) out.push('OUT');
+      out.push(now);
+    }
+    was = now;
+  }
+  return out;
+}
+
+/** Counts focus that reaches the page from the browser itself, which a column end sentinel is the first to get. */
+const WATCH_ENTRY = `(() => {
+  window.__entered = [];
+  document.addEventListener('focusin', (e) => { if (e.relatedTarget === null && ['start', 'end'].includes(e.target.getAttribute('data-column-sentinel'))) window.__entered.push(1); }, true);
+})()`;
+
+const focusStop = (page: Page, stop: string): Promise<void> =>
+  page.evaluate((s: string) => {
+    const [id, what] = s.split(':') as [string, string];
+    const cell = document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${id}"]`)!;
+    (cell.querySelector<HTMLElement>(`[data-tab="${what}"]`) ?? cell.querySelector<HTMLElement>(`[data-workspace-neighbour="${what}"]`) ?? cell.querySelector<HTMLElement>(what))!.focus();
+  }, stop);
+
+type Order = 'list' | 'stepped' | 'placed-first';
+
+/** Two spaces side by side in the screen order asked for; answers the names left to right. */
+async function inOrder(page: Page, order: Order): Promise<string[]> {
+  if (order === 'placed-first') await until(page, 'c.showSide(ws[1], { at: 0 })');
+  else await until(page, 'c.showSide(ws[1])');
+  await sleep(700);
+  if (order === 'stepped') {
+    assert.equal(await call(page, 'c.step("down")'), true);
+    await sleep(900);
+  }
+  return (await shown(page)).map((s) => s.name);
+}
+const ON_SCREEN: Record<Order, string[]> = { list: ['Research', 'Trip food'], stepped: ['Notes', 'Trip food'], 'placed-first': ['Trip food', 'Research'] };
+
+for (const order of ['list', 'stepped', 'placed-first'] as const) {
+  for (const bands of ['', '&bands=none']) {
+    test(`Tab, ${order} order${bands === '' ? '' : ', bands with nothing tabbable'}: the column alone on the page is walked in screen order, left by one press at either end, and entered at the right end from the browser`, async (t) => {
+      if (!(await ready(t))) return;
+      await onPage(2560, `n=3${bands}`, async (page) => {
+        assert.deepEqual(await inOrder(page, order), ON_SCREEN[order]);
+        assert.ok((await page.evaluate(PLANT_BUTTONS)) > 0, 'some planted buttons are in panels the row keeps inert, so a walk that stops at one is seen');
+        const stops: string[] = await page.evaluate(STOPS);
+        assert.ok(stops.length >= 5 && stops.includes('div0'), `the stops are several and the divider is one: ${stops.join(' ')}`);
+        await focusStop(page, stops[0]!);
+        assert.equal(await page.evaluate(WHERE), stops[0]);
+        await page.evaluate(WATCH_ENTRY);
+        // Forward from the first stop: every stop, then out of the page, then in again at the first.
+        assert.deepEqual(await tabRound(page, stops.length), [...stops.slice(1), 'OUT', stops[0]]);
+        // Backward from the first stop: out of the page, in again at the last, then every stop.
+        assert.deepEqual(await tabRound(page, stops.length, true), ['OUT', ...[...stops].reverse()]);
+      });
+    });
+
+    test(`Tab, ${order} order${bands === '' ? '' : ', bands with nothing tabbable'}: between a button before the column and one after it, each is one press from the column's end`, async (t) => {
+      if (!(await ready(t))) return;
+      await onPage(2560, `n=3${bands}`, async (page) => {
+        assert.deepEqual(await inOrder(page, order), ON_SCREEN[order]);
+        await page.evaluate(PLANT_BUTTONS);
+        await page.evaluate(PLANT_OUTSIDE);
+        const stops: string[] = await page.evaluate(STOPS);
+        await page.focus('#before');
+        assert.deepEqual(await tabWalk(page, stops.length + 1), [...stops, 'after']);
+        assert.deepEqual(await tabWalk(page, stops.length + 1, true), [...[...stops].reverse(), 'before']);
+      });
+    });
+  }
+}
+
+for (const order of ['list', 'stepped'] as const) {
+  test(`Tab, ${order} order, a frame as each space's last stop and nothing tabbable in the bands: a Tab pressed inside the frame goes on to the divider, and past the last space out of the column`, async (t) => {
+    if (!(await ready(t))) return;
+    await onPage(2560, 'n=3&bands=none', async (page) => {
+      assert.deepEqual(await inOrder(page, order), ON_SCREEN[order]);
+      await page.evaluate(PLANT_BUTTONS);
+      await page.evaluate(PLANT_FRAMES);
+      await page.evaluate(PLANT_OUTSIDE);
+      const stops = frameAsOne(await page.evaluate(STOPS));
+      const [left, right] = (await shown(page)).map((x) => x.id) as [string, string];
+      assert.equal(stops[stops.indexOf('div0') - 1], `${left}:frame`, 'the frame is the last stop before the divider');
+      assert.equal(stops[stops.length - 1], `${right}:frame`, 'and the last stop of all');
+      await page.focus('#before');
+      assert.deepEqual(await tabUntil(page, 'after', 3 * stops.length), [...stops, 'after']);
+      assert.deepEqual(await tabUntil(page, 'before', 3 * stops.length, true), [...[...stops].reverse(), 'before']);
+    });
+  });
+
+  test(`Tab, ${order} order, a frame as each space's last stop, the column alone on the page: the step out of the last frame is spent, so focus rests on the cell's end and the next press leaves`, async (t) => {
+    if (!(await ready(t))) return;
+    await onPage(2560, 'n=3&bands=none', async (page) => {
+      assert.deepEqual(await inOrder(page, order), ON_SCREEN[order]);
+      await page.evaluate(PLANT_BUTTONS);
+      await page.evaluate(PLANT_FRAMES);
+      await page.evaluate(WATCH_ENTRY);
+      const stops = frameAsOne(await page.evaluate(STOPS));
+      const right = (await shown(page))[1]!.id;
+      await focusStop(page, stops[0]!);
+      assert.deepEqual(frameAsOne(await tabRound(page, stops.length + 1)), [...stops.slice(1), `${right}:column-cell-end`, 'OUT', stops[0]]);
+      assert.deepEqual(frameAsOne(await tabRound(page, stops.length, true)), ['OUT', ...[...stops].reverse()]);
+    });
+  });
+}
+
+test('Tab with three spaces side by side, the last one placed first: both dividers are stops, each after the space on its left', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&bands=none', async (page) => {
+    await until(page, 'c.showSide(ws[1])');
+    await until(page, 'c.showSide(ws[2], { at: 0 })');
+    await sleep(700);
+    assert.deepEqual((await shown(page)).map((x) => x.name), ['Notes', 'Research', 'Trip food']);
+    await page.evaluate(PLANT_BUTTONS);
+    await page.evaluate(PLANT_OUTSIDE);
+    const stops: string[] = await page.evaluate(STOPS);
+    assert.deepEqual(stops.filter((x) => !x.includes(':')), ['div0', 'div1']);
+    assert.ok(stops.indexOf('w3:root') < stops.indexOf('div0') && stops.indexOf('div0') < stops.indexOf('w1:root') && stops.indexOf('w1:root') < stops.indexOf('div1') && stops.indexOf('div1') < stops.indexOf('w2:root'), stops.join(' '));
+    await page.focus('#before');
+    assert.deepEqual(await tabWalk(page, stops.length + 1), [...stops, 'after']);
+    assert.deepEqual(await tabWalk(page, stops.length + 1, true), [...[...stops].reverse(), 'before']);
+  });
+});
+
+test('Tab from a cell element, where a step leaves focus: Shift+Tab leaves the column when the cell is the left-most on screen, and Tab goes into the cell', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&bands=none', async (page) => {
+    await until(page, 'c.showSide(ws[1])');
+    await sleep(700);
+    await page.evaluate(PLANT_BUTTONS);
+    await page.evaluate(PLANT_OUTSIDE);
+    const onCell = async (): Promise<void> => {
+      await focusStop(page, 'w1:root');
+      if ((await shown(page))[0]!.name !== 'Notes') assert.equal(await call(page, 'c.step("down")'), true);
+      else await page.evaluate(() => document.querySelector<HTMLElement>('[data-workspace-cell][data-workspace-id="w3"]')!.focus());
+      await sleep(900);
+      assert.deepEqual((await shown(page)).map((x) => x.name), ['Notes', 'Trip food']);
+      assert.equal(await page.evaluate(WHERE), 'w3:CELL', 'the step left focus on the cell it moved to');
+    };
+    await onCell();
+    assert.deepEqual(await tabWalk(page, 1, true), ['before'], 'Notes is on the left: Shift+Tab leaves, and does not go to Trip food, the element before it in the DOM');
+    await onCell();
+    assert.deepEqual(await tabWalk(page, 1), ['w3:root']);
+    // The right-hand cell's own element: Shift+Tab goes to the divider on its left, Tab into the cell.
+    const onRight = (): Promise<void> => page.evaluate(() => document.querySelector<HTMLElement>('[data-workspace-cell][data-workspace-id="w2"]')!.focus());
+    await onRight();
+    assert.deepEqual(await tabWalk(page, 1, true), ['div0']);
+    await onRight();
+    assert.deepEqual(await tabWalk(page, 1), ['w2:root']);
+  });
+});
+
+test('focus that no Tab caused stays where it went: a click, a script, and a press on the page with nothing focused', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3', async (page) => {
+    assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+    await page.evaluate(PLANT_BUTTONS);
+    await page.evaluate(PLANT_OUTSIDE);
+    await page.click('[data-workspace-id="w2"] [data-tab="p1"]');
+    assert.equal(await page.evaluate(WHERE), 'w2:p1');
+    assert.equal(await call(page, 'ws[c.current].id'), 'w2', 'and the side clicked in is the current one');
+    await page.click('[data-workspace-id="w3"] [data-tab="p2"]');
+    assert.equal(await page.evaluate(WHERE), 'w3:p2');
+    for (const stop of ['w2:root', 'w3:p1', 'w2:p2']) {
+      await focusStop(page, stop);
+      assert.equal(await page.evaluate(WHERE), stop, 'a script’s focus stays');
+    }
+    await page.evaluate(() => document.querySelector<HTMLElement>('[role="separator"]')!.focus());
+    assert.equal(await page.evaluate(WHERE), 'div0');
+    // After a click the walk goes on from the element clicked, in screen order.
+    await page.click('[data-workspace-id="w3"] [data-tab="p2"]');
+    const stops: string[] = await page.evaluate(STOPS);
+    assert.deepEqual(await tabWalk(page, 2), stops.slice(stops.indexOf('w3:p2') + 1, stops.indexOf('w3:p2') + 3));
+  });
+});
+
+test('Tab after the page dropped focus (a blur): the walk goes on from where focus was, in screen order, and out of the column at its ends', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&bands=none', async (page) => {
+    assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+    await page.evaluate(PLANT_BUTTONS);
+    await page.evaluate(PLANT_OUTSIDE);
+    const stops: string[] = await page.evaluate(STOPS);
+    const at = stops.indexOf('div0');
+    const blurAt = async (stop: string, shift: boolean): Promise<string> => {
+      if (stop === 'div0') await page.evaluate(() => document.querySelector<HTMLElement>('[role="separator"]')!.focus());
+      else await focusStop(page, stop);
+      await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+      assert.equal(await page.evaluate(WHERE), 'BODY', 'nothing holds focus');
+      return (await tabWalk(page, 1, shift))[0]!;
+    };
+    assert.equal(await blurAt('div0', false), stops[at + 1]);
+    assert.equal(await blurAt('div0', true), stops[at - 1]);
+    assert.equal(await blurAt(stops[at - 1]!, false), 'div0');
+    assert.equal(await blurAt(stops[at + 1]!, true), 'div0');
+    assert.equal(await blurAt(stops[stops.length - 1]!, false), 'after');
+    assert.equal(await blurAt(stops[0]!, true), 'before');
+  });
+});
+
+for (const shift of [false, true]) {
+  test(`${shift ? 'Shift+Tab' : 'Tab'} into a page that never held focus lands on the ${shift ? 'last' : 'first'} stop in screen order`, async (t) => {
+    if (!(await ready(t))) return;
+    await onPage(2560, 'n=3&bands=none', async (page) => {
+      assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+      await page.evaluate(PLANT_BUTTONS);
+      const stops: string[] = await page.evaluate(STOPS);
+      assert.equal(await page.evaluate(WHERE), 'BODY');
+      assert.deepEqual(await tabWalk(page, 1, shift), [shift ? stops[stops.length - 1] : stops[0]]);
+      assert.ok((shift ? stops[stops.length - 1]! : stops[0]!).startsWith(shift ? 'w2:' : 'w3:'), 'which is in the space drawn at that end, not the one the DOM holds there');
+    });
+  });
+}
+
+test('a column without sideBySide has no stop of the column’s own, and Tab walks its one space as the browser and the row do', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&side=0&bands=none', async (page) => {
+    await page.evaluate(PLANT_BUTTONS);
+    await page.evaluate(PLANT_FRAMES);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('[data-column-sentinel]').length), 0);
+    const stops = frameAsOne(await page.evaluate(STOPS));
+    await focusStop(page, stops[0]!);
+    await page.evaluate(WATCH_ENTRY);
+    // The row alone rests on its own end sentinel after the frame, as a cell side by side rests on the cell's end.
+    assert.deepEqual(frameAsOne(await tabRound(page, stops.length + 1)), [...stops.slice(1), 'w1:row-end', 'OUT', stops[0]]);
+    await page.evaluate(PLANT_OUTSIDE);
+    await page.focus('#before');
+    assert.deepEqual(await tabUntil(page, 'after', 3 * stops.length), [...stops, 'after']);
+    assert.deepEqual(await tabUntil(page, 'before', 3 * stops.length, true), [...[...stops].reverse(), 'before']);
+  });
+});

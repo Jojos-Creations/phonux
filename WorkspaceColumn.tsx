@@ -17,14 +17,19 @@ import { ColumnDivider } from './ColumnDivider.js';
 import { DEFAULT_PHONE_SIZE } from './hostApi.js';
 import { WORKSPACE_ACTIVE_ATTRIBUTE } from './rowDom.js';
 import { RowFloorContext } from './rowFloor.js';
-import { steerColumnEntry, steerColumnTab } from './columnTabOrder.js';
-import { useTabPress } from './panelRowTabOrder.js';
+import { COLUMN_SENTINEL, steerColumnSentinel, steerColumnTab } from './columnTabOrder.js';
 
 /** The room above a workspace's row that the default bands keep, in px, below the column's `topInset`. With bands of its own, `columnBandRoom(bands).above`. @public */
 export const COLUMN_TOP_BAND = columnBandRoom(DEFAULT_COLUMN_BANDS).above;
 /** The room below a workspace's row that the default bands keep, in px. With bands of its own, `columnBandRoom(bands).below`. @public */
 export const COLUMN_BOTTOM_BAND = columnBandRoom(DEFAULT_COLUMN_BANDS).below;
 const TARGET = WORKSPACE_NAME_CONTROL_HEIGHT;
+
+// A tab stop of no size: the browser's own step lands on it, and focus is parked on it so that a pending step carries on from there.
+// No aria-hidden, which a focusable element must not carry. A tab stop on a non-interactive element is the point.
+function ColumnSentinel({ at }: { at: 'start' | 'end' | 'cell-start' | 'cell-end' }): React.ReactElement {
+  return <span {...{ tabIndex: 0, [COLUMN_SENTINEL]: at }} style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, overflow: 'hidden', outline: 'none' }} />;
+}
 
 const DefaultCell = React.lazy(() => import('./autoMount.js').then((m) => ({ default: m.AutoRoot })));
 
@@ -49,7 +54,9 @@ const drawn = (children: WorkspaceColumnProps['children'], ws: WorkspaceHandle):
  * Draws a column: one cell per workspace, the current one in view, the others inert and hidden from assistive technology but
  * still mounted, so their panels keep their state. Moving to another workspace moves focus into its cell when focus was in the one left.
  * A column made with `sideBySide` and a window of several slots draws the cells `column.shown` lists next to one another, each as wide
- * as its slots, with a divider between each two; a press or focus in a cell makes it the current workspace.
+ * as its slots, with a divider between each two; a press or focus in a cell makes it the current workspace. Tab and Shift+Tab then
+ * walk the shown cells left to right as they are drawn, each divider between its two cells, whatever order the column lists them in.
+ * For that the column and each cell hold zero-size tab stops of their own (`data-column-sentinel`), which pass focus on.
  * @public
  */
 export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): React.ReactElement {
@@ -134,7 +141,6 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
     column.scrollTo(column.addWorkspace({ index }));
   };
 
-  const tabPress = useTabPress();
   // The stops Tab walks side by side, in screen order: each shown cell, the divider after it, and so on.
   const screenStops = (): HTMLElement[] => {
     const root = rootRef.current;
@@ -145,6 +151,31 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
       return [cell, divider].filter((el): el is HTMLElement => el !== null && el !== undefined);
     });
   };
+  // Focus the column held and the page then dropped, by a blur or a script: the browser's next Tab still starts there, but the key is
+  // pressed on the body, where the column's own handler does not hear it.
+  const lost = React.useRef<HTMLElement | null>(null);
+  const stopsNow = React.useRef(screenStops);
+  stopsNow.current = screenStops;
+  React.useEffect(() => {
+    if (!split) return;
+    const forget = (): void => {
+      lost.current = null;
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      const root = rootRef.current;
+      if (root !== null && lost.current !== null && document.activeElement === document.body) steerColumnTab(event, root, stopsNow.current(), lost.current);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('focusin', forget, true);
+    // A press sets the browser's starting point where it landed.
+    document.addEventListener('pointerdown', forget, true);
+    return () => {
+      forget();
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('focusin', forget, true);
+      document.removeEventListener('pointerdown', forget, true);
+    };
+  }, [split]);
   const base = React.useId();
   const cellIdOf = (id: string): string => `${base}-cell-${snap.workspaces.findIndex((w) => w.id === id)}`;
   const cellOf = (ws: WorkspaceHandle, i: number): React.ReactNode => {
@@ -179,6 +210,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           style={{ transform: `translateY(${shown ? 0 : i < snap.current ? -100 : 100}%)`, transition: shown || ws.id === fromId ? slide : 'none', ...(split ? (shown ? geometry.get(ws.id) : lastGeometry.current.get(ws.id)) : undefined) }}
           sx={{ position: 'absolute', inset: 0, outline: 'none' }}
         >
+          {split ? <ColumnSentinel at="cell-start" /> : null}
           <RowFloorContext.Provider value={split ? cell?.rowSlots : undefined}>
             <Band side="above" band={bands.above} inset={snap.topInset} props={slotProps} />
             {own === undefined ? (
@@ -190,6 +222,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
             )}
             <Band side="below" band={bands.below} inset={snap.topInset} props={slotProps} />
           </RowFloorContext.Provider>
+          {split ? <ColumnSentinel at="cell-end" /> : null}
         </Box>
       );
     };
@@ -219,10 +252,17 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
       ref={rootRef}
       data-workspace-column=""
       onKeyDown={split ? (e: React.KeyboardEvent<HTMLElement>) => steerColumnTab(e, rootRef.current!, screenStops()) : undefined}
+      onBlur={
+        split
+          ? (e: React.FocusEvent<HTMLElement>) => {
+              if (e.relatedTarget === null) lost.current = e.target;
+            }
+          : undefined
+      }
       onFocus={
         split
           ? (e: React.FocusEvent<HTMLElement>) => {
-              steerColumnEntry(e, rootRef.current!, screenStops(), tabPress.current);
+              steerColumnSentinel(e, rootRef.current!, screenStops());
               // Focus a Tab steered into another cell makes that cell the current one, as focus there by any other way does.
               const held = document.activeElement;
               const ws = snap.workspaces.find((w) => cells.current.get(w.id)?.contains(held) === true);
@@ -231,10 +271,12 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           : undefined
       }
       sx={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {split ? <ColumnSentinel at="start" /> : null}
       <div style={{ position: 'relative', height: '100%' }}>
         {snap.workspaces.map((ws, i) => cellOf(ws, i))}
         {split ? snap.shown.slice(0, -1).map((_, k) => dividerAt(k)) : null}
       </div>
+      {split ? <ColumnSentinel at="end" /> : null}
       {snap.workspaces.length === 0 ? (
         <Button data-workspace-neighbour="empty" size="small" onClick={() => create(0)} sx={{ position: 'absolute', top: belowSafeTop(snap.topInset), left: '50%', transform: 'translateX(-50%)', height: TARGET, minHeight: 0, textTransform: 'none' }}>
           {labels.newWorkspace}

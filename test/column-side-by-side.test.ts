@@ -586,67 +586,116 @@ function ends(el: HTMLElement): { first: HTMLElement; last: HTMLElement } {
   return { first, last };
 }
 
+const columnEnd = (which: string): HTMLElement => document.querySelector<HTMLElement>(`[data-column-sentinel="${which}"]`)!;
+const cellEnd = (c: WorkspaceColumnHandle, name: string, which: string): HTMLElement => cellEl(c, name).querySelector<HTMLElement>(`[data-column-sentinel="cell-${which}"]`)!;
+
+// jsdom gives a keydown no default action: these tests say what the column does with the key, and the rendered tests
+// (test/side-by-side-rendered.test.ts) where a real press then lands.
 test('Tab walks the spaces as they are drawn, left to right with the divider between, and skips a space the window left out', async () => {
   const c = await drawn();
   act(() => void c.step('down'));
   assert.deepEqual(c.shown.map((s) => s.workspace.name), ['Space 3', 'Space 2'], 'on screen Space 3 | Space 2');
   const [one, two, three] = ['Space 1', 'Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>, ReturnType<typeof ends>];
-  const before = document.createElement('button');
-  const after = document.createElement('button');
-  document.body.prepend(before);
-  document.body.append(after);
   const divider = separators()[0]!;
-  const at = (el: Element): void => assert.ok(document.activeElement === el, 'focus is on the element expected');
+  const at = (el: Element, what = 'focus is on the element expected'): void => assert.ok(document.activeElement === el, what);
   const tab = (from: HTMLElement, shift = false): boolean => {
-    from.focus();
+    act(() => from.focus());
     return press(from, 'Tab', { shiftKey: shift }).defaultPrevented;
   };
+  assert.equal(tab(three.last), true);
+  at(divider);
+  assert.equal(tab(divider), true);
+  at(two.first);
+  assert.equal(tab(two.last), false, 'out of the last stop the browser’s own step runs');
+  at(columnEnd('end'), 'from the column’s end, so it leaves the column and does not go to the element after Space 2 in the DOM');
+  assert.equal(tab(two.first, true), true);
+  at(divider);
+  assert.equal(tab(divider, true), true);
+  at(three.last);
+  assert.equal(tab(three.first, true), false, 'out of the first stop, backward');
+  at(columnEnd('start'));
+  assert.equal(tab(three.first), false, 'inside a stop the browser moves it, so the key is left alone');
+  at(three.first);
+  assert.equal(tab(one.last), false, 'a space the window left out is no stop');
+  assert.ok(document.activeElement !== one.first, 'and is never entered');
+  const taken = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  act(() => three.last.focus());
+  three.last.addEventListener('keydown', (e) => e.preventDefault(), { once: true });
+  act(() => void three.last.dispatchEvent(taken));
+  at(three.last, 'a Tab a handler inside the cell already took is not steered again');
+});
+
+test('Tab on a cell’s own element goes into that cell, and Shift+Tab to the stop on its left, not to the element before it in the DOM', async () => {
+  const c = await drawn();
+  act(() => void c.step('down'));
+  const [two, three] = ['Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>];
+  const key = (el: HTMLElement, shift: boolean): boolean => {
+    act(() => el.focus());
+    return press(el, 'Tab', { shiftKey: shift }).defaultPrevented;
+  };
+  assert.equal(key(cellEl(c, 'Space 3'), false), true);
+  assert.ok(document.activeElement === three.first);
+  assert.equal(key(cellEl(c, 'Space 3'), true), false, 'Space 3 is the left-most: the step leaves the column');
+  assert.ok(document.activeElement === columnEnd('start'));
+  assert.equal(key(cellEl(c, 'Space 2'), true), true);
+  assert.ok(document.activeElement === separators()[0]);
+  assert.equal(key(cellEl(c, 'Space 2'), false), true);
+  assert.ok(document.activeElement === two.first);
+});
+
+test('focus the browser brings to the column’s start lands on the first tabbable element in screen order, at its end on the last', async () => {
+  const c = await drawn();
+  act(() => void c.step('down'));
+  const [two, three] = ['Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>];
+  act(() => columnEnd('start').focus());
+  assert.ok(document.activeElement === three.first, 'the DOM-first cell is Space 2; the screen starts at Space 3');
+  assert.equal(c.current, 2, 'and the space that holds focus is the current one');
+  act(() => columnEnd('end').focus());
+  assert.ok(document.activeElement === two.last, 'and from the end it is the right-most space’s last');
+  act(() => two.first.focus());
+  assert.ok(document.activeElement === two.first, 'focus anywhere else stays where it went');
+});
+
+test('focus that comes out of a cell onto its end goes on to the next stop on screen, and past the last one to the element after the column', async () => {
+  const c = await drawn();
+  act(() => void c.step('down'));
+  const after = document.createElement('button');
   try {
-    assert.equal(tab(three.last), true);
-    at(divider);
-    assert.equal(tab(divider), true);
-    at(two.first);
-    assert.equal(tab(two.last), true, 'out of the last stop');
-    at(after);
-    assert.equal(tab(two.first, true), true);
-    at(divider);
-    assert.equal(tab(divider, true), true);
-    at(three.last);
-    assert.equal(tab(three.first, true), true, 'out of the first stop, backward');
-    at(before);
-    assert.equal(tab(three.first), false, 'inside a stop the browser moves it, so the key is left alone');
-    assert.equal(tab(one.last), false, 'a space the window left out is no stop');
-    assert.ok(document.activeElement !== one.first, 'and is never entered');
+    act(() => cellEnd(c, 'Space 3', 'end').focus());
+    assert.ok(document.activeElement === separators()[0], 'after Space 3 comes the divider, not Space 2’s first element');
+    act(() => cellEnd(c, 'Space 2', 'start').focus());
+    assert.ok(document.activeElement === separators()[0]);
+    act(() => cellEnd(c, 'Space 2', 'end').focus());
+    assert.ok(document.activeElement === cellEnd(c, 'Space 2', 'end'), 'nothing follows the column: focus rests, and the next Tab leaves');
+    assert.equal(press(cellEnd(c, 'Space 2', 'end'), 'Tab').defaultPrevented, false);
+    assert.ok(document.activeElement === columnEnd('end'));
+    document.body.append(after);
+    act(() => cellEnd(c, 'Space 2', 'end').focus());
+    assert.ok(document.activeElement === after);
   } finally {
-    before.remove();
     after.remove();
   }
 });
 
-test('a Tab from outside the column lands on the first (Shift+Tab: last) tabbable element in screen order, not the DOM-first cell', async () => {
+test('a Tab pressed while the page holds no focus is steered from the element the column last held it on', async () => {
   const c = await drawn();
   act(() => void c.step('down'));
-  const stops = ['Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>];
-  const [two, three] = stops;
-  const outside = document.createElement('button');
-  document.body.prepend(outside);
-  try {
-    outside.focus();
-    press(outside, 'Tab');
-    act(() => two.first.focus());
-    assert.ok(document.activeElement === three.first, 'the browser picked the DOM-first cell, Space 2; the screen starts at Space 3');
-    assert.equal(c.current, 2, 'and the space that holds focus is the current one');
-    outside.focus();
-    press(outside, 'Tab', { shiftKey: true });
-    act(() => three.last.focus());
-    assert.ok(document.activeElement === two.last, 'and Shift+Tab ends at the right-most');
-    outside.focus();
-    document.dispatchEvent(new Event('pointerdown'));
-    act(() => two.first.focus());
-    assert.ok(document.activeElement === two.first, 'focus a click causes stays where it went');
-  } finally {
-    outside.remove();
-  }
+  const [two, three] = ['Space 2', 'Space 3'].map((n) => ends(cellEl(c, n))) as [ReturnType<typeof ends>, ReturnType<typeof ends>];
+  const fromBody = (el: HTMLElement, shift: boolean): boolean => {
+    act(() => el.focus());
+    act(() => el.blur());
+    assert.ok(document.activeElement === document.body);
+    return press(document.body, 'Tab', { shiftKey: shift }).defaultPrevented;
+  };
+  assert.equal(fromBody(separators()[0]!, false), true);
+  assert.ok(document.activeElement === two.first);
+  assert.equal(fromBody(separators()[0]!, true), true);
+  assert.ok(document.activeElement === three.last);
+  act(() => three.first.focus());
+  act(() => three.first.blur());
+  document.dispatchEvent(new Event('pointerdown'));
+  assert.equal(press(document.body, 'Tab', { shiftKey: true }).defaultPrevented, false);
+  assert.ok(document.activeElement === document.body, 'a press on the page moved the browser’s starting point, so the column forgets its own');
 });
 
 test('focus in a cell the window stops showing goes to the current space’s cell', async () => {

@@ -157,7 +157,8 @@ export interface WorkspaceColumnHandle {
    *
    * Nothing changes, and the answer says why, for a column without `sideBySide` (`not-enabled`), one that is disposed or still reading
    * its saved list (`disposed`, `not-ready`), one not yet drawn and measured (`not-measured`), a workspace that is not in the column
-   * (`unknown-workspace`) or is shown already (`already-shown`), and a current side with fewer than two row slots to share (`no-room`).
+   * (`unknown-workspace`) or is shown already (`already-shown`), and a current side with too few row slots to share (`no-room`): each of the
+   * two sides must keep the least a side may have, 1 row slot or `tuning.minScrollSlots` when that is more, so fewer than twice that is too few.
    */
   showSide(workspace: WorkspaceHandle | number, options?: { at?: number }): SideResult;
   /**
@@ -167,7 +168,8 @@ export interface WorkspaceColumnHandle {
    */
   hideSide(workspace: WorkspaceHandle | number): SideResult;
   /**
-   * Sets how many row slots each shown workspace gets, left to right, in `shown`'s order. Each is a whole number of at least 1, the
+   * Sets how many row slots each shown workspace gets, left to right, in `shown`'s order. Each is a whole number of at least 1, or of at
+   * least `tuning.minScrollSlots` when that is more, the
    * entries are as many as `shown` has, and together they are at most the window's slots; a split that is not is refused with
    * `invalid-split` and changes nothing, and the message says which entry is wrong. Slots the entries leave unused are dealt one at a
    * time, to the current workspace first and then to the nearest ones, and the sticky panels of a space take their own slots besides, so `shown` reports what the window really gives. The split

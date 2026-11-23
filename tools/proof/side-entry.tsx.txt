@@ -3,9 +3,10 @@
 // test/side-by-side-rendered.test.ts, which drives it in headless Chromium.
 // Query: n=3 (spaces) slots=1,1,1,1,1,1 (each page's slots) sticky=1 (History sticky at the start of every space)
 //        wrap=1 (a dot bar under every row) side=0 (a column without sideBySide)
+//        bands=none (no button and no name above or below a row, so a cell's bands hold nothing Tab stops at)
 // `window.__s` reads the page: every cell, slot and divider as drawn, and drives the column.
 import * as React from 'react';
-import { createWorkspaceColumn, definePanel, useWorkspaceRow, usePanelDots } from 'LIB/index.js';
+import { createWorkspaceColumn, definePanel, useWorkspaceRow, usePanelDots, withSlotChanges, DEFAULT_COLUMN_BANDS } from 'LIB/index.js';
 
 const q = new URLSearchParams(location.search);
 const SPACES = Number(q.get('n') ?? '3');
@@ -43,6 +44,7 @@ const Wrap = ({ children }: { children?: React.ReactNode }) => (
 
 const column = createWorkspaceColumn({
   sideBySide: q.get('side') !== '0',
+  ...(q.get('bands') === 'none' ? { bands: withSlotChanges(DEFAULT_COLUMN_BANDS, { hide: ['neighbour-above', 'workspace-name', 'neighbour-below'] }) } : {}),
   root: definePanel({ id: 'root', view: ((props: any) => <View {...props} name="root" k={0} />) as any, settings: { title: 'History', frame: 'none', ...(stickyOn ? { sticky: 'start' } : {}) } as any }),
   templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k + 1} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, frame: 'none' } as any })),
   tuning: { rowGesture: 'step', rowGap: 16 } as any,
