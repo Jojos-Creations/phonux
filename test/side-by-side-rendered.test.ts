@@ -521,17 +521,25 @@ const WHERE = `(() => {
 
 /**
  * The stops a walk must make, worked out here and not by the column: for each shown space left to right, every button, input, frame and
- * element with a tab index of its cell that is neither inert nor a sentinel, in the order the cell holds them, then the divider after that space.
+ * element with a tab index of its cell that is neither inert nor a sentinel, then the divider after that space. Inside a cell they go
+ * as the cell holds them, but the panels of its row left to right as they are drawn, which a reorder makes unlike the DOM's order.
  */
 const STOPS = `(() => {
   const out = [];
   const shown = window.__s.shown();
   shown.forEach((s, k) => {
     const cell = document.querySelector('[data-workspace-cell][data-workspace-id="' + s.id + '"]');
+    const found = [];
+    let inRow = false;
     for (const el of cell.querySelectorAll('button,input,iframe,[tabindex]')) {
       if (el.closest('[inert]') !== null || el.tabIndex < 0 || el.hasAttribute('data-column-sentinel') || el.hasAttribute('data-row-sentinel')) continue;
-      out.push(s.id + ':' + (el.tagName === 'IFRAME' ? 'frame>inner' : el.getAttribute('data-tab') ?? el.getAttribute('data-workspace-neighbour') ?? el.tagName));
+      const slot = el.closest('[data-row-slot]');
+      inRow = inRow || slot !== null;
+      const x = slot !== null ? slot.getBoundingClientRect().left : inRow ? Infinity : -Infinity;
+      found.push({ x, at: found.length, name: s.id + ':' + (el.tagName === 'IFRAME' ? 'frame>inner' : el.getAttribute('data-tab') ?? el.getAttribute('data-workspace-neighbour') ?? el.tagName) });
     }
+    found.sort((a, b) => (a.x === b.x ? a.at - b.at : a.x < b.x ? -1 : 1));
+    out.push(...found.map((f) => f.name));
     if (k < shown.length - 1) out.push('div' + k);
   });
   return out;
@@ -710,6 +718,35 @@ for (const order of ['list', 'stepped'] as const) {
       await focusStop(page, stops[0]!);
       assert.deepEqual(frameAsOne(await tabRound(page, stops.length + 1)), [...stops.slice(1), `${right}:column-cell-end`, 'OUT', stops[0]]);
       assert.deepEqual(frameAsOne(await tabRound(page, stops.length, true)), ['OUT', ...[...stops].reverse()]);
+    });
+  });
+}
+
+for (const outside of [true, false]) {
+  test(`Tab across spaces whose rows were reordered, ${outside ? 'between two buttons' : 'the column alone'}: the row's last panel on screen is not its last in the DOM, and the walk still leaves each space after it`, async (t) => {
+    if (!(await ready(t))) return;
+    await onPage(2560, 'n=3&bands=none', async (page) => {
+      assert.deepEqual(await inOrder(page, 'stepped'), ['Notes', 'Trip food']);
+      assert.deepEqual(await page.evaluate(() => (window as any).__s.reorder()), [true, true, true]);
+      await sleep(900);
+      await page.evaluate(PLANT_BUTTONS);
+      const stops: string[] = await page.evaluate(STOPS);
+      const inDom: string[] = await page.evaluate(() => [...document.querySelectorAll('[data-workspace-id="w3"] [data-tab]')].filter((el) => el.closest('[inert]') === null).map((el) => `w3:${el.getAttribute('data-tab')}`));
+      const planted = stops.filter((x) => inDom.includes(x));
+      assert.equal(planted.length, inDom.length);
+      assert.notDeepEqual(planted, inDom, `on screen ${planted.join(' ')}, in the DOM ${inDom.join(' ')}`);
+      assert.notEqual(stops[stops.indexOf('div0') - 1], inDom[inDom.length - 1], 'the last stop before the divider is not the DOM-last one');
+      if (outside) {
+        await page.evaluate(PLANT_OUTSIDE);
+        await page.focus('#before');
+        assert.deepEqual(await tabWalk(page, stops.length + 1), [...stops, 'after']);
+        assert.deepEqual(await tabWalk(page, stops.length + 1, true), [...[...stops].reverse(), 'before']);
+      } else {
+        await page.evaluate(WATCH_ENTRY);
+        await focusStop(page, stops[0]!);
+        assert.deepEqual(await tabRound(page, stops.length), [...stops.slice(1), 'OUT', stops[0]]);
+        assert.deepEqual(await tabRound(page, stops.length, true), ['OUT', ...[...stops].reverse()]);
+      }
     });
   });
 }

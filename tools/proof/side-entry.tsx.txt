@@ -51,7 +51,7 @@ const column = createWorkspaceColumn({
   ...(q.get('wrap') === '1' ? { wrap: Wrap as any } : {}),
 });
 const spaces = Array.from({ length: SPACES }, (_, k) => column.addWorkspace({ id: `w${k + 1}`, name: NAMES[k] }));
-for (const ws of spaces) for (const id of ids) ws.addPanel(id);
+const first = spaces.map((ws) => ids.map((id) => ws.addPanel(id))[0]!);
 
 const rectOf = (el: Element) => {
   const r = el.getBoundingClientRect();
@@ -62,6 +62,8 @@ const nameOf = (el: Element): string => el.closest('[data-row-slot]')?.querySele
 (window as any).__s = {
   ready: () => document.querySelectorAll('[data-workspace-cell]').length === SPACES && document.querySelectorAll('[data-row-slot]').length >= SPACES * 2 && column.status === 'ready',
   column,
+  /** Moves every space's first page one place right, so its row reads in an order its DOM does not have. */
+  reorder: () => first.map((panel) => panel.move(1).ok),
   spaces: () => spaces.map((w) => w.id),
   /** The cells in view and the ones out of view, with where each is drawn. */
   cells: () =>
