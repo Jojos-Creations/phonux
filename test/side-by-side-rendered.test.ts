@@ -1069,5 +1069,28 @@ test('Tab through a group of radio buttons, editable text and a scrolling box at
     assert.deepEqual(await walk(1), ['div0'], 'a group with none checked is one stop');
     await plant('<div data-tab="sc1" style="height:30px;width:80px;overflow:auto"><div style="height:300px">t</div></div><div data-tab="sc2" style="height:30px;width:80px;overflow:auto"><div style="height:300px">t</div></div>');
     assert.deepEqual(await walk(2), ['w3:sc2', 'div0'], 'a box that scrolls and holds nothing focusable is a stop of the browser’s own');
+    await page.evaluate(() => {
+      document.querySelectorAll('[data-planted]').forEach((el) => void el.remove());
+      const boxes = [...document.querySelectorAll('[data-workspace-id="w3"] [data-row-slot]')].filter((x) => x.closest('[inert]') === null).map((x) => x.querySelector('[data-box]')!);
+      const wrap = document.createElement('div');
+      wrap.setAttribute('data-planted', '');
+      for (const mode of ['open', 'closed'] as const) {
+        const host = wrap.appendChild(document.createElement('x-host'));
+        const root = host.attachShadow({ mode });
+        root.innerHTML = `<button data-tab="${mode}">b</button>`;
+        (host as any).__root = root;
+      }
+      boxes[boxes.length - 1]!.append(wrap);
+      wrap.querySelector('x-host')!.shadowRoot!.querySelector('button')!.focus();
+    });
+    assert.deepEqual(await walk(2), ['w3:closed', 'div0'], 'a root the column cannot read, after the control that has focus, is stepped into and not over');
+    // In the last space with nothing after the column a wrong "something follows" shows: it costs a press on the cell’s end.
+    await page.evaluate(() => {
+      document.querySelectorAll('[data-planted], #before, #after').forEach((el) => void el.remove());
+      const boxes = [...document.querySelectorAll('[data-workspace-id="w2"] [data-row-slot]')].filter((x) => x.closest('[inert]') === null).map((x) => x.querySelector('[data-box]')!);
+      boxes[boxes.length - 1]!.insertAdjacentHTML('beforeend', '<div data-planted=""><input type="radio" name="last" data-tab="r1"><input type="radio" name="last" data-tab="r2"></div>');
+      document.querySelector<HTMLElement>('[data-planted] [data-tab]')!.focus();
+    });
+    assert.notEqual((await walk(1))[0], 'w2:column-cell-end', 'the rest of a radio group is not something that follows');
   });
 });
