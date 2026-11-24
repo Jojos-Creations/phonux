@@ -34,6 +34,7 @@ import { useRowDraw } from './rowDraw.js';
 import { AwayContext } from './panelAway.js';
 import { restTranslate } from './slotMover.js';
 import { sharedStartTime, taskToken } from './rowClock.js';
+import { recentreRow, rowClip, type RowPlace } from './rowRecentre.js';
 import type { SlideTuning } from './panelSettings.js';
 import { resolveViewIn } from './templateView.js';
 import { bindingOf, viewContextOf, type WorkspaceHandle } from './workspaceCore.js';
@@ -211,6 +212,8 @@ export function PanelRow({
   // The restored panels arrive with the settle, after the row mounted. The row is not ready until the commit after it, and
   // a slot that mounts before then starts at its rest, so restored panels skip their enter and later ones animate.
   const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready', () => false);
+  // A static render has no restore to wait for, so it draws the row shown.
+  const restoring = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'loading', () => false);
   const autoMountOf = React.useContext(AutoMountContext);
   const handMounted = binding.autoMounted && autoMountOf !== workspace;
   React.useEffect(() => {
@@ -587,6 +590,7 @@ export function PanelRow({
     );
   };
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const lastRowPlace = React.useRef<RowPlace | null>(null);
   useRowDraw(rootRef);
   // On Embla the box is Embla's container, as wide as the window it moves in; the slots and markers overflow it and the window cuts them.
   // Embla runs only on a row with a slot: built with no slides it has no stop, and its position reads that missing stop as NaN.
@@ -633,6 +637,8 @@ export function PanelRow({
     lastLayout.current = layoutNow;
     lastWindow.current = emblaWindow.width;
     if (windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap, chromeFollowSlots: workspaceTuning.chrome.fitVisibleMaxSlots, sticky: [...startGroupIds.map((id) => ({ id, side: 'start' as const })), ...endGroupIds.map((id) => ({ id, side: 'end' as const }))] });
+    // The container centers a strip that fits, so a panel coming, going or resizing moves the row itself: that rides the slide too.
+    if (rootRef.current !== null && presentAll.length > 0) lastRowPlace.current = recentreRow(rootRef.current, windowRef.current, lastRowPlace.current, { windowWidth: emblaWindow.width, room: rowNumbers?.windowWidth ?? 0 }, gap, rowTuning.slide, landing || reducedMotion || !ready);
     // A commit can start slots moving on their own (an entrance, a glide, a reorder shift): the inert marks follow them frame by frame.
     if (windowRef.current !== null) kickEmblaAway(windowRef.current);
   });
@@ -686,7 +692,7 @@ export function PanelRow({
     </>
   );
   // Cut one gap past each window edge, as the old row's grid cut: a focus glow fades there and no neighbour starts inside it.
-  const emblaCut = `polygon(${-gap}px -100000px, ${emblaWindow.width + gap}px -100000px, ${emblaWindow.width + gap}px 100000px, ${-gap}px 100000px)`;
+  const emblaCut = rowClip(emblaWindow.width, gap);
   // Tab reads the sticky panels at the start, the strip, then the sticky panels at the end.
   const readingIds = [...startGroup.map((x) => x.p.id), ...present.map((p) => p.id), ...endGroup.map((x) => x.p.id)];
   return (
@@ -703,7 +709,8 @@ export function PanelRow({
         steerSentinel(event, event.currentTarget, readingIds);
         steerEntry(event, event.currentTarget, readingIds, tabPress.current);
       }}
-      sx={{ display: presentAll.length > 0 ? 'flex' : 'none', flexShrink: 0, position: 'relative' }}
+      // Hidden until the restore settles: the root alone, drawn centered first, would otherwise jump aside when the restored panels land.
+      sx={{ display: presentAll.length > 0 ? 'flex' : 'none', flexShrink: 0, position: 'relative', ...(restoring ? { visibility: 'hidden' } : {}) }}
     >
       {group('start', startGroup)}
       <div ref={windowRef} {...{ [EMBLA_WINDOW_ATTRIBUTE]: '' }} style={{ position: 'relative', flexShrink: 0, width: emblaWindow.width, clipPath: emblaCut, display: stripShown ? 'block' : 'none' }}>

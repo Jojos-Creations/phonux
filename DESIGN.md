@@ -1926,6 +1926,13 @@ The row's motion follows one set of intentions, so every change reads the same w
   curve `[0.4, 0, 0.2, 1]`, the shared `PANEL_TRANSITION` object while `slide` is at its defaults. Neighbors move on the same
   clock as the slot that grows or shrinks, so the gap it grows into or leaves never lags it, and every entrance and exit fades
   the opacity as a slide does. The slot keeps its full box and scales it, so the content is never reflowed.
+- **The row's own place.** A strip that fits is centered by its container, so a panel coming, going or changing width moves the
+  row itself by half the change. `recentreRow` (`rowRecentre.ts`) reads where the commit laid the row out, puts it back where it
+  was drawn with a `translate` added on top of any glide still running, and eases that to 0 on the slide's curve and the commit's
+  shared start: the root and every other panel ride the same clock as the panel that caused the move. A clip that narrows glides
+  from where it is drawn to the new one, so a panel sliding into a closed one's place is never cut. A change of room (a window
+  step) and Reduce Motion land at once, and so does the commit the restore lands in; until the restore settles the row is
+  hidden, so the root drawn alone never jumps aside on screen.
 - **A set swap** (`PanelManager.swap`, and `showPanels` over it: a host's tab change). The hides and the shows land in one
   update, priced against the row without the hides, so the old set leaves, the new set arrives and the row re-centers in one
   commit and on one clock. A leaving panel shrinks into its center as a close does, an arriving one grows from its center as an
@@ -3282,8 +3289,9 @@ How it works now (emblaRow.ts, `wheelBy`, `settleWheelRun`, `endEmblaWheel`):
   row. Its first wheel stops a glide where the row is drawn, as the press did (a glide going the wheel's way keeps its speed). Each
   wheel adds its delta, 1:1 ("The wheel follows 1:1", below), to Embla's target with the critically damped body
   (friction 0.1, duration 0.22) and starts Embla's animation.
-- While a gesture runs the row is held: `moveEmbla` shifts it in place and its rebuild waits, and `whenEmblaFree` waits. At 500 ms
-  idle (150 ms after a momentum wheel) it rests on `restStop` (below; the direction turns only after 8 px against it). The rebuild and whatever
+- While a gesture runs the row is held: `moveEmbla` shifts it in place and its rebuild waits, and `whenEmblaFree` waits. At 90 ms
+  idle (60 ms after a momentum wheel, 350 ms while the gesture is slow, under `WHEEL_SLOW_PX_PER_MS`, so a pause mid-creep does not
+  settle the row under a resting finger) it rests on `restStop` (below; the direction turns only after 8 px against it). The rebuild and whatever
   waited then run.
 - Embla's drag adds its document listeners only at a press. So during a gesture no mouse move, release, click or touch reaches
   Embla. Embla's root still runs its release on `contextmenu` and `touchcancel` with no press. A capture listener keeps the wheel's

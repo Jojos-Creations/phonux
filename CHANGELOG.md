@@ -60,6 +60,17 @@
   `edgeHold` derived from `sticky` (`'start'` reads `'left'`, `'end'` reads `'right'`, `'off'` reads `'off'`). It is removed
   before 0.2.0 final.
 
+### Fixed
+
+- A row with room to spare glides to its new centre when a panel opens, closes or changes width, on the same clock as the
+  panel that caused it. It used to jump half a slot in one frame while only the arriving or leaving panel moved, so the root
+  panel visibly snapped; the same jump landed when a window resize settled on a new phone size. A narrowing row's clip
+  glides with it, so a panel sliding into a closed one's place is never cut on the way.
+- On a reload the row stays hidden until the restore settles, so the root panel no longer shows alone in the middle and then
+  jumps aside when the restored panels land.
+- A slow sideways wheel (a finger creeping on a trackpad) that pauses no longer sends the row gliding to the next stop under
+  the resting finger: a slow gesture waits 350 ms for its next wheel instead of 90 ms. A lift still settles at once.
+
 ## 0.2.0-rc.8
 
 ### Added
