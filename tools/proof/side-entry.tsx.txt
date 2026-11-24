@@ -1,6 +1,6 @@
 // A column of spaces side by side, as the app builds one: every space has History as its root (sticky at the start when asked) and
 // pages of the given slots, each panel boxed with its name as its text so a test reads where it is drawn from the page. Built by
-// test/side-by-side-rendered.test.ts, which drives it in headless Chromium.
+// test/side-by-side-*.test.ts, which drives it in headless Chromium.
 // Query: n=3 (spaces) slots=1,1,1,1,1,1 (each page's slots) sticky=1 (History sticky at the start of every space)
 //        wrap=1 (a dot bar under every row) side=0 (a column without sideBySide)
 //        bands=none (no button and no name above or below a row, so a cell's bands hold nothing Tab stops at)

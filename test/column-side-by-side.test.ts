@@ -1,7 +1,7 @@
 /**
  * Spaces side by side: the split arithmetic (a 2560 px window of 390 px phones and 16 px gaps holds six slots, which divide as
  * 2 of 3, 3 of 2 or 6 of 1), the refusals, the order a narrowing window gives room up in, the saved record and its version 1
- * reading, the keys that step and focus, and the divider's keyboard. Rendered layout is in side-by-side-rendered.test.ts.
+ * reading, the keys that step and focus, and the divider's keyboard. Rendered layout is in side-by-side-rendered.test.ts and the side-by-side-tab-*.test.ts files.
  */
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -583,7 +583,7 @@ const key = (el: HTMLElement, shift = false): boolean => press(el, 'Tab', { shif
 const on = (el: Element, what = 'focus is on the element expected'): void => assert.ok(document.activeElement === el, what);
 
 // jsdom gives a keydown no default action: these tests say what the column does with the key, and the rendered tests
-// (test/side-by-side-rendered.test.ts) where a real press then lands.
+// (test/side-by-side-tab-*.test.ts) where a real press then lands.
 test('a Tab pressed inside a cell is never touched, whatever the cell holds', async () => {
   const c = await drawn();
   act(() => void c.step('down'));
