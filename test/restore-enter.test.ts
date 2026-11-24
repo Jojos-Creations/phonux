@@ -90,3 +90,15 @@ test('control: a view whose row is remounted around it counts two mounts, so the
   await advanceFrames(100);
   assert.deepEqual([effects.get('a')?.mounts, effects.get('a')?.unmounts], [2, 1]);
 });
+
+test('the row stays hidden until the restore settles, so the root drawn alone first never jumps aside on screen', async () => {
+  const { workspace, settle } = restoring([entry('a'), entry('b')]);
+  const mounted = mount(rowOf(workspace, [entry('a')]));
+  await advanceFrames(50);
+  const rootOf = (): HTMLElement => mounted.container.querySelector<HTMLElement>('[data-row-root]')!;
+  assert.equal(getComputedStyle(rootOf()).visibility, 'hidden', 'hidden while the restore is loading');
+  settle();
+  mounted.rerender(rowOf(workspace, [entry('a'), entry('b')]));
+  await advanceFrames(50);
+  assert.notEqual(getComputedStyle(rootOf()).visibility, 'hidden', 'shown once it settles');
+});
