@@ -7,7 +7,9 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import * as React from 'react';
+import { act } from 'react';
 import type { PanelWindow, WorkspaceHandle } from '../index.js';
+import { RESTORE_HIDE_MS } from '../PanelRow.js';
 import { advanceFrames, cleanup, mount, seededWorkspace, StaticRow, withHost } from './support/mount-harness.js';
 import { registerTestView } from './support/test-views.js';
 import { slotTransform } from './support/strip.js';
@@ -101,4 +103,17 @@ test('the row stays hidden until the restore settles, so the root drawn alone fi
   mounted.rerender(rowOf(workspace, [entry('a'), entry('b')]));
   await advanceFrames(50);
   assert.notEqual(getComputedStyle(rootOf()).visibility, 'hidden', 'shown once it settles');
+});
+
+test('a restore that never settles: the row shows what it has after a short wait instead of staying blank', async () => {
+  const { workspace } = restoring([entry('a'), entry('b')]);
+  const mounted = mount(rowOf(workspace, [entry('a')]));
+  const rootOf = (): HTMLElement => mounted.container.querySelector<HTMLElement>('[data-row-root]')!;
+  await advanceFrames(50);
+  assert.equal(getComputedStyle(rootOf()).visibility, 'hidden', 'hidden at first, so the check below can fail');
+  // The wait is a timer, not a frame: real time passes, as in test/support/workspace-launch.ts.
+  await act(async () => void (await new Promise((r) => setTimeout(r, RESTORE_HIDE_MS + 100))));
+  await advanceFrames(50);
+  assert.notEqual(getComputedStyle(rootOf()).visibility, 'hidden', 'shown once the wait runs out, the restore still loading');
+  assert.ok(mounted.container.querySelector('[data-slot="a"]') !== null, 'the root is drawn');
 });

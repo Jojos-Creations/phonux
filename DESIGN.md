@@ -1932,7 +1932,8 @@ The row's motion follows one set of intentions, so every change reads the same w
   shared start: the root and every other panel ride the same clock as the panel that caused the move. A clip that narrows glides
   from where it is drawn to the new one, so a panel sliding into a closed one's place is never cut. A change of room (a window
   step) and Reduce Motion land at once, and so does the commit the restore lands in; until the restore settles the row is
-  hidden, so the root drawn alone never jumps aside on screen.
+  hidden, so the root drawn alone never jumps aside on screen. The hiding lasts at most `RESTORE_HIDE_MS` (1 s): a restore that
+  never settles shows what the row has, in place, rather than a blank row.
 - **A set swap** (`PanelManager.swap`, and `showPanels` over it: a host's tab change). The hides and the shows land in one
   update, priced against the row without the hides, so the old set leaves, the new set arrives and the row re-centers in one
   commit and on one clock. A leaving panel shrinks into its center as a close does, an arriving one grows from its center as an
