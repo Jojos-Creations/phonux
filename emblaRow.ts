@@ -709,6 +709,24 @@ function stopRestWatch(embla: EmblaCarouselType): void {
  */
 const WHEEL_IDLE_MS = 90;
 const WHEEL_IDLE_MOMENTUM_MS = 60;
+/**
+ * A slow wheel (a finger creeping on a trackpad) pauses between events far longer than a quick one: the row waits this long before
+ * it settles, so a pause mid-creep does not send it gliding to the next stop while the finger is still on the pad. A lift still
+ * settles at once, through the momentum tail.
+ */
+const WHEEL_IDLE_SLOW_MS = 350;
+/** A gesture under this speed, px per ms over its recent wheels, is a slow one. @internal */
+export const WHEEL_SLOW_PX_PER_MS = 0.25;
+/** How long a wheel gesture moving at `pace` px per ms waits for its next wheel before it settles. @internal */
+export function wheelIdleMs(pace: number, momentum: boolean): number {
+  if (momentum) return WHEEL_IDLE_MOMENTUM_MS;
+  return pace < WHEEL_SLOW_PX_PER_MS ? WHEEL_IDLE_SLOW_MS : WHEEL_IDLE_MS;
+}
+/** The gesture's pace after a wheel of `by` px `dt` ms after the last: a running average, so one large or small wheel does not flip it. @internal */
+export function nextWheelPace(pace: number | null, by: number, dt: number): number {
+  const now = Math.abs(by) / Math.max(dt, 4);
+  return pace === null ? now : pace * 0.6 + now * 0.4;
+}
 /** A momentum wheel under this many px is the slow tail of a trackpad's momentum: the row leaves it and glides to the stop ahead. */
 const WHEEL_TAIL_PX = 3;
 /** The share of the gap between two stops a wheel gesture must cover to rest on the stop ahead: a touch under it returns. */
@@ -731,6 +749,9 @@ interface WheelRun {
   against: number;
   idle: ReturnType<typeof setTimeout> | null;
   keep: number | null;
+  /** The wheel's recent speed, px per ms, and when its last wheel came. */
+  pace: number | null;
+  last: number;
 }
 /** Where each row's last wheel gesture settled from, in scroll px. @internal */
 const wheelLandings = new WeakMap<EmblaCarouselType, number>();
@@ -774,7 +795,7 @@ function wheelBy(embla: EmblaCarouselType, by: number, momentum: boolean): void 
     e.scrollBody.seek();
     // A lead of speed * duration / friction gives the wheel body that speed on its next step.
     if (speed * by > 0) e.target.set(-Math.min(Math.max(0, at + (speed * WHEEL_DURATION) / WHEEL_FRICTION), emblaMaxOf(embla)));
-    run = { dir: 0, against: 0, idle: null, keep: null };
+    run = { dir: 0, against: 0, idle: null, keep: null, pace: null, last: Number.NaN };
     wheelRuns.set(embla, run);
   }
   if (run.idle !== null) clearTimeout(run.idle);
@@ -782,7 +803,10 @@ function wheelBy(embla: EmblaCarouselType, by: number, momentum: boolean): void 
     settleWheelRun(embla);
     return;
   }
-  run.idle = setTimeout(() => settleWheelRun(embla), momentum ? WHEEL_IDLE_MOMENTUM_MS : WHEEL_IDLE_MS);
+  const now = performance.now();
+  run.pace = nextWheelPace(run.pace, by, Number.isNaN(run.last) ? 16 : now - run.last);
+  run.last = now;
+  run.idle = setTimeout(() => settleWheelRun(embla), wheelIdleMs(run.pace, momentum));
   setWheelBody(embla);
   const from = emblaTargetOf(embla);
   const m = Math.min(Math.max(0, from + by), emblaMaxOf(embla)) - from;
