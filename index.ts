@@ -23,7 +23,8 @@ export type { PhonuxLabels } from './labels.js';
 export type { PhonuxIcons } from './icons.js';
 
 export { ShareSheet } from './shareSheet.js';
-export type { ShareSheetProps, ShareFile, SharePerson, ShareLinkInfo, ShareTab } from './shareSheet.js';
+export type { ShareSheetProps, ShareFile, SharePerson, ShareLinkInfo, ShareTab, ShareMember, ShareRole } from './shareSheet.js';
+export type { ShareItem, ShareKind } from './shareParts.js';
 export { OfferCard } from './offerCard.js';
 export type { OfferCardProps, OfferFile } from './offerCard.js';
 export { SharedList } from './sharedList.js';

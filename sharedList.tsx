@@ -7,13 +7,13 @@ import MenuItem from '@mui/material/MenuItem';
 import type { Theme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import type { PhonuxLabels } from './labels.js';
-import { Avatar, EndedIcon, FileIcon, GlyphTile, LinkIcon, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, useShareLabels, useTabState } from './shareParts.js';
+import { Avatar, EndedIcon, FileIcon, GlyphTile, KindIcon, LinkIcon, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, useShareLabels, useTabState, type ShareKind } from './shareParts.js';
 
 /** The tab a `SharedList` shows: what the user shared, or what others shared with them. @public */
 export type SharedTab = 'byYou' | 'withYou';
 
 /**
- * One shared file in a `SharedList`. The app writes the text; the list does not compute dates or counts, so every
+ * One shared item in a `SharedList`, of any kind. The app writes the text; the list does not compute dates or counts, so every
  * language and date format stays the app's.
  * @public
  */
@@ -22,7 +22,11 @@ export interface SharedRow {
   id: string;
   /** `link` is a web link, drawn with a link glyph; `person` is a file sent to or from someone, drawn with their initial. */
   kind: 'link' | 'person';
-  /** The file name, the row's first line. */
+  /** What kind of item the row is, of any kind: picks its glyph (a space, a playlist, a page, and so on). Without it a `link` row draws a link glyph and any other a file glyph. */
+  itemKind?: ShareKind;
+  /** A glyph that replaces the one the row would get. An ended row still draws the error glyph. */
+  icon?: React.ReactNode;
+  /** The item's name, the row's first line. */
   name: string;
   /** The second line, such as `Link, opened 3 times, ends Nov 23`. Drawn in the error color while `ended` is true. */
   detail?: string;
@@ -66,7 +70,7 @@ interface MenuEntry {
 }
 
 /**
- * The user's shared files in two tabs, "By you" and "With you". A row says more only when something needs the user: an
+ * The user's shared items in two tabs, "By you" and "With you". A row says more only when something needs the user: an
  * ended row shows its detail in the error color with a Renew button, and the others carry a menu with copy again, show QR
  * code, change when it ends and stop sharing. It draws no heading or frame; the app's panel supplies those.
  * @public
@@ -121,7 +125,7 @@ export function SharedList(props: SharedListProps): React.ReactElement {
                   ) : row.kind === 'person' && row.person !== undefined ? (
                     <Avatar name={row.person} />
                   ) : (
-                    <GlyphTile>{row.kind === 'link' ? <LinkIcon /> : <FileIcon />}</GlyphTile>
+                    <GlyphTile>{row.icon ?? (row.itemKind !== undefined ? <KindIcon kind={row.itemKind} /> : row.kind === 'link' ? <LinkIcon /> : <FileIcon />)}</GlyphTile>
                   )}
                   <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{row.name}</Typography>

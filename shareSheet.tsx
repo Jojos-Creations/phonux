@@ -2,19 +2,43 @@ import * as React from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import NativeSelect from '@mui/material/NativeSelect';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import type { PhonuxLabels } from './labels.js';
-import { AddIcon, Avatar, BackIcon, CheckIcon, MIN_TOUCH_PX, SegmentedTabs, daysUntil, formatFileSize, useShareLabels, useTabState } from './shareParts.js';
+import { AddIcon, Avatar, BackIcon, CheckIcon, ItemHeader, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, capitalized, daysUntil, formatFileSize, isEditable, useShareLabels, useTabState, type ShareItem } from './shareParts.js';
 
 /** The tab a `ShareSheet` shows: `nearby` is the QR code, `people` the trusted people, `link` the web link. @public */
 export type ShareTab = 'nearby' | 'people' | 'link';
 
-/** The file being shared. @public */
+/** The file being shared, in the older form: `item` with kind `file` says the same and more. @public */
 export interface ShareFile {
   /** The file name shown in the sheet's header. */
   name: string;
   /** Size in bytes; the sheet writes it in decimal units, such as `48 MB`. */
   size: number;
+}
+
+/** What others may do with an item: change it, or only look. @public */
+export type ShareRole = 'edit' | 'view';
+
+/**
+ * A person the item is already shared with. The app holds the list; the sheet draws it and reports what the user asks.
+ * @public
+ */
+export interface ShareMember {
+  /** Identifies the person in `onChangeRole` and `onRemove`. */
+  id: string;
+  /** The email or saved name; drawn as text only, and its first letter is the avatar. Ignored for the user's own row, which says `You`. */
+  name: string;
+  /** `owner` has no menu and says Owner; `edit` and `view` say Can edit and Can view on an item others can edit. */
+  role: 'owner' | ShareRole;
+  /** False for a person invited who has not joined yet; the line then says so in place of the role. Defaults to true. */
+  joined?: boolean;
+  /** True for the user's own row, which is drawn as `You`. */
+  you?: boolean;
 }
 
 /** A person the user trusts and can send to. @public */
@@ -35,11 +59,21 @@ export interface ShareLinkInfo {
 
 /** What `ShareSheet` takes. `onSend` and `onCopyLink` are required; every other callback is optional, and a control whose callback is missing is not drawn. @public */
 export interface ShareSheetProps {
-  /** The file being shared. */
-  file: ShareFile;
+  /** What is being shared. Wins over `file`; with neither, the header row is not drawn. */
+  item?: ShareItem;
+  /** The file being shared, for apps that predate `item`; read as an item of kind `file` whose subtitle is its size. */
+  file?: ShareFile;
   /** The QR code, such as a `QrCode`; the sheet frames it on a white tile so it stays scannable in a dark theme. */
   qr: React.ReactNode;
-  /** The trusted people the People tab lists, in order. */
+  /** The people the item is already shared with, listed first on the People tab; the app puts the user's own row (`you`) where it wants it. */
+  members?: readonly ShareMember[];
+  /** Called with what the user typed and the access they picked when Invite is pressed; without it the field and button are not drawn. For an item others cannot edit the role is always `view`. */
+  onInvite?: (who: string, role: ShareRole) => void;
+  /** Called with the person's id and the role picked from their menu; the menu offers roles only on an item others can edit, and only with this callback. */
+  onChangeRole?: (id: string, role: ShareRole) => void;
+  /** Called with the person's id when Remove is pressed in their menu; without it the menu has no Remove. */
+  onRemove?: (id: string) => void;
+  /** The trusted people the People tab lists, in order, each with a Send button. */
   people: readonly SharePerson[];
   /** Ids of `people` already sent this file; each shows `Sent` with a check in place of its Send button. */
   sentTo?: readonly string[];
@@ -57,7 +91,7 @@ export interface ShareSheetProps {
   onChangeLink?: () => void;
   /** The tab shown, when the app controls it. */
   tab?: ShareTab;
-  /** The tab shown first when the app does not control it. Defaults to `people`. */
+  /** The tab shown first when the app does not control it. Defaults to `people` for an item others can edit (a space, a playlist) and `link` for any other. */
   defaultTab?: ShareTab;
   /** Called with the tab the user picked. */
   onTabChange?: (tab: ShareTab) => void;
@@ -73,16 +107,19 @@ const GROUP_SX = { bgcolor: 'background.paper', borderRadius: 3.5, display: 'fle
 const touchButtonSx = { minHeight: MIN_TOUCH_PX, borderRadius: 4, textTransform: 'none', fontWeight: 600 } as const;
 
 /**
- * The share sheet: a header with the file's name and size, and three tabs (in person with a QR code, people the user
- * trusts, and a web link). It draws no frame or backdrop, so the app places it in a page or its own bottom sheet.
+ * The share sheet for any kind of item: a title, the item's header row, and three tabs (in person with a QR code, people,
+ * and a web link). The People tab invites by email or saved name, lists who has the item with a menu to change their
+ * access or remove them, and sends to trusted people. It draws no frame or backdrop, so the app places it in a page or its own bottom sheet.
  * @remarks Its words come from `PhonuxLabels` (the host's, or `labels` for this sheet), and it draws the first letter of
  * a person's saved name, never a picture.
  * @public
  */
 export function ShareSheet(props: ShareSheetProps): React.ReactElement {
-  const { file, qr, people, sentTo = [], link, now } = props;
+  const { qr, people, sentTo = [], link, now, members = [] } = props;
   const labels = useShareLabels(props.labels);
-  const [tab, setTab] = useTabState<ShareTab>(props.tab, props.defaultTab ?? 'people', props.onTabChange);
+  const item: ShareItem | undefined = props.item ?? (props.file === undefined ? undefined : { kind: 'file', name: props.file.name, subtitle: `${capitalized(labels.shareKind('file'))}, ${formatFileSize(props.file.size)}` });
+  const editable = item !== undefined && isEditable(item);
+  const [tab, setTab] = useTabState<ShareTab>(props.tab, props.defaultTab ?? (editable ? 'people' : 'link'), props.onTabChange);
   const idPrefix = React.useId();
   const at = now ?? Date.now();
   const days = link?.expiresAt === undefined ? null : daysUntil(link.expiresAt, at);
@@ -102,11 +139,9 @@ export function ShareSheet(props: ShareSheetProps): React.ReactElement {
           <Typography component="h2" variant="h6" sx={{ fontWeight: 700, lineHeight: 1.25 }}>
             {labels.shareTitle}
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
-            {`${file.name}, ${formatFileSize(file.size)}`}
-          </Typography>
         </Box>
       </Box>
+      {item === undefined ? null : <ItemHeader item={item} />}
       <SegmentedTabs
         name={labels.shareTabsName}
         idPrefix={idPrefix}
@@ -131,14 +166,27 @@ export function ShareSheet(props: ShareSheetProps): React.ReactElement {
         {tab === 'people' ? (
           <>
             <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>
-              {labels.sharePeopleHint}
+              {editable ? labels.sharePeopleHintEdit : labels.sharePeopleHint}
             </Typography>
+            {props.onInvite === undefined ? null : <InviteRow editable={editable} labels={labels} onInvite={props.onInvite} />}
+            {members.length === 0 ? null : (
+              <Box component="ul" sx={{ ...GROUP_SX, listStyle: 'none', m: 0, p: 0 }}>
+                {members.map((member) => (
+                  <MemberRow key={member.id} member={member} editable={editable} labels={labels} onChangeRole={props.onChangeRole} onRemove={props.onRemove} />
+                ))}
+              </Box>
+            )}
             {people.length === 0 ? null : (
               <Box component="ul" sx={{ ...GROUP_SX, listStyle: 'none', m: 0, p: 0 }}>
                 {people.map((person) => (
                   <Box key={person.id} component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.75, py: 1.5, minHeight: MIN_TOUCH_PX, '& + &': { borderTop: 1, borderColor: 'divider' } }}>
                     <Avatar name={person.name} />
-                    <Typography sx={{ flexGrow: 1, fontWeight: 500 }}>{person.name}</Typography>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{person.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {labels.shareTrustedLine}
+                      </Typography>
+                    </Box>
                     {sent.has(person.id) ? (
                       <Typography component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'success.main', fontWeight: 500, fontSize: '0.875rem' }}>
                         <CheckIcon aria-hidden="true" sx={{ fontSize: 16 }} />
@@ -201,9 +249,129 @@ export function ShareSheet(props: ShareSheetProps): React.ReactElement {
                 )}
               </Typography>
             ) : null}
+            <Typography variant="body2" color="text.secondary" align="center" sx={{ lineHeight: 1.45 }}>
+              {labels.shareLinkNote}
+            </Typography>
           </>
         ) : null}
       </Box>
+    </Box>
+  );
+}
+
+function InviteRow({ editable, labels, onInvite }: { editable: boolean; labels: PhonuxLabels; onInvite: (who: string, role: ShareRole) => void }): React.ReactElement {
+  const [who, setWho] = React.useState('');
+  const [role, setRole] = React.useState<ShareRole>('edit');
+  const trimmed = who.trim();
+  return (
+    <Box
+      component="form"
+      noValidate
+      onSubmit={(e: React.FormEvent) => {
+        e.preventDefault();
+        if (trimmed === '') return;
+        onInvite(trimmed, editable ? role : 'view');
+        setWho('');
+      }}
+      sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}
+    >
+      <Box sx={{ display: 'flex', gap: 1.25 }}>
+        <TextField
+          value={who}
+          onChange={(e) => setWho(e.target.value)}
+          placeholder={labels.shareInviteField}
+          fullWidth
+          slotProps={{ htmlInput: { 'aria-label': labels.shareInviteField, autoComplete: 'off', autoCapitalize: 'off', spellCheck: false, sx: { minHeight: MIN_TOUCH_PX, boxSizing: 'border-box', py: 0 } } }}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, minHeight: MIN_TOUCH_PX } }}
+        />
+        {editable ? (
+          <NativeSelect
+            value={role}
+            onChange={(e) => setRole(e.target.value === 'view' ? 'view' : 'edit')}
+            inputProps={{ 'aria-label': labels.shareAccessName }}
+            sx={{ minHeight: MIN_TOUCH_PX, minWidth: 112, border: 1, borderColor: 'divider', borderRadius: 3, px: 1.5, '&:before, &:after': { display: 'none' } }}
+          >
+            <option value="edit">{labels.shareCanEdit}</option>
+            <option value="view">{labels.shareCanView}</option>
+          </NativeSelect>
+        ) : null}
+      </Box>
+      <Button type="submit" variant="contained" disableElevation disabled={trimmed === ''} sx={{ ...touchButtonSx, minHeight: 48 }}>
+        {labels.shareInvite}
+      </Button>
+    </Box>
+  );
+}
+
+interface MemberRowProps {
+  member: ShareMember;
+  editable: boolean;
+  labels: PhonuxLabels;
+  onChangeRole: ((id: string, role: ShareRole) => void) | undefined;
+  onRemove: ((id: string) => void) | undefined;
+}
+
+function MemberRow({ member, editable, labels, onChangeRole, onRemove }: MemberRowProps): React.ReactElement {
+  const menuId = React.useId();
+  const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
+  const name = member.you === true ? labels.shareYou : member.name;
+  const pending = member.joined === false;
+  const roleText = member.role === 'owner' ? labels.shareOwner : !editable || member.role === 'view' ? labels.shareCanView : labels.shareCanEdit;
+  const canChange = editable && onChangeRole !== undefined;
+  const hasMenu = member.role !== 'owner' && (canChange || onRemove !== undefined);
+  const close = (): void => setAnchor(null);
+  return (
+    <Box component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.75, py: 1.25, minHeight: 64, '& + &': { borderTop: 1, borderColor: 'divider' } }}>
+      <Avatar name={name} />
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+        <Typography sx={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{name}</Typography>
+        {member.role === 'owner' ? null : (
+          <Typography variant="body2" color="text.secondary">
+            {pending ? labels.shareInvitedNotJoined : roleText}
+          </Typography>
+        )}
+      </Box>
+      {member.role === 'owner' ? (
+        <Typography variant="body2" color="text.secondary">
+          {roleText}
+        </Typography>
+      ) : null}
+      {hasMenu ? (
+        <>
+          <IconButton aria-label={labels.shareMemberMore(name)} aria-haspopup="menu" aria-expanded={anchor !== null} aria-controls={anchor === null ? undefined : menuId} onClick={(e) => setAnchor(e.currentTarget)} sx={{ width: MIN_TOUCH_PX, height: MIN_TOUCH_PX }}>
+            <MoreIcon />
+          </IconButton>
+          <Menu open={anchor !== null} anchorEl={anchor} onClose={close} slotProps={{ list: { id: menuId } }}>
+            {canChange
+              ? (['edit', 'view'] as const).map((r) => (
+                  <MenuItem
+                    key={r}
+                    selected={member.role === r}
+                    aria-current={member.role === r ? 'true' : undefined}
+                    onClick={() => {
+                      close();
+                      if (member.role !== r) onChangeRole?.(member.id, r);
+                    }}
+                    sx={{ minHeight: MIN_TOUCH_PX }}
+                  >
+                    {r === 'edit' ? labels.shareCanEdit : labels.shareCanView}
+                  </MenuItem>
+                ))
+              : null}
+            {onRemove === undefined ? null : (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  onRemove(member.id);
+                }}
+                sx={{ minHeight: MIN_TOUCH_PX, color: 'error.main' }}
+              >
+                {labels.shareRemove}
+              </MenuItem>
+            )}
+          </Menu>
+        </>
+      ) : null}
     </Box>
   );
 }

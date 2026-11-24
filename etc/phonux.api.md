@@ -582,13 +582,16 @@ export function OfferCard(props: OfferCardProps): React_2.ReactElement;
 
 // @public
 export interface OfferCardProps {
+    acceptLabel?: string;
     expiresAt: number;
-    file: OfferFile;
+    file?: OfferFile;
     from: string;
+    item?: ShareItem;
     labels?: Partial<PhonuxLabels>;
     now?: number;
     onAccept: () => void;
     onDecline: () => void;
+    onNotNow?: () => void;
     onReport: () => void;
 }
 
@@ -1278,19 +1281,23 @@ export interface PhonuxLabels {
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
-    offerAccept: string;
+    offerAccept: (kindPlural: string) => string;
     offerDecline: string;
     offerNote: (days: number) => string;
+    offerNotNow: string;
     offerReport: string;
-    offerTitle: (from: string) => string;
+    offerTitle: (from: string, kind: string) => string;
     offerTrusted: (from: string) => string;
     panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
     row: string;
+    shareAccessName: string;
     shareAddPerson: string;
     shareAddPersonHint: string;
     shareBack: string;
+    shareCanEdit: string;
+    shareCanView: string;
     shareChange: string;
     shareCopyLink: string;
     sharedByYou: string;
@@ -1305,10 +1312,20 @@ export interface PhonuxLabels {
     sharedTabsName: string;
     sharedWithYou: string;
     shareInPersonHint: string;
+    shareInvite: string;
+    shareInvitedNotJoined: string;
+    shareInviteField: string;
+    shareKind: (kind: string) => string;
+    shareKindPlural: (kind: string) => string;
     shareLinkEnds: (days: number | null, opens: number | null) => string;
+    shareLinkNote: string;
+    shareMemberMore: (name: string) => string;
     shareMoreApps: string;
     shareOfferWaits: string;
+    shareOwner: string;
     sharePeopleHint: string;
+    sharePeopleHintEdit: string;
+    shareRemove: string;
     shareSend: string;
     shareSendTo: (name: string) => string;
     shareSent: string;
@@ -1317,6 +1334,8 @@ export interface PhonuxLabels {
     shareTabPeople: string;
     shareTabsName: string;
     shareTitle: string;
+    shareTrustedLine: string;
+    shareYou: string;
     sizeName: (slots: number) => string;
     splitDivider: (left: string, right: string) => string;
     splitValue: (left: string, leftPanels: number, right: string, rightPanels: number) => string;
@@ -1709,7 +1728,9 @@ export interface SharedListProps {
 export interface SharedRow {
     detail?: string;
     ended?: boolean;
+    icon?: React_2.ReactNode;
     id: string;
+    itemKind?: ShareKind;
     kind: 'link' | 'person';
     name: string;
     person?: string;
@@ -1725,9 +1746,30 @@ export interface ShareFile {
 }
 
 // @public
+export interface ShareItem {
+    editable?: boolean;
+    icon?: React_2.ReactNode;
+    kind: ShareKind;
+    name: string;
+    subtitle?: string;
+}
+
+// @public
+export type ShareKind = 'space' | 'playlist' | 'track' | 'page' | 'file' | (string & {});
+
+// @public
 export interface ShareLinkInfo {
     expiresAt?: number;
     maxOpens?: number;
+}
+
+// @public
+export interface ShareMember {
+    id: string;
+    joined?: boolean;
+    name: string;
+    role: 'owner' | ShareRole;
+    you?: boolean;
 }
 
 // @public
@@ -1737,20 +1779,28 @@ export interface SharePerson {
 }
 
 // @public
+export type ShareRole = 'edit' | 'view';
+
+// @public
 export function ShareSheet(props: ShareSheetProps): React_2.ReactElement;
 
 // @public
 export interface ShareSheetProps {
     defaultTab?: ShareTab;
-    file: ShareFile;
+    file?: ShareFile;
+    item?: ShareItem;
     labels?: Partial<PhonuxLabels>;
     link?: ShareLinkInfo;
+    members?: readonly ShareMember[];
     now?: number;
     onAddPerson?: () => void;
     onChangeLink?: () => void;
+    onChangeRole?: (id: string, role: ShareRole) => void;
     onClose?: () => void;
     onCopyLink: () => void;
+    onInvite?: (who: string, role: ShareRole) => void;
     onMoreApps?: () => void;
+    onRemove?: (id: string) => void;
     onSend: (id: string) => void;
     onTabChange?: (tab: ShareTab) => void;
     people: readonly SharePerson[];

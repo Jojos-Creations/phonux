@@ -57,11 +57,22 @@
   text and a QR code) or joins with one, waits for the other side, and answers; the maker chooses how long the other side
   may send. The app passes a `TrustExchanges` object (invite, join, the exchange left open, and why a call failed) and
   places the screen in its own dialog or page. Its words are new `PhonuxLabels` keys (`trust*`).
+- `ShareSheet`, `OfferCard` and `SharedList` take an item of any kind (`ShareItem`: `space`, `playlist`, `track`, `page`,
+  `file`, or a kind the host names), so one share view serves every app. `ShareSheet` draws the item's header row, opens on
+  People for a space or playlist and on Link for any other kind (`defaultTab` still overrides), and its People tab has an
+  invite field with a Can edit or Can view choice (`onInvite`), the people already on the item with a menu to change their
+  role or remove them (`members`, `onChangeRole`, `onRemove`), and the trusted people with Send. The access choice is not
+  drawn for an item others cannot edit. `OfferCard` says `<who> shared a <kind> with you`, takes `acceptLabel`, and has a
+  Not now button (`onNotNow`). A `SharedRow` takes `itemKind` and `icon`. New types `ShareItem`, `ShareKind`, `ShareMember`
+  and `ShareRole`, and new `PhonuxLabels` keys (`shareKind`, `shareKindPlural`, `shareInvite*`, `shareCan*`, `offerNotNow` and others).
 - `QrCode`: a QR code of a string, black on white in any theme, for `ShareSheet`'s `qr` and anywhere else.
   `qrcode-generator` 2.0.4 (MIT, pinned exactly) is a new runtime dependency.
 
 ### Changed
 
+- `ShareSheet` without `defaultTab` now opens on Link for a `file` (it opened on People). `PhonuxLabels.offerTitle` takes the
+  kind as a second argument, and `offerAccept` is now a function of the kind's plural, so a host that supplied a string must
+  supply a function. The default words of the offer card and the People tab no longer say "file" or "accept".
 - `sticky` replaces `edgeHold` as the sticky-panel model: a sticky panel always takes its slots at its end of the row, whether
   or not the row would overflow, and when the window cannot hold them the `stickyRank` fallback puts the lowest-ranked one
   back in the scrolling row. Sticky panels are drawn outside the scrolling strip, as flex siblings

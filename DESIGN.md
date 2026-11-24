@@ -3497,3 +3497,13 @@ What this costs: a slow scroll that stops just past a stop now glides back to it
 Not covered: a real wheel and a real trackpad (headless takes synthetic wheels only; feel is Joe's to judge), Safari (where
 wheel-gestures guesses momentum from deceleration: a slowing free-spinning wheel read as momentum would end its gesture after
 150 ms), Windows, and the gap a real finger reposition takes.
+
+## One share view: the item decides, the host holds the state
+
+`ShareSheet`, `OfferCard` and `SharedList` take a `ShareItem` rather than a file, so a space, playlist, track, page or file is one
+sheet. Whether others can edit it is a property of the item (`editable`, defaulting to true for `space` and `playlist`), and it
+decides three things: the tab the sheet opens on (People when editable, Link otherwise), the Can edit and Can view choice, and the
+role entries in a person's menu. The sheet holds no list of people and no role: the host passes `members` and `people` and hears
+`onInvite`, `onChangeRole`, `onRemove` and `onSend`, so a change shows only when the host passes the new list. A kind the library
+does not know is drawn with the file glyph and its own word through `PhonuxLabels.shareKind`, and cannot be edited unless the item
+says so. The older `file` and `OfferFile` props stay, read as an item of kind `file`.
