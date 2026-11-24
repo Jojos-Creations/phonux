@@ -34,6 +34,8 @@
 
 ### Changed
 
+- phonux is licensed under the Mozilla Public License 2.0, in place of the phonux Public License 1.0.0. Versions already
+  published keep the license they shipped under.
 - `ShareSheet` without `defaultTab` now opens on Link for a `file` (it opened on People). `PhonuxLabels.offerTitle` takes the
   kind as a second argument, and `offerAccept` is now a function of the kind's plural, so a host that supplied a string must
   supply a function. The default words of the offer card and the People tab no longer say "file" or "accept".
