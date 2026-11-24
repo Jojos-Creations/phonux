@@ -974,6 +974,35 @@ for (const [what, html] of Object.entries(UNDRAWN)) {
   }
 }
 
+// Undrawn content that still has a box ends a panel that is drawn before another one: the row must not take it for that panel's last
+// stop, or the Tab on the real last stop is never handed over and the panel drawn after it is passed by.
+const UNDRAWN_WITH_A_BOX: Record<string, string> = {
+  'a closed details': UNDRAWN['a closed details']!,
+  'content kept unrendered': '<div style="content-visibility:hidden">@first@last</div>',
+};
+for (const [what, html] of Object.entries(UNDRAWN_WITH_A_BOX)) {
+  test(`Tab past ${what} ending a page that is not the last one drawn, rows reordered: the page drawn after it is still walked, both ways`, async (t) => {
+    if (!(await ready(t))) return;
+    await onPage(2560, 'n=3&bands=none&slots=1,1,1', async (page) => {
+      await until(page, 'c.showSide(ws[1])');
+      await sleep(700);
+      assert.deepEqual(await page.evaluate(() => (window as any).__s.reorder()), [true, true, true]);
+      await sleep(900);
+      await page.evaluate(PLANT_BUTTONS);
+      assert.equal(await plantUndrawn(page, html), 2, 'in both shown cells the outermost buttons in the DOM are the ones not drawn');
+      const stops: string[] = await page.evaluate(STOPS);
+      assert.ok(!stops.some((x) => x.endsWith(':undrawn')) && stops.length >= 13, stops.join(' '));
+      const drawnLast = stops[stops.indexOf('div0') - 1]!;
+      const domLast: string = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('[data-workspace-id="w1"] [data-row-slot] [data-box] > [data-tab]')].filter((x) => x.closest('[inert]') === null).pop()!.dataset.tab!);
+      assert.notEqual(drawnLast, `w1:${domLast}`, 'the page that holds the undrawn button is not the one drawn last');
+      await page.evaluate(PLANT_OUTSIDE);
+      await page.focus('#before');
+      assert.deepEqual(await tabWalk(page, stops.length + 1), [...stops, 'after']);
+      assert.deepEqual(await tabWalk(page, stops.length + 1, true), [...[...stops].reverse(), 'before']);
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Controls the document's own queries do not see: shadow roots
 // ---------------------------------------------------------------------------

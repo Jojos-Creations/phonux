@@ -3,6 +3,8 @@ import * as React from 'react';
 const TABBABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable=""],[contenteditable="true"]';
 
 function usable(el: HTMLElement): boolean {
+  // What a closed details or `content-visibility: hidden` keeps undrawn still has a box, so only checkVisibility tells it is no stop.
+  if (el.checkVisibility?.() === false) return false;
   return el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[inert]') === null;
 }
 
