@@ -165,6 +165,9 @@ function arriveAndLeave(box: HTMLElement, before: StripLayout, after: StripLayou
   });
 }
 
+/** The longest the row stays hidden waiting for the restore to settle, ms. @internal */
+export const RESTORE_HIDE_MS = 1000;
+
 /**
  * The row: every present entry in its own animated slot, in the array's order, each rendered by its template's view.
  * @public
@@ -214,6 +217,13 @@ export function PanelRow({
   const restoreSettled = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'ready', () => false);
   // A static render has no restore to wait for, so it draws the row shown.
   const restoring = React.useSyncExternalStore(workspace.panels.subscribe, () => workspace.panels.getSnapshot().status === 'loading', () => false);
+  // A restore that never settles must not leave the row blank: past this wait the row shows what it has, in place.
+  const [restoreWaitedOut, setRestoreWaitedOut] = React.useState(false);
+  React.useEffect(() => {
+    if (!restoring || restoreWaitedOut) return undefined;
+    const timer = setTimeout(() => setRestoreWaitedOut(true), RESTORE_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [restoring, restoreWaitedOut]);
   const autoMountOf = React.useContext(AutoMountContext);
   const handMounted = binding.autoMounted && autoMountOf !== workspace;
   React.useEffect(() => {
@@ -710,7 +720,7 @@ export function PanelRow({
         steerEntry(event, event.currentTarget, readingIds, tabPress.current);
       }}
       // Hidden until the restore settles: the root alone, drawn centered first, would otherwise jump aside when the restored panels land.
-      sx={{ display: presentAll.length > 0 ? 'flex' : 'none', flexShrink: 0, position: 'relative', ...(restoring ? { visibility: 'hidden' } : {}) }}
+      sx={{ display: presentAll.length > 0 ? 'flex' : 'none', flexShrink: 0, position: 'relative', ...(restoring && !restoreWaitedOut ? { visibility: 'hidden' } : {}) }}
     >
       {group('start', startGroup)}
       <div ref={windowRef} {...{ [EMBLA_WINDOW_ATTRIBUTE]: '' }} style={{ position: 'relative', flexShrink: 0, width: emblaWindow.width, clipPath: emblaCut, display: stripShown ? 'block' : 'none' }}>

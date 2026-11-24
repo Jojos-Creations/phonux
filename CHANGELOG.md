@@ -67,7 +67,8 @@
   panel visibly snapped; the same jump landed when a window resize settled on a new phone size. A narrowing row's clip
   glides with it, so a panel sliding into a closed one's place is never cut on the way.
 - On a reload the row stays hidden until the restore settles, so the root panel no longer shows alone in the middle and then
-  jumps aside when the restored panels land.
+  jumps aside when the restored panels land. If the restore has not settled after a second, the row shows
+  what it has, in place, rather than staying blank.
 - A slow sideways wheel (a finger creeping on a trackpad) that pauses no longer sends the row gliding to the next stop under
   the resting finger: a slow gesture waits 350 ms for its next wheel instead of 90 ms. A lift still settles at once.
 

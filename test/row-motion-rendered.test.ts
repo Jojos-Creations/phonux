@@ -106,8 +106,8 @@ function motionOf(frames: readonly Frame[], id: string): { largestStep: number; 
   return { largestStep, total: Math.abs(last - first) };
 }
 
-// Half a slot (one phone and one gap, 406 px) is how far a centered row moves when a page comes or goes. The jump this replaced
-// moved all 203 px in one frame; a glide moves under half of it in the first frame after the commit, however late that frame is.
+// Half a slot (one phone and one gap, 406 px), 203 px, is how far a centered row moves when a page comes or goes; a glide moves
+// under half of it in the first frame after the commit, however late that frame is.
 const MAX_STEP = 100;
 
 test('opening a page in a row with room: the root glides aside, it does not jump', async (t) => {
