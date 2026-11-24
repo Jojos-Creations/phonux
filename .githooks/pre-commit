@@ -25,6 +25,14 @@ repo_root="$(git rev-parse --show-toplevel)"
 # cannot see a file being removed cannot notice a guarded file going missing.
 staged_paths_for_gate=$(git diff --cached --name-only --diff-filter=ACMRD)
 
+# Refuses a staged secret, or a direct commit to the default branch without
+# ALLOW_MAIN_COMMIT=1; reads the index, so an edit made after staging cannot hide one.
+secret_scan_status=0
+python3 "$here/lib/secret_scan.py" || secret_scan_status=$?
+if [ "$secret_scan_status" -ne 0 ]; then
+	exit "$secret_scan_status"
+fi
+
 # Staged-markdown lint + the inline-suppression check, against this repo's own
 # .markdownlint-cli2.yaml. Skips loudly (never blocks) when markdownlint-cli2
 # is not resolvable offline here.

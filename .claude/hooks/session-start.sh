@@ -15,6 +15,8 @@ python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet --disable
 # entries in phonux-app), leaving a dirty tree before the first commit.
 npm ci --no-audit --no-fund --loglevel=error
 
+git config core.hooksPath .githooks
+
 # The markdown-lint git hook runs markdownlint-cli2 through `npx --offline`,
 # which skips on a cold cache.
 npx --yes markdownlint-cli2 --version >/dev/null || echo "session-start: markdownlint-cli2 cache not warmed; the markdown lint gate will skip or fail" >&2
