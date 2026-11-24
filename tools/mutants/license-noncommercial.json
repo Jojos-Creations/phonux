@@ -4,30 +4,21 @@
   ],
   "mutants": [
     {
-      "name": "the pinned canonical hash no longer matches the shipped text",
+      "name": "the pinned MPL 2.0 hash no longer matches the shipped text",
       "file": "test/license.test.ts",
-      "find": "8238c1f42828e9f3e734c5076dca2291e2126ffc0a453b4e953d54ca0c440797",
-      "replace": "8238c1f42828e9f3e734c5076dca2291e2126ffc0a453b4e953d54ca0c440798",
+      "find": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+      "replace": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d00",
       "expectRed": [
-        "LICENSE is the canonical Prosperity Public License 3.0.0 text, retitled, with a ninety-day trial and no other change"
-      ]
-    },
-    {
-      "name": "the trial edit the test undoes is not the one LICENSE makes",
-      "file": "test/license.test.ts",
-      "find": "['to a ninety-day trial period.', 'to a thirty-day trial period.'],",
-      "replace": "['to a sixty-day trial period.', 'to a thirty-day trial period.'],",
-      "expectRed": [
-        "LICENSE is the canonical Prosperity Public License 3.0.0 text, retitled, with a ninety-day trial and no other change"
+        "LICENSE is the Mozilla Public License 2.0 text with no edit"
       ]
     },
     {
       "name": "the expected license field is not the one package.json carries",
       "file": "test/license.test.ts",
-      "find": "const LICENSE_FIELD = 'SEE LICENSE IN LICENSE';",
+      "find": "const LICENSE_FIELD = 'MPL-2.0';",
       "replace": "const LICENSE_FIELD = 'Prosperity-3.0.0';",
       "expectRed": [
-        "package.json and the package-lock.json root entry point at the LICENSE file"
+        "package.json and the package-lock.json root entry carry the MPL-2.0 license id"
       ]
     }
   ]

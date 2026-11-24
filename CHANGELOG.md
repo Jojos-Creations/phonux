@@ -13,6 +13,8 @@
 
 ### Changed
 
+- phonux is licensed under the Mozilla Public License 2.0, in place of the phonux Public License 1.0.0. Versions already
+  published keep the license they shipped under.
 - A panel's header and footer now sit on a solid band: the frame's surface (`background.paper`) with its 1 px divider
   edge, opaque in light and dark, so their words read the same over any page or background picture behind the row. The
   band is drawn on their own floating boxes and adds no height to the panel. A caller's `sx` still layers over it.
