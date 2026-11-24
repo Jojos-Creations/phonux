@@ -4,7 +4,7 @@ import { sharedStartTime } from './rowClock.js';
 import { NAMED_EASE, createSlotMover, restTranslate, shortTransform, type SlotMover, type SlotPose, type SlotTiming } from './slotMover.js';
 import { SLOT_TRANSITION, directionalTransition, slideToTransition } from './directionalTransition.js';
 import { CHROME_ATTRIBUTE, ChromeStoreContext, createRectReporter, markPanelPress, usePanelDragging, type PanelRectReporter } from './panelChrome.js';
-import { PanelSlotContext } from './panelSlotContext.js';
+import { HandoffContext, PanelSlotContext } from './panelSlotContext.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
@@ -307,7 +307,9 @@ export function PanelRowSlot({
   const lifted = usePanelDragging();
   const [present, safeToRemove] = usePresence();
   // A leaving slot's props no longer change, but context still reaches it: a panel the window's jump left no room for goes in that commit.
-  const landing = React.useContext(LandingContext);
+  const handoff = React.useContext(HandoffContext);
+  // A slot leaving the strip for a sticky group (or back) goes at once, as when the window jumps: its replacement is drawn in the other place in the same commit.
+  const landing = React.useContext(LandingContext) || (panelId !== undefined && handoff.has(panelId));
   // The slot's rank from either end of the row follows the row through this context even while the slot leaves, when its props no longer change.
   const { ranks, mounted } = React.useContext(SlotRanksContext);
   const rank = panelId === undefined ? 0 : (ranks.get(panelId) ?? 0);

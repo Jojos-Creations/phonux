@@ -21,9 +21,9 @@ const made = (id: string, layer: PanelSettings): PanelWindow => {
 };
 
 interface Row {
-  panels: { slots: number; hold: 'off' | 'left' | 'right' | 'both'; pinned: boolean; parks: boolean; live: boolean }[];
+  panels: { slots: number; hold: 'off' | 'start' | 'end'; pinned: boolean; parks: boolean; live: boolean }[];
   scroll: boolean;
-  first: 'off' | 'left' | 'right' | 'both';
+  first: 'off' | 'start' | 'end';
   phone: number;
   gap: number;
   container: number;
@@ -34,7 +34,7 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
   panels: fc.array(
     fc.record({
       slots: fc.integer({ min: 1, max: 3 }),
-      hold: fc.oneof({ weight: 14, arbitrary: fc.constant('off' as const) }, { weight: 1, arbitrary: fc.constant('left' as const) }, { weight: 1, arbitrary: fc.constant('right' as const) }, { weight: 1, arbitrary: fc.constant('both' as const) }),
+      hold: fc.oneof({ weight: 14, arbitrary: fc.constant('off' as const) }, { weight: 1, arbitrary: fc.constant('start' as const) }, { weight: 1, arbitrary: fc.constant('end' as const) }),
       pinned: fc.boolean(),
       parks: fc.boolean(),
       live: fc.integer({ min: 0, max: 5 }).map((n) => n > 0),
@@ -42,17 +42,17 @@ const rowArb: fc.Arbitrary<Row> = fc.record({
     { minLength: 2, maxLength: 9 },
   ),
   scroll: fc.integer({ min: 0, max: 9 }).map((n) => n > 3),
-  first: fc.constantFrom('off' as const, 'left' as const, 'right' as const, 'both' as const),
+  first: fc.constantFrom('off' as const, 'start' as const, 'end' as const),
   phone: fc.integer({ min: 300, max: 430 }),
   gap: fc.constantFrom(0, 8, 16, 24),
   container: fc.oneof({ weight: 1, arbitrary: fc.constant(0) }, { weight: 1, arbitrary: fc.integer({ min: 1, max: 420 }) }, { weight: 14, arbitrary: fc.integer({ min: 420, max: 1900 }) }),
   whole: fc.integer({ min: 0, max: 3 }).map((n) => n > 0),
 });
 
-// The first panel is the held one most often: a hold on any other panel is a case the model does not express.
+// The first panel is the sticky one most often; the model declines every row with a sticky panel in effect, so those rows go to the older arithmetic.
 function inputsOf(r: Row, distinct = r.panels.length) {
   const entries = r.panels.map((p, k) => {
-    const entry = made(`p${k % distinct}`, { slots: p.slots, edgeHold: k === 0 ? r.first : p.hold, parkable: !(p.pinned && r.scroll) });
+    const entry = made(`p${k % distinct}`, { slots: p.slots, sticky: k === 0 ? r.first : p.hold, parkable: !(p.pinned && r.scroll) });
     // A hand-built fixed column beside parking panels: not collapsible, so the margin counts it among the fixed items.
     const column = p.pinned && !r.scroll ? { ...entry, collapsible: false } : entry;
     return p.live || (p.pinned && r.scroll) ? column : { ...column, live: false };
@@ -74,16 +74,17 @@ test('the adapter gives the numbers of the arithmetic it replaces, over random r
       const now = computeRowNumbers(input);
       const viaModel = rowNumbersViaModel(input) !== null;
       seen(viaModel ? 'model' : 'fallback');
+      assert.ok(!(viaModel && old.held.length > 0), 'the model never takes a row with a sticky panel in effect');
       if (viaModel) {
-        seen(old.stuck.length > 0 ? 'model:both' : old.held.some((h) => h.side === 'right') ? 'model:right' : old.held.length > 0 ? 'model:held' : old.stops.length > 0 ? 'model:stepping' : 'model:other');
+        seen(old.stops.length > 0 ? 'model:stepping' : 'model:other');
       } else {
-        seen(r.container === 0 ? 'fallback:unmeasured' : old.stuck.length > 0 ? 'fallback:both' : old.held.some((h) => h.side === 'right') ? 'fallback:right' : 'fallback:other');
+        seen(r.container === 0 ? 'fallback:unmeasured' : old.held.some((h) => h.side === 'right') ? 'fallback:sticky-end' : old.held.length > 0 ? 'fallback:sticky-start' : 'fallback:other');
       }
       assert.deepEqual(now, old);
     }),
     { seed: SEED, numRuns: Number(process.env.ROW_MODEL_RUNS ?? 3000) },
   );
-  const thin = ['model:held', 'model:both', 'model:right', 'model:stepping', 'fallback:unmeasured', 'fallback:both', 'fallback:right'].filter((k) => (kinds[k] ?? 0) < 20);
+  const thin = ['model:stepping', 'fallback:unmeasured', 'fallback:sticky-start', 'fallback:sticky-end'].filter((k) => (kinds[k] ?? 0) < 20);
   assert.deepEqual(thin, [], `cases that ran fewer than 20 times: ${JSON.stringify(kinds)}`);
   assert.ok(rows >= Number(process.env.ROW_MODEL_RUNS ?? 3000), `ran ${rows} rows`);
   if (process.env.ROW_MODEL_COVERAGE !== undefined) console.log(JSON.stringify(kinds));
@@ -130,7 +131,7 @@ test('fractional pixels: the model and the older arithmetic agree to a micropixe
 });
 
 test('computeRowNumbers answers through the model: a stand-in for it is what comes back, and a row it declines goes to the older arithmetic', () => {
-  const entries = [0, 1, 2, 3, 4, 5].map((k) => made(`p${k}`, { slots: 1, ...(k === 0 ? { edgeHold: 'both' as const } : {}) }));
+  const entries = [0, 1, 2, 3, 4, 5].map((k) => made(`p${k}`, { slots: 1, ...(k === 0 ? { sticky: 'start' as const } : {}) }));
   const input = { entries, phoneWidth: 390, containerWidth: 1000, gap: 16, wholePanels: true };
   const real = rowNumberSources.model;
   const marker = { ...legacyRowNumbers(input), endPad: -12345 };
@@ -142,7 +143,8 @@ test('computeRowNumbers answers through the model: a stand-in for it is what com
   } finally {
     rowNumberSources.model = real;
   }
-  assert.notEqual(rowNumbersViaModel(input), null, 'control: this row is one the model takes');
+  assert.equal(rowNumbersViaModel(input), null, 'a row with a sticky panel in effect is one the model declines');
+  assert.notEqual(rowNumbersViaModel({ ...input, entries: input.entries.map((e) => made(e.id, { slots: 1 })) }), null, 'control: the same row with no sticky panel is one the model takes');
 });
 
 // The swap row (every panel 'park') left with overflow (owner, 2026-11-14): a row in a window under a phone is a strip the model declines.

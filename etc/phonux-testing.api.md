@@ -31,7 +31,7 @@ export type AnchorRequest = {
 export type BezierEase = readonly [number, number, number, number];
 
 // @public
-export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'edgeHold'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export type ChromeTuning = {
@@ -325,6 +325,7 @@ export type PanelSettings = {
     headerButtons?: {
         [id: string]: HeaderButton | false;
     };
+    edgeHold?: 'off' | 'left' | 'right' | 'both';
 };
 
 // @public
@@ -438,19 +439,23 @@ export interface PhonuxLabels {
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
-    offerAccept: string;
+    offerAccept: (kindPlural: string) => string;
     offerDecline: string;
     offerNote: (days: number) => string;
+    offerNotNow: string;
     offerReport: string;
-    offerTitle: (from: string) => string;
+    offerTitle: (from: string, kind: string) => string;
     offerTrusted: (from: string) => string;
     panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
     row: string;
+    shareAccessName: string;
     shareAddPerson: string;
     shareAddPersonHint: string;
     shareBack: string;
+    shareCanEdit: string;
+    shareCanView: string;
     shareChange: string;
     shareCopyLink: string;
     sharedByYou: string;
@@ -465,10 +470,20 @@ export interface PhonuxLabels {
     sharedTabsName: string;
     sharedWithYou: string;
     shareInPersonHint: string;
+    shareInvite: string;
+    shareInvitedNotJoined: string;
+    shareInviteField: string;
+    shareKind: (kind: string) => string;
+    shareKindPlural: (kind: string) => string;
     shareLinkEnds: (days: number | null, opens: number | null) => string;
+    shareLinkNote: string;
+    shareMemberMore: (name: string) => string;
     shareMoreApps: string;
     shareOfferWaits: string;
+    shareOwner: string;
     sharePeopleHint: string;
+    sharePeopleHintEdit: string;
+    shareRemove: string;
     shareSend: string;
     shareSendTo: (name: string) => string;
     shareSent: string;
@@ -477,6 +492,8 @@ export interface PhonuxLabels {
     shareTabPeople: string;
     shareTabsName: string;
     shareTitle: string;
+    shareTrustedLine: string;
+    shareYou: string;
     sizeName: (slots: number) => string;
     trustAllow: string;
     trustCancel: string;
@@ -542,6 +559,7 @@ export type ResolvedPanelSettings = {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
+    readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 // @public
@@ -607,7 +625,8 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    edgeHold: 'off' | 'left' | 'right' | 'both';
+    sticky: 'off' | 'start' | 'end';
+    stickyRank: number;
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -773,6 +792,7 @@ export type WorkspaceTuning = {
     defaultExitTo?: ExitTo;
     shrinkUnfocused?: boolean;
     firstPressFocusOnly?: boolean;
+    minScrollSlots?: number;
 };
 
 // (No @packageDocumentation comment for this package)

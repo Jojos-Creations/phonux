@@ -278,7 +278,7 @@ scenario('recenter-glide', SIX, 1280, async (c) => {
 
 // The first panel's hold joins the left group, which moves the strip's frame; a hold on a later panel sticks inside the strip. Each is flipped on and off mid-glide.
 for (const [where, target] of [['first', -1], ['middle', 1]] as const) {
-  for (const hold of ['left', 'right', 'both'] as const) {
+  for (const hold of ['left', 'right'] as const) {
     scenario(`hold-flip-${where}-${hold}`, SIX, 1280, async (c) => {
       await c.checkPaint('off');
       await c.page.evaluate(([k, h]: [number, string]) => (window as any).__r.setHold(k, h), [target, hold] as [number, string]);

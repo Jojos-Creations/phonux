@@ -34,7 +34,7 @@ const BAR = q.get('bar') === null ? null : Number(q.get('bar'));
 const GRAB = q.get('grab') === '1';
 // rootMove=1: the root may be moved by a person (settings movable), still not crossable unless rootCross=1.
 const ROOT_MOVE = q.get('rootMove') === '1';
-// `hold=left|right|both`: the root's edgeHold. `store=1`: the workspace saves to and loads from localStorage, so a reload in the same
+// `hold=left|right`: the root's `sticky` (start or end). `store=1`: the workspace saves to and loads from localStorage, so a reload in the same
 // browser context is a relaunch from the saved file.
 const HOLD = q.get('hold');
 const STORE = q.get('store') === '1';
@@ -102,7 +102,7 @@ function RootView() {
 // mount: false, as the app passes: this page renders the row itself. Without it the auto mount renders a second row that fails to attach.
 const ws = createWorkspace({
   mount: false,
-  ...(ROOTLESS ? {} : { root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}), ...(HOLD === null ? {} : { edgeHold: HOLD }) } as any }) }),
+  ...(ROOTLESS ? {} : { root: definePanel({ id: ROOT, view: RootView as any, settings: { title: 'History', frame: 'none', ...(ROOT_MOVE ? { movable: true } : {}), ...(HOLD === null ? {} : { sticky: ({ left: 'start', right: 'end', off: 'off' } as Record<string, string>)[HOLD] ?? 'off' }) } as any }) }),
   // `x`: a page opened later, any number of times (`__g.openExtra()`), one slot wide, drawn as the others are.
   templates: [...ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, ...(PARK ? { overflow: 'park', capacityReturn: 'manual', restoreVisibility: 'live' } : {}) } as any })), definePanel({ id: 'x', view: ExtraView as any, settings: { title: 'x', multiple: true } as any }), definePanel({ id: 'history', view: HistoryView as any, settings: { title: 'History', listed: false, layer: 'raised', resizable: false, movable: false, hollowDot: true } as any })],
   tuning: { rowGesture: 'step', rowGap: GAP, ...(CAP === null ? {} : { maxLivePanels: CAP }) } as any,

@@ -4,10 +4,31 @@
 
 ### Added
 
+- Sticky panels. The panel setting `sticky` (`'off'` by default, `'start'` or `'end'`) takes the panel's slots out of the
+  scrolling row at that end of the row, and the panel never moves while the row scrolls: `[sticky | row of 4]`,
+  `[sticky | row of 3 | sticky]`, `[sticky | sticky | row of 3]`, up to every slot. It takes its slots whether or not the
+  row would overflow, and no panel is ever cut off. `stickyRank` (an integer, 0 by default) says which sticky panel stays
+  sticky longest when the window narrows: the higher rank stays, and of equal rank the later panel in the row gives up first.
+- `tuning.minScrollSlots` (default 1, 0 or more): the fewest slots the scrolling row keeps. When the window is too narrow
+  for the sticky panels and that minimum, the panel with the lowest `stickyRank` goes back into the scrolling row (of equal rank,
+  the later panel in the row goes first) and is sticky again when room returns; its setting never changes. A window of one slot has
+  no sticky panels. With `minScrollSlots` 0 every slot can be sticky; a panel that is not sticky still gets a one-slot row.
+- `useProvidePanels(...).rowSegments` (and the `RowSegment` type) reads the row as `{ kind: 'sticky', panelId, slots, side }`
+  and `{ kind: 'scroll', slots, panelIds }` segments, left to right.
+- `usePanelDots(...).sticky` lists the sticky panels by side: they get no dot and the app draws a small square at that end
+  of the bar. `selectDot(id)` with a sticky panel's id focuses the panel.
 - `TrustScreen`: the props-driven code exchange that adds someone the person trusts. The person makes a code (shown as
   text and a QR code) or joins with one, waits for the other side, and answers; the maker chooses how long the other side
   may send. The app passes a `TrustExchanges` object (invite, join, the exchange left open, and why a call failed) and
   places the screen in its own dialog or page. Its words are new `PhonuxLabels` keys (`trust*`).
+- `ShareSheet`, `OfferCard` and `SharedList` take an item of any kind (`ShareItem`: `space`, `playlist`, `track`, `page`,
+  `file`, or a kind the host names), so one share view serves every app. `ShareSheet` draws the item's header row, opens on
+  People for a space or playlist and on Link for any other kind (`defaultTab` still overrides), and its People tab has an
+  invite field with a Can edit or Can view choice (`onInvite`), the people already on the item with a menu to change their
+  role or remove them (`members`, `onChangeRole`, `onRemove`), and the trusted people with Send. The access choice is not
+  drawn for an item others cannot edit. `OfferCard` says `<who> shared a <kind> with you`, takes `acceptLabel`, and has a
+  Not now button (`onNotNow`). A `SharedRow` takes `itemKind` and `icon`. New types `ShareItem`, `ShareKind`, `ShareMember`
+  and `ShareRole`, and new `PhonuxLabels` keys (`shareKind`, `shareKindPlural`, `shareInvite*`, `shareCan*`, `offerNotNow` and others).
 - `QrCode`: a QR code of a string, black on white in any theme, for `ShareSheet`'s `qr` and anywhere else.
   `qrcode-generator` 2.0.4 (MIT, pinned exactly) is a new runtime dependency.
 
@@ -15,9 +36,29 @@
 
 - phonux is licensed under the Mozilla Public License 2.0, in place of the phonux Public License 1.0.0. Versions already
   published keep the license they shipped under.
+- `ShareSheet` without `defaultTab` now opens on Link for a `file` (it opened on People). `PhonuxLabels.offerTitle` takes the
+  kind as a second argument, and `offerAccept` is now a function of the kind's plural, so a host that supplied a string must
+  supply a function. The default words of the offer card and the People tab no longer say "file" or "accept".
+- `sticky` replaces `edgeHold` as the sticky-panel model: a sticky panel always takes its slots at its end of the row, whether
+  or not the row would overflow, and when the window cannot hold them the `stickyRank` fallback puts the lowest-ranked one
+  back in the scrolling row. Sticky panels are drawn outside the scrolling strip, as flex siblings
+  (`[start group][strip][end group]`), so no sticky position is computed per frame. The row's root element is now a wrapper
+  box (`data-row-root`) holding the strip's window.
+- `RowNumbers.stuck` is gone, and `RowNumbers.held` lists the sticky panels. A slot that turns sticky or stops being sticky
+  is drawn again in the other place.
+- `edgeHold: 'both'` (a panel that sticks once the row scrolls past it) has no equivalent in the sticky model and is read as
+  `sticky: 'off'`, with a development warning.
 - A panel's header and footer now sit on a solid band: the frame's surface (`background.paper`) with its 1 px divider
   edge, opaque in light and dark, so their words read the same over any page or background picture behind the row. The
   band is drawn on their own floating boxes and adds no height to the panel. A caller's `sx` still layers over it.
+
+### Deprecated
+
+- `edgeHold` is the old name of `sticky`. Reads and writes of it keep working: `'left'` is written as `'start'` and `'right'`
+  as `'end'`, in a settings layer, in a saved layer and in a `configure` patch, with a development warning, and `'both'`
+  reads as `'off'`; a `sticky` in the same layer wins. A resolved value (`getSettings().value`) still has a read-only
+  `edgeHold` derived from `sticky` (`'start'` reads `'left'`, `'end'` reads `'right'`, `'off'` reads `'off'`). It is removed
+  before 0.2.0 final.
 
 ## 0.2.0-rc.8
 

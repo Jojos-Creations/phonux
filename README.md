@@ -258,7 +258,7 @@ The keystore passwords come from `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASS
 
 phonux is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/). Anyone may use it, including commercially. If you change a file of phonux and distribute the result, you share your changes to that file under the same license; your own files that use phonux stay yours. The full text is in LICENSE.
 
-Versions 0.1.0 and 0.2.0-rc.2 were published under the MIT license and stay MIT. Versions 0.2.0-rc.3 through 0.2.0-rc.5 were published under the PolyForm Noncommercial License 1.0.0 and stay under it. Versions 0.2.0-rc.6 through 0.2.0-rc.8 were published under the phonux Public License 1.0.0 and stay under it. Releases after 0.2.0-rc.8 are under the Mozilla Public License 2.0. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
+Versions 0.1.0, 0.2.0-rc.1 and 0.2.0-rc.2 were published under the MIT license and stay MIT. Versions 0.2.0-rc.3 through 0.2.0-rc.5 were published under the PolyForm Noncommercial License 1.0.0 and stay under it. Versions 0.2.0-rc.6 through 0.2.0-rc.8 were published under the phonux Public License 1.0.0 and stay under it. Releases after 0.2.0-rc.8 are under the Mozilla Public License 2.0. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 
 `npm run phone` runs the phone-width checks in Chromium on iPhone 13 and Pixel 7 profiles (touch on). `npm run phone:webkit` runs the iPhone profile in WebKit, which needs WebKit installed; `PHONE_PROJECTS` picks any set of them.
 

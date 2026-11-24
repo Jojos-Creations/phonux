@@ -23,7 +23,8 @@ export type { PhonuxLabels } from './labels.js';
 export type { PhonuxIcons } from './icons.js';
 
 export { ShareSheet } from './shareSheet.js';
-export type { ShareSheetProps, ShareFile, SharePerson, ShareLinkInfo, ShareTab } from './shareSheet.js';
+export type { ShareSheetProps, ShareFile, SharePerson, ShareLinkInfo, ShareTab, ShareMember, ShareRole } from './shareSheet.js';
+export type { ShareItem, ShareKind } from './shareParts.js';
 export { OfferCard } from './offerCard.js';
 export type { OfferCardProps, OfferFile } from './offerCard.js';
 export { SharedList } from './sharedList.js';
@@ -99,7 +100,7 @@ export { minWorkspaceWidth } from './minWorkspaceWidth.js';
 export type { MinWorkspaceWidthInput } from './minWorkspaceWidth.js';
 export type { RowLayoutInput, RowLayoutResult } from './panelRowLayout.js';
 export { computeRowNumbers } from './rowNumbers.js';
-export type { RowNumbers } from './rowNumbers.js';
+export type { RowNumbers, RowSegment } from './rowNumbers.js';
 export { PanelRow, usePanelCapabilities, usePanelNeighborWidths, usePanelReorderSteps, usePanelTuning } from './PanelRow.js';
 export { usePanelRowDrop } from './usePanelRowDrop.js';
 export type { PanelRowDrop } from './usePanelRowDrop.js';

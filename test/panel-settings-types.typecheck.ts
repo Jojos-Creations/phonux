@@ -47,7 +47,8 @@ export const SETTING_KEYS: Record<keyof SettingValues, true> = {
   maxInstances: true,
   listed: true,
   startVisibility: true,
-  edgeHold: true,
+  sticky: true,
+  stickyRank: true,
   scrollOnOpen: true,
   scrollOnMove: true,
   toggleWhenClosed: true,
@@ -127,7 +128,7 @@ export const instancePatch: InstancePatch = { closable: false, title: null };
 // @ts-expect-error a template-scope key is not an instance patch key
 export const instanceTemplateKey: InstancePatch = { multiple: true };
 export const settingsPatch: SettingsPatch = { multiple: true, maxInstances: null, headerButtons: { size: false } };
-export const layerSettings: PanelSettings = { edgeHold: 'left', headerButtons: { size: false } };
+export const layerSettings: PanelSettings = { sticky: 'start', stickyRank: 2, headerButtons: { size: false } };
 
 export const reader: PanelReader = {
   get: (id) => (id === handle.id ? handle : undefined),
@@ -149,5 +150,5 @@ export const viewHandle: ViewHandle = {
   scrollTo: () => done,
   configure: () => ({ ok: true, changed: false, now: [], later: [], shadowed: [], notes: [] }),
 };
-export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { edgeHold: 'left' } };
+export const aTemplate: PanelTemplate = { id: 'notes', view: () => React.createElement('div'), settings: { sticky: 'start' } };
 export const defined: PanelTemplate<{ page: number }> = definePanel({ id: 'paged', view: () => null, params: { page: 1 } });

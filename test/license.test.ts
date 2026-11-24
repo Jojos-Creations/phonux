@@ -46,7 +46,7 @@ test('the license, README and notices text carries no placeholder or TODO', () =
 
 test('the README tells a reader which license each version is under and how the license changed', () => {
   const readme = read('README.md');
-  assert.match(readme, /0\.1\.0 and 0\.2\.0-rc\.2 were published under the MIT license/);
+  assert.match(readme, /0\.1\.0, 0\.2\.0-rc\.1 and 0\.2\.0-rc\.2 were published under the MIT license/);
   assert.match(readme, /0\.2\.0-rc\.3 through 0\.2\.0-rc\.5 were published under the PolyForm Noncommercial License 1\.0\.0/);
   assert.match(readme, /Mozilla Public License 2\.0/);
   assert.match(readme, /0\.2\.0-rc\.6 through 0\.2\.0-rc\.8 were published under the phonux Public License 1\.0\.0/);

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import './support/jsdom-globals.js';
 import { act, createElement as h } from 'react';
 import { OfferCard, ShareSheet, SharedList } from '../index.js';
-import type { OfferCardProps, SharedListProps, ShareSheetProps } from '../index.js';
+import type { OfferCardProps, SharedListProps, ShareItem, ShareSheetProps } from '../index.js';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { daysUntil } from '../shareParts.js';
 import { cleanup, mount } from './support/mount-harness.js';
@@ -35,6 +35,7 @@ function sheet(over: Partial<ShareSheetProps> = {}) {
   const calls: string[] = [];
   const props: ShareSheetProps = {
     file: { name: 'Trip photos.zip', size: 48_000_000 },
+    defaultTab: 'people',
     qr: h('i', { 'data-qr': '' }),
     people: [
       { id: 'sam', name: 'Sam' },
@@ -55,9 +56,10 @@ function sheet(over: Partial<ShareSheetProps> = {}) {
   return { m: mount(h(ShareSheet, props)), calls };
 }
 
-test('the share sheet names the file with its size', () => {
+test('a file given the older way is the header row of an item of kind file, with its size', () => {
   const { m } = sheet();
-  assert.match(text(m.container), /Trip photos\.zip, 48 MB/);
+  assert.match(text(m.container), /Trip photos\.zip/);
+  assert.match(text(m.container), /File, 48 MB/);
 });
 
 test('sizes are written in decimal units with at most one decimal', () => {
@@ -71,7 +73,7 @@ test('sizes are written in decimal units with at most one decimal', () => {
   ];
   for (const [size, want] of sizes) {
     const { m } = sheet({ file: { name: 'f', size } });
-    assert.ok(text(m.container).includes(`f, ${want}`), want);
+    assert.ok(text(m.container).includes(`File, ${want}`), want);
     m.unmount();
   }
 });
@@ -223,6 +225,7 @@ function offer(over: Partial<OfferCardProps> = {}) {
     file: { name: 'Trip photos.zip', type: 'ZIP archive', size: 48_000_000 },
     expiresAt: NOW + 7 * DAY,
     onAccept: () => calls.push('accept'),
+    onNotNow: () => calls.push('notnow'),
     onDecline: () => calls.push('decline'),
     onReport: () => calls.push('report'),
     now: NOW,
@@ -234,20 +237,21 @@ function offer(over: Partial<OfferCardProps> = {}) {
 test('the offer card says who, what and for how long, in the mockup words', () => {
   const { m } = offer();
   const t = text(m.container);
-  assert.match(t, /Sam wants to send you a file/);
+  assert.match(t, /Sam shared a file with you/);
   assert.match(t, /Sam is on your trusted list/);
   assert.match(t, /Trip photos\.zip/);
   assert.match(t, /ZIP archive, 48 MB/);
-  assert.match(t, /Nothing downloads until you accept\. The offer goes away in 7 days\./);
+  assert.match(t, /Nothing downloads until you add it\. The offer goes away in 7 days\./);
   assert.equal(m.container.querySelector('[aria-hidden="true"]')?.textContent, 'S', 'the avatar is the first letter');
 });
 
-test('Accept and save, Decline and Report each fire once', () => {
+test('Add, Not now, Decline and Report each fire once', () => {
   const { m, calls } = offer();
-  click(byText(m.container, 'Accept and save'));
+  click(byText(m.container, 'Add to my files'));
+  click(byText(m.container, 'Not now'));
   click(byText(m.container, 'Decline'));
   click(byText(m.container, 'Report'));
-  assert.deepEqual(calls, ['accept', 'decline', 'report']);
+  assert.deepEqual(calls, ['accept', 'notnow', 'decline', 'report']);
 });
 
 test('the offer card draws no image of the file or the sender', () => {
@@ -257,10 +261,10 @@ test('the offer card draws no image of the file or the sender', () => {
 });
 
 test('the offer card speaks in the labels it is given', () => {
-  const { m } = offer({ labels: { offerTitle: (f) => `${f} te envía un archivo`, offerAccept: 'Aceptar y guardar', offerNote: (d) => `Caduca en ${d}` } });
+  const { m } = offer({ labels: { offerTitle: (f) => `${f} te envía un archivo`, offerAccept: (p) => `Aceptar ${p}`, offerNote: (d) => `Caduca en ${d}` } });
   assert.match(text(m.container), /Sam te envía un archivo/);
   assert.match(text(m.container), /Caduca en 7/);
-  assert.ok(byText(m.container, 'Aceptar y guardar'));
+  assert.ok(byText(m.container, 'Aceptar files'));
 });
 
 function list(over: Partial<SharedListProps> = {}) {
@@ -399,4 +403,231 @@ test('an empty tab says so, and the labels replace the words', () => {
   const { m } = list({ byYou: [], labels: { sharedEmpty: 'Nada aún', sharedWithYou: 'Contigo' } });
   assert.match(text(m.container), /Nada aún/);
   tab(m.container, 'Contigo');
+});
+
+// ---- One share view for every kind of item ----
+
+const space: ShareItem = { kind: 'space', name: 'Trip to Lisbon', subtitle: 'Space, 3 tabs' };
+const playlist: ShareItem = { kind: 'playlist', name: 'Road trip songs', subtitle: 'Playlist, 24 tracks' };
+
+function unified(item: ShareItem, over: Partial<ShareSheetProps> = {}) {
+  const calls: string[] = [];
+  const props: ShareSheetProps = {
+    item,
+    qr: h('i', { 'data-qr': '' }),
+    members: [
+      { id: 'me', name: 'ignored', role: 'owner', you: true },
+      { id: 'ann', name: 'ann@example.com', role: 'edit' },
+      { id: 'bo', name: 'bo@example.com', role: 'view', joined: false },
+    ],
+    people: [{ id: 'maya', name: 'Maya' }],
+    onInvite: (who, role) => calls.push(`invite:${who}:${role}`),
+    onChangeRole: (id, role) => calls.push(`role:${id}:${role}`),
+    onRemove: (id) => calls.push(`remove:${id}`),
+    onSend: (id) => calls.push(`send:${id}`),
+    onCopyLink: () => calls.push('copy'),
+    ...over,
+  };
+  return { m: mount(h(ShareSheet, props)), calls };
+}
+
+const selected = (root: ParentNode): string | undefined => [...root.querySelectorAll('[role="tab"]')].find((t) => t.getAttribute('aria-selected') === 'true')?.textContent ?? undefined;
+const field = (root: ParentNode): HTMLInputElement => {
+  const input = root.querySelector<HTMLInputElement>('input[aria-label="Email or saved name"]');
+  assert.ok(input, 'the invite field exists');
+  return input;
+};
+const type = (input: HTMLInputElement, value: string): void => {
+  act(() => {
+    const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    set?.call(input, value);
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+};
+
+test('the header row shows the item glyph, name and subtitle under the title', () => {
+  const { m } = unified(space);
+  const t = text(m.container);
+  assert.match(t, /Trip to Lisbon/);
+  assert.match(t, /Space, 3 tabs/);
+  assert.ok(m.container.querySelector('svg[data-testid="GridViewIcon"]'), 'a space draws the grid glyph');
+  const other = unified(playlist);
+  assert.ok(other.m.container.querySelector('svg[data-testid="QueueMusicIcon"]'), 'a playlist draws the playlist glyph');
+  const custom = unified({ kind: 'recipe', name: 'Soup', icon: h('b', { 'data-custom': '' }) });
+  assert.ok(custom.m.container.querySelector('[data-custom]'), 'a given icon replaces the kind glyph');
+});
+
+test('the tab it opens on follows the item, and the caller can override it', () => {
+  const opens = (item: ShareItem, over: Partial<ShareSheetProps> = {}): string | undefined => {
+    const { m } = unified(item, over);
+    const got = selected(m.container);
+    m.unmount();
+    return got;
+  };
+  assert.equal(opens(space), 'People');
+  assert.equal(opens(playlist), 'People');
+  assert.equal(opens({ kind: 'page', name: 'Guide' }), 'Link');
+  assert.equal(opens({ kind: 'file', name: 'tickets.zip' }), 'Link');
+  assert.equal(opens({ kind: 'track', name: 'Alfama at night' }), 'Link');
+  assert.equal(opens({ kind: 'recipe', name: 'Soup' }), 'Link', 'an unknown kind cannot be edited by others');
+  assert.equal(opens({ kind: 'recipe', name: 'Soup', editable: true }), 'People', 'unless the item says so');
+  assert.equal(opens(space, { defaultTab: 'link' }), 'Link');
+  assert.equal(opens({ kind: 'page', name: 'Guide' }, { defaultTab: 'people' }), 'People');
+});
+
+test('the People tab lists You as Owner, then each person with a role or the not-joined line', () => {
+  const { m } = unified(space);
+  const rows = [...m.container.querySelectorAll('li')].map(text);
+  assert.match(rows[0] ?? '', /YouOwner/);
+  assert.match(rows[1] ?? '', /ann@example\.com.*Can edit/);
+  assert.match(rows[2] ?? '', /bo@example\.com.*Invited, not joined yet/);
+  assert.match(rows[3] ?? '', /Maya.*On your trusted list.*Send/);
+  assert.equal(m.container.querySelectorAll('[aria-label^="Change access or remove"]').length, 2, 'the owner row has no menu');
+});
+
+test('the access choice is drawn for a space and a playlist, and not for a track, page or file', () => {
+  for (const item of [space, playlist]) {
+    const { m } = unified(item);
+    assert.ok(m.container.querySelector('select[aria-label="Access"]'), `${item.kind} draws the access choice`);
+    m.unmount();
+  }
+  for (const kind of ['track', 'page', 'file']) {
+    const { m } = unified({ kind, name: 'x' }, { defaultTab: 'people' });
+    assert.ok(field(m.container), `control: ${kind} still draws the invite field`);
+    assert.equal(m.container.querySelector('select'), null, `${kind} draws no access choice`);
+    assert.ok(!/Can edit lets them/.test(text(m.container)), `${kind} does not promise editing`);
+    m.unmount();
+  }
+});
+
+test('Invite calls back with the typed name and the chosen role, then clears the field', () => {
+  const { m, calls } = unified(space);
+  const invite = byText(m.container, 'Invite');
+  assert.ok(invite?.disabled, 'Invite waits for a name');
+  type(field(m.container), '  cy@example.com ');
+  click(byText(m.container, 'Invite'));
+  const select = m.container.querySelector<HTMLSelectElement>('select');
+  assert.ok(select);
+  act(() => {
+    select.value = 'view';
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  type(field(m.container), 'Riley');
+  click(byText(m.container, 'Invite'));
+  assert.deepEqual(calls, ['invite:cy@example.com:edit', 'invite:Riley:view']);
+  assert.equal(field(m.container).value, '', 'the field is cleared');
+});
+
+test('an invite to a track, page or file always carries the view role', () => {
+  const { m, calls } = unified({ kind: 'page', name: 'Guide' }, { defaultTab: 'people' });
+  type(field(m.container), 'bo@example.com');
+  click(byText(m.container, 'Invite'));
+  assert.deepEqual(calls, ['invite:bo@example.com:view']);
+});
+
+test('the member menu changes a role and removes a person, each with the id', () => {
+  const { m, calls } = unified(space);
+  let current = '';
+  const open = (name: string): void => {
+    const button = m.container.querySelector(`[aria-label="Change access or remove ${name}"]`);
+    click(button ?? undefined);
+    current = button?.getAttribute('aria-controls') ?? '';
+  };
+  const entries = (): HTMLElement[] => [...document.body.querySelectorAll<HTMLElement>(`[id="${current}"] [role="menuitem"]`)];
+  const items = (): string[] => entries().map(text);
+  const item = (label: string): HTMLElement | undefined => entries().find((i) => text(i) === label);
+  open('ann@example.com');
+  assert.deepEqual(items(), ['Can edit', 'Can view', 'Remove']);
+  click(item('Can view'));
+  open('bo@example.com');
+  click(item('Can edit'));
+  open('ann@example.com');
+  click(item('Remove'));
+  assert.deepEqual(calls, ['role:ann:view', 'role:bo:edit', 'remove:ann']);
+});
+
+test('picking the role a person already has changes nothing', () => {
+  const { m, calls } = unified(space);
+  click(m.container.querySelector('[aria-label="Change access or remove ann@example.com"]') ?? undefined);
+  click([...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => text(i) === 'Can edit'));
+  assert.deepEqual(calls, []);
+});
+
+test('a page offers Remove but no roles, and a menu with neither callback is not drawn', () => {
+  const { m } = unified({ kind: 'page', name: 'Guide' }, { defaultTab: 'people' });
+  click(m.container.querySelector('[aria-label="Change access or remove ann@example.com"]') ?? undefined);
+  assert.deepEqual([...document.body.querySelectorAll('[role="menuitem"]')].map(text), ['Remove']);
+  const bare = unified(space, { onChangeRole: undefined, onRemove: undefined });
+  assert.equal(bare.m.container.querySelectorAll('[aria-label^="Change access or remove"]').length, 0);
+});
+
+test('Send on a trusted person still calls back, and the sheet has no space limit control', () => {
+  const { m, calls } = unified(space);
+  click(byText(m.container, 'Send'));
+  assert.deepEqual(calls, ['send:maya']);
+  assert.doesNotMatch(text(m.container), /limit|size/i);
+});
+
+test('the sheet copy has no em-dash and the menu and field are 44 px', () => {
+  const { m } = unified(space);
+  assert.ok(!text(m.container).includes('\u2014'), 'no em-dash');
+  const menuButton = m.container.querySelector<HTMLElement>('[aria-label="Change access or remove ann@example.com"]');
+  assert.ok(menuButton);
+  const css = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules].map((r) => r.cssText)).join('\n');
+  assert.ok(/min-height: 44px/.test(css), 'control: 44px rules are emitted');
+});
+
+function offerKind(item: ShareItem, over: Partial<OfferCardProps> = {}) {
+  return offer({ file: undefined, item, ...over });
+}
+
+test('the offer card says who shared which kind, with the item header and the promise', () => {
+  for (const [item, title, button] of [
+    [space, 'Sam shared a space with you', 'Add to my spaces'],
+    [playlist, 'Sam shared a playlist with you', 'Add to my playlists'],
+    [{ kind: 'track', name: 'Alfama at night' }, 'Sam shared a track with you', 'Add to my tracks'],
+    [{ kind: 'page', name: 'Guide' }, 'Sam shared a page with you', 'Add to my pages'],
+    [{ kind: 'file', name: 'a.zip' }, 'Sam shared a file with you', 'Add to my files'],
+    [{ kind: 'image', name: 'a.png' }, 'Sam shared an image with you', 'Add to my images'],
+  ] as [ShareItem, string, string][]) {
+    const { m } = offerKind(item);
+    const t = text(m.container);
+    assert.ok(t.includes(title), title);
+    assert.ok(t.includes(item.name), 'the item header');
+    assert.ok(byText(m.container, button), button);
+    assert.match(t, /Nothing downloads until you add it\. The offer goes away in 7 days\./);
+    m.unmount();
+  }
+});
+
+test('the offer card takes the primary label from the caller, and each button calls back', () => {
+  const { m, calls } = offerKind(space, { acceptLabel: 'Add Trip to Lisbon' });
+  assert.ok(byText(m.container, 'Add to my spaces') === undefined, 'control: the default label is replaced');
+  click(byText(m.container, 'Add Trip to Lisbon'));
+  click(byText(m.container, 'Not now'));
+  click(byText(m.container, 'Decline'));
+  click(byText(m.container, 'Report'));
+  assert.deepEqual(calls, ['accept', 'notnow', 'decline', 'report']);
+  const noLater = offerKind(space, { onNotNow: undefined });
+  assert.ok(byText(noLater.m.container, 'Not now') === undefined, 'no Not now without its callback');
+});
+
+test('shared list rows draw the glyph of their item kind and keep the one-line state', () => {
+  const { m } = list({
+    byYou: [
+      { id: 's', kind: 'person', itemKind: 'space', name: 'Trip to Lisbon', detail: 'Space, ann@example.com can edit' },
+      { id: 'p', kind: 'link', itemKind: 'playlist', name: 'Road trip songs', detail: 'Playlist, link opened 3 times, ends Nov 30' },
+      { id: 'g', kind: 'link', itemKind: 'page', name: 'Lisbon travel guide', detail: 'Page link, ends Nov 30' },
+      { id: 't', kind: 'link', itemKind: 'track', name: 'Alfama at night', detail: 'Track, link ended Nov 20', ended: true },
+      { id: 'f', kind: 'person', itemKind: 'file', person: 'Maya', name: 'tickets.zip', detail: 'File, 48 MB, sent to Maya' },
+      { id: 'x', kind: 'link', itemKind: 'recipe', name: 'Soup', detail: 'Recipe, link', icon: h('b', { 'data-custom': '' }) },
+    ],
+  });
+  for (const glyph of ['GridView', 'QueueMusic', 'WebAsset']) assert.ok(m.container.querySelector(`svg[data-testid="${glyph}Icon"]`), glyph);
+  assert.ok(m.container.querySelector('svg[data-testid="ErrorOutlineIcon"]'), 'the ended track draws the error glyph, not the track glyph');
+  assert.equal(m.container.querySelector('svg[data-testid="MusicNoteIcon"]'), null);
+  assert.ok(m.container.querySelector('[data-custom]'), 'a row icon replaces the kind glyph');
+  assert.match(text(m.container), /Page link, ends Nov 30/);
+  assert.match(text(m.container), /File, 48 MB, sent to Maya/);
+  assert.equal(m.container.querySelector('li:nth-child(5) [aria-hidden="true"]')?.textContent, 'M', 'a person row keeps the avatar');
 });

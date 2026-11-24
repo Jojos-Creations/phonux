@@ -70,7 +70,7 @@ export interface CaptureTrigger {
 }
 
 // @public
-export type CatalogName = keyof PanelSettings | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
+export type CatalogName = Exclude<keyof PanelSettings, 'edgeHold'> | `tuning.${Exclude<keyof WorkspaceTuning, 'shrinkOutOfView'>}`;
 
 // @public
 export const CHROME_ATTRIBUTE = "data-panel-chrome-part";
@@ -213,6 +213,7 @@ export function computeRowNumbers(i: {
     gap: number;
     fixedItemCount?: number;
     wholePanels?: boolean;
+    minScrollSlots?: number;
 }): RowNumbers;
 
 // @public
@@ -569,13 +570,16 @@ export function OfferCard(props: OfferCardProps): React_2.ReactElement;
 
 // @public
 export interface OfferCardProps {
+    acceptLabel?: string;
     expiresAt: number;
-    file: OfferFile;
+    file?: OfferFile;
     from: string;
+    item?: ShareItem;
     labels?: Partial<PhonuxLabels>;
     now?: number;
     onAccept: () => void;
     onDecline: () => void;
+    onNotNow?: () => void;
     onReport: () => void;
 }
 
@@ -709,6 +713,11 @@ export interface PanelDots {
         drag(dx: number): void;
         end(): void;
     } | null;
+    readonly sticky: readonly {
+        readonly id: string;
+        readonly side: 'start' | 'end';
+        readonly hollow: boolean;
+    }[];
     readonly width: number;
 }
 
@@ -1019,6 +1028,7 @@ export type PanelSettings = {
     headerButtons?: {
         [id: string]: HeaderButton | false;
     };
+    edgeHold?: 'off' | 'left' | 'right' | 'both';
 };
 
 // @public
@@ -1259,19 +1269,23 @@ export interface PhonuxLabels {
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
     newWorkspace: string;
-    offerAccept: string;
+    offerAccept: (kindPlural: string) => string;
     offerDecline: string;
     offerNote: (days: number) => string;
+    offerNotNow: string;
     offerReport: string;
-    offerTitle: (from: string) => string;
+    offerTitle: (from: string, kind: string) => string;
     offerTrusted: (from: string) => string;
     panelPosition: (title: string, place: number, total: number) => string;
     panelTitle: (id: string) => string;
     pickedUp: (title: string) => string;
     row: string;
+    shareAccessName: string;
     shareAddPerson: string;
     shareAddPersonHint: string;
     shareBack: string;
+    shareCanEdit: string;
+    shareCanView: string;
     shareChange: string;
     shareCopyLink: string;
     sharedByYou: string;
@@ -1286,10 +1300,20 @@ export interface PhonuxLabels {
     sharedTabsName: string;
     sharedWithYou: string;
     shareInPersonHint: string;
+    shareInvite: string;
+    shareInvitedNotJoined: string;
+    shareInviteField: string;
+    shareKind: (kind: string) => string;
+    shareKindPlural: (kind: string) => string;
     shareLinkEnds: (days: number | null, opens: number | null) => string;
+    shareLinkNote: string;
+    shareMemberMore: (name: string) => string;
     shareMoreApps: string;
     shareOfferWaits: string;
+    shareOwner: string;
     sharePeopleHint: string;
+    sharePeopleHintEdit: string;
+    shareRemove: string;
     shareSend: string;
     shareSendTo: (name: string) => string;
     shareSent: string;
@@ -1298,6 +1322,8 @@ export interface PhonuxLabels {
     shareTabPeople: string;
     shareTabsName: string;
     shareTitle: string;
+    shareTrustedLine: string;
+    shareYou: string;
     sizeName: (slots: number) => string;
     trustAllow: string;
     trustCancel: string;
@@ -1396,6 +1422,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly maxLiveWidth: number;
     readonly rowNumbers: RowNumbers;
     readonly rowScroll: boolean;
+    readonly rowSegments: readonly RowSegment[];
     scrollTo(id: string, align?: ScrollAlign): boolean;
     setSlots(id: string, slots: number): void;
     readonly swapExitIds: ReadonlySet<string>;
@@ -1443,6 +1470,7 @@ export type ResolvedPanelSettings = {
     readonly headerButtons: {
         readonly [id: string]: HeaderButton;
     };
+    readonly edgeHold: 'off' | 'left' | 'right';
 };
 
 // @public
@@ -1471,6 +1499,7 @@ export type ResolvedWorkspaceTuning = {
     defaultExitTo: ExitTo;
     shrinkUnfocused: boolean;
     firstPressFocusOnly: boolean;
+    minScrollSlots: number;
 };
 
 // @public
@@ -1550,17 +1579,24 @@ export interface RowNumbers {
     stripStart: number;
     stripWidth: number;
     stripWindow: number;
-    stuck: readonly {
-        id: string;
-        left: number;
-        right: number;
-    }[];
     widths: readonly number[];
     windowWidth: number;
 }
 
 // @public
 export function rowPanelIdOf(target: EventTarget | null): string | null;
+
+// @public
+export type RowSegment = {
+    kind: 'sticky';
+    panelId: string;
+    slots: number;
+    side: 'start' | 'end';
+} | {
+    kind: 'scroll';
+    slots: number;
+    panelIds: readonly string[];
+};
 
 // @public
 export type ScrollAlign = 'into-view' | 'start' | 'center';
@@ -1638,7 +1674,8 @@ export type SettingValues = {
     maxInstances: number | 'unlimited';
     listed: boolean;
     startVisibility: 'live' | 'parked';
-    edgeHold: 'off' | 'left' | 'right' | 'both';
+    sticky: 'off' | 'start' | 'end';
+    stickyRank: number;
     scrollOnOpen: ScrollOnOpen;
     scrollOnMove: ScrollOnMove;
     toggleWhenClosed: 'ignore' | 'reopen';
@@ -1677,7 +1714,9 @@ export interface SharedListProps {
 export interface SharedRow {
     detail?: string;
     ended?: boolean;
+    icon?: React_2.ReactNode;
     id: string;
+    itemKind?: ShareKind;
     kind: 'link' | 'person';
     name: string;
     person?: string;
@@ -1693,9 +1732,30 @@ export interface ShareFile {
 }
 
 // @public
+export interface ShareItem {
+    editable?: boolean;
+    icon?: React_2.ReactNode;
+    kind: ShareKind;
+    name: string;
+    subtitle?: string;
+}
+
+// @public
+export type ShareKind = 'space' | 'playlist' | 'track' | 'page' | 'file' | (string & {});
+
+// @public
 export interface ShareLinkInfo {
     expiresAt?: number;
     maxOpens?: number;
+}
+
+// @public
+export interface ShareMember {
+    id: string;
+    joined?: boolean;
+    name: string;
+    role: 'owner' | ShareRole;
+    you?: boolean;
 }
 
 // @public
@@ -1705,20 +1765,28 @@ export interface SharePerson {
 }
 
 // @public
+export type ShareRole = 'edit' | 'view';
+
+// @public
 export function ShareSheet(props: ShareSheetProps): React_2.ReactElement;
 
 // @public
 export interface ShareSheetProps {
     defaultTab?: ShareTab;
-    file: ShareFile;
+    file?: ShareFile;
+    item?: ShareItem;
     labels?: Partial<PhonuxLabels>;
     link?: ShareLinkInfo;
+    members?: readonly ShareMember[];
     now?: number;
     onAddPerson?: () => void;
     onChangeLink?: () => void;
+    onChangeRole?: (id: string, role: ShareRole) => void;
     onClose?: () => void;
     onCopyLink: () => void;
+    onInvite?: (who: string, role: ShareRole) => void;
     onMoreApps?: () => void;
+    onRemove?: (id: string) => void;
     onSend: (id: string) => void;
     onTabChange?: (tab: ShareTab) => void;
     people: readonly SharePerson[];
@@ -2350,6 +2418,7 @@ export type WorkspaceTuning = {
     defaultExitTo?: ExitTo;
     shrinkUnfocused?: boolean;
     firstPressFocusOnly?: boolean;
+    minScrollSlots?: number;
 };
 
 // @public

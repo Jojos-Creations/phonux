@@ -402,23 +402,39 @@ rests within half the gap between the two stops around it. A row whose panels al
 
 ### The root leaves and is summoned
 
-### Edge holds
+### Sticky panels
 
-`edgeHold` ('off' by default, 'left', 'right' or 'both') keeps a panel in view while the row moves. Embla moves the strip by a
-transform on its container, so no slot can be a sticky element: a held slot is drawn against the strip instead. Every slot sits
-in a `PanelHold` host (`display: contents`) whether it is held or not, so a hold that starts or lets go never remounts the view.
+A sticky panel takes its slots out of the scrolling row and never moves. The row is read left to right as `[start group][scrolling row][end group]`:
+the sticky panels whose `sticky` is `'start'` in row order, the strip Embla moves, then the ones whose `sticky` is `'end'` in row order.
+`panels.rowSegments` gives the same reading as data: a `{ kind: 'sticky', panelId, slots, side }` segment per sticky panel, and one
+`{ kind: 'scroll', slots, panelIds }` segment for the scrolling row, which is left out only when it has no room and no panel.
 
-- `rowNumbers.ts` takes a left or right hold out of the strip (`held`, `leftInset`, `rightInset`, `stripWindow`); the hold applies
-  only while the row overflows. `PanelRow` sizes the Embla window to the whole slots of `stripWindow` and gives it the groups'
-  widths as margins, so the strip's stops are the window's own and no page rests cut. The window's clip reaches over the groups.
-- The host carries a left or right hold's x in the window (`data-hold-at`: the group ends one gap before the window, or starts
-  one gap after it), or a 'both' panel's insets from the window's edges (`data-hold-stick`, the 'both' panels stacked on that
-  edge included).
-- `drawHeldSlots` (`emblaRow.ts`) writes those slots' `translate` against where Embla draws the strip, with the row's draw pass
-  and on every frame the row moves (it runs at the top of `markAwaySlots`): a held slot at its x, a 'both' slot at its rest in
-  the strip clamped between its insets. `rowDraw.ts` leaves held slots to it.
-- A held or stuck slot is never marked `inert` and gets no chrome cut; a page a stuck panel covers whole is marked `inert`, as a
-  page past the window's edge is. The focus reveal and a press's reveal skip held and stuck slots: they are always in view.
+- `stickyPlanOf` (`rowNumbers.ts`) decides which sticky panels are in effect, in whole slots. The window holds `floor((window + gap) / (phone + gap))`
+  slots, the window being the container less one gap each side. A sticky panel takes as many slots as it is wide. The scrolling row keeps at least
+  `tuning.minScrollSlots` slots (default 1), and at least one while any panel is left in it. A panel that is sticky takes its slots whether or not the
+  row would overflow, so a row of five slots with one sticky panel is `[sticky | row of 4]`.
+- `stickyRank` is an integer, 0 by default, and the higher rank stays sticky longer. While the sticky panels and that minimum do not fit, the panel with
+  the lowest `stickyRank` goes back into the scrolling row and is drawn there at its own place; of equal rank, the later panel in the row gives up first. It is sticky again by itself when room returns, and its setting never changes.
+  A window of one slot has no sticky panels. With `minScrollSlots` 0 every slot may be sticky and the scrolling window has no width; as soon as a
+  panel is not sticky, the lowest-ranked sticky panel goes back so that panel has a one-slot row, and nothing is hidden.
+- Nothing about a sticky panel is drawn per frame. `PanelRow` renders `[start group][Embla window][end group]` as flex siblings, a group being a box as wide
+  as its panels with a gap between them and one gap before the strip. The strip's clip (`emblaCut`) reaches one gap past the window and so never over
+  a group. A sticky slot is therefore never `inert` (`markAwaySlots` reads only the window's slots), never cut, keeps the full phone height, and a row
+  scroll cannot move it. The numbers keep `held` (each sticky panel's group, width and offset in the group), `leftInset`, `rightInset` and `stripWindow`;
+  the Embla window is sized to the whole slots of `stripWindow`, and a strip that fits makes the window as wide as the strip, so a short row stays centered
+  as a whole.
+- A panel that turns sticky, or stops being sticky, is drawn again in the other place: the slot leaving and the one arriving take no time
+  (`HandoffContext`), and the view is mounted again with its `useViewState` state read back by its key.
+- A sticky panel is not draggable, and a drag does not cross it (a drag stops at a sticky neighbour). Tab reads the start group, the strip, then the
+  end group. Arrow keys and `stepRow` move the strip only, from anywhere in the row; with focus in a sticky panel they step the strip beside it, and
+  `focusEdgePanel` treats a sticky active panel as in view.
+- The dot bar has no dot for a sticky panel. `PanelDots.sticky` lists them by side for the app to draw as a small square at that end of the bar, and
+  `selectDot(id)` with one of their ids focuses the panel.
+- `edgeHold` is the deprecated name. A settings layer, a saved instance layer and a `configure` patch read `edgeHold: 'left'` as `sticky: 'start'` and
+  `'right'` as `'end'`; `'both'` (a panel that stuck when scrolled past) no longer exists and reads as `'off'`, all with a development warning. A
+  `sticky` in the same layer wins. A resolved value (`getSettings().value`) keeps a read-only `edgeHold` derived from `sticky` (`'start'` reads `'left'`,
+  `'end'` reads `'right'`, `'off'` reads `'off'`); it is not enumerable, so it is not part of the value's key set. It is removed before 0.2.0 final
+  (the alias policy).
 
 ### Scrolling to a panel
 
@@ -609,9 +625,8 @@ as any size change does.
 With `tuning.shrinkUnfocused` on, a panel wider than one phone is drawn one phone wide whenever it is not the panel in use.
 Two things rest it: another panel becoming active (a press or a focus inside it, the same moment `useActivePanel` changes),
 and a press outside every panel, which leaves none active and takes keyboard focus out of the row's panels (the panel rests in
-view). A press on the dot bar is not one of them. Moving the row rests nothing: a wide panel keeps its width and slides past a
-held panel, fading out across that panel's gap, and on the other side it runs on to the window's edge (`slotEdgesAt`), so a wide panel can rest part off screen until the next step. A row with a held panel draws every glide from the frame loop rather than the compositor,
-because the held panel and the cut follow `stripX()` there and a compositor glide runs ahead of them. A resting panel keeps the count it goes back to in `savedSlots`, which a view also reads on its `PanelSummary` (a size control shows `savedSlots ?? slots`), and the next press or focus inside it resizes it
+view). A press on the dot bar is not one of them. Moving the row rests nothing: a wide panel keeps its width and slides past the
+window's edge (a sticky panel sits outside the window, so nothing is drawn under it), so a wide panel can rest part off screen until the next step. A resting panel keeps the count it goes back to in `savedSlots`, which a view also reads on its `PanelSummary` (a size control shows `savedSlots ?? slots`), and the next press or focus inside it resizes it
 back (a press on a button or grab bar of its own header or footer does not: such a control acts on the panel as drawn), with the same capacity rule as `setSlots`, and centers it in the row as near as the ends allow. Any `setSlots` while it rests replaces that count. The workspace file
 saves the count it goes back to, never the resting one, so a reload never loses a chosen width, and a launch
 restores every wide panel at its saved width, resting none. The rest is a resize from
@@ -1636,8 +1651,8 @@ covers only what a panel author can use.
 
 Set by the reference app: `title`, `multiple`, `hostCreatable`, `restoreVisibility`, `startVisibility`,
 `showWhenClosed`, `placeOnAdd`, `listed`, `layer`, `slots`, `resizable`, `movable`,
-`crossable`, `closable`, `headerButtons`, `hollowDot`, `edgeHold`, `enterFrom` and `exitTo`. The second known consumer is not
-in this repository, so only these are proven in use.
+`crossable`, `closable`, `headerButtons`, `hollowDot`, `enterFrom` and `exitTo`. The second known consumer is not
+in this repository, so only these are proven in use. `sticky`, `stickyRank` and `tuning.minScrollSlots` are read by the row itself; no app sets them yet.
 
 Read by a verb or a view patch: `parkable`, `slots`, `maxSlots`, `movable`, `crossable`,
 `startVisibility`, `placeOnAdd`, `placeOnShow`, `scrollOnOpen`, `showWhenClosed`,
@@ -1785,7 +1800,8 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `maxInstances` | integer >= 1, unlimited (template scope) | unlimited | SCOPE (configureTemplate). Raising it or null: ok. Lowering below the instances that exist: instance-limit with the count; no instance is closed. Moot without multiple (a note). |
 | `listed` | true, false | derived: parkable | NOW. L, T, K, H: the panel appears in or leaves panelList at this commit; its slot and state do not change. false on a hidden panel whose hold the gesture cannot release leaves it showable by code only (note). |
 | `startVisibility` | live, parked | live | NEXT. Governs panels created after the commit; every existing panel keeps its state. C: used by the next open(). C1: parked on a fixed column is settings-conflict. |
-| `edgeHold` | off, left, right, both | off | NOW. L, T: a panel with `left` leaves the strip for the left edge (`right` for the right) at this commit, and the row re-prices; a `both` panel (one per row) leaves for the edge the scroll takes it past. It lets go at once when it cannot fit beside the others or the row does not scroll. K, H: stored, and read at the next render. Nothing scrolls at configure. |
+| `sticky` | off, start, end | off | NOW. L, T: the panel takes its slots at the start (`start`) or the end (`end`) of the row at this commit, and the row re-prices; `off` puts it back in the scrolling row. The window gives it back to the scrolling row on its own while the sticky panels and `tuning.minScrollSlots` do not all fit, lowest `stickyRank` first; the setting is not changed. K, H: stored, and read at the next render. Nothing scrolls at configure. `edgeHold` is the deprecated name. See "Sticky panels". |
+| `stickyRank` | integer | 0 | NOW. L, T: read at this commit, when the window next has to choose which sticky panel goes back into the scrolling row (the lowest rank first; of equal rank, the later one in the row). K, H: stored, and read at the next render. |
 | `scrollOnOpen` | into-view, start, center, none | into-view | NEXT. Read by the next open, show or click of this panel. L, T, K, H: stored. No scroll happens at configure. Use handle.scrollTo() to scroll now (its align defaults to this setting, 'into-view' when it is none). |
 | `scrollOnMove` | follow, none | follow | NEXT. Read by the next move, place, setSlots or resetLayout of this panel. L, T, K, H: stored. Nothing scrolls at configure. |
 | `toggleWhenClosed` | ignore, reopen | ignore | NEXT. Read by the next toggleVisibility() on a closed declared panel. C, U: the record's value is used by the next toggle. |
@@ -1821,6 +1837,7 @@ flip with a transition rule of its own) or SCOPE (a template-scope key).
 | `tuning.defaultExitTo` | auto, left, right, top, bottom, fade, shrink (workspace only) | shrink | NEXT (configureTuning only). Read at each panel's next park or close; an exit in progress keeps its style. |
 | `tuning.shrinkUnfocused` | boolean (workspace only) | false | NEXT (configureTuning only). Read at the next activation or row scroll; a panel already at one phone keeps the width it goes back to. See "Unfocused panels rest at one phone". |
 | `tuning.firstPressFocusOnly` | boolean (workspace only) | false | NEXT (configureTuning only). Read at the next press on a panel not in use. See "The first press can be made to only put a panel in use". |
+| `tuning.minScrollSlots` | integer of at least 0 (workspace only) | 1 | NOW (configureTuning only). The fewest slots the scrolling row keeps beside the sticky panels; the next layout pass gives sticky panels back to the scrolling row until it has them. 0 lets every slot be sticky. See "Sticky panels". |
 <!-- catalog:end -->
 
 ## Panel boxes are reported, never drawn over
@@ -2016,7 +2033,7 @@ a hand-built `Host` give the same view result. `panels` is `Partial<PanelsInput>
 minus what the mount measures (`phoneWidth`, `containerWidth`, `overflowContainerRef`) and what the workspace supplies (`workspace`,
 `rootId`, `storage`, `templates`, `declared`, `workspaceDefaults`, `tuning`, `initialEntries`) and `labels`, which is its own
 option, so there is no member list to keep in step with the hook. `topInset` is an option (the `Workspace` top padding), not a
-tuning leaf: the catalog holds 22 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
+tuning leaf: the catalog holds 23 tuning leaves, counted from `PANEL_SETTINGS_CATALOG`, and a test pins the number.
 
 **`wrap`.** A component, `ComponentType<{ children, workspace }>`, rendered inside `HostProvider` and around `Workspace`. A
 `CaptureRegistryProvider` and the app's own contexts go in it (the theme goes in the `theme` option), a hook in it may call `useHost()` and `workspace.update`, and
@@ -2316,7 +2333,7 @@ Level N means panel code written for phonux N.x. `PANEL_API` equals the package'
 | The slot context hooks a view calls (`usePanelTuning` and the rest) and `useViewState`, snapshots | Workspace tuning options and the theme |
 | Header button items, the chrome attribute and part names | The saved workspace format, which has its own `version` |
 | The template's own `settings` keys and `params` | Peer dependency ranges (React, MUI) |
-| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureQuietMs`, `resizeSettleSlides`, `rowGesture`, `fastScroll`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`, `firstPressFocusOnly`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
+| `useHost().panels` (`PanelsAPI`): the verbs a view calls and the summaries they return | The workspace-only tuning options (`rowGap`, `rowTop`, `phoneHeight`, `saveQuietMs`, `gestureQuietMs`, `resizeSettleSlides`, `rowGesture`, `fastScroll`, `initialScroll`, `maxLivePanels`, `chrome`, `phoneFit`, `phoneFitMin`, `phoneFitMax`, `dragToClose`, `slide`, `hopFraction`, `edgeScroll`, `defaultEnterFrom`, `defaultExitTo`, `shrinkUnfocused`, `firstPressFocusOnly`, `minScrollSlots`): a host sets them on the workspace, and a view only reads what `usePanelTuning` returns |
 | The frame components a view renders and their props: `PanelFrame`, `PanelHeader`, `PanelHeaderRow`, `PanelFooter`, `DragToClose`, `PanelSizeBox`, `WindowOverlay` | |
 | The view hooks: `usePanelStates`, `usePanelState`, `useWorkspace`, `useWorkspaceManager`, `useActivePanel`, `usePhoneSize` | |
 
@@ -3401,3 +3418,13 @@ What this costs: a slow scroll that stops just past a stop now glides back to it
 Not covered: a real wheel and a real trackpad (headless takes synthetic wheels only; feel is Joe's to judge), Safari (where
 wheel-gestures guesses momentum from deceleration: a slowing free-spinning wheel read as momentum would end its gesture after
 150 ms), Windows, and the gap a real finger reposition takes.
+
+## One share view: the item decides, the host holds the state
+
+`ShareSheet`, `OfferCard` and `SharedList` take a `ShareItem` rather than a file, so a space, playlist, track, page or file is one
+sheet. Whether others can edit it is a property of the item (`editable`, defaulting to true for `space` and `playlist`), and it
+decides three things: the tab the sheet opens on (People when editable, Link otherwise), the Can edit and Can view choice, and the
+role entries in a person's menu. The sheet holds no list of people and no role: the host passes `members` and `people` and hears
+`onInvite`, `onChangeRole`, `onRemove` and `onSend`, so a change shows only when the host passes the new list. A kind the library
+does not know is drawn with the file glyph and its own word through `PhonuxLabels.shareKind`, and cannot be edited unless the item
+says so. The older `file` and `OfferFile` props stay, read as an item of kind `file`.
