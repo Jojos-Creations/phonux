@@ -524,8 +524,9 @@ const WHERE = `(() => {
  * element with a tab index of its cell that is neither inert nor a sentinel, then the divider after that space. Inside a cell they go
  * as the cell holds them, but the panels of its row left to right as they are drawn, which a reorder makes unlike the DOM's order.
  */
-const STOPS = `(() => {
+const stopsScript = (numbered: boolean): string => `(() => {
   const out = [];
+  const tag = (el) => (${numbered} ? '#' + window.__number(el) : '');
   const shown = window.__s.shown();
   shown.forEach((s, k) => {
     const cell = document.querySelector('[data-workspace-cell][data-workspace-id="' + s.id + '"]');
@@ -536,14 +537,15 @@ const STOPS = `(() => {
       const slot = el.closest('[data-row-slot]');
       inRow = inRow || slot !== null;
       const x = slot !== null ? slot.getBoundingClientRect().left : inRow ? Infinity : -Infinity;
-      found.push({ x, at: found.length, name: s.id + ':' + (el.tagName === 'IFRAME' ? 'frame>inner' : el.getAttribute('data-tab') ?? el.getAttribute('data-workspace-neighbour') ?? el.tagName) });
+      found.push({ x, at: found.length, name: s.id + ':' + (el.tagName === 'IFRAME' ? 'frame>inner' : el.getAttribute('data-tab') ?? el.getAttribute('data-workspace-neighbour') ?? el.tagName) + tag(el) });
     }
     found.sort((a, b) => (a.x === b.x ? a.at - b.at : a.x < b.x ? -1 : 1));
     out.push(...found.map((f) => f.name));
-    if (k < shown.length - 1) out.push('div' + k);
+    if (k < shown.length - 1) out.push('div' + k + tag(document.querySelector('[data-column-divider="' + k + '"]')));
   });
   return out;
 })()`;
+const STOPS = stopsScript(false);
 
 /** A button in every panel of every cell, the ones the row keeps out of sight too; answers how many of them sit in an inert slot of a shown cell. */
 const PLANT_BUTTONS = `(() => {
@@ -1240,4 +1242,199 @@ for (const [what, html] of Object.entries(INNER_STOPS)) {
       });
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// No walk is a loop
+// ---------------------------------------------------------------------------
+// A walk that names its stops by what they are cannot tell one page's buttons from the next page's, and a loop between two pages reads
+// as a walk. So every element focus rests on is numbered, and a walk from outside the page must come out of it again without resting
+// on any element twice.
+
+/** Numbers every element it is asked about, the same element always the same. */
+const NUMBER = `(() => {
+  const numbers = new Map();
+  window.__number = (el) => {
+    if (!numbers.has(el)) numbers.set(el, numbers.size);
+    return numbers.get(el);
+  };
+})()`;
+const WHERE_NUMBERED = `(() => { const at = ${WHERE}; return at === 'BODY' ? at : at + '#' + window.__number(document.activeElement); })()`;
+const isColumnEnd = (stop: string): boolean => /:column-(start|end)#/.test(stop);
+/** A walk as the stops it made: without the rests on the column's ends and on a row's own sentinels, and a frame as one stop. */
+const asStops = (walk: string[]): string[] => frameAsOne(walk.filter((x) => !isColumnEnd(x) && !/:row-(start|end)#/.test(x)).map((x) => x.replace(/:frame>.*#/, ':frame>#')));
+
+/** A frame holding one button as the last thing in the panel drawn last of each shown space, which a reorder makes other than its last in the DOM. */
+const PLANT_FRAMES_LAST_DRAWN = `(async () => {
+  const loaded = [];
+  for (const s of window.__s.shown()) {
+    const cell = document.querySelector('[data-workspace-cell][data-workspace-id="' + s.id + '"]');
+    const slots = [...cell.querySelectorAll('[data-row-slot]')].filter((x) => x.closest('[inert]') === null).sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+    const f = document.createElement('iframe');
+    f.srcdoc = '<button id="inner">inner</button>';
+    f.style.cssText = 'width:100px;height:40px';
+    loaded.push(new Promise((r) => f.addEventListener('load', r)));
+    slots[slots.length - 1].querySelector('[data-box]').appendChild(f);
+  }
+  await Promise.all(loaded);
+  return loaded.length;
+})()`;
+
+/**
+ * Presses Tab from outside the page until focus has left the page again, and answers every element it rested on. Fails on an element
+ * rested on twice, and when `most` presses have not left the page. Leaving is the body holding focus, or focus coming in with no
+ * element it came from (the browser went out and straight back in).
+ * The walk starts where a button at the page's start (Shift+Tab: end) was focused and then removed: the page then holds no focus,
+ * and the browser's next step starts from that place, as it does coming in from its own interface.
+ */
+async function walkOut(page: Page, most: number, shift = false): Promise<string[]> {
+  await page.evaluate((atEnd: boolean) => {
+    const from = document.createElement('button');
+    if (atEnd) document.body.append(from);
+    else document.body.prepend(from);
+    from.focus();
+    from.remove();
+  }, shift);
+  assert.equal(await page.evaluate(WHERE), 'BODY');
+  await page.evaluate('window.__entered.splice(0)');
+  const seen: string[] = [];
+  for (let k = 0; k < most; k += 1) {
+    await page.keyboard.press(shift ? 'Shift+Tab' : 'Tab');
+    await sleep(60);
+    const now: string = await page.evaluate(WHERE_NUMBERED);
+    const entered: number = await page.evaluate('window.__entered.splice(0).length');
+    // A step out of a frame has no source either, and stays in the page.
+    if (now === 'BODY' || (seen.length > 0 && entered > 0 && !seen[seen.length - 1]!.includes(':frame>'))) return seen;
+    // Inside a frame the presses are the frame's own, and the row sends the first step out of one back into it: a frame is one stop
+    // however many presses it holds focus, as long as focus does not come back to it from elsewhere.
+    const frame = (x: string): string => x.replace(/:frame>.*#/, ':frame>#');
+    const stillInFrame = now.includes(':frame>') && seen.length > 0 && frame(seen[seen.length - 1]!) === frame(now);
+    assert.ok(stillInFrame || !seen.map(frame).includes(frame(now)), `${shift ? 'Shift+Tab' : 'Tab'} came back to ${now} without leaving the page: ${[...seen, now].join(' ')}`);
+    seen.push(now);
+  }
+  assert.fail(`${most} presses of ${shift ? 'Shift+Tab' : 'Tab'} never left the page: ${seen.join(' ')}`);
+}
+
+/**
+ * Both walks through the page as it stands, Tab and Shift+Tab: each passes every stop once in screen order and leaves the page. The
+ * column's own start and end may be rested on only where the screen and the DOM disagree at that end. Answers how many stops there are.
+ */
+async function walkedBothWays(page: Page): Promise<number> {
+  const stops: string[] = await page.evaluate(stopsScript(true));
+  const ends = (await withEnds(page, [])).map((x) => x.slice(2));
+  for (const shift of [false, true]) {
+    const walk = await walkOut(page, 3 * stops.length + 6, shift);
+    assert.deepEqual(asStops(walk), shift ? [...asStops(stops)].reverse() : asStops(stops), `${shift ? 'Shift+Tab' : 'Tab'} walks the stops in screen order: ${walk.join(' ')}`);
+    for (const rest of walk.filter(isColumnEnd)) assert.ok(ends.some((end) => rest.includes(`:${end}#`)), `${rest} is rested on where the two orders agree: ${walk.join(' ')}`);
+  }
+  return stops.length;
+}
+
+/** Whether some shown space's row draws its panels in an order its DOM does not have. */
+const rowsReordered = (page: Page): Promise<boolean> =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-workspace-cell]:not([inert])')].some((cell) => {
+      const lefts = [...cell.querySelectorAll<HTMLElement>('[data-row-slot]')].filter((x) => x.closest('[inert]') === cell || x.closest('[inert]') === null).map((x) => x.getBoundingClientRect().left);
+      return lefts.some((x, k) => k > 0 && x < lefts[k - 1]!);
+    }),
+  );
+
+test('Tab and Shift+Tab leave a column of three one-slot spaces whose rows were reordered, drawn as listed with nothing else on the page: no press comes back to a stop', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&bands=none&slots=1,1,1', async (page) => {
+    await until(page, 'c.showSide(ws[1])');
+    await sleep(700);
+    assert.deepEqual(await page.evaluate(() => (window as any).__s.reorder()), [true, true, true]);
+    await sleep(900);
+    assert.equal(await rowsReordered(page), true);
+    assert.deepEqual(await withEnds(page, []), [], 'drawn as listed, so neither end of the column is a stop');
+    await page.evaluate(NUMBER);
+    await page.evaluate(WATCH_ENTRY);
+    assert.ok((await walkedBothWays(page)) >= 9, 'two spaces of two pages, two controls a page, and the divider');
+  });
+});
+
+type Arrangement = { spaces: 1 | 2 | 3; order: Order };
+const ARRANGEMENTS: Arrangement[] = [
+  { spaces: 1, order: 'list' },
+  { spaces: 1, order: 'stepped' },
+  ...(['list', 'stepped', 'placed-first'] as const).flatMap((order) => ([2, 3] as const).map((spaces) => ({ spaces, order }))),
+];
+
+/** Shows `spaces` spaces in the screen order asked for; answers the ids left to right. */
+async function arrange(page: Page, { spaces, order }: Arrangement): Promise<string[]> {
+  if (spaces >= 2) await until(page, order === 'placed-first' && spaces === 2 ? 'c.showSide(ws[1], { at: 0 })' : 'c.showSide(ws[1])');
+  if (spaces === 3) await until(page, `c.showSide(ws[2], { at: ${order === 'placed-first' ? 0 : 2} })`);
+  await sleep(700);
+  if (order === 'stepped') {
+    assert.equal(await call(page, 'c.step("down")'), true);
+    await sleep(900);
+  }
+  const ids = (await shown(page)).map((s) => s.id);
+  assert.equal(ids.length, spaces);
+  return ids;
+}
+
+for (const arrangement of ARRANGEMENTS) {
+  for (const reorder of [false, true]) {
+    for (const bands of ['&bands=none', '']) {
+      const { spaces, order } = arrangement;
+      test(`no Tab loop: ${spaces} space${spaces === 1 ? '' : 's'}, ${order} order, rows ${reorder ? 'reordered' : 'as opened'}, ${bands === '' ? 'buttons in the bands' : 'nothing in the bands'}: Tab and Shift+Tab pass every stop once and leave the page`, async (t) => {
+        if (!(await ready(t))) return;
+        await onPage(spaces === 3 ? 3800 : 2560, `n=4&slots=1,1${bands}`, async (page) => {
+          const ids = await arrange(page, arrangement);
+          if (reorder) {
+            assert.deepEqual(await page.evaluate(() => (window as any).__s.reorder()), [true, true, true, true]);
+            await sleep(900);
+          }
+          assert.equal(await rowsReordered(page), reorder);
+          const ends = await withEnds(page, []);
+          assert.equal(ends.length, spaces === 1 || order === 'list' ? 0 : 2, `the screen and the DOM disagree at both ends only when drawn out of list order: ${ids.join(' ')}`);
+          await page.evaluate(NUMBER);
+          await page.evaluate(WATCH_ENTRY);
+          // The library's own controls alone, then a button in every panel as well, which gives the root panel a stop.
+          const inSight: number = await page.evaluate(() => [...document.querySelectorAll('[data-workspace-cell]:not([inert]) [data-row-slot]')].filter((x) => x.closest('[inert]') === null).length);
+          assert.ok(inSight >= spaces * 3 - 1, `at most one panel of the three a space has is out of sight: ${inSight}, ${named(await shown(page))}`);
+          const own = await walkedBothWays(page);
+          assert.ok(own >= (inSight - spaces) * 2 + (spaces - 1), `every page in sight has its two controls and every divider is a stop: ${own}`);
+          await page.evaluate(PLANT_BUTTONS);
+          assert.equal(await walkedBothWays(page), own + inSight, 'and one more stop for every panel in sight');
+          // A Tab pressed inside a frame is not the page's to hear: the row acts only once the browser's step has come out of it.
+          assert.equal(await page.evaluate(PLANT_FRAMES_LAST_DRAWN), spaces);
+          await sleep(300);
+          assert.equal(await walkedBothWays(page), own + inSight + spaces, 'and a frame at the end of every space');
+        });
+      });
+    }
+  }
+}
+
+for (const side of ['', '&side=0']) {
+  test(`a modal dialog in a space's first page${side === '' ? ', two spaces side by side' : ', one space'}: Tab on the dialog's last button is not held there by a hand-over to a page the dialog makes inert`, async (t) => {
+    if (!(await ready(t))) return;
+    await onPage(2560, `n=3&bands=none&slots=1,1,1${side}`, async (page) => {
+      if (side === '') {
+        await until(page, 'c.showSide(ws[1])');
+        await sleep(700);
+      }
+      await page.evaluate(PLANT_BUTTONS);
+      const refused: boolean = await page.evaluate(() => {
+        const live = [...document.querySelectorAll<HTMLElement>('[data-workspace-id="w1"] [data-row-slot]')].filter((s) => s.closest('[inert]') === null);
+        const box = live[0]!.querySelector('[data-box]')!;
+        box.insertAdjacentHTML('beforeend', '<dialog><button data-tab="m1">m1</button><button data-tab="m2">m2</button></dialog>');
+        box.querySelector('dialog')!.showModal();
+        // The page beside it is drawn and reads as a tab stop, and refuses focus all the same.
+        const beside = live[1]!.querySelector<HTMLElement>('[data-tab]')!;
+        beside.focus();
+        box.querySelector<HTMLElement>('[data-tab="m2"]')!.focus();
+        return beside.checkVisibility() && document.activeElement !== beside;
+      });
+      assert.equal(refused, true, 'the next page on screen refuses focus while the dialog is open');
+      assert.equal(await page.evaluate(WHERE), 'w1:m2');
+      const walk = await tabWalk(page, 4);
+      assert.ok(walk.every((x) => x === 'w1:m1' || x === 'w1:m2' || x === 'BODY'), `focus stays with the dialog or goes to the browser: ${walk.join(' ')}`);
+      assert.notEqual(walk[0], 'w1:m2', `the first press moves focus off the last button: ${walk.join(' ')}`);
+      assert.ok(walk.includes('w1:m1'), `and the walk comes round to the dialog's first button: ${walk.join(' ')}`);
+    });
+  });
 }

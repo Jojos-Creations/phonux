@@ -39,6 +39,9 @@
   (`tabindex="-1"`). DESIGN.md "Side by side" has the rules and what the row still chooses by itself.
   A panel row's Tab hand-over cancels the key only when its target took focus, in a column or out of one, so a row whose next element
   is inert under a modal dialog no longer holds the person on the dialog's last button.
+  A row whose panels were reordered, with nothing tabbable after it in the page, no longer keeps Tab (and Shift+Tab) going round
+  between two panels, side by side or in a row alone: from the last panel on screen focus is parked on the row's last element in the
+  DOM, and the browser's step leaves the page from there.
   A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
   labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell

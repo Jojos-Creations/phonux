@@ -85,7 +85,9 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
   if (slot === null || !row.contains(slot)) return;
   const back = event.shiftKey;
   const own = tabbablesOf(slot);
-  if (own[back ? 0 : own.length - 1] !== target) return;
+  // Focus rests on a panel's far sentinel when the step out of a frame found nowhere to go on to: this press leaves the row from it.
+  const rested = (target as HTMLElement).dataset.rowSentinel === (back ? 'start' : 'end');
+  if (own[back ? 0 : own.length - 1] !== target && !rested) return;
   if (readingIds.indexOf(slot.dataset.rowId ?? '') < 0) return;
   if (handOver(slot, row, readingIds, back)) {
     event.preventDefault();
@@ -102,7 +104,14 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
     const live = slots.filter((s) => s.closest('[inert]') === null);
     if (live[back ? 0 : live.length - 1] === slot && inSplitColumn(row)) return;
     const beyond = elementBeyond(row, back);
-    if (beyond === undefined) return;
+    if (beyond === undefined) {
+      // Nothing lies beyond the row, so the step from the row's last stop in the DOM leaves the page: focus is parked there. A row
+      // sentinel counts, as it follows the frame it guards.
+      const all = [...row.querySelectorAll<HTMLElement>(TABBABLE)].filter(usable);
+      const leave = all[back ? 0 : all.length - 1];
+      if (leave !== undefined && leave !== target) park(leave);
+      return;
+    }
     // A column's sentinel ends the cell this row is in, and only the column knows which cell is drawn next: the step stays pending for it.
     if (beyond.hasAttribute('data-column-sentinel')) return void park(beyond);
     beyond.focus();

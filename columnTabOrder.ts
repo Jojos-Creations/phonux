@@ -14,12 +14,11 @@ const isDivider = (stop: HTMLElement): boolean => stop.getAttribute('role') === 
 const sentinelOf = (scope: HTMLElement, kind: string): HTMLElement | null => scope.querySelector<HTMLElement>(`:scope > [${COLUMN_SENTINEL}="${kind}"]`);
 
 /**
- * Moves on from stop `at` to the one beside it on screen; true when focus is on it and the key is done with. A divider takes focus
- * itself. A cell, and the page past the last stop, is entered by the browser: with its step still `pending`, focus is parked on the
- * cell's near end (the column's end) and the step carries on from there. With the step already spent focus rests on that end, and
- * the next press is the browser's.
+ * Moves on from stop `at` to the one beside it on screen; true when a divider took focus and the key is done with. A cell, and the
+ * page past the last stop, is entered by the browser: focus goes to the cell's near end (the column's end), and the step still
+ * pending carries on from there. With the step already spent focus rests on that end, and the next press is the browser's.
  */
-function go(root: HTMLElement, stops: readonly HTMLElement[], at: number, back: boolean, pending: boolean): boolean {
+function go(root: HTMLElement, stops: readonly HTMLElement[], at: number, back: boolean): boolean {
   const next = stops[at + (back ? -1 : 1)];
   if (next !== undefined && isDivider(next)) {
     next.focus();
@@ -27,7 +26,7 @@ function go(root: HTMLElement, stops: readonly HTMLElement[], at: number, back: 
   }
   const edge = next === undefined ? sentinelOf(root, back ? 'start' : 'end') : sentinelOf(next, back ? 'cell-end' : 'cell-start');
   if (edge !== null) park(edge);
-  return edge !== null && !pending;
+  return false;
 }
 
 /** What `steerColumnTab` reads of a keydown, so React's event and the document's own both fit. @internal */
@@ -49,17 +48,17 @@ export function steerColumnTab(event: TabKey, root: HTMLElement, stops: readonly
   const kind = from.getAttribute(COLUMN_SENTINEL);
   let moved = false;
   if (kind === 'start' || kind === 'end') {
-    if ((kind === 'start') !== back) moved = go(root, stops, back ? stops.length : -1, back, true);
+    if ((kind === 'start') !== back) moved = go(root, stops, back ? stops.length : -1, back);
   } else if (kind !== null) {
     const at = stops.indexOf(from.parentElement as HTMLElement);
-    if (at >= 0 && (kind === 'cell-start') === back) moved = go(root, stops, at, back, true);
+    if (at >= 0 && (kind === 'cell-start') === back) moved = go(root, stops, at, back);
   } else {
     const at = stops.indexOf(from);
     if (at < 0) return;
     // The browser's forward step from a cell's own element starts before the cell's start: from that end it enters the cell.
     const near = back || isDivider(from) ? null : sentinelOf(from, 'cell-start');
     if (near !== null) park(near);
-    else moved = go(root, stops, at, back, true);
+    else moved = go(root, stops, at, back);
   }
   if (moved) event.preventDefault();
 }
@@ -74,5 +73,5 @@ export function steerColumnSentinel(event: React.FocusEvent<HTMLElement>, root: 
   const kind = sentinel.getAttribute(COLUMN_SENTINEL);
   if ((kind !== 'cell-start' && kind !== 'cell-end') || isParking()) return;
   const at = stops.indexOf(sentinel.parentElement as HTMLElement);
-  if (at >= 0) go(root, stops, at, kind === 'cell-start', false);
+  if (at >= 0) go(root, stops, at, kind === 'cell-start');
 }
