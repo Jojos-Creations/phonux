@@ -668,6 +668,8 @@ export function PanelRow({
       data-row-sticky={side}
       sx={{
         position: 'relative',
+        // Above the strip: a panel shrinking toward a sticky one passes behind it.
+        zIndex: 1,
         flexShrink: 0,
         height: rowHeight,
         width: groupWidth(slots),

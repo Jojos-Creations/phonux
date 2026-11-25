@@ -12,9 +12,10 @@ import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'em
 import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
+import { drawShrink, shrinkPose } from './rowShrink.js';
 import { wheelStale, wheelSteps, type WheelStepState } from './rowWheelSteps.js';
 import { keyBelongsToRow, registerRowKeys } from './rowStep.js';
-import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
+import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE, LIFTED_ATTRIBUTE, SIZE_BOX_ATTRIBUTE } from './rowDom.js';
 
 /** On the Workspace's row container, always 'embla'. Nothing in the library reads it. @internal */
 export const ROW_ENGINE_ATTRIBUTE = 'data-row-engine';
@@ -539,6 +540,12 @@ export function markAwaySlots(win: Element): number {
   const cuts: [HTMLElement, { left: number; right: number }][] = [];
   let sum = 0;
   let k = 0;
+  // Read with every other rect, written after: the window's own scale (a phone fit) is divided out of every measure.
+  const scale = win instanceof HTMLElement && win.offsetWidth > 0 && view.width > 0 ? view.width / win.offsetWidth : 1;
+  const embla = instances.get(win);
+  const shrinks = strip !== undefined && strip.stripWidth > strip.windowWidth + 0.5 && !maximizedIn(win);
+  const snap = embla !== undefined && reducedRows.has(embla);
+  const poses: [HTMLElement, number, number][] = [];
   const all = [...win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)];
   for (const slot of all) {
     const r = slot.getBoundingClientRect();
@@ -548,6 +555,17 @@ export function markAwaySlots(win: Element): number {
       const slots = Math.round((r.width + strip.gap) / strip.pitch);
       const follows = !lifted && slots >= 2 && slots <= strip.chromeFollowSlots;
       cuts.push([slot, follows ? chromeCutOf(r.left, r.width, view.left, view.right, strip.pitch - strip.gap) : NO_CUT]);
+    }
+    const inner = slot.querySelector<HTMLElement>(`:scope > [${SIZE_BOX_ATTRIBUTE}]`);
+    // A sticky panel is outside the window and never shrinks; a panel in a drag is where the person holds it.
+    if (inner !== null && strip !== undefined && win.contains(slot) && r.width > 0.5) {
+      // From the slot's own width and drawn center, so a slot scaled by its entrance reads as where it stands.
+      const width = slot.offsetWidth;
+      const oneSlot = Math.round((width + strip.gap) / strip.pitch) <= 1;
+      const pose = shrinks && !snap && oneSlot && !slot.hasAttribute(LIFTED_ATTRIBUTE)
+        ? shrinkPose({ left: (r.left + r.width / 2) / scale - width / 2, width, viewLeft: view.left / scale, viewRight: view.right / scale, pitch: strip.pitch, gap: strip.gap, stickyStart: strip.sticky.some((x) => x.side === 'start'), stickyEnd: strip.sticky.some((x) => x.side === 'end') })
+        : AT_REST;
+      poses.push([inner, pose.goal, pose.dx]);
     }
     const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
     if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
@@ -559,8 +577,16 @@ export function markAwaySlots(win: Element): number {
   }
   store?.retain(seen);
   for (const [slot, cut] of cuts) writeChromeCut(slot, cut);
+  const now = performance.now();
+  let trailing = false;
+  for (const [box, goal, dx] of poses) trailing = drawShrink(box, goal, dx, now, snap) || trailing;
+  if (trailing) trailingRows.add(win);
+  else trailingRows.delete(win);
   return sum;
 }
+const AT_REST = { goal: 1, dx: 0 } as const;
+/** Rows with a panel whose drawn size still trails its place. */
+const trailingRows = new WeakSet<Element>();
 const awayStores = new WeakMap<Element, AwayStore>();
 
 const NO_CUT = { left: 0, right: 0 } as const;
@@ -831,7 +857,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       const sum = markAwaySlots(win);
       awayIdle = Math.abs(sum - awayLast) > 0.01 ? 0 : awayIdle + 1;
       awayLast = sum;
-      if (awayIdle < AWAY_IDLE_FRAMES || performance.now() < awayUntil) awayFrame = requestAnimationFrame(awayTick);
+      if (awayIdle < AWAY_IDLE_FRAMES || trailingRows.has(win) || performance.now() < awayUntil) awayFrame = requestAnimationFrame(awayTick);
     };
     const kickAway = (): void => {
       awayIdle = 0;

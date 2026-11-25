@@ -220,12 +220,12 @@ test('a slow, uneven wheel: the row takes one step in one glide, never stalling 
     });
     const moved = seen[seen.length - 1]! - start;
     assert.ok(Math.abs(moved - 406) < 1, `the row ended ${moved}px along: one stop is 406px`);
-    const back = Math.max(0, ...seen.slice(1).map((v, k) => seen[k]! - v));
+    const back = Math.max(0, ...seen.slice(1).map((v: number, k: number) => seen[k]! - v));
     assert.ok(back < 1, `the row turned back ${back}px`);
     // Between leaving the start and nearing the stop every frame moves: a stall there is the jitter this guards.
-    const gliding = seen.filter((v) => v - start > 4 && v - start < 390);
+    const gliding = seen.filter((v: number) => v - start > 4 && v - start < 390);
     assert.ok(gliding.length > 5, `only ${gliding.length} frames of the glide were read`);
-    const still = gliding.slice(1).filter((v, k) => Math.abs(v - gliding[k]!) < 0.05).length;
+    const still = gliding.slice(1).filter((v: number, k: number) => Math.abs(v - gliding[k]!) < 0.05).length;
     assert.ok(still <= 2, `${still} of ${gliding.length} glide frames stood still`);
   } finally {
     await page.close();
