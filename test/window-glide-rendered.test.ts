@@ -175,7 +175,14 @@ for (const [name, shape] of Object.entries(SHAPES)) {
     if (!(await ready(t))) return;
     const page = await open(shape.from, 4);
     try {
-      checkOneGlide(name, await drive(page, shape.steps));
+      const running = drive(page, shape.steps);
+      // WINDOW_GLIDE_SHOT=<dir>: a picture of the glide's middle, to look at the frames' rings and corners as they move.
+      const shots = process.env.WINDOW_GLIDE_SHOT;
+      if (shots !== undefined) {
+        await page.waitForTimeout(Math.max(shape.steps.at(-1)![0] + 200, 700) + 330);
+        await page.screenshot({ path: join(shots, `${name}-mid.png`) });
+      }
+      checkOneGlide(name, await running);
     } finally {
       await page.close();
     }
