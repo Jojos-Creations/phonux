@@ -102,6 +102,8 @@
   panel that caused it. It used to jump half a slot in one frame while only the arriving or leaving panel moved, so the root
   panel visibly snapped; the same jump landed when a window resize settled on a new phone size. A narrowing row's clip
   glides with it, so a panel sliding into a closed one's place is never cut on the way.
+- In a side by side column, a row moves with its cell at once when the cell is placed again (a split change, a space shown or
+  hidden, a resize) instead of gliding across the cell from where the cell used to be.
 - On a reload the row stays hidden until the restore settles, so the root panel no longer shows alone in the middle and then
   jumps aside when the restored panels land. If the restore has not settled after a second, the row shows
   what it has, in place, rather than staying blank.

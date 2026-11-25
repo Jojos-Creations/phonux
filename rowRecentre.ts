@@ -5,8 +5,9 @@
  */
 import type { SlideTuning } from './panelSettings.js';
 import { sharedStartTime } from './rowClock.js';
+import { ROW_SCROLLER_ATTRIBUTE } from './rowDom.js';
 
-/** What a commit drew: the row root's left with no glide applied, the Embla window's width, and the room the row had. @internal */
+/** What a commit drew: the row root's left in its scroller with no glide applied, the Embla window's width, and the room the row had. @internal */
 export interface RowPlace {
   left: number;
   windowWidth: number;
@@ -39,7 +40,9 @@ export function rowClip(windowWidth: number, gap: number): string {
 export function recentreRow(root: HTMLElement, win: HTMLElement | null, last: RowPlace | null, now: { windowWidth: number; room: number }, gap: number, slide: SlideTuning, still: boolean): RowPlace {
   const view = root.ownerDocument.defaultView;
   const drawnShift = view === null ? 0 : translateXOf(view.getComputedStyle(root).translate);
-  const left = root.getBoundingClientRect().left - drawnShift;
+  // Measured in the row's scroller, so a scroller that moves (a side by side cell placed again) carries the row with it at once.
+  const scroller = root.closest(`[${ROW_SCROLLER_ATTRIBUTE}]`);
+  const left = root.getBoundingClientRect().left - drawnShift - (scroller === null ? 0 : scroller.getBoundingClientRect().left);
   const place = { left, windowWidth: now.windowWidth, room: now.room };
   if (last === null || still || Math.abs(last.room - now.room) > 0.5 || typeof root.animate !== 'function') return place;
   const durationMs = slide.durationSec * 1000;

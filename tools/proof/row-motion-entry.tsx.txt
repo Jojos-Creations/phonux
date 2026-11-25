@@ -48,10 +48,13 @@ const handles: Record<string, any> = {};
 for (const id of ids.slice(0, START)) handles[id] = ws.addPanel(id);
 
 let latest: any;
+let moveRow: (px: number) => void = () => {};
 function App() {
   const ref = React.useRef<HTMLDivElement>(null);
   const rowRef = React.useRef<HTMLDivElement>(null);
   const [w, setW] = React.useState(0);
+  const [moveBy, setMoveBy] = React.useState(0);
+  moveRow = setMoveBy;
   React.useLayoutEffect(() => {
     const el = ref.current!;
     const ro = new ResizeObserver(() => setW(el.clientWidth));
@@ -64,7 +67,7 @@ function App() {
   const host = createFakeHost({ panels: p });
   return (
     <HostProvider host={host}>
-      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', left: moveBy }}>
         <Workspace overflowContainerRef={ref} rowRef={rowRef} containerWidth={w} rowResizeSettled phoneWidth={PHONE} fixedColumnCount={p.fixedViewCount} liveWidths={p.liveWidths} rowScroll={p.rowScroll} rowNumbers={p.rowNumbers} workspace={ws}>
           <PanelRow entries={p.entries} rootId={ws.rootId} closingIds={p.closingIds} enteringViaAnchorIds={p.enteringViaAnchorIds} exitRightIds={p.exitRightIds} swapExitIds={p.swapExitIds} enterSideById={p.enterSideById} rowNumbers={p.rowNumbers} maxLiveWidth={p.maxLiveWidth} workspace={ws} />
         </Workspace>
@@ -98,6 +101,8 @@ const rectOf = (el: Element) => {
   segments: () => latest.rowSegments.map((g: any) => (g.kind === 'sticky' ? { ...g, panelId: nameOf(g.panelId) } : { ...g, panelIds: g.panelIds.map(nameOf) })),
   add: (id: string) => { handles[id] = ws.addPanel(id); },
   close: (id: string) => handles[id].close('person'),
+  /** Moves the whole workspace sideways by `px` without changing its width, as a side by side cell placed again does. */
+  move: (px: number) => moveRow(px),
   mounts: () => (window as any).__mounts ?? {},
   configure: (key: string, patch: Record<string, unknown>) => ws.panels.configure(key, patch as any),
   /** Samples `read()` on every animation frame for `ms`, then resolves with the samples. */
