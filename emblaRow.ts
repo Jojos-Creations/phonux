@@ -12,7 +12,7 @@ import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'em
 import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { drawShrink, shrinkPose } from './rowShrink.js';
+import { drawShrink, shrinkGoal } from './rowShrink.js';
 import { wheelStale, wheelSteps, type WheelStepState } from './rowWheelSteps.js';
 import { keyBelongsToRow, registerRowKeys } from './rowStep.js';
 import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE, LIFTED_ATTRIBUTE, SIZE_BOX_ATTRIBUTE } from './rowDom.js';
@@ -545,7 +545,8 @@ export function markAwaySlots(win: Element): number {
   const embla = instances.get(win);
   const shrinks = strip !== undefined && strip.stripWidth > strip.windowWidth + 0.5 && !maximizedIn(win);
   const snap = embla !== undefined && reducedRows.has(embla);
-  const poses: [HTMLElement, number, number][] = [];
+  const poses: [HTMLElement, number][] = [];
+  const trims: [HTMLElement, string][] = [];
   const all = [...win.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}]`)];
   for (const slot of all) {
     const r = slot.getBoundingClientRect();
@@ -562,10 +563,14 @@ export function markAwaySlots(win: Element): number {
       // From the slot's own width and drawn center, so a slot scaled by its entrance reads as where it stands.
       const width = slot.offsetWidth;
       const oneSlot = Math.round((width + strip.gap) / strip.pitch) <= 1;
-      const pose = shrinks && !snap && oneSlot && !slot.hasAttribute(LIFTED_ATTRIBUTE)
-        ? shrinkPose({ left: (r.left + r.width / 2) / scale - width / 2, width, viewLeft: view.left / scale, viewRight: view.right / scale, pitch: strip.pitch, gap: strip.gap, stickyStart: strip.sticky.some((x) => x.side === 'start'), stickyEnd: strip.sticky.some((x) => x.side === 'end') })
-        : AT_REST;
-      poses.push([inner, pose.goal, pose.dx]);
+      const left = (r.left + r.width / 2) / scale - width / 2;
+      const lifted = slot.hasAttribute(LIFTED_ATTRIBUTE);
+      // Reduce Motion keeps the goal, so a panel past an edge is gone at once.
+      const goal = shrinks && oneSlot && !lifted ? shrinkGoal({ left, width, viewLeft: view.left / scale, viewRight: view.right / scale, pitch: strip.pitch }) : 1;
+      // A wide panel does not shrink, so it is still trimmed one gap past each edge, inside the window's wider cut.
+      const trim = shrinks && !oneSlot && !lifted ? wideTrim(left, width, view.left / scale - strip.gap, view.right / scale + strip.gap) : '';
+      poses.push([inner, goal]);
+      if (inner.style.clipPath !== trim) trims.push([inner, trim]);
     }
     const away = r.width > 0.5 && (r.right <= view.left + 0.5 || r.left >= view.right - 0.5);
     if (slot.hasAttribute('inert') !== away) slot.toggleAttribute('inert', away);
@@ -579,12 +584,18 @@ export function markAwaySlots(win: Element): number {
   for (const [slot, cut] of cuts) writeChromeCut(slot, cut);
   const now = performance.now();
   let trailing = false;
-  for (const [box, goal, dx] of poses) trailing = drawShrink(box, goal, dx, now, snap) || trailing;
+  for (const [box, goal] of poses) trailing = drawShrink(box, goal, now, snap) || trailing;
+  for (const [box, trim] of trims) box.style.clipPath = trim;
   if (trailing) trailingRows.add(win);
   else trailingRows.delete(win);
   return sum;
 }
-const AT_REST = { goal: 1, dx: 0 } as const;
+/** The clip that trims a box at `left` `width` wide to `min`..`max`; empty when it lies inside them. */
+function wideTrim(left: number, width: number, min: number, max: number): string {
+  const a = Math.max(0, min - left);
+  const b = Math.max(0, left + width - max);
+  return a <= 0.5 && b <= 0.5 ? '' : `inset(-100000px ${Math.round(b * 100) / 100}px -100000px ${Math.round(a * 100) / 100}px)`;
+}
 /** Rows with a panel whose drawn size still trails its place. */
 const trailingRows = new WeakSet<Element>();
 const awayStores = new WeakMap<Element, AwayStore>();

@@ -41,7 +41,7 @@ export function rowClip(windowWidth: number, gap: number): string {
  * room (a window step, which lands at once) and Reduce Motion move nothing.
  * @internal
  */
-export function recentreRow(root: HTMLElement, win: HTMLElement | null, last: RowPlace | null, now: { windowWidth: number; room: number }, gap: number, slide: SlideTuning, still: boolean): RowPlace {
+export function recentreRow(root: HTMLElement, win: HTMLElement | null, last: RowPlace | null, now: { windowWidth: number; room: number }, reach: number, slide: SlideTuning, still: boolean): RowPlace {
   const view = root.ownerDocument.defaultView;
   const drawnShift = view === null ? 0 : translateXOf(view.getComputedStyle(root).translate);
   // Measured in the row's scroller, so a scroller that moves (a side by side cell placed again) carries the row with it at once.
@@ -65,10 +65,10 @@ export function recentreRow(root: HTMLElement, win: HTMLElement | null, last: Ro
   if (win !== null && view !== null) {
     // The commit has already written the new clip; only a glide still running draws another.
     const clipGliding = win.getAnimations().some((a) => a.playState === 'running' && (a.effect as KeyframeEffect | null)?.getKeyframes().some((k) => 'clipPath' in k));
-    const drawnRight = (clipGliding ? clipRightOf(view.getComputedStyle(win).clipPath) : null) ?? last.windowWidth + gap;
-    const right = now.windowWidth + gap;
+    const drawnRight = (clipGliding ? clipRightOf(view.getComputedStyle(win).clipPath) : null) ?? last.windowWidth + reach;
+    const right = now.windowWidth + reach;
     if (drawnRight > right + 0.5) {
-      const anim = win.animate([{ clipPath: rowClip(drawnRight - gap, gap) }, { clipPath: rowClip(now.windowWidth, gap) }], { duration: durationMs, easing, fill: 'backwards' });
+      const anim = win.animate([{ clipPath: rowClip(drawnRight - reach, reach) }, { clipPath: rowClip(now.windowWidth, reach) }], { duration: durationMs, easing, fill: 'backwards' });
       anim.startTime = start;
     }
   }

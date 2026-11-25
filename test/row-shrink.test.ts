@@ -1,44 +1,30 @@
-/** A one-slot panel leaving a scrolling row shrinks into the edge it leaves by. */
+/** A one-slot panel leaving a scrolling row shrinks into the middle of the next place beyond the edge. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SHRINK_LAG_MS, shrinkPose, shrinkStyle, trailSize } from '../rowShrink.js';
+import { SHRINK_LAG_MS, shrinkGoal, shrinkStyle, trailSize } from '../rowShrink.js';
 
 // Three 390 px slots, 16 px apart, in a window from 100 to 1302.
-const at = (left: number, sticky: { stickyStart?: boolean; stickyEnd?: boolean } = {}) =>
-  shrinkPose({ left, width: 390, viewLeft: 100, viewRight: 1302, pitch: 406, gap: 16, stickyStart: false, stickyEnd: false, ...sticky });
-/** The drawn box's edges when the size has caught up with its place. */
-const edges = (left: number, p: { goal: number; dx: number }) => {
-  const c = left + 195 + p.dx;
-  return [c - (390 * p.goal) / 2, c + (390 * p.goal) / 2] as const;
-};
+const at = (left: number) => shrinkGoal({ left, width: 390, viewLeft: 100, viewRight: 1302, pitch: 406 });
 
-test('a panel wholly in the window is its full size in its place', () => {
-  for (const left of [100, 300, 912]) assert.deepEqual(at(left), { goal: 1, dx: 0 });
+test('a panel wholly in the window is its full size', () => {
+  for (const left of [100, 300, 912]) assert.equal(at(left), 1);
 });
 
-test('leaving either side: it shrinks by how far it has gone and stays flush with the edge', () => {
+test('leaving either side: it shrinks by how far it has gone, and is gone a whole slot out', () => {
   for (const gone of [1, 100, 203, 300, 405]) {
-    const l = at(100 - gone);
-    assert.ok(Math.abs(l.goal - (1 - gone / 406)) < 1e-9, `left ${gone}`);
-    assert.ok(Math.abs(edges(100 - gone, l)[0] - 100) < 1e-9, `left edge at ${gone}`);
-    const r = at(912 + gone);
-    assert.ok(Math.abs(r.goal - (1 - gone / 406)) < 1e-9, `right ${gone}`);
-    assert.ok(Math.abs(edges(912 + gone, r)[1] - 1302) < 1e-9, `right edge at ${gone}`);
+    assert.ok(Math.abs(at(100 - gone) - (1 - gone / 406)) < 1e-9, `left ${gone}`);
+    assert.ok(Math.abs(at(912 + gone) - (1 - gone / 406)) < 1e-9, `right ${gone}`);
   }
-  assert.equal(at(100 - 406).goal, 0);
-  assert.equal(at(100 - 900).goal, 0);
+  for (const left of [100 - 406, 100 - 900, 912 + 406]) assert.equal(at(left), 0);
 });
 
-test('a shrinking panel never overlaps the one after it', () => {
-  for (let gone = 1; gone < 406; gone += 5) assert.ok(edges(100 - gone, at(100 - gone))[1] <= 100 - gone + 406 + 1e-9, `at ${gone}`);
-});
-
-test('beside a sticky panel the point is half a gap toward it, never under it', () => {
-  for (let gone = 1; gone <= 406; gone += 5) {
-    assert.ok(edges(100 - gone, at(100 - gone, { stickyStart: true }))[0] >= 100 - 8 - 1e-9, `start at ${gone}`);
-    assert.ok(edges(912 + gone, at(912 + gone, { stickyEnd: true }))[1] <= 1302 + 8 + 1e-9, `end at ${gone}`);
+test('shrinking about its own center, it never overlaps the one after it nor reaches past the window cut a slot out', () => {
+  for (let gone = 1; gone < 406; gone += 5) {
+    const left = 100 - gone;
+    const half = (390 * at(left)) / 2;
+    assert.ok(left + 195 + half <= left + 406 + 1e-9, `neighbor at ${gone}`);
+    assert.ok(left + 195 - half >= 100 - 406 - 1e-9, `cut at ${gone}`);
   }
-  assert.ok(Math.abs(edges(100 - 406, at(100 - 406, { stickyStart: true }))[0] - 92) < 1e-9);
 });
 
 test('the drawn size trails its goal and arrives', () => {
@@ -51,8 +37,8 @@ test('the drawn size trails its goal and arrives', () => {
 });
 
 test('the drawn style: nothing at full size, hidden when gone, never larger than the place allows', () => {
-  assert.deepEqual(shrinkStyle(1, 1, 0), { translate: '', scale: '', opacity: '' });
-  assert.deepEqual(shrinkStyle(1, 0.5, 10), { translate: '10px 0px', scale: '0.5', opacity: '0.8' });
-  assert.equal(shrinkStyle(0.5, 1, 0).scale, '0.5');
-  assert.equal(shrinkStyle(0, 0, 0).opacity, '0');
+  assert.deepEqual(shrinkStyle(1, 1), { scale: '', opacity: '' });
+  assert.deepEqual(shrinkStyle(1, 0.5), { scale: '0.5', opacity: '0.8' });
+  assert.equal(shrinkStyle(0.5, 1).scale, '0.5');
+  assert.equal(shrinkStyle(0, 0).opacity, '0');
 });

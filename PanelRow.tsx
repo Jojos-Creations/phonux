@@ -648,7 +648,7 @@ export function PanelRow({
     lastWindow.current = emblaWindow.width;
     if (windowRef.current !== null) publishEmblaStrip(windowRef.current, { layout: layoutNow, windowWidth: emblaWindow.width, stripWidth: stripPx, pitch: phoneWidth + gap, gap, chromeFollowSlots: workspaceTuning.chrome.fitVisibleMaxSlots, sticky: [...startGroupIds.map((id) => ({ id, side: 'start' as const })), ...endGroupIds.map((id) => ({ id, side: 'end' as const }))] });
     // The container centers a strip that fits, so a panel coming, going or resizing moves the row itself: that rides the slide too.
-    if (rootRef.current !== null && presentAll.length > 0) lastRowPlace.current = recentreRow(rootRef.current, windowRef.current, lastRowPlace.current, { windowWidth: emblaWindow.width, room: rowNumbers?.windowWidth ?? 0 }, gap, rowTuning.slide, landing || reducedMotion || !ready);
+    if (rootRef.current !== null && presentAll.length > 0) lastRowPlace.current = recentreRow(rootRef.current, windowRef.current, lastRowPlace.current, { windowWidth: emblaWindow.width, room: rowNumbers?.windowWidth ?? 0 }, emblaWindow.scrolls ? phoneWidth + gap : gap, rowTuning.slide, landing || reducedMotion || !ready);
     // A commit can start slots moving on their own (an entrance, a glide, a reorder shift): the inert marks follow them frame by frame.
     if (windowRef.current !== null) kickEmblaAway(windowRef.current);
   });
@@ -662,6 +662,7 @@ export function PanelRow({
   const endGroup = groupOf('right');
   const groupWidth = (g: readonly { width: number }[]): number => (g.length === 0 ? 0 : g.reduce((sum, x) => sum + x.width, 0) + (g.length - 1) * gap);
   const stripShown = present.length > 0;
+  const cutReach = emblaWindow.scrolls ? phoneWidth + gap : gap;
   const group = (side: 'start' | 'end', slots: readonly { p: PanelRowEntry; width: number; leftOffset: number }[]): React.ReactElement | null =>
     slots.length === 0 ? null : (
     <Box
@@ -704,7 +705,8 @@ export function PanelRow({
     </>
   );
   // Cut one gap past each window edge, as the old row's grid cut: a focus glow fades there and no neighbour starts inside it.
-  const emblaCut = rowClip(emblaWindow.width, gap);
+  // A row that scrolls is cut a whole slot past each edge instead: a panel shrinks in the next place beyond the edge.
+  const emblaCut = rowClip(emblaWindow.width, cutReach);
   // Tab reads the sticky panels at the start, the strip, then the sticky panels at the end.
   const readingIds = [...startGroup.map((x) => x.p.id), ...present.map((p) => p.id), ...endGroup.map((x) => x.p.id)];
   return (
