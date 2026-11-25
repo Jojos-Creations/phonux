@@ -193,32 +193,40 @@ test('closing a page: a page sliding into the gap is never cut by the narrower w
   }
 });
 
-test('a slow wheel that pauses mid-creep: the row holds still through the pause', async (t) => {
+test('a slow, uneven wheel: the row takes one step in one glide, never stalling or turning back, and rests on it', async (t) => {
   if (!(await ready(t))) return;
   const page = await open(1300, 6);
   try {
-    const { during, moved } = await page.evaluate(async () => {
+    const { seen, start } = await page.evaluate(async (): Promise<{ seen: number[]; start: number }> => {
       const s = (window as any).__s;
       const win = document.querySelector('[data-row-embla-window]')!;
       const wheel = (dx: number) => win.dispatchEvent(new WheelEvent('wheel', { deltaX: dx, bubbles: true, cancelable: true }));
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
       const start = s.offset();
-      for (let k = 0; k < 30; k++) {
-        wheel(2);
-        await sleep(16);
-      }
-      // The row trails the wheel: let it reach the wheel's target before the pause is read.
-      await sleep(40);
       const seen: number[] = [];
-      const t0 = performance.now();
-      while (performance.now() - t0 < 200) {
+      let on = true;
+      const sample = () => {
         seen.push(s.offset());
-        await new Promise((r) => requestAnimationFrame(r));
+        if (on) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      for (const pause of [16, 90, 240, 60, 310, 130, 80, 270]) {
+        wheel(6);
+        await sleep(pause);
       }
-      return { during: Math.max(...seen) - Math.min(...seen), moved: seen[0]! - start };
+      await sleep(900);
+      on = false;
+      return { seen, start };
     });
-    assert.ok(moved > 30, `the creep moved the row ${moved}px: a row the wheel never reached would hold still too`);
-    assert.ok(during < 8, `the row moved ${during}px during a 200 ms pause in a slow wheel`);
+    const moved = seen[seen.length - 1]! - start;
+    assert.ok(Math.abs(moved - 406) < 1, `the row ended ${moved}px along: one stop is 406px`);
+    const back = Math.max(0, ...seen.slice(1).map((v, k) => seen[k]! - v));
+    assert.ok(back < 1, `the row turned back ${back}px`);
+    // Between leaving the start and nearing the stop every frame moves: a stall there is the jitter this guards.
+    const gliding = seen.filter((v) => v - start > 4 && v - start < 390);
+    assert.ok(gliding.length > 5, `only ${gliding.length} frames of the glide were read`);
+    const still = gliding.slice(1).filter((v, k) => Math.abs(v - gliding[k]!) < 0.05).length;
+    assert.ok(still <= 2, `${still} of ${gliding.length} glide frames stood still`);
   } finally {
     await page.close();
   }
