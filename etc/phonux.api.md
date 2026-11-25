@@ -141,6 +141,8 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
     mount?: HTMLElement | false;
     bands?: ColumnBands;
     sideBySide?: boolean;
+    enterSide?: (from: WorkspaceHandle, to: WorkspaceHandle) => WorkspaceEnterSide;
+    homeWorkspace?: string;
 };
 
 // @public
@@ -2204,6 +2206,9 @@ export interface WorkspaceColumnProps {
     children?: (workspace: WorkspaceHandle) => React_2.ReactNode | undefined;
     column: WorkspaceColumnHandle;
 }
+
+// @public
+export type WorkspaceEnterSide = 'left' | 'right' | 'above' | 'below';
 
 // @public
 export interface WorkspaceHandle {

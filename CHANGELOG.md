@@ -67,6 +67,13 @@
   and `ShareRole`, and new `PhonuxLabels` keys (`shareKind`, `shareKindPlural`, `shareInvite*`, `shareCan*`, `offerNotNow` and others).
 - `QrCode`: a QR code of a string, black on white in any theme, for `ShareSheet`'s `qr` and anywhere else.
   `qrcode-generator` 2.0.4 (MIT, pinned exactly) is a new runtime dependency.
+- `createWorkspaceColumn({ enterSide })`: the app names, for each switch, the side the workspace becoming current comes in from
+  (`WorkspaceEnterSide`: `'left'`, `'right'`, `'above'` or `'below'`), and the one left goes out the opposite way. It is asked with
+  the workspace left and the one arrived at on `scrollTo`, `step`, the neighbor buttons and the removal of the current workspace,
+  and not for a move to a space the window already shows side by side, which only moves focus. With it, Reduce Motion turns a switch
+  into a 150 ms fade in place instead of an instant swap. Without it a switch goes up or down by index, as before.
+- `createWorkspaceColumn({ homeWorkspace: id })`: a permanent home workspace. It is always first, `removeWorkspace` and
+  `reorderWorkspace` refuse it, and an `index` or `toIndex` of 0 for any other workspace lands at 1. Off by default.
 
 ### Changed
 
@@ -111,6 +118,11 @@
   the `JAVA_HOME` the build found, else from `PATH`.
 - On Windows, `phonux build` starts its commands through `cross-spawn` instead of `shell: true`, so a keystore path or
   any other argument holding shell characters is passed as one argument and never runs as a command.
+- Switching workspaces again while a switch is still sliding carries on from where every cell is drawn: the workspace that was
+  leaving no longer vanishes at once, and a switch back reverses from where it stands. The workspace arriving starts just past the
+  ones still in sight, so it never starts over one of them.
+- A workspace that is new and made current in the same turn (the neighbor buttons' New space) now slides in; it used to appear in
+  place while the one left slid away.
 - A row with room to spare glides to its new centre when a panel opens, closes or changes width, on the same clock as the
   panel that caused it. It used to jump half a slot in one frame while only the arriving or leaving panel moved, so the root
   panel visibly snapped; the same jump landed when a window resize settled on a new phone size. A narrowing row's clip
