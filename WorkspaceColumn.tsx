@@ -132,7 +132,7 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
       const fromAt = snap.workspaces.findIndex((w) => w.id === seen.id);
       const restOf = (id: string): ParkSide =>
         fromAt >= 0 ? byIndex(fromAt, snap.workspaces.findIndex((w) => w.id === id)) : byIndex(seen.workspaces.findIndex((w) => w.id === seen.id), seen.workspaces.findIndex((w) => w.id === id));
-      const wanted: ColumnSlide = !placed ? 'none' : reduced ? (fadeWhenReduced ? 'fade' : 'none') : fromWs === undefined ? 'none' : core.slideFrom?.(fromWs, toWs) ?? restOf(currentId);
+      const wanted: ColumnSlide = !placed ? 'none' : reduced ? (fadeWhenReduced ? 'fade' : 'none') : fromWs === undefined ? 'none' : core.slideFrom?.(fromWs, toWs, seen.workspaces) ?? restOf(currentId);
       shownMotion = switchMotion(shownMotion, seen.id, currentId, wanted, restOf);
     }
     if (shownMotion !== motion) setMotion(shownMotion);

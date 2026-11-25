@@ -8,11 +8,12 @@ import type { WorkspaceHandle } from './workspaceCore.js';
 export type ColumnSlide = 'above' | 'below' | 'left' | 'right' | 'fade' | 'none';
 
 /**
- * Picks the way each move of the column comes in, given the workspace left and the one arrived at. `from` may already have been
- * removed from the column, as when a delete moves on: it is still the handle that was current.
+ * Picks the way each move of the column comes in, given the workspace left, the one arrived at, and the column's workspaces as they
+ * stood before the move. `from` may already have been removed from the column, as when a delete moves on: it is still the handle
+ * that was current, and `before` still lists it where it stood.
  * @public
  */
-export type ColumnSlideFrom = (from: WorkspaceHandle, to: WorkspaceHandle) => ColumnSlide;
+export type ColumnSlideFrom = (from: WorkspaceHandle, to: WorkspaceHandle, before: readonly WorkspaceHandle[]) => ColumnSlide;
 
 /** A side a cell rests on while out of view. @internal */
 export type ParkSide = 'above' | 'below' | 'left' | 'right';

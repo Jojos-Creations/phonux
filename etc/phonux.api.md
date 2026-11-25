@@ -156,7 +156,7 @@ export interface ColumnShown {
 export type ColumnSlide = 'above' | 'below' | 'left' | 'right' | 'fade' | 'none';
 
 // @public
-export type ColumnSlideFrom = (from: WorkspaceHandle, to: WorkspaceHandle) => ColumnSlide;
+export type ColumnSlideFrom = (from: WorkspaceHandle, to: WorkspaceHandle, before: readonly WorkspaceHandle[]) => ColumnSlide;
 
 // @public
 export interface ColumnSlot {

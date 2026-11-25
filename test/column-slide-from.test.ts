@@ -112,17 +112,20 @@ test('slideFrom is asked with the space left and the one arrived at, and none mo
   assert.equal(cellOf(c.workspaces[0]!.id).style.transition, 'none');
 });
 
-test('a delete that moves on asks slideFrom with the removed space as the one left', async () => {
+test('a delete that moves on asks slideFrom with the removed space as the one left, and the list as it stood', async () => {
   const asked: [string, string][] = [];
+  const lists: string[][] = [];
   const c = await column({
-    slideFrom: (from, to) => {
+    slideFrom: (from, to, before) => {
       asked.push([from.name, to.name]);
+      lists.push(before.map((w) => w.name));
       return 'right';
     },
   });
   act(() => c.removeWorkspace(0));
   await until('three cells', () => document.querySelectorAll('[data-workspace-cell]').length === 3);
   assert.deepEqual(asked, [['Space 1', 'Space 2']]);
+  assert.deepEqual(lists, [['Space 1', 'Space 2', 'Space 3', 'Space 4']], 'the removed space is still in the list it gets');
   assert.equal(cellOf(c.workspaces[0]!.id).style.transition, GLIDE, 'the next space glides in');
 });
 
