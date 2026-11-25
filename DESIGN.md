@@ -2011,7 +2011,8 @@ The row's motion follows one set of intentions, so every change reads the same w
   shared start: the root and every other panel ride the same clock as the panel that caused the move. A clip that narrows glides
   from where it is drawn to the new one, so a panel sliding into a closed one's place is never cut. The place is read inside the
   row's scroller, so a scroller that moves (a side by side cell placed again by a split change, a space shown or hidden, a resize)
-  carries the row with it in the same frame, with no glide inside the cell. A change of room (a window step) and Reduce Motion
+  carries the row with it in the same frame, and a scroller that changes width lands the row at once too: the cell itself does not
+  glide, so the row inside it does not either. A change of room (a window step) and Reduce Motion
   land at once, and so does the commit the restore lands in; until the restore settles the row is
   hidden, so the root drawn alone never jumps aside on screen. The hiding lasts at most `RESTORE_HIDE_MS` (1 s): a restore that
   never settles shows what the row has, in place, rather than a blank row.

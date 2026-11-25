@@ -7,9 +7,13 @@ import type { SlideTuning } from './panelSettings.js';
 import { sharedStartTime } from './rowClock.js';
 import { ROW_SCROLLER_ATTRIBUTE } from './rowDom.js';
 
-/** What a commit drew: the row root's left in its scroller with no glide applied, the Embla window's width, and the room the row had. @internal */
+/**
+ * What a commit drew: the row root's left in its scroller with no glide applied, the scroller's width, the Embla window's width, and
+ * the room the row had. @internal
+ */
 export interface RowPlace {
   left: number;
+  scrollerWidth: number;
   windowWidth: number;
   room: number;
 }
@@ -42,9 +46,12 @@ export function recentreRow(root: HTMLElement, win: HTMLElement | null, last: Ro
   const drawnShift = view === null ? 0 : translateXOf(view.getComputedStyle(root).translate);
   // Measured in the row's scroller, so a scroller that moves (a side by side cell placed again) carries the row with it at once.
   const scroller = root.closest(`[${ROW_SCROLLER_ATTRIBUTE}]`);
-  const left = root.getBoundingClientRect().left - drawnShift - (scroller === null ? 0 : scroller.getBoundingClientRect().left);
-  const place = { left, windowWidth: now.windowWidth, room: now.room };
-  if (last === null || still || Math.abs(last.room - now.room) > 0.5 || typeof root.animate !== 'function') return place;
+  const box = scroller?.getBoundingClientRect();
+  const left = root.getBoundingClientRect().left - drawnShift - (box?.left ?? 0);
+  const place = { left, scrollerWidth: box?.width ?? 0, windowWidth: now.windowWidth, room: now.room };
+  // A scroller that changed width (a side by side cell drawn wider or narrower) landed at once, so the row lands in it at once too.
+  const resized = last !== null && Math.abs(last.scrollerWidth - place.scrollerWidth) > 0.5;
+  if (last === null || still || resized || Math.abs(last.room - now.room) > 0.5 || typeof root.animate !== 'function') return place;
   const durationMs = slide.durationSec * 1000;
   if (durationMs <= 0) return place;
   const easing = `cubic-bezier(${slide.ease.join(',')})`;

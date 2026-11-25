@@ -377,3 +377,23 @@ test('no cell moves in the DOM: a frame and a scrolled box in every cell survive
     assert.equal(after.w1!.scrollTop, 0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A row lands with its cell
+// ---------------------------------------------------------------------------
+
+test('2560 px, a space shown beside another and hidden again: each row lands with its cell, no glide across it', async (t) => {
+  if (!(await ready(t))) return;
+  await onPage(2560, 'n=3&sticky=1', async (page) => {
+    // Each row root's drawn glide this frame, and its left in the window with no glide applied.
+    const read = `[...document.querySelectorAll('[data-row-root]')].map((r) => { const shift = parseFloat(getComputedStyle(r).translate) || 0; return { shift: Math.abs(shift), left: r.getBoundingClientRect().left - shift }; })`;
+    type Root = { shift: number; left: number };
+    const before = (await page.evaluate(`(() => ${read})()`)) as Root[];
+    const showing = await frames<Root[]>(page, 900, read, async () => void (await until(page, 'c.showSide(ws[1])')));
+    assert.ok(Math.abs(showing.at(-1)![1]!.left - before[1]!.left) > 100, 'the row of the space shown moved to its new cell, so the check below can fail');
+    assert.ok(Math.max(...showing.flat().map((r) => r.shift)) < 2, `a row glided ${Math.max(...showing.flat().map((r) => r.shift))}px inside its cell when a space was shown`);
+    await sleep(700);
+    const hiding = await frames<Root[]>(page, 900, read, async () => void (await call(page, 'c.hideSide(ws[1])')));
+    assert.ok(Math.max(...hiding.flat().map((r) => r.shift)) < 2, `a row glided ${Math.max(...hiding.flat().map((r) => r.shift))}px inside its cell when a space was hidden`);
+  });
+});
