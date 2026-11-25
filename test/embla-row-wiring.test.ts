@@ -80,7 +80,7 @@ test('an arrow key typed in a text field stays with the field: the row does not 
 test('a sideways wheel moves the row, and one that starts with Option held is left to the content', () => {
   const plain = laidOutRow();
   const taken = plain.wheel({ deltaX: 50 });
-  assert.equal(rowGlideTargetOf(plain.container), 50, 'control: a plain sideways wheel moves the row by its delta');
+  assert.equal(rowGlideTargetOf(plain.container), 406, 'control: a plain sideways wheel steps the row one stop');
   assert.ok(taken.defaultPrevented, 'and the row takes it from the page');
   cleanup();
   const option = laidOutRow();

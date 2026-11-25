@@ -48,7 +48,6 @@ motion.
 `usePanelState(id)` listens to that one panel (`reader.get(id).subscribe`), reads its value from the snapshot, and until the panel
 exists listens to the workspace and switches to the panel once it appears.
 
-
 `stubRowDom` (on `phonux/testing`) is for a host that keeps its own jsdom window and clock. It patches the window it is given
 and imports neither jsdom nor the engine, so the fake's entry stays light. Only what the row reads is filled in, and the row's
 offsets are read back from the px the row writes inline, so the stub cannot disagree with the row about where a marker is. The
@@ -330,7 +329,7 @@ In a scrolling row with `rowGesture` `'step'` whose strip is wider than the wind
 The strip's margin snaps instead of gliding while stops exist, or `scrollWidth` would lag `maxScrollOf`, except in a panel resize: a grow that overflows the window adds its stops in the render that moves the margin, so the margin glides there (a panel's width changed under an unchanged container width, or a width is held), and the settle onto a stop waits for the slide. A window resize keeps the snap. A strip that fits the window keeps its centering and has no stops; an `off` row has none either, so its margin is 0 on overflow.
 
 Padding does not clip scrolled content, so a neighbor of the shown set peeks `m_i` px at each edge, cut by the window
-edge. Nothing fades, shrinks or is hidden: the strip carries a `clip-path` at the slot grid's edges (`gridEdgesOf`: the margin on each side), written from the row's numbers and the strip's x on every move, so a whole panel in the grid draws whole, a panel crossing a grid edge in a glide, a slide or the end bump is cut there, and nothing draws in the margins. A strip panel beside a held or stuck panel is cut at that panel's gap by its own clip (`slotCutAt`). Reach is judged from the numbers too, never from a measured box. A slot wholly outside its strip window is `inert` and takes no
+edge. Outside a scroll nothing fades, shrinks or is hidden (a scrolling row's leaving panels shrink: "The wheel asks for stops"): the strip carries a `clip-path` at the slot grid's edges (`gridEdgesOf`: the margin on each side), written from the row's numbers and the strip's x on every move, so a whole panel in the grid draws whole, a panel crossing a grid edge in a glide, a slide or the end bump is cut there, and nothing draws in the margins. A strip panel beside a held or stuck panel is cut at that panel's gap by its own clip (`slotCutAt`). Reach is judged from the numbers too, never from a measured box. A slot wholly outside its strip window is `inert` and takes no
 pointer events, so Tab and find-in-page cannot scroll the row off a stop; Workspace writes that on scroll events and on every
 render. A click or focus in the cut-off neighbor makes the browser scroll, and the row then settles onto the nearest stop that
 shows that panel. Steps, `scrollTo`, the initial scroll, a drag released after edge scrolling and the settle after a change of
@@ -3454,6 +3453,8 @@ Not covered:
 
 ### The wheel follows 1:1
 
+Replaced on 2026-11-24 by "The wheel asks for stops", below. Kept as the record of what it measured.
+
 Owner's ruling (2026-11-09), replacing the speed curve and the coast: the row follows the wheel 1:1, with no speed-up and no coast
 of the row's own (macOS already accelerates the wheel and gives a trackpad its momentum). His report on the curve and coast: "Slow
 scroll will sometimes nudge the panels forward permanently which is incorrect behavior. Other times it will send you flying through
@@ -3509,6 +3510,35 @@ What this costs: a slow scroll that stops just past a stop now glides back to it
 Not covered: a real wheel and a real trackpad (headless takes synthetic wheels only; feel is Joe's to judge), Safari (where
 wheel-gestures guesses momentum from deceleration: a slowing free-spinning wheel read as momentum would end its gesture after
 150 ms), Windows, and the gap a real finger reposition takes.
+
+### The wheel asks for stops
+
+Owner's ask (2026-11-24): the best the row ever felt was the old stepper, where a scroll asked for one panel at a time and the
+row owned the glide, and panels shrank as they left so a fast scroll looked smaller. Slow 1:1 following with a guessed rest
+jittered ("its running the nudge code too soon as when I slow scroll it gets jittery"). This replaces "The wheel follows 1:1".
+
+The wheel (rowWheelSteps.ts, `wheelSteps`; emblaRow.ts, `wheelBy`):
+
+- A sideways wheel asks for whole stops, never a distance. The first step comes once a gesture has 4 px, and each further pitch
+  (phone plus gap) of travel is one more. Each step retargets one glide (`glideEmbla`) from the stop it is heading for, keeping
+  its speed, so slow or uneven input cannot break a glide into pieces and there is no pause to guess at.
+- A slow scroll covers far less than a pitch per panel meant. A push still going 350 ms after a step, with 12 px since it, queues
+  the next. A push is a wheel at least 4 px that is a notch apart from the last (60 ms) or no smaller than it; a momentum tail comes
+  every frame and only fades, so it queues nothing. Measured on the owner's thumb wheel (2026-11-25): a slow roll sends 4 px about
+  every 170 ms, and three seconds of it walk five stops (one before this rule).
+- No wheel for 600 ms starts afresh. Travel against the direction turns it after 8 px, with one step back at once. A
+  vertical-dominant wheel never counts. Finger and mouse drag and the keys are unchanged.
+
+The shrink (rowShrink.ts, run from `markAwaySlots`):
+
+- In a scrolling strip a one-slot panel past a window edge is drawn smaller: its goal is 1 minus how far past the edge it is,
+  over a pitch, so it is gone a whole slot out. Scaled about its own center, that point is the middle of the next place beyond
+  the edge (owner's pick 2026-11-24, "middle of next spot", over the edge itself). An arriving panel grows the same way.
+- The drawn size trails its goal on its own clock (90 ms time constant), never larger than the goal, so in a fast scroll panels
+  have not grown back before they move on. Opacity follows below 0.625 and a size under 0.02 is hidden.
+- To leave room, a scrolling row's clip reaches a phone and a gap past each edge instead of a gap. Wide panels do not shrink and
+  are trimmed one gap past each edge by their own clip. A lifted (dragged) panel and Reduce Motion (which snaps the size) are
+  the exceptions. This replaces the 2026-11-06 ruling that scrolling never shrinks a panel.
 
 ## One share view: the item decides, the host holds the state
 

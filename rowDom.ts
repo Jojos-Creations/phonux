@@ -73,6 +73,10 @@ export function panelRootOf(target: EventTarget | null): HTMLElement | null {
 
 /** On the element Embla is rooted on: the window that shows whole slots. @internal */
 export const EMBLA_WINDOW_ATTRIBUTE = 'data-row-embla-window';
+/** On the box every row slot draws its panel in. @internal */
+export const SIZE_BOX_ATTRIBUTE = 'data-panel-size-box';
+/** On a row slot while a drag holds its panel. @internal */
+export const LIFTED_ATTRIBUTE = 'data-row-lifted';
 /** On each slot marker: an empty box one phone wide, at its slot's place in the strip. @internal */
 export const EMBLA_SLOT_ATTRIBUTE = 'data-row-embla-slot';
 

@@ -13,7 +13,7 @@ import { HostMissingProviderError } from './hostApi.js';
 import { LandingContext, useOptionalPhoneSize } from './phoneFit.js';
 import { closestRowScroller, rowScrollerFor } from './rowScroller.js';
 import { emblaDrawnOf, emblaHeld, emblaOf, emblaTargetOf, subscribeEmblaRows } from './emblaRow.js';
-import { EMBLA_WINDOW_ATTRIBUTE } from './rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE, LIFTED_ATTRIBUTE } from './rowDom.js';
 import { swallowFirstPress, useFramesAsleep } from './firstPress.js';
 
 /** How many of its own pitches a slot's place may jump in one commit and still glide there. */
@@ -441,6 +441,7 @@ export function PanelRowSlot({
       {...(label === undefined ? {} : { role: 'group', 'aria-label': label })}
       data-row-slot={leftOffset}
       data-row-id={panelId}
+      {...(lifted || dragged ? { [LIFTED_ATTRIBUTE]: '' } : {})}
       onPointerDownCapture={(e) => {
         markPanelPress(e.nativeEvent);
         const control = isChromeControl(e.target);

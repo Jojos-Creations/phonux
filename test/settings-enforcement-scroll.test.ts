@@ -160,7 +160,7 @@ async function offKeeps(rowGesture: 'step' | 'off'): Promise<{ key: number; scro
 }
 
 test('tuning.rowGesture off stops the wheel and the drag of the row only: an arrow key and a scrollTo still move it', async () => {
-  assert.deepEqual(await offKeeps('step'), { key: 406, scrollTo: 3654, wheel: 3604, drag: true }, 'control: under step each of them moves the row');
+  assert.deepEqual(await offKeeps('step'), { key: 406, scrollTo: 3654, wheel: 3248, drag: true }, 'control: under step each of them moves the row');
   assert.deepEqual(await offKeeps('off'), { key: 406, scrollTo: 3654, wheel: null, drag: false });
 });
 
