@@ -17,7 +17,10 @@ import { ColumnDivider } from './ColumnDivider.js';
 import { DEFAULT_PHONE_SIZE } from './hostApi.js';
 import { WORKSPACE_ACTIVE_ATTRIBUTE } from './rowDom.js';
 import { RowFloorContext } from './rowFloor.js';
+import { PanelManagerError } from './panelManagerError.js';
 import { COLUMN_SENTINEL, steerColumnSentinel, steerColumnTab } from './columnTabOrder.js';
+import { createColumnMotion, sideByIndex } from './columnMotion.js';
+import type { WorkspaceEnterSide } from './columnHandle.js';
 
 /** The room above a workspace's row that the default bands keep, in px, below the column's `topInset`. With bands of its own, `columnBandRoom(bands).above`. @public */
 export const COLUMN_TOP_BAND = columnBandRoom(DEFAULT_COLUMN_BANDS).above;
@@ -108,16 +111,45 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
   if (snap.status === 'ready' && placedAt.current === null) placedAt.current = snap.current;
   if (placedAt.current !== null && snap.current !== placedAt.current) moved.current = true;
   const placed = moved.current;
-  // Only the workspace left and the one arrived at slide, so a move past several is one step and the ones between never show.
-  // A workspace added or removed above the current one changes neither, so nothing moves.
-  const currentId = snap.workspaces[snap.current]?.id;
-  const [seenId, setSeenId] = React.useState(currentId);
-  const [fromId, setFromId] = React.useState<string | undefined>(undefined);
-  if (seenId !== currentId) {
-    setSeenId(currentId);
-    setFromId(seenId);
-  }
-  const slide = reduced || !placed ? 'none' : `transform ${move.duration}s cubic-bezier(${move.ease.join(',')})`;
+  // The cells' transforms are written by the motion after each commit, never by React, so a slide under way is not reset by a render.
+  const motion = React.useRef<ReturnType<typeof createColumnMotion> | null>(null);
+  motion.current ??= createColumnMotion();
+  React.useEffect(() => () => motion.current?.dispose(), []);
+  // The handles and places of the last commit, so a switch away from a workspace just removed can still name it.
+  const prior = React.useRef(new Map<string, { ws: WorkspaceHandle; index: number }>());
+  React.useLayoutEffect(() => {
+    const was = prior.current;
+    const sideOf = (fromId: string, toId: string): WorkspaceEnterSide => {
+      const now = (id: string): number => snap.workspaces.findIndex((w) => w.id === id);
+      const from = was.get(fromId);
+      const to = snap.workspaces[now(toId)];
+      const fallback = now(fromId) >= 0 ? sideByIndex(now(fromId), now(toId)) : sideByIndex(from?.index ?? 0, was.get(toId)?.index ?? now(toId));
+      const ask = core.enterSide;
+      if (ask === undefined || from === undefined || to === undefined) return fallback;
+      try {
+        const side = ask(from.ws, to);
+        if (side === 'left' || side === 'right' || side === 'above' || side === 'below') return side;
+        core.reportError(new PanelManagerError('invalid-options', `enterSide answered ${String(side)}, not 'left', 'right', 'above' or 'below'`));
+      } catch (e) {
+        core.reportError(e);
+      }
+      return fallback;
+    };
+    motion.current!.sync({
+      cells: snap.workspaces.flatMap((w) => {
+        const el = cells.current.get(w.id);
+        return el === undefined ? [] : [{ id: w.id, el, shown: shownIds.has(w.id) }];
+      }),
+      current: snap.workspaces[snap.current]?.id,
+      placed,
+      reduced,
+      fade: core.enterSide !== undefined,
+      slide: move,
+      split,
+      side: sideOf,
+    });
+    prior.current = new Map(snap.workspaces.map((w, i) => [w.id, { ws: w, index: i }]));
+  });
 
   // An inert cell drops the focus inside it; the arrow keys keep working only if focus lands somewhere in the column again.
   React.useLayoutEffect(() => {
@@ -207,13 +239,10 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
           tabIndex={-1}
           aria-hidden={shown ? undefined : true}
           inert={!shown}
-          onTransitionEnd={(event: React.TransitionEvent<HTMLElement>) => {
-            if (active && event.target === event.currentTarget && event.propertyName === 'transform') setFromId(undefined);
-          }}
           // A press or focus in a cell side by side makes it the current workspace, so the keys that step go to the side the person is in.
           onPointerDownCapture={split && shown && !active ? () => column.scrollTo(ws) : undefined}
           onFocusCapture={split && shown && !active ? () => column.scrollTo(ws) : undefined}
-          style={{ transform: `translateY(${shown ? 0 : i < snap.current ? -100 : 100}%)`, transition: shown || ws.id === fromId ? slide : 'none', ...(split ? (shown ? geometry.get(ws.id) : lastGeometry.current.get(ws.id)) : undefined) }}
+          style={split ? (shown ? geometry.get(ws.id) : lastGeometry.current.get(ws.id)) : undefined}
           sx={{ position: 'absolute', inset: 0, outline: 'none' }}
         >
           {split ? <ColumnSentinel at="cell-start" stop={!(native.start && ws.id === snap.shown[0]?.id)} /> : null}

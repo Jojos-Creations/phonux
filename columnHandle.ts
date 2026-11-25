@@ -53,6 +53,13 @@ export interface ColumnStorage {
 }
 
 /**
+ * A side of the window a workspace comes in from when it becomes the current one: `'left'` and `'right'` slide it in sideways,
+ * `'above'` and `'below'` slide it down or up.
+ * @public
+ */
+export type WorkspaceEnterSide = 'left' | 'right' | 'above' | 'below';
+
+/**
  * What `createWorkspaceColumn` takes. The members of `WorkspaceOptions` that describe a workspace's content (`root`, `templates`,
  * `defaults`, `order`) are the content of every workspace in the column; `addWorkspace` cannot change them for one. `wrap`, `device`,
  * `tuning`, `labels` and the other shared members belong to the column and apply to every workspace in it. `theme` is drawn once for
@@ -76,6 +83,25 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
    * @defaultValue false
    */
   sideBySide?: boolean;
+  /**
+   * Which side the workspace becoming current comes in from, asked once for each change of the current workspace that the window
+   * shows as a switch: `scrollTo`, `step`, the neighbor buttons, and the removal of the current workspace, where `from` is the removed
+   * (already disposed) workspace. The workspace left goes out the opposite way. A move past several workspaces is still one slide,
+   * and the ones between never show. It is not asked when the window already showed `to` (a move between spaces side by side only
+   * moves focus), nor while the column places itself on its saved workspace. Under Reduce Motion it is not asked either: given
+   * this option, the switch is then a 150 ms fade in place, opacity only, with nothing moving. An answer that is none of the four
+   * sides, or a throw, is reported through `onError` and the switch goes up or down by index.
+   *
+   * Unset: a workspace further down the list comes up from below and one further up comes down from above, and under Reduce Motion
+   * the switch is instant.
+   */
+  enterSide?: (from: WorkspaceHandle, to: WorkspaceHandle) => WorkspaceEnterSide;
+  /**
+   * The id of a permanent home workspace. While the column holds a workspace with this id it is always the first one: it is added
+   * at index 0 whatever `index` asks, put first when the saved list is read, `removeWorkspace` and `reorderWorkspace` refuse it, and
+   * no other workspace is added or moved ahead of it (an `index` or `toIndex` of 0 lands at 1). Unset: no workspace is permanent.
+   */
+  homeWorkspace?: string;
 };
 
 /** One workspace the window shows: where it stands and how many slots it has. @public */
@@ -272,6 +298,8 @@ interface ColumnCore {
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
   /** The bands every cell draws, if the app gave them. */
   readonly bands: ColumnBands | undefined;
+  /** The app's choice of side for a switch, if it gave one. */
+  readonly enterSide: ColumnOptions['enterSide'];
   /** Reports an error the column swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
   /** The drawn width of the column in px, which the slots of the window are counted from at `phoneWidth`; 0 while it is not drawn. */
@@ -318,7 +346,7 @@ const isColumnState = (v: unknown): v is ColumnState => {
  * @public
  */
 export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHandle {
-  const { storage, mount, bands, ...shared } = o;
+  const { storage, mount, bands, enterSide, homeWorkspace, ...shared } = o;
   let tuningInput = o.tuning;
   let live: WorkspaceLive = {
     ...(o.device !== undefined ? { device: o.device } : {}),
@@ -469,8 +497,12 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     return ws;
   };
 
+  const isHome = (ws: WorkspaceHandle | undefined): boolean => homeWorkspace !== undefined && ws?.id === homeWorkspace;
+  /** The least index a workspace other than the home one may stand at. */
+  const firstFree = (): number => (isHome(list[0]) ? 1 : 0);
   const insert = (ws: WorkspaceHandle, index: number | undefined): void => {
-    const at = index === undefined || !Number.isFinite(index) ? list.length : Math.max(0, Math.min(list.length, Math.trunc(index)));
+    const asked = index === undefined || !Number.isFinite(index) ? list.length : Math.max(0, Math.min(list.length, Math.trunc(index)));
+    const at = isHome(ws) ? 0 : Math.max(firstFree(), asked);
     const cur = list[current];
     list = [...list.slice(0, at), ws, ...list.slice(at)];
     current = cur === undefined ? at : list.indexOf(cur);
@@ -620,7 +652,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     },
     removeWorkspace: (target) => {
       const i = typeof target === 'number' ? target : list.indexOf(target);
-      if (status !== 'ready' || list.length < 2 || !Number.isInteger(i) || i < 0 || i >= list.length) return false;
+      if (status !== 'ready' || list.length < 2 || !Number.isInteger(i) || i < 0 || i >= list.length || isHome(list[i])) return false;
       const removed = list[i]!;
       const cur = list[current];
       const place = sides.findIndex((e) => e.id === removed.id);
@@ -639,8 +671,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     },
     reorderWorkspace: (target, toIndex) => {
       const i = typeof target === 'number' ? target : list.indexOf(target);
-      if (status !== 'ready' || !Number.isInteger(i) || i < 0 || i >= list.length || !Number.isInteger(toIndex)) return false;
-      const to = Math.max(0, Math.min(list.length - 1, toIndex));
+      if (status !== 'ready' || !Number.isInteger(i) || i < 0 || i >= list.length || !Number.isInteger(toIndex) || isHome(list[i])) return false;
+      const to = Math.max(firstFree(), Math.min(list.length - 1, toIndex));
       if (to === i) return true;
       const moved = list[i]!;
       const cur = list[current];
@@ -693,6 +725,7 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     autoMounted: mount !== false && typeof document !== 'undefined',
     theme: o.theme,
     bands,
+    enterSide,
     reportError,
     setWindowWidth: (px, phone) => {
       const width = Number.isFinite(px) ? Math.max(0, Math.floor(px)) : 0;
@@ -738,6 +771,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
               }
             }
             list = [...ordered, ...byId.values()];
+            const home = list.find(isHome);
+            if (home !== undefined) list = [home, ...list.filter((w) => w !== home)];
             const id = saved.current ?? keep;
             const at = list.findIndex((w) => w.id === id);
             current = at >= 0 ? at : list.length > 0 ? Math.min(Math.max(current, 0), list.length - 1) : -1;

@@ -1,0 +1,62 @@
+// A column of spaces that a test switches between, each cell drawn as a plain colored box, so a test reads where each cell is drawn
+// and how opaque it is on every animation frame. Built by test/workspace-switch-rendered.test.ts, which drives it in headless Chromium.
+// Query: n=4 (spaces) enter=1 (the column asks window.__side for the side of every switch) reduce=1 (Reduce Motion, from MotionConfig)
+//        side=1 (a column with sideBySide)
+// `window.__s` reads the page and drives the column.
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { MotionConfig } from 'motion/react';
+import { createWorkspaceColumn, WorkspaceColumn } from 'LIB/index.js';
+
+const q = new URLSearchParams(location.search);
+const SPACES = Number(q.get('n') ?? '4');
+const asked: { from: string; to: string }[] = [];
+const w = window as any;
+w.__side = 'right';
+
+const column = createWorkspaceColumn({
+  mount: false,
+  sideBySide: q.get('side') === '1',
+  ...(q.get('enter') === '1'
+    ? {
+        enterSide: (from: any, to: any) => {
+          asked.push({ from: from.id, to: to.id });
+          return w.__side;
+        },
+      }
+    : {}),
+});
+for (let k = 0; k < SPACES; k += 1) column.addWorkspace({ id: `w${k + 1}` });
+
+const box = (ws: any) => {
+  const k = Number(ws.id.slice(1));
+  return <div style={{ position: 'absolute', inset: 0, background: `hsl(${k * 70} 60% 40%)` }} />;
+};
+const ui = <WorkspaceColumn column={column}>{box}</WorkspaceColumn>;
+createRoot(document.getElementById('root')!).render(q.get('reduce') === '1' ? <MotionConfig reducedMotion="always">{ui}</MotionConfig> : ui);
+
+const cellOf = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${id}"]`)!;
+w.__s = {
+  ready: () => document.querySelectorAll('[data-workspace-cell]').length === SPACES && column.status === 'ready',
+  column,
+  asked,
+  /** Every cell: where it is drawn and how opaque, as the browser computes it this frame. */
+  cells: () =>
+    column.workspaces.map((ws) => {
+      const el = cellOf(ws.id);
+      const r = el.getBoundingClientRect();
+      return { id: ws.id, left: r.left, top: r.top, width: r.width, height: r.height, opacity: Number(getComputedStyle(el).opacity) };
+    }),
+  /** Samples `read()` on every animation frame for `ms`, each with its time, then resolves with the samples. */
+  sample: (ms: number, read: () => unknown) =>
+    new Promise<unknown[]>((resolve) => {
+      const out: unknown[] = [];
+      const t0 = performance.now();
+      const tick = () => {
+        out.push({ t: performance.now() - t0, v: read() });
+        if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+        else resolve(out);
+      };
+      requestAnimationFrame(tick);
+    }),
+};
