@@ -70,6 +70,12 @@
 
 ### Changed
 
+- A sideways wheel or trackpad scroll now asks the row for whole panels instead of dragging it: the row glides to each stop
+  itself, more scrolling extends the same glide, and a long slow scroll keeps queuing the next panel while it goes. The pause
+  timers that guessed where a scroll stopped are gone.
+- In a scrolling row a one-panel-wide panel shrinks as it leaves an edge, into the middle of the next place beyond it, and grows
+  as it arrives, on a slightly slower clock so a fast scroll shows smaller panels. Wide panels and Reduce Motion do not shrink.
+
 - phonux is licensed under the Mozilla Public License 2.0, in place of the phonux Public License 1.0.0. Versions already
   published keep the license they shipped under.
 - `ShareSheet` without `defaultTab` now opens on Link for a `file` (it opened on People). `PhonuxLabels.offerTitle` takes the
