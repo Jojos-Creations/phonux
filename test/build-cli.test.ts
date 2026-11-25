@@ -136,9 +136,25 @@ test('every phone build lands under .phonux/build, signed or not', () => {
   }
 });
 
-test('printed commands hide keystore passwords', () => {
-  const line = describeStep({ kind: 'run', command: 'npx', args: ['cap', 'build', '--keystorepass', 'secret', '--keystorealiaspass', 'secret2'], cwd: ROOT });
-  assert.equal(line, 'npx cap build --keystorepass *** --keystorealiaspass ***');
+test('a signed Android build names its passwords by environment variable, never on the command line', () => {
+  const signed = app({ android: { keystore: 'release.jks', alias: 'upload' } });
+  const envs: Record<string, string>[] = [{ PHONUX_KEYSTORE_PASSWORD: 'store-secret' }, { PHONUX_KEYSTORE_PASSWORD: 'store-secret', PHONUX_KEY_PASSWORD: 'key-secret' }];
+  for (const env of envs) {
+    const probe = fullMac([join(ROOT, 'android')], env);
+    const plan = planBuild(targetsById(['android-phone']), signed, probe, (p) => checkPlatform(p, signed, probe), { debug: false });
+    const job = plan.jobs.find((j) => j.id === 'android')!;
+    const runs = job.steps.filter((s) => s.kind === 'run');
+    for (const step of runs) {
+      assert.ok(!step.args.some((a) => a.includes('secret')), describeStep(step));
+      assert.ok(!Object.values(job.env).some((v) => v.includes('secret')), 'the job does not copy a password');
+    }
+    const sign = runs.find((s) => s.args.includes('-signedjar'))!;
+    assert.ok(sign, 'a jarsigner step signs the bundle');
+    assert.deepEqual(sign.args.slice(sign.args.indexOf('-storepass:env'), sign.args.indexOf('-storepass:env') + 2), ['-storepass:env', 'PHONUX_KEYSTORE_PASSWORD']);
+    const keyVar = 'PHONUX_KEY_PASSWORD' in env ? 'PHONUX_KEY_PASSWORD' : 'PHONUX_KEYSTORE_PASSWORD';
+    assert.deepEqual(sign.args.slice(sign.args.indexOf('-keypass:env'), sign.args.indexOf('-keypass:env') + 2), ['-keypass:env', keyVar]);
+    assert.equal(sign.args.at(-1), 'upload');
+  }
 });
 
 function deferred(): { promise: Promise<boolean>; resolve: (ok: boolean) => void } {

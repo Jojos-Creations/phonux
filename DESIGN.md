@@ -740,8 +740,11 @@ builds in sequence. `--jobs` lowers the cap for a machine shared with other work
 cannot be read.
 
 **Test builds first, release when signed.** With no signing in `package.json` the result is a debug APK and a simulator
-app, which need no accounts. With signing the same command makes an AAB through `cap build` and an App Store export
-through `xcodebuild archive`. Printed command lines hide keystore passwords.
+app, which need no accounts. With signing the same command makes an AAB through Gradle and `jarsigner` and an App Store
+export through `xcodebuild archive`. Keystore passwords never go on a command line, where the process list shows them:
+`jarsigner` reads them from the environment (`-storepass:env`), which is why the build does not use `cap build`, whose
+`jarsigner` call passes them as arguments. On Windows commands start through `cross-spawn`, never a shell, so no
+argument is read as shell syntax.
 
 **Publish slots in later.** Every list entry carries `stage: 'build'`. A publish entry (an app store, Flathub, Snap) will
 carry `stage: 'publish'` and name the build it uploads, and becomes a job that depends on that build's job, so the
