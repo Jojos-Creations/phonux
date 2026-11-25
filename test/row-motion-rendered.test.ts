@@ -138,6 +138,29 @@ test('closing a page below the row\'s room: the root glides back to centre, it d
   }
 });
 
+test('the whole workspace moving sideways (a side by side cell placed again): the row goes with it at once, no glide inside it', async (t) => {
+  if (!(await ready(t))) return;
+  const page = await open(2240, 2);
+  try {
+    const { before, after, later, running } = await page.evaluate(async () => {
+      const s = (window as any).__s;
+      const rootLeft = () => s.slots().find((x: any) => x.id === 'root').left as number;
+      const before = rootLeft();
+      s.move(400);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const after = rootLeft();
+      const running = document.querySelector('[data-row-root]')!.getAnimations().length;
+      await new Promise((r) => setTimeout(r, 600));
+      return { before, after, later: rootLeft(), running };
+    });
+    assert.ok(Math.abs(later - before - 400) < 2, `the root ended ${later - before}px from where it was: the workspace moved 400px`);
+    assert.ok(Math.abs(after - before - 400) < 2, `the root was ${after - before}px along on the first frame after the move: a glide inside the moved workspace`);
+    assert.equal(running, 0, 'no glide runs on the root');
+  } finally {
+    await page.close();
+  }
+});
+
 test('closing a page: a page sliding into the gap is never cut by the narrower window while it slides', async (t) => {
   if (!(await ready(t))) return;
   const page = await open(2240, 3);
