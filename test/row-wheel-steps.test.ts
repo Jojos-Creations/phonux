@@ -1,7 +1,7 @@
 /** What a sideways wheel asks of the row: whole stops. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WHEEL_AGAINST_PX, WHEEL_START_PX, WHEEL_STEP_GAP_MS, wheelSteps, type WheelStepState } from '../rowWheelSteps.js';
+import { WHEEL_AGAINST_PX, WHEEL_QUEUE_MS, WHEEL_START_PX, WHEEL_STEP_GAP_MS, wheelSteps, type WheelStepState } from '../rowWheelSteps.js';
 
 const PITCH = 400;
 /** Feeds `[at, by]` wheels and answers the steps each one asked for. */
@@ -26,9 +26,25 @@ test('a touch under the start travel does not move the row', () => {
   assert.deepEqual(run([[0, 2], [16, 2]]), [0, 1]);
 });
 
-test('a slow, uneven creep is one gesture: no pause under the gap steps again by itself', () => {
-  const creep = [0, 90, 330, 390, 700, 830, 910, 1180].map((at) => [at, 40] as const);
-  assert.equal(sum(run(creep)), 1);
+test('a long, slow scroll keeps queuing the next stop while it goes', () => {
+  // 100 px a second for 2.4 s, far short of one pitch.
+  const slow = Array.from({ length: 40 }, (_, k) => [k * 60, 6] as const);
+  const steps = run(slow);
+  assert.ok(sum(steps) >= 3 && sum(steps) <= 5, `${sum(steps)} stops`);
+  assert.ok(steps.every((s) => s === 0 || s === 1));
+  const times = slow.filter((_, k) => steps[k] !== 0).map(([at]) => at);
+  assert.ok(times.slice(1).every((at, k) => at - times[k]! >= WHEEL_QUEUE_MS), `stops at ${times}`);
+});
+
+test('a short slow scroll, or a finger nearly still, is one stop', () => {
+  assert.equal(sum(run([0, 90, 240, 330].map((at) => [at, 40] as const))), 1);
+  assert.equal(sum(run(Array.from({ length: 12 }, (_, k) => [k * 200, 3] as const).slice(0, 11))), 1);
+});
+
+test('a fading momentum tail queues nothing', () => {
+  const tail = Array.from({ length: 70 }, (_, k) => [k * 16, Math.max(1, 14 * 0.94 ** k)] as const);
+  assert.ok(sum(tail.map(([, by]) => by)) < PITCH);
+  assert.equal(sum(run(tail)), 1);
 });
 
 test('a gap longer than the limit starts afresh', () => {
