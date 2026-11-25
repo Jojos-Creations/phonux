@@ -1,14 +1,11 @@
-import { spawn } from 'node:child_process';
 import { cpSync, createWriteStream, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import spawn from 'cross-spawn';
 import type { Job, Step } from './plan.js';
 
-const SECRET_FLAGS = new Set(['--keystorepass', '--keystorealiaspass']);
-
-/** The command line as it is safe to print: password values are hidden. */
+/** The command line as printed to the log. Steps carry no secrets: passwords travel by environment variable. */
 export function describeStep(step: Extract<Step, { kind: 'run' }>): string {
-  const args = step.args.map((arg, i) => (SECRET_FLAGS.has(step.args[i - 1] ?? '') ? '***' : arg));
-  return [step.command, ...args].join(' ');
+  return [step.command, ...step.args].join(' ');
 }
 
 function runStep(step: Extract<Step, { kind: 'run' }>, env: Record<string, string>, log: NodeJS.WritableStream): Promise<boolean> {
@@ -17,12 +14,12 @@ function runStep(step: Extract<Step, { kind: 'run' }>, env: Record<string, strin
     const child = spawn(step.command, step.args, {
       cwd: step.cwd,
       env: { ...process.env, ...env },
-      // npm, npx and gradlew.bat are .cmd or .bat files on Windows, which only a shell can start.
-      shell: process.platform === 'win32',
+      // npm, npx and gradlew.bat are .cmd or .bat files on Windows; cross-spawn starts them with each argument escaped,
+      // where `shell: true` would join the arguments unquoted into one command line.
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    child.stdout.pipe(log, { end: false });
-    child.stderr.pipe(log, { end: false });
+    child.stdout?.pipe(log, { end: false });
+    child.stderr?.pipe(log, { end: false });
     child.on('error', (err) => {
       log.write(`\n${err.message}\n`);
       resolve(false);

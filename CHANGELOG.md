@@ -104,6 +104,13 @@
 
 ### Fixed
 
+- `phonux build` no longer puts the Android keystore passwords on any command line, where another local user could read
+  them from the process list. A signed Android build now runs Gradle's `:app:bundleRelease` and then `jarsigner` with
+  `-storepass:env PHONUX_KEYSTORE_PASSWORD` and `-keypass:env` (`PHONUX_KEY_PASSWORD`, or the keystore password when that
+  is unset), the same task, signature settings and output file `cap build android` produced. `jarsigner` comes from
+  the `JAVA_HOME` the build found, else from `PATH`.
+- On Windows, `phonux build` starts its commands through `cross-spawn` instead of `shell: true`, so a keystore path or
+  any other argument holding shell characters is passed as one argument and never runs as a command.
 - A row with room to spare glides to its new centre when a panel opens, closes or changes width, on the same clock as the
   panel that caused it. It used to jump half a slot in one frame while only the arriving or leaving panel moved, so the root
   panel visibly snapped; the same jump landed when a window resize settled on a new phone size. A narrowing row's clip

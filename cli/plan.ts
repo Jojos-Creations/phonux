@@ -71,14 +71,27 @@ function androidJob(app: AppInfo, probe: Probe, env: Record<string, string>, opt
       output: join(ANDROID_OUT, 'app-debug.apk'),
     };
   }
-  const storePass = probe.env.PHONUX_KEYSTORE_PASSWORD;
-  if (!storePass) return ['Android signing is set up, but PHONUX_KEYSTORE_PASSWORD is not set. Set it, or build with --debug for a test build.'];
-  const keyPass = probe.env.PHONUX_KEY_PASSWORD ?? storePass;
+  if (!probe.env.PHONUX_KEYSTORE_PASSWORD) return ['Android signing is set up, but PHONUX_KEYSTORE_PASSWORD is not set. Set it, or build with --debug for a test build.'];
+  const keyPassVar = probe.env.PHONUX_KEY_PASSWORD ? 'PHONUX_KEY_PASSWORD' : 'PHONUX_KEYSTORE_PASSWORD';
+  const android = join(app.root, 'android');
+  const gradlew = probe.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+  const java = env.JAVA_HOME ? join(env.JAVA_HOME, 'bin', probe.platform === 'win32' ? 'jarsigner.exe' : 'jarsigner') : 'jarsigner';
+  const bundle = join('app', 'build', 'outputs', 'bundle', 'release');
+  // The same Gradle task and jarsigner call as `cap build android`, which puts both passwords on jarsigner's command
+  // line, where any local user can read them; `:env` makes jarsigner read them from the environment instead.
   return {
     id: 'android', label: 'Android release build', deps: ['web'], memoryGb: 3, env,
     steps: [
       ...prepare,
-      cap(app, 'build', 'android', '--keystorepath', signing.keystore, '--keystorepass', storePass, '--keystorealias', signing.alias, '--keystorealiaspass', keyPass, '--androidreleasetype', 'AAB'),
+      { kind: 'run', command: gradlew, args: [':app:bundleRelease'], cwd: android },
+      {
+        kind: 'run', command: java, cwd: android,
+        args: [
+          '-sigalg', 'SHA1withRSA', '-digestalg', 'SHA1', '-keystore', signing.keystore,
+          '-keypass:env', keyPassVar, '-storepass:env', 'PHONUX_KEYSTORE_PASSWORD',
+          '-signedjar', join(bundle, 'app-release-signed.aab'), join(bundle, 'app-release.aab'), signing.alias,
+        ],
+      },
       copyOut(app, join('android', 'app', 'build', 'outputs', 'bundle', 'release'), 'release'),
     ],
     output: join(ANDROID_OUT, 'release'),
