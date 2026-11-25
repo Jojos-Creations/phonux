@@ -3,32 +3,9 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useReducedMotionConfig } from 'motion/react';
 import type { ResolvedWorkspaceTuning } from './panelSettings.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
-import { fitPhone, useRowHeightBudget, useWindowJump } from './phoneFit.js';
+import { fitPhone, useRowHeightBudget, useWindowSettle } from './phoneFit.js';
+import { WINDOW_SETTLE_FLOOR_MS } from './rowConstants.js';
 import { resizeSettleDelayMs } from './Workspace.js';
-
-/**
- * `width` and `height` once both have held still for `delayMs`, taken together so a resize lands in one commit. A side not yet
- * measured (0) takes its first value at once, so the first layout is not late.
- */
-function useSettledSize(width: number, height: number, delayMs: number, instant: boolean): { readonly width: number; readonly height: number } {
-  const [settled, setSettled] = React.useState({ width, height });
-  const w = instant || settled.width === 0 ? width : settled.width;
-  const h = instant || settled.height === 0 ? height : settled.height;
-  React.useEffect(() => {
-    if (w === width && h === height) {
-      if (settled.width !== width || settled.height !== height) setSettled({ width, height });
-      return undefined;
-    }
-    // Counted on animation frames, not a timer, so a virtual frame clock (`phonux/testing/row`) runs the wait as it runs the glide.
-    const due = performance.now() + delayMs;
-    let frame = requestAnimationFrame(function wait(): void {
-      if (performance.now() >= due) setSettled({ width, height });
-      else frame = requestAnimationFrame(wait);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [width, height, w, h, delayMs, settled]);
-  return React.useMemo(() => ({ width: w, height: h }), [w, h]);
-}
 
 /** What `usePhoneFit` returns. @public */
 export interface PhoneFitResult {
@@ -72,10 +49,10 @@ export function usePhoneFit(
   const on = tuning.phoneFit === 'fit';
   const budget = useRowHeightBudget(containerRef, rowTopReservePx(topInset, tuning.rowTop, tuning.rowGap), rowBottomReservePx(tuning.rowGap, bottomInset, tuning.chrome.where));
   const settleMs = resizeSettleDelayMs(tuning.slide, tuning.resizeSettleSlides);
-  const jumping = useWindowJump(containerWidth, budget, settleMs);
-  const settled = useSettledSize(containerWidth, budget, settleMs, reduced || jumping);
+  // One window action is one resize: its sizes land at once at the phone size drawn before it, and the new phone size comes once it settles.
+  const { settled } = useWindowSettle(containerWidth, budget, settleMs, WINDOW_SETTLE_FLOOR_MS, reduced || settleMs <= 0);
   const previous = React.useRef<number | undefined>(undefined);
-  const fit = on ? fitPhone({ windowWidth: settled.width, heightBudget: settled.height, rowCount: 1, preferred, gap: tuning.rowGap, edge: tuning.rowGap, min: tuning.phoneFitMin, max: tuning.phoneFitMax, ...(previous.current !== undefined && !jumping ? { previousCount: previous.current } : {}) }) : undefined;
+  const fit = on ? fitPhone({ windowWidth: settled.width, heightBudget: settled.height, rowCount: 1, preferred, gap: tuning.rowGap, edge: tuning.rowGap, min: tuning.phoneFitMin, max: tuning.phoneFitMax, ...(previous.current !== undefined ? { previousCount: previous.current } : {}) }) : undefined;
   React.useLayoutEffect(() => {
     previous.current = fit?.count || undefined;
   });

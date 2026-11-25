@@ -83,37 +83,56 @@ export function fitPhone(i: PhoneFitInput): PhoneFit {
 /** The size the default mount fits to the window; unset where nothing fits, so a reader falls back to the host's own. */
 export const PhoneSizeContext = React.createContext<{ readonly width: number; readonly height: number } | undefined>(undefined);
 
-/** How far the row's room moves in one step, in px, for that step to be a jump: past any hand drag of a window edge. */
-const WINDOW_JUMP_PX = 120;
+/** What `useWindowSettle` reports: the size the window settled at, and whether it is still changing. @internal */
+export interface WindowSettle {
+  /** `width` and `height` as of the last settle; the live pair while `instant`, and a side not yet measured (0) takes its first value at once. */
+  readonly settled: { readonly width: number; readonly height: number };
+  /** True from the first change of a resize until it settles: every step in between lands at once. */
+  readonly changing: boolean;
+}
 
 /**
- * True from a jump of the row's room (a window maximized, restored or snapped) until `width` and `height` have held still for
- * `holdMs`. A jump has no in-between sizes to follow, so the row lands it in that commit, at the new phone size and panel count, with
- * no motion: the window's own animation is the transition. A hand drag steps a few px at a time and is never a jump.
+ * Whether the window's `width` and `height` have settled after a resize, and the size they settled at. A resize is every change from
+ * the first one on, and it settles once both sides have held still for `quietMs` and at least `floorMs` have passed since its first
+ * change, both counted on animation frames so a virtual frame clock runs the wait. The floor keeps one window action one resize:
+ * a zoom hands the page an 8 px nudge and then its final size ~340 ms later, and entering full screen its width at once and then
+ * two height-only changes ~585 and ~625 ms after its first (Chrome on macOS, measured 2026-11-25). `endKey` changing ends a resize
+ * at once: the commit that lands the settled size is not a step of it. `instant` (Reduce Motion, a settle of 0) settles every change
+ * as it comes.
  * @internal
  */
-export function useWindowJump(width: number, height: number, holdMs: number): boolean {
-  const last = React.useRef({ width, height });
-  const until = React.useRef(0);
+export function useWindowSettle(width: number, height: number, quietMs: number, floorMs: number, instant: boolean, endKey?: string): WindowSettle {
+  const [settled, setSettled] = React.useState({ width, height });
+  const burst = React.useRef<{ first: number; last: number } | null>(null);
+  const seen = React.useRef({ width, height, endKey });
   const [, wake] = React.useReducer((n: number) => n + 1, 0);
-  const dw = Math.abs(width - last.current.width);
-  const dh = Math.abs(height - last.current.height);
-  const measured = last.current.width > 0 && last.current.height > 0;
   const now = performance.now();
-  // The steps a jump arrives in stay part of it.
-  if (measured && (dw >= WINDOW_JUMP_PX || dh >= WINDOW_JUMP_PX || ((dw > 0 || dh > 0) && now < until.current))) until.current = now + holdMs;
-  last.current = { width, height };
-  const jumping = now < until.current;
+  // A height of 0 is a host that measures none; only the first width is the first measurement.
+  const measured = seen.current.width > 0;
+  if (seen.current.width !== width || seen.current.height !== height) {
+    if (measured && !instant) burst.current = { first: burst.current?.first ?? now, last: now };
+  } else if (seen.current.endKey !== endKey) burst.current = null;
+  seen.current = { width, height, endKey };
+  if (instant) burst.current = null;
+  const dueAt = burst.current === null ? 0 : Math.max(burst.current.last + quietMs, burst.current.first + floorMs);
+  if (burst.current !== null && now >= dueAt) burst.current = null;
+  const changing = burst.current !== null;
+  // Settled, or never measured: the live size; mid-resize: the size the last settle drew.
+  const w = !changing || settled.width === 0 ? width : settled.width;
+  const h = !changing || settled.height === 0 ? height : settled.height;
   React.useEffect(() => {
-    if (!jumping) return undefined;
-    // Counted on animation frames, as the settle is, so a virtual frame clock runs this wait too.
+    if (!changing) {
+      if (settled.width !== width || settled.height !== height) setSettled({ width, height });
+      return undefined;
+    }
     let frame = requestAnimationFrame(function wait(): void {
-      if (performance.now() >= until.current) wake();
+      if (performance.now() >= dueAt) wake();
       else frame = requestAnimationFrame(wait);
     });
     return () => cancelAnimationFrame(frame);
-  }, [jumping, width, height]);
-  return jumping;
+  }, [changing, dueAt, width, height, settled]);
+  const pair = React.useMemo(() => ({ width: w, height: h }), [w, h]);
+  return { settled: pair, changing };
 }
 
 /**

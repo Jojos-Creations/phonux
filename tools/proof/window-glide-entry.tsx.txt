@@ -1,0 +1,89 @@
+// A fitted row as the default mount draws one, for test/window-glide-rendered.test.ts: `n` one-slot panels (query n=<count>) in a
+// mount whose box the test sizes by hand, frame by frame, as a window being maximized, zoomed or taken full screen hands a page its
+// sizes. `window.__s.drive(steps, ms)` plays the sizes on animation frames and reads every frame: each panel's drawn box, the row
+// root, the animations running on them, and every write of a slot's or size box's width.
+import * as React from 'react';
+import { createWorkspace, definePanel } from 'LIB/index.js';
+
+const q = new URLSearchParams(location.search);
+const N = Number(q.get('n') ?? 4);
+const ids = Array.from({ length: N }, (_, k) => `p${k + 1}`);
+const host = document.getElementById('root')!;
+const [w0, h0] = (q.get('size') ?? '900x557').split('x').map(Number) as [number, number];
+host.style.cssText = `position:relative;width:${w0}px;height:${h0}px;overflow:hidden`;
+
+function View({ name }: { name: string }) {
+  return <div data-box={name} style={{ boxSizing: 'border-box', height: '100%', padding: 12, color: '#fff', font: '24px sans-serif', background: '#345' }}>{name}</div>;
+}
+
+const ws = createWorkspace({
+  mount: host,
+  templates: ids.map((id) => definePanel({ id, view: (() => <View name={id} />) as any, settings: { title: id, slots: 1 } as any })),
+  tuning: { phoneFit: 'fit', rowGap: 16 } as any,
+});
+for (const id of ids) ws.addPanel(id);
+
+const nameOf = (slot: Element): string => slot.querySelector('[data-box]')?.getAttribute('data-box') ?? '?';
+const slots = () => [...document.querySelectorAll<HTMLElement>('[data-row-slot]')];
+const ours = (a: Animation): boolean => {
+  const t = (a.effect as KeyframeEffect | null)?.target;
+  return t instanceof Element && (t.hasAttribute('data-row-slot') || t.hasAttribute('data-row-root') || t.hasAttribute('data-panel-size-box'));
+};
+const props = (a: Animation): string[] => [...new Set(((a.effect as KeyframeEffect | null)?.getKeyframes() ?? []).flatMap((k) => Object.keys(k).filter((x) => !['offset', 'easing', 'composite', 'computedOffset'].includes(x))))];
+
+(window as any).__s = {
+  ready: () => slots().length === N && slots().every((s) => s.querySelector('[data-box]') !== null),
+  /** Plays `steps` ([ms after the start, width, height]) on animation frames, and reads every frame until `ms` after the last one. */
+  drive: (steps: [number, number, number][], ms: number) =>
+    new Promise((resolve) => {
+      const writes: Record<string, number[]> = {};
+      const seenAnims = new Map<Animation, { first: number; startTime: number; props: string[]; on: string; current0: number | null }>();
+      const t0 = performance.now();
+      const mo = new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target as HTMLElement;
+          const box = el.hasAttribute('data-panel-size-box') ? el : el.hasAttribute('data-row-slot') ? el : null;
+          if (box === null) continue;
+          const slot = box.closest('[data-row-slot]');
+          if (slot === null) continue;
+          const was = /(?:^|;)\s*width:\s*([^;]+)/.exec(r.oldValue ?? '')?.[1]?.trim();
+          const now = box.style.width;
+          if (was !== now) (writes[`${nameOf(slot)}:${box.hasAttribute('data-panel-size-box') ? 'box' : 'slot'}`] ??= []).push(performance.now() - t0);
+        }
+      });
+      mo.observe(host, { subtree: true, attributes: true, attributeFilter: ['style'], attributeOldValue: true });
+      const frames: any[] = [];
+      let k = 0;
+      const last = steps.at(-1)![0];
+      const tick = (stamp: number) => {
+        const t = performance.now() - t0;
+        // Every animation running now, with its progress as this frame draws it.
+        for (const a of document.getAnimations()) {
+          if (!ours(a) || seenAnims.has(a)) continue;
+          const on = (a.effect as KeyframeEffect).target as Element;
+          seenAnims.set(a, { first: t, startTime: Number(a.startTime) - t0, props: props(a), on: on.hasAttribute('data-row-root') ? 'root' : `${nameOf(on.closest('[data-row-slot]')!)}:${on.hasAttribute('data-row-slot') ? 'slot' : 'box'}`, current0: a.currentTime === null ? null : Number(a.currentTime) });
+        }
+        const root = document.querySelector('[data-row-root]');
+        frames.push({
+          t,
+          stamp,
+          x: Object.fromEntries(slots().map((s) => [nameOf(s), s.getBoundingClientRect().left])),
+          w: Object.fromEntries(slots().map((s) => [nameOf(s), (s.querySelector('[data-panel-size-box]') ?? s).getBoundingClientRect().width])),
+          root: root?.getBoundingClientRect().left ?? null,
+          view: document.querySelector('[data-row-embla-window]')?.getBoundingClientRect().width ?? 0,
+          size: [host.clientWidth, host.clientHeight],
+        });
+        while (k < steps.length && steps[k]![0] <= t) {
+          host.style.width = `${steps[k]![1]}px`;
+          host.style.height = `${steps[k]![2]}px`;
+          k += 1;
+        }
+        if (t < last + ms) requestAnimationFrame(tick);
+        else {
+          mo.disconnect();
+          resolve({ frames, writes, anims: [...seenAnims.values()], last });
+        }
+      };
+      requestAnimationFrame(tick);
+    }),
+};

@@ -18,7 +18,7 @@ import { PANEL_TRANSITION } from './PanelRowSlot.js';
 import { slideToTransition } from './directionalTransition.js';
 import { LIBRARY_TUNING_DEFAULTS } from './panelSettings.js';
 import type { SlideTuning } from './panelSettings.js';
-import { LandingContext, PhoneSizeContext, useRowHeightBudget, useWindowJump } from './phoneFit.js';
+import { LandingContext, PhoneSizeContext, useRowHeightBudget, useWindowSettle } from './phoneFit.js';
 import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, isPanelPress } from './panelChrome.js';
@@ -26,7 +26,7 @@ import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { focusEdgePanel, keyBelongsToRow, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
-import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
+import { ROW_GAP, ROW_LAYER_Z, WINDOW_SETTLE_FLOOR_MS } from './rowConstants.js';
 import type { RowNumbers } from './rowNumbers.js';
 import { OverlaySlot } from './windowOverlay.js';
 import { ROW_ENGINE_ATTRIBUTE, ROW_NEAR_SLOTS, RowNearContext } from './emblaRow.js';
@@ -198,6 +198,9 @@ export interface WorkspaceProps extends Omit<ElementProps, 'children'> {
   rowNearSlots?: number;
 }
 
+/** How much longer than the phone fit's own wait the row's resize lasts, so the fit's settle, not this clock, ends it. */
+const SETTLE_SLACK_MS = 50;
+
 /** A subscription that never fires, for a shell given no workspace. */
 const NO_SUBSCRIPTION = (): (() => void) => () => {};
 
@@ -229,12 +232,18 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     if (firstLanding && containerWidth > 0) setLanding(false);
   }, [firstLanding, containerWidth]);
   // What the last commit drew. A window step moves the row with no animation; any other change past the first measurement glides.
-  const drawn = React.useRef({ numbers: rowNumbers, containerWidth, heightBudget });
+  const drawn = React.useRef({ numbers: rowNumbers, containerWidth, heightBudget, phoneKey: `${phoneWidth}x${phoneHeight ?? ''}` });
   const windowStep = drawn.current.containerWidth !== containerWidth || drawn.current.heightBudget !== heightBudget;
   // The window moved the root aside or back: only that flips a measured row between scrolling and not. A slide there would cut the wide panel.
   const windowMovedRoot = windowStep && drawn.current.containerWidth !== 0 && drawn.current.numbers !== undefined && rowNumbers !== undefined && drawn.current.numbers.rowScroll !== rowNumbers.rowScroll;
-  // A window jump lands the same way: the new size and panel count in one commit, nothing sliding or growing to reach them.
-  const landing = useWindowJump(containerWidth, heightBudget ?? 0, resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides)) || firstLanding || windowMovedRoot;
+  // While the window changes, each of its steps lands at once: the row's place and its panel count, nothing sliding to reach them. The
+  // resize ends a little after the phone fit's own settle, and at once in the commit that brings a new phone size: that commit is
+  // the settle, which glides once from where the row was drawn, and is never a step.
+  const settleMs = resizeSettleDelayMs(resolved.slide, resolved.resizeSettleSlides);
+  const phoneKey = `${phoneWidth}x${phoneHeight ?? ''}`;
+  const phoneChanged = drawn.current.phoneKey !== phoneKey && drawn.current.containerWidth !== 0;
+  const { changing } = useWindowSettle(containerWidth, heightBudget ?? 0, settleMs + SETTLE_SLACK_MS, WINDOW_SETTLE_FLOOR_MS + SETTLE_SLACK_MS, reduced || settleMs <= 0, phoneKey);
+  const landing = changing || firstLanding || windowMovedRoot;
   // A margin glide from where the row stands would draw the strip past the narrower window's edge for as long as it ran.
   const marginWouldCut = windowStep && rowNumbers !== undefined && drawn.current.numbers !== undefined && drawn.current.numbers.rowMarginLeft + rowNumbers.stripWidth > rowNumbers.windowWidth + 0.5;
   const rowResizeSettled = (given ?? (heightBudget === undefined ? derived : !landing && !windowStep)) && !marginWouldCut;
@@ -280,7 +289,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // the container width too and keeps its snap.
   const panelResizing = resizingId !== null || (drawn.current.containerWidth === containerWidth && panelWidthChanged(drawn.current.numbers, rowNumbers));
   React.useLayoutEffect(() => {
-    drawn.current = { numbers: rowNumbers, containerWidth, heightBudget };
+    drawn.current = { numbers: rowNumbers, containerWidth, heightBudget, phoneKey };
   });
   const scrolls = rowNumbers?.rowScroll ?? rowScroll ?? false;
   const phoneSize = React.useMemo(() => (phoneHeight === undefined ? undefined : { width: phoneWidth, height: phoneHeight }), [phoneWidth, phoneHeight]);
@@ -297,7 +306,8 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
   // here, so the paint after the step has it. The left margin is the row scroller's, which draws an instant change at once.
   React.useLayoutEffect(() => {
     const strip = rowRef.current;
-    if (!windowStep || strip === null || marginTop === undefined) return;
+    // The commit that lands a new phone size writes it once too: the panels glide their size around a centre that stays put.
+    if (!(windowStep || phoneChanged) || strip === null || marginTop === undefined) return;
     const values = visualElementStore.get(strip) as { getValue(key: string): { jump(v: number): void } | undefined } | undefined;
     values?.getValue('marginTop')?.jump(marginTop);
     strip.style.marginTop = `${marginTop}px`;
@@ -351,7 +361,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
           data-row-embla-strip=""
           style={{ display: 'flex', gap: `${gap}px`, position: 'relative', zIndex: ROW_LAYER_Z.BASE, ...(marginTop === undefined ? { marginTop: 'auto' } : {}), marginBottom: 'auto', ...(scrolls ? { flexShrink: 0 } : {}) }}
           animate={marginTop === undefined ? {} : { marginTop }}
-          transition={reduced || !rowResizeSettled ? { duration: 0 } : slideToTransition(resolved.slide)}
+          transition={reduced || !rowResizeSettled || phoneChanged ? { duration: 0 } : slideToTransition(resolved.slide)}
         >
           <RowNearContext.Provider value={rowNearSlots}>{children}</RowNearContext.Provider>
         </motion.div>

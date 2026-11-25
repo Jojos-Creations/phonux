@@ -575,9 +575,14 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
   const run = React.useRef<SizeRun | undefined>(undefined);
   const laidOut = React.useRef<BoxSize | undefined>(undefined);
   const [glide, setGlide] = React.useState<PanelSizeGlide | null>(null);
+  // The phone size the last layout effect drew at: a commit that changes it (the window settled, or the count on screen changed) is a
+  // new phone size, which every panel takes together.
+  const drawnPhone = React.useRef(phone);
   // Starts in the commit's layout effect, on the shared start time, so a commit that janks opens no gap to a neighbor.
   React.useLayoutEffect(() => {
     const node = box.current;
+    const phoneWas = drawnPhone.current;
+    drawnPhone.current = phone;
     if (node === null || nested) return;
     const to = { width, height };
     // From the size on screen, so a resize that lands mid-glide carries on from there.
@@ -594,13 +599,24 @@ export function SizeBox({ width: given, height: givenHeight, children }: { width
     setGlide({ from: start, to });
     const transition = slide === undefined ? PANEL_TRANSITION : slideToTransition(slide);
     const startMs = sharedStartTime();
-    run.current = runSizeGlide(node, start, to, transition, startMs, () => {
+    const landed = (): void => {
       run.current = undefined;
       setGlide(null);
-    });
+    };
+    const newPhone = phoneWas !== undefined && phone !== undefined && (phoneWas.width !== phone.width || phoneWas.height !== phone.height);
+    if (newPhone) {
+      // A new phone size: the content is laid out once, at the size it lands on, and the box is drawn scaled from the size it had.
+      // Only the compositor runs the glide, so a webview is resized once and nothing is laid out per frame; nothing is clipped, so
+      // a frame's ring, corners and glow stay on its moving edge.
+      const fromHeight = typeof start.height === 'number' ? start.height : phoneWas.height;
+      const toHeight = typeof height === 'number' ? height : phone.height;
+      run.current = runScaleGlide(node, start, to, start.width / width, fromHeight / toHeight, transition, startMs, landed);
+      return;
+    }
+    run.current = runSizeGlide(node, start, to, transition, startMs, landed);
     const row = closestRowScroller(node);
     if (row !== null) rowScrollerFor(row).followSize({ startMs, durationSec: transition.duration, ease: transition.ease });
-  }, [width, height, snaps, nested]);
+  }, [width, height, snaps, nested, phone]);
   React.useEffect(() => () => run.current?.stop(), []);
   // It fills the box above, so it eases with that box rather than snapping to its own size.
   if (nested) return <div data-panel-size-plain="" style={{ width: '100%', height: '100%' }}>{children}</div>;
@@ -636,6 +652,52 @@ function shownSize(run: SizeRun): BoxSize {
 // The eased size as the box's real width, and height while that eases too: a height of the slot's own (`'100%'`) is left alone.
 function sizeFrame(size: BoxSize, heightEases: boolean): Keyframe {
   return heightEases ? { width: `${size.width}px`, height: `${size.height as number}px` } : { width: `${size.width}px` };
+}
+
+/**
+ * Draws `node`, laid out at `to`, scaled from `sx` by `sy` of it back to its own size: the compositor's `scale`, from the box's left
+ * edge and its vertical centre, so the left edge rides the slot's own glide and the centre stays where the row holds it.
+ */
+function runScaleGlide(
+  node: HTMLElement,
+  from: BoxSize,
+  to: BoxSize,
+  sx: number,
+  sy: number,
+  transition: { duration: number; ease: [number, number, number, number] },
+  startTime: number,
+  onLand: () => void,
+): SizeRun {
+  const done = { p: 0 };
+  if (typeof node.animate !== 'function' || !(Number.isFinite(sx) && Number.isFinite(sy) && sx > 0 && sy > 0)) {
+    onLand();
+    return { from, to, progress: () => 1, stop: () => undefined };
+  }
+  node.style.transformOrigin = '0 50%';
+  const animation = node.animate([{ scale: `${sx} ${sy}` }, { scale: '1 1' }], {
+    duration: transition.duration * 1000,
+    easing: `cubic-bezier(${transition.ease.join(',')})`,
+    fill: 'backwards',
+  });
+  // A fresh start, never backdated: the first frame drawn shows the size the box had.
+  animation.startTime = startTime;
+  const clear = (): void => {
+    node.style.transformOrigin = '';
+  };
+  animation.onfinish = () => {
+    clear();
+    onLand();
+  };
+  return {
+    from,
+    to,
+    progress: () => animation.effect?.getComputedTiming().progress ?? done.p,
+    stop: () => {
+      animation.onfinish = null;
+      animation.cancel();
+      clear();
+    },
+  };
 }
 
 function runSizeGlide(
