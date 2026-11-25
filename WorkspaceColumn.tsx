@@ -125,14 +125,24 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
     setSeen({ id: currentId, workspaces: snap.workspaces });
     const ids = new Set(snap.workspaces.map((w) => w.id));
     shownMotion = prunedMotion(motion, ids);
-    if (seen.id !== currentId && seen.id !== undefined && currentId !== undefined) {
+    // A move to a side already on screen only moves the focus there: neither cell is thrown aside, whatever slideFrom would say.
+    const onScreen = split && seen.id !== undefined && shownIds.has(seen.id);
+    if (seen.id !== currentId && seen.id !== undefined && currentId !== undefined && !onScreen) {
       const fromWs = seen.workspaces.find((w) => w.id === seen.id);
       const toWs = snap.workspaces[snap.current]!;
       // A cell never moved rests above or below the workspace that was current, by index.
       const fromAt = snap.workspaces.findIndex((w) => w.id === seen.id);
       const restOf = (id: string): ParkSide =>
         fromAt >= 0 ? byIndex(fromAt, snap.workspaces.findIndex((w) => w.id === id)) : byIndex(seen.workspaces.findIndex((w) => w.id === seen.id), seen.workspaces.findIndex((w) => w.id === id));
-      const wanted: ColumnSlide = !placed ? 'none' : reduced ? (fadeWhenReduced ? 'fade' : 'none') : fromWs === undefined ? 'none' : core.slideFrom?.(fromWs, toWs, seen.workspaces) ?? restOf(currentId);
+      const asked = (): ColumnSlide | undefined => {
+        try {
+          return fromWs === undefined ? 'none' : core.slideFrom?.(fromWs, toWs, seen.workspaces);
+        } catch (e) {
+          core.reportError(e);
+          return undefined;
+        }
+      };
+      const wanted: ColumnSlide = !placed ? 'none' : reduced ? (fadeWhenReduced ? 'fade' : 'none') : asked() ?? restOf(currentId);
       shownMotion = switchMotion(shownMotion, seen.id, currentId, wanted, restOf);
     }
     if (shownMotion !== motion) setMotion(shownMotion);
@@ -152,7 +162,9 @@ export function WorkspaceColumn({ column, children }: WorkspaceColumnProps): Rea
     // A cell fading out stays where it stood until it is clear, then rests out of view.
     if (kind === 'fade') return { transform: shownTransform(sideways), transition: fade, opacity: shown ? 1 : 0 };
     const rest = sideways ? (shownMotion.park.get(id) ?? byIndex(snap.current, i)) : i < snap.current ? 'above' : 'below';
-    return { transform: shown ? shownTransform(sideways) : parkedTransform(rest, sideways), transition: kind === 'slide' ? slide : 'none' };
+    // Side by side, a side the window comes to show glides in though no move carried it; a cell passed over never moves through view.
+    const glides = kind === 'slide' || (split && shown && placed && !reduced);
+    return { transform: shown ? shownTransform(sideways) : parkedTransform(rest, sideways), transition: glides ? slide : 'none' };
   };
 
   // An inert cell drops the focus inside it; the arrow keys keep working only if focus lands somewhere in the column again.

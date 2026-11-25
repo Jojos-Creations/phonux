@@ -80,7 +80,9 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
   /**
    * Picks how each move to another workspace comes into view: from the left, the right, above or below, by a fade, or at once. The
    * workspace left goes out the opposite way. Unset: the one arrived at comes from below when it is further down the list and from
-   * above otherwise, as it always did. A move made while the last is still sliding carries on from where every cell stands.
+   * above otherwise, as it always did. A move made while the last is still sliding carries on from where every cell stands. A move
+   * to a side already on screen next to it moves nothing and does not ask. It is called while the column draws and may be called
+   * more than once for one move, so it must be pure; one that throws is reported through `onError` and the default is used.
    */
   slideFrom?: ColumnSlideFrom;
   /**

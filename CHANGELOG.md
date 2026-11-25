@@ -7,8 +7,8 @@
 - `ColumnOptions.slideFrom` (`ColumnSlideFrom`, answering a `ColumnSlide`): picks, at each move of a workspace column, whether
   the workspace arrived at comes in from the left, the right, above or below, fades in, or shows at once; the one left goes out the
   other way. Unset, a column slides up or down by list order as before. `ColumnOptions.reducedSwitch: 'fade'` crossfades under
-  Reduce Motion in place of the instant switch. A move made while the last is still sliding now carries every cell on from where it
-  stands: before, a space still leaving vanished at once when a third was chosen.
+  Reduce Motion in place of the instant switch. With `slideFrom`, a move made while the last is still sliding carries every cell on
+  from where it stands, and a move to a side already on screen moves no cell.
 - Sticky panels. The panel setting `sticky` (`'off'` by default, `'start'` or `'end'`) takes the panel's slots out of the
   scrolling row at that end of the row, and the panel never moves while the row scrolls: `[sticky | row of 4]`,
   `[sticky | row of 3 | sticky]`, `[sticky | sticky | row of 3]`, up to every slot. It takes its slots whether or not the
