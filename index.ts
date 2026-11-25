@@ -195,7 +195,7 @@ export { createWorkspace } from './workspaceCore.js';
 export type { OccupantMove, OpenPlacement, OpenRow, PlaceOpen } from './openPlacement.js';
 export { MAX_WORKSPACE_NAME } from './workspaceName.js';
 export { createWorkspaceColumn } from './columnHandle.js';
-export type { ColumnOptions, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, WorkspaceColumnHandle } from './columnHandle.js';
+export type { ColumnOptions, ColumnShown, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, SideRefusal, SideResult, WorkspaceColumnHandle } from './columnHandle.js';
 export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WorkspaceColumn } from './WorkspaceColumn.js';
 export {
   COLUMN_BAND_ATTRIBUTE,

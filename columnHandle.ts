@@ -12,15 +12,26 @@ import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
 import type { PhonuxTheme } from './defaultTheme.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { ColumnBands } from './columnBands.js';
+import { resolveWorkspaceTuning } from './panelTuning.js';
+import { evenRows, minRowSlots, planSides, splitProblem, type SideCell, type SideSpace } from './columnSplit.js';
+import type { StickyCandidate } from './rowNumbers.js';
 
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
 export interface ColumnState {
-  /** The shape of this record; a different version reads as nothing saved. */
-  version: 1;
+  /**
+   * The shape of this record. A column made with `sideBySide` writes 2 and reads 1 or 2; any other column writes and reads 1, and
+   * a different version reads as nothing saved. A record of version 1 has no `side` and reads as only the current workspace shown.
+   */
+  version: 1 | 2;
   /** The workspaces from top to bottom. */
   workspaces: { id: string; name: string }[];
   /** The id of the current workspace, or null for none. */
   current: string | null;
+  /**
+   * Version 2 only: the workspaces the window shows side by side, left to right, and the row slots each is given. The two lists are as
+   * long as each other, every split entry is a whole number of at least 1, and the current workspace is among the shown.
+   */
+  side?: { shown: string[]; split: number[] };
 }
 
 /**
@@ -58,7 +69,40 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
    * `withSlotChanges`; the row keeps `columnBandRoom(bands)` clear of them.
    */
   bands?: ColumnBands;
+  /**
+   * Whether a window wide enough shows several workspaces side by side, each with its own row and its own sticky panels: `showSide`,
+   * `hideSide`, `setSplit` and `focusSide` then act, the saved list carries the shown spaces and their split, and the cells divide the
+   * window by whole slots with a draggable divider between them. Unset or false: one workspace shows, as it always did.
+   * @defaultValue false
+   */
+  sideBySide?: boolean;
 };
+
+/** One workspace the window shows: where it stands and how many slots it has. @public */
+export interface ColumnShown {
+  /** The workspace. */
+  workspace: WorkspaceHandle;
+  /** The whole slots its cell takes: its scrolling row and its sticky panels. */
+  slots: number;
+  /** The whole slots of its scrolling row, a sticky panel that went back into the row counted. Each is at least 1 while spaces share the window. */
+  rowSlots: number;
+}
+
+/** Why `showSide`, `hideSide` or `setSplit` changed nothing. @public */
+export type SideRefusal =
+  | 'disposed'
+  | 'not-enabled'
+  | 'not-ready'
+  | 'not-measured'
+  | 'unknown-workspace'
+  | 'already-shown'
+  | 'not-shown'
+  | 'current'
+  | 'no-room'
+  | 'invalid-split';
+
+/** What `showSide`, `hideSide` and `setSplit` answer: done, or nothing changed and the code says why. @public */
+export type SideResult = { ok: true } | { ok: false; code: SideRefusal; message: string };
 
 /** What `addWorkspace` takes: everything is optional. @public */
 export interface ColumnWorkspaceOptions {
@@ -93,8 +137,50 @@ export interface WorkspaceColumnHandle {
   addWorkspace(o?: ColumnWorkspaceOptions): WorkspaceHandle;
   /** Makes `target` (a handle of this column, or an index) the current workspace. An unknown handle or an index out of range changes nothing. */
   scrollTo(target: WorkspaceHandle | number): void;
-  /** Moves to the workspace above or below; false at the end of the column. */
+  /**
+   * Moves to the workspace above or below; false at the end of the column. With `sideBySide` it changes the current workspace, the one
+   * in the side that holds focus, skipping a workspace the window already shows in another side. A workspace the window left out for
+   * lack of room is not skipped: it becomes current and keeps its own saved side, so the window plans again around it and the one it
+   * replaces keeps its saved side too. A workspace with no saved side takes the current workspace's, and that side is gone.
+   */
   step(direction: 'up' | 'down'): boolean;
+  /**
+   * The workspaces the window shows, left to right, a new array whenever any of them changes. Without `sideBySide`, or while the window
+   * holds one slot, or before the column has been drawn and measured, it is the current workspace alone. The current workspace is
+   * always among them.
+   */
+  readonly shown: readonly ColumnShown[];
+  /**
+   * Adds `workspace` to the window as a new side, taking its room from the current workspace: the new side gets half the current one's
+   * row slots, rounded down. `options.at` is where it stands among the shown, left to right, counting from 0; unset, just right of the
+   * current one. It does not become the current workspace.
+   *
+   * Nothing changes, and the answer says why, for a column without `sideBySide` (`not-enabled`), one that is disposed or still reading
+   * its saved list (`disposed`, `not-ready`), one not yet drawn and measured (`not-measured`), a workspace that is not in the column
+   * (`unknown-workspace`) or is shown already (`already-shown`), and a current side with too few row slots to share (`no-room`): each of the
+   * two sides must keep the least a side may have, 1 row slot or `tuning.minScrollSlots` when that is more, so fewer than twice that is too few.
+   */
+  showSide(workspace: WorkspaceHandle | number, options?: { at?: number }): SideResult;
+  /**
+   * Takes `workspace` out of the window; the room it had goes to the current workspace. The workspace stays in the column and one `step` away.
+   * Refuses, changing nothing, as `showSide` does for a column without `sideBySide`, a disposed, unready or unmeasured one and an unknown
+   * workspace, and with `not-shown` for one the window does not show and `current` for the current workspace, which is always shown.
+   */
+  hideSide(workspace: WorkspaceHandle | number): SideResult;
+  /**
+   * Sets how many row slots each shown workspace gets, left to right, in `shown`'s order. Each is a whole number of at least 1, or of at
+   * least `tuning.minScrollSlots` when that is more, the
+   * entries are as many as `shown` has, and together they are at most the window's slots; a split that is not is refused with
+   * `invalid-split` and changes nothing, and the message says which entry is wrong. Slots the entries leave unused are dealt one at a
+   * time, to the current workspace first and then to the nearest ones, and the sticky panels of a space take their own slots besides, so `shown` reports what the window really gives. The split
+   * is saved with the column. Also refuses as `showSide` does for a column without `sideBySide`, a disposed or unready one, and an unmeasured one.
+   */
+  setSplit(rowSlots: readonly number[]): SideResult;
+  /**
+   * Moves which side holds focus to the shown workspace on the left or the right, making it the current workspace. False, changing
+   * nothing, at the end of the shown row and for a column without `sideBySide` or with one workspace shown.
+   */
+  focusSide(direction: 'left' | 'right'): boolean;
   /**
    * Takes the workspace `target` (a handle of this column, or an index) out of the column and disposes it, so its panels and
    * history leave the screen. Its saved panels are not deleted: the saved list no longer names it, and deleting them is the
@@ -166,6 +252,15 @@ export interface ColumnSnapshot {
   /** The clearance above the column's own controls: the `topInset` the column was given, 0 without one. */
   topInset: number;
   tuning: WorkspaceOptions['tuning'];
+  /** Whether the column was made with `sideBySide`. */
+  sideBySide: boolean;
+  /** The cells the window shows, left to right; the current workspace alone while one space shows. */
+  shown: readonly SideCell[];
+  /** The phone width the slots are priced at, or undefined for the library default, and the row gap. */
+  phoneWidth: number | undefined;
+  rowGap: number;
+  /** The least row slots a side keeps. */
+  leastRows: number;
 }
 
 interface ColumnCore {
@@ -179,6 +274,10 @@ interface ColumnCore {
   readonly bands: ColumnBands | undefined;
   /** Reports an error the column swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
+  /** The drawn width of the column in px, which the slots of the window are counted from at `phoneWidth`; 0 while it is not drawn. */
+  setWindowWidth(px: number, phoneWidth: number): void;
+  /** Sets the split to the one with every shown side as even as whole slots allow. */
+  evenSplit(): SideResult;
 }
 
 const CORES = new WeakMap<WorkspaceColumnHandle, ColumnCore>();
@@ -190,11 +289,19 @@ export function columnCoreOf(column: WorkspaceColumnHandle): ColumnCore {
   return core;
 }
 
+const isSide = (v: unknown): v is NonNullable<ColumnState['side']> => {
+  if (typeof v !== 'object' || v === null) return false;
+  const { shown, split } = v as Record<string, unknown>;
+  if (!Array.isArray(shown) || !Array.isArray(split) || shown.length !== split.length) return false;
+  return new Set(shown).size === shown.length && shown.every((id) => typeof id === 'string' && id !== '') && split.every((n) => Number.isInteger(n) && (n as number) >= 1);
+};
+
 const isColumnState = (v: unknown): v is ColumnState => {
   if (typeof v !== 'object' || v === null) return false;
   const s = v as Record<string, unknown>;
-  if (s.version !== 1 || !Array.isArray(s.workspaces)) return false;
+  if ((s.version !== 1 && s.version !== 2) || !Array.isArray(s.workspaces)) return false;
   if (s.current !== null && typeof s.current !== 'string') return false;
+  // A malformed `side` is read as none, so the workspaces it sits beside are not lost with it.
   const seen = new Set<string>();
   return s.workspaces.every((w) => {
     if (typeof w !== 'object' || w === null) return false;
@@ -238,14 +345,68 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
   const removers: Array<() => void> = [];
   let snap: ColumnSnapshot | undefined;
   let restoring = false;
+  const sideBySide = o.sideBySide === true;
+  // The saved split: the workspaces the window is asked to show, left to right, and the row slots each is given. What the window can
+  // hold decides how much of it is drawn (`planNow`); a space it cannot hold stays here and comes back when the window widens.
+  let sides: { id: string; rows: number }[] = [];
+  let windowWidth = 0;
+  let pricedAt = 0;
+  // Bumped by anything the plan reads, so a plan is worked out once per change.
+  let version = 0;
+  let planned: { at: number; cells: SideCell[]; sig: string } | undefined;
+  const panelSubs = new Map<string, () => void>();
 
-  const changed = (): void => {
+  const rowGap = (): number => resolveWorkspaceTuning(tuningInput).rowGap;
+  const leastRows = (): number => minRowSlots(resolveWorkspaceTuning(tuningInput).minScrollSlots);
+  /** The whole slots the window holds at the phone size it was measured with: the room less one gap, in phones and gaps. 0 while it is not measured. */
+  const windowSlots = (): number => (windowWidth > 0 && pricedAt > 0 ? Math.max(1, Math.floor((windowWidth - rowGap()) / (pricedAt + rowGap()))) : 0);
+  const stickyOf = (ws: WorkspaceHandle): { sticky: StickyCandidate[]; panels: number } => {
+    const present = ws.panels
+      .getSnapshot()
+      .panels.filter((p) => p.status === 'live')
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    const sticky = present.flatMap((p, k) => (p.settings.sticky === 'off' ? [] : [{ k, slots: Math.max(1, p.slots ?? 1), rank: p.settings.stickyRank }]));
+    return { sticky, panels: present.length };
+  };
+  const spacesNow = (): { spaces: SideSpace[]; at: number } => {
+    const cur = list[current];
+    if (cur === undefined) return { spaces: [], at: -1 };
+    const rows = sideBySide ? sides.filter((e) => list.some((w) => w.id === e.id)) : [];
+    const entries = rows.some((e) => e.id === cur.id) ? rows : [{ id: cur.id, rows: 1 }];
+    const spaces = entries.map((e) => ({ id: e.id, rows: e.rows, ...stickyOf(list.find((w) => w.id === e.id)!) }));
+    return { spaces, at: spaces.findIndex((x) => x.id === cur.id) };
+  };
+  const planNow = (): { cells: SideCell[]; sig: string } => {
+    if (planned !== undefined && planned.at === version) return planned;
+    const { spaces, at } = spacesNow();
+    const cells = planSides({ spaces, current: at, windowSlots: windowSlots(), minScrollSlots: resolveWorkspaceTuning(tuningInput).minScrollSlots });
+    planned = { at: version, cells, sig: cells.map((c) => `${c.id}:${c.slots}:${c.rowSlots}`).join('|') };
+    return planned;
+  };
+  /** Something the plan reads changed outside the column's own methods: tell the readers only when what the window shows is not what it showed. */
+  const replan = (): void => {
+    if (status === 'disposed') return;
+    const before = planNow().sig;
+    version++;
+    if (planNow().sig === before) return;
     snap = undefined;
     for (const l of [...listeners]) l();
   };
-  const snapshot = (): ColumnSnapshot => (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: tuningInput });
 
-  const state = (): ColumnState => ({ version: 1, workspaces: list.map((w) => ({ id: w.id, name: w.name })), current: list[current]?.id ?? null });
+  const changed = (): void => {
+    version++;
+    snap = undefined;
+    for (const l of [...listeners]) l();
+  };
+  const snapshot = (): ColumnSnapshot =>
+    (snap ??= { status, workspaces: list, names: list.map((w) => w.name), current, labels: live.labels, topInset: live.topInset ?? 0, tuning: tuningInput, sideBySide, shown: planNow().cells, phoneWidth: live.device?.size.width, rowGap: rowGap(), leastRows: leastRows() });
+
+  const state = (): ColumnState => {
+    const base = { workspaces: list.map((w) => ({ id: w.id, name: w.name })), current: list[current]?.id ?? null };
+    if (!sideBySide) return { version: 1, ...base };
+    const kept = sides.filter((e) => list.some((w) => w.id === e.id));
+    return { version: 2, ...base, side: { shown: kept.map((e) => e.id), split: kept.map((e) => e.rows) } };
+  };
   // Saves go one after another so a slow one cannot land after the one that followed it.
   let saving: Promise<void> = Promise.resolve();
   const persist = (): void => {
@@ -303,6 +464,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       },
     });
     removers.push(() => ws.dispose());
+    // The window's plan reads each space's sticky panels, so it is worked out again when a workspace's panels change.
+    panelSubs.set(id, ws.panels.subscribe(replan));
     return ws;
   };
 
@@ -312,6 +475,40 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     list = [...list.slice(0, at), ws, ...list.slice(at)];
     current = cur === undefined ? at : list.indexOf(cur);
   };
+
+  const find = (target: WorkspaceHandle | number): WorkspaceHandle | undefined => (typeof target === 'number' ? (Number.isInteger(target) ? list[target] : undefined) : list.includes(target) ? target : undefined);
+  const visibleIds = (): string[] => planNow().cells.map((c) => c.id);
+  const stay = (code: SideRefusal, message: string): SideResult => ({ ok: false, code, message });
+  /** What every side verb checks first: null when the column can take it. */
+  const sideGate = (): SideResult | null => {
+    if (status === 'disposed') return stay('disposed', 'the column was disposed');
+    if (!sideBySide) return stay('not-enabled', 'the column was not made with sideBySide');
+    if (status !== 'ready') return stay('not-ready', 'the column is still reading its saved list');
+    if (windowSlots() === 0) return stay('not-measured', 'the column has not been drawn and measured yet');
+    return null;
+  };
+  /** The saved split with every space the window shows taking the row slots it shows now, so a change to one side leaves the others as drawn. */
+  const frozenSides = (): { id: string; rows: number }[] => {
+    const cells = planNow().cells;
+    const out = sides.filter((e) => list.some((w) => w.id === e.id)).map((e) => ({ id: e.id, rows: cells.find((c) => c.id === e.id)?.rowSlots ?? e.rows }));
+    for (const c of cells) if (!out.some((e) => e.id === c.id)) out.push({ id: c.id, rows: c.rowSlots });
+    return out;
+  };
+  /**
+   * Makes list[i] the current workspace. A workspace the window shows takes the focus and nothing else changes. One with a saved side
+   * keeps it and the window plans around it, so a space that left for lack of room comes back to its own place when the window widens.
+   * One with none takes the current workspace's side, which is then gone.
+   */
+  const moveTo = (i: number): void => {
+    const was = list[current];
+    const now = list[i];
+    const showing = new Set(visibleIds());
+    current = i;
+    if (!sideBySide || was === undefined || now === undefined || showing.has(now.id) || sides.some((e) => e.id === now.id)) return;
+    sides = sides.map((e) => (e.id === was.id ? { ...e, id: now.id } : e));
+    if (!sides.some((e) => e.id === now.id)) sides.push({ id: now.id, rows: 1 });
+  };
+  let shownMemo: { sig: string; list: readonly ColumnShown[] } | undefined;
 
   const column: WorkspaceColumnHandle = {
     get status() {
@@ -336,13 +533,88 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       if (status === 'disposed') return;
       const i = typeof target === 'number' ? target : list.indexOf(target);
       if (!Number.isInteger(i) || i < 0 || i >= list.length || i === current) return;
-      current = i;
+      moveTo(i);
       commit();
     },
     step: (direction) => {
-      const next = current + (direction === 'up' ? -1 : 1);
+      const by = direction === 'up' ? -1 : 1;
+      const showing = new Set(sideBySide ? visibleIds() : []);
+      let next = current + by;
+      while (list[next] !== undefined && showing.has(list[next]!.id)) next += by;
       if (status === 'disposed' || next < 0 || next >= list.length) return false;
-      current = next;
+      moveTo(next);
+      commit();
+      return true;
+    },
+    get shown() {
+      const cells = planNow().cells;
+      if (shownMemo?.sig !== planNow().sig) shownMemo = { sig: planNow().sig, list: cells.map((c) => ({ workspace: list.find((w) => w.id === c.id)!, slots: c.slots, rowSlots: c.rowSlots })) };
+      return shownMemo.list;
+    },
+    showSide: (target, options) => {
+      const refused = sideGate();
+      if (refused !== null) return refused;
+      const ws = find(target);
+      if (ws === undefined) return stay('unknown-workspace', 'the workspace is not in this column');
+      const cells = planNow().cells;
+      if (cells.some((c) => c.id === ws.id)) return stay('already-shown', `'${ws.name}' is shown already`);
+      const here = cells.find((c) => c.id === list[current]!.id)!;
+      const least = leastRows();
+      if (here.rowSlots < 2 * least) return stay('no-room', `'${list[current]!.name}' has ${here.rowSlots} row slot${here.rowSlots === 1 ? '' : 's'} and a side needs at least ${least} each, so it cannot share`);
+      const give = Math.floor(here.rowSlots / 2);
+      const own = stickyOf(ws).sticky.reduce((sum, c) => sum + c.slots, 0);
+      const entries = frozenSides().filter((e) => e.id !== ws.id);
+      const mine = entries.find((e) => e.id === here.id)!;
+      mine.rows -= give;
+      const ids = cells.map((c) => c.id);
+      const asked = options?.at;
+      const place = asked === undefined || !Number.isFinite(asked) ? ids.indexOf(here.id) + 1 : Math.max(0, Math.min(ids.length, Math.trunc(asked)));
+      const before = ids[place];
+      const index = before === undefined ? entries.findIndex((e) => e.id === ids[ids.length - 1]) + 1 : entries.findIndex((e) => e.id === before);
+      entries.splice(index, 0, { id: ws.id, rows: Math.max(least, give - own) });
+      sides = entries;
+      commit();
+      return { ok: true };
+    },
+    hideSide: (target) => {
+      const refused = sideGate();
+      if (refused !== null) return refused;
+      const ws = find(target);
+      if (ws === undefined) return stay('unknown-workspace', 'the workspace is not in this column');
+      if (!sides.some((e) => e.id === ws.id) && !visibleIds().includes(ws.id)) return stay('not-shown', `'${ws.name}' is not shown`);
+      if (ws === list[current]) return stay('current', `'${ws.name}' is the current workspace, which is always shown`);
+      const cells = planNow().cells;
+      const freed = cells.find((c) => c.id === ws.id)?.slots ?? 0;
+      const entries = frozenSides().filter((e) => e.id !== ws.id);
+      const mine = entries.find((e) => e.id === list[current]!.id);
+      if (mine !== undefined) mine.rows += freed;
+      sides = entries;
+      commit();
+      return { ok: true };
+    },
+    setSplit: (rows) => {
+      const refused = sideGate();
+      if (refused !== null) return refused;
+      const cells = planNow().cells;
+      const problem = splitProblem(rows, cells.length, windowSlots(), leastRows());
+      if (problem !== null) return stay('invalid-split', problem);
+      const entries = frozenSides();
+      cells.forEach((c, k) => {
+        entries.find((e) => e.id === c.id)!.rows = rows[k]!;
+      });
+      const same = entries.length === sides.length && entries.every((e, k) => e.id === sides[k]!.id && e.rows === sides[k]!.rows);
+      if (same) return { ok: true };
+      sides = entries;
+      commit();
+      return { ok: true };
+    },
+    focusSide: (direction) => {
+      if (status === 'disposed' || !sideBySide) return false;
+      const ids = visibleIds();
+      const to = ids[ids.indexOf(list[current]?.id ?? '') + (direction === 'left' ? -1 : 1)];
+      const i = to === undefined ? -1 : list.findIndex((w) => w.id === to);
+      if (i < 0) return false;
+      moveTo(i);
       commit();
       return true;
     },
@@ -351,9 +623,17 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
       if (status !== 'ready' || list.length < 2 || !Number.isInteger(i) || i < 0 || i >= list.length) return false;
       const removed = list[i]!;
       const cur = list[current];
+      const place = sides.findIndex((e) => e.id === removed.id);
+      const rows = sides[place]?.rows ?? 1;
+      panelSubs.get(removed.id)?.();
+      panelSubs.delete(removed.id);
       removed.dispose();
       list = list.filter((w) => w !== removed);
       current = cur === removed ? Math.min(i, list.length - 1) : cur === undefined ? -1 : list.indexOf(cur);
+      // The workspace that becomes current takes the side the removed one held, unless another side shows it already.
+      sides = sides.filter((e) => e.id !== removed.id);
+      const now = list[current];
+      if (sideBySide && now !== undefined && !sides.some((e) => e.id === now.id)) sides.splice(Math.max(0, place), 0, { id: now.id, rows });
       commit();
       return true;
     },
@@ -394,6 +674,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     dispose: () => {
       if (status === 'disposed') return;
       status = 'disposed';
+      for (const off of panelSubs.values()) off();
+      panelSubs.clear();
       for (const remove of removers.splice(0)) remove();
       list = [];
       current = -1;
@@ -412,6 +694,25 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     theme: o.theme,
     bands,
     reportError,
+    setWindowWidth: (px, phone) => {
+      const width = Number.isFinite(px) ? Math.max(0, Math.floor(px)) : 0;
+      if (width === windowWidth && phone === pricedAt) return;
+      windowWidth = width;
+      pricedAt = Number.isFinite(phone) && phone > 0 ? phone : 0;
+      replan();
+    },
+    evenSplit: () => {
+      const refused = sideGate();
+      if (refused !== null) return refused;
+      const cells = planNow().cells;
+      return column.setSplit(
+        evenRows(
+          cells.map((c) => c.sticky),
+          windowSlots(),
+          leastRows(),
+        ),
+      );
+    },
   });
 
   if (storage !== undefined) {
@@ -440,6 +741,12 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
             const id = saved.current ?? keep;
             const at = list.findIndex((w) => w.id === id);
             current = at >= 0 ? at : list.length > 0 ? Math.min(Math.max(current, 0), list.length - 1) : -1;
+            // A record of version 1, or one with no readable `side`, shows only the current workspace.
+            const side = sideBySide && saved.version === 2 && isSide(saved.side) ? saved.side : undefined;
+            const known = new Set(list.map((w) => w.id));
+            sides = side === undefined ? [] : side.shown.flatMap((sid, k) => (known.has(sid) ? [{ id: sid, rows: side.split[k]! }] : []));
+            const now = list[current];
+            if (sideBySide && now !== undefined && !sides.some((e) => e.id === now.id)) sides = side === undefined ? [{ id: now.id, rows: 1 }] : [...sides, { id: now.id, rows: 1 }];
           }
         } finally {
           restoring = false;

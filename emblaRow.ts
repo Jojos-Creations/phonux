@@ -12,7 +12,7 @@ import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'em
 import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { registerRowKeys } from './rowStep.js';
+import { keyBelongsToRow, registerRowKeys } from './rowStep.js';
 import { CHROME_CUT_LEFT_PROPERTY, CHROME_CUT_RIGHT_PROPERTY, EMBLA_SLOT_ATTRIBUTE, EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_SLOT_ATTRIBUTE } from './rowDom.js';
 
 /** On the Workspace's row container, always 'embla'. Nothing in the library reads it. @internal */
@@ -1010,7 +1010,7 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || arrowKeyBelongsElsewhere(e, doc)) return;
-      if (win.closest('[inert]') !== null || maximizedIn(win)) return;
+      if (win.closest('[inert]') !== null || maximizedIn(win) || !keyBelongsToRow(win, e.target)) return;
       e.preventDefault();
       step(e.key === 'ArrowLeft' ? 'left' : 'right');
     };

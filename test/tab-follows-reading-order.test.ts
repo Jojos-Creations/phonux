@@ -229,3 +229,81 @@ for (const framed of [false, true]) {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// Inside a column that shows several spaces: the column decides what comes after the row
+// ---------------------------------------------------------------------------
+
+test('a Tab out of a row in a cell of a column that shows several spaces: from the DOM-last panel it is the browser’s, from any other focus is parked on the cell’s end, and before any other element the key is cancelled and focus goes there', async () => {
+  const cell = document.createElement('div');
+  cell.setAttribute('data-workspace-cell', '');
+  const sentinel = document.createElement('span');
+  sentinel.tabIndex = 0;
+  sentinel.setAttribute('data-column-sentinel', 'cell-end');
+  const plain = document.createElement('button');
+  for (const dx of [900, -900]) {
+    const { m, reading } = await reorderedRow(false, 's3', dx);
+    const ids = [...m.container.querySelectorAll('[data-grab]')].map((el) => el.getAttribute('data-grab'));
+    const domLast = reading[reading.length - 1] === ids[ids.length - 1];
+    assert.equal(domLast, dx < 0, 'dragged right, the last panel on screen has later ones in the DOM; dragged left, it is the DOM-last too');
+    const last = m.container.querySelector<HTMLElement>(`[data-stop="${reading[reading.length - 1]}-b"]`)!;
+    const tab = (): boolean => {
+      // Twice: after a Tab, the first focus from outside the row is an entry, which the row sends to its first panel on screen.
+      act(() => last.focus());
+      act(() => last.focus());
+      const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      act(() => void last.dispatchEvent(event));
+      return event.defaultPrevented;
+    };
+    try {
+      m.container.after(sentinel);
+      assert.equal(tab(), false, 'the step stays pending for the column');
+      assert.ok(document.activeElement === sentinel, 'outside a cell the row cannot tell who catches the step, and parks');
+      m.container.before(cell);
+      cell.append(m.container, sentinel);
+      assert.equal(tab(), false);
+      assert.ok(document.activeElement === (domLast ? last : sentinel), domLast ? 'the browser’s step from here ends on the cell’s end by itself' : 'parked');
+      sentinel.before(plain);
+      assert.equal(tab(), !domLast, 'with an element between the row and the cell’s end, the browser reaches it from the DOM-last panel, through whatever else that panel holds');
+      assert.ok(document.activeElement === (domLast ? last : plain));
+      plain.focus = () => undefined;
+      assert.equal(tab(), false, 'an element that refuses focus leaves the key to the browser');
+    } finally {
+      delete (plain as { focus?: unknown }).focus;
+      cell.before(m.container);
+      cell.remove();
+      sentinel.remove();
+      plain.remove();
+      cleanup();
+    }
+  }
+});
+
+test('a Tab into the row lands where the browser put it when that is the first panel on screen and the row is in a cell of a column that shows several spaces; elsewhere it goes to that panel’s first control', async () => {
+  const { m, reading } = await reorderedRow(false, 's3', -900);
+  const outside = document.createElement('button');
+  const cell = document.createElement('div');
+  cell.setAttribute('data-workspace-cell', '');
+  const sentinel = document.createElement('span');
+  sentinel.setAttribute('data-column-sentinel', 'cell-start');
+  const second = m.container.querySelector<HTMLElement>(`[data-stop="${reading[0]}-b"]`)!;
+  const enterAt = (el: HTMLElement): string => {
+    outside.focus();
+    act(() => void outside.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })));
+    act(() => el.focus());
+    return (document.activeElement as HTMLElement).dataset.stop!;
+  };
+  try {
+    m.container.before(outside);
+    assert.equal(enterAt(second), `${reading[0]}-a`, 'a row alone picks the panel’s first control');
+    m.container.before(cell);
+    cell.append(sentinel, m.container);
+    assert.equal(enterAt(second), `${reading[0]}-b`, 'in the cell the browser’s own choice in the right panel stays');
+    const other = m.container.querySelector<HTMLElement>(`[data-stop="${reading[1]}-b"]`)!;
+    assert.equal(enterAt(other), `${reading[0]}-a`, 'and its choice of another panel is still corrected');
+  } finally {
+    cell.before(m.container);
+    cell.remove();
+    outside.remove();
+  }
+});

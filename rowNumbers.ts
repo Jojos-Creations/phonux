@@ -284,23 +284,44 @@ export function stickyPlanOf(present: readonly PanelRowEntry[], allWidths: reado
   const pitch = g.phoneWidth + g.gap;
   if (!Number.isFinite(g.windowWidth) || !(pitch > 0)) return { picks: [], totalSlots: 0, stickySlots: 0, scrollSlots: 0 };
   const totalSlots = Math.max(1, Math.floor((g.windowWidth + g.gap) / pitch));
-  let candidates = present.flatMap((p, k) => {
+  const candidates = present.flatMap((p, k) => {
     const sticky = p.settings?.sticky;
     if (sticky !== 'start' && sticky !== 'end') return [];
     return [{ k, side: sticky === 'end' ? ('right' as const) : ('left' as const), slots: slotsOfPx(allWidths[k]!, g.phoneWidth, g.gap), rank: p.settings?.stickyRank ?? 0 }];
   });
-  if (totalSlots < 2) candidates = [];
+  const kept = stickyKept(candidates, present.length, totalSlots, g.minScrollSlots);
+  const stickySlots = kept.reduce((sum, c) => sum + c.slots, 0);
+  return { picks: kept.map(({ k, side }) => ({ k, side })), totalSlots, stickySlots, scrollSlots: totalSlots - stickySlots };
+}
+
+/** A sticky panel that asks for its slots: its index among the present panels, how many slots it takes and its `stickyRank`. @internal */
+export interface StickyCandidate {
+  k: number;
+  slots: number;
+  rank: number;
+}
+
+/** Whether `a` goes back into the scrolling row before `b`: the lower rank first, and of equal rank the one later in the row. @internal */
+export const returnsBefore = (a: StickyCandidate, b: StickyCandidate): boolean => a.rank < b.rank || (a.rank === b.rank && a.k > b.k);
+
+/**
+ * The candidates that stay sticky in a window of `totalSlots`: all of them while they and the scrolling row's least room fit, else the
+ * lowest-priority one at a time goes back (`returnsBefore`). The least room is `minScrollSlots`, and one slot while a panel is left in
+ * the row (`presentCount` is every panel drawn, sticky or not). A window of one slot keeps none.
+ * @internal
+ */
+export function stickyKept<T extends StickyCandidate>(all: readonly T[], presentCount: number, totalSlots: number, minScrollSlots: number): T[] {
+  let candidates = totalSlots < 2 ? [] : [...all];
   const used = (): number => candidates.reduce((sum, c) => sum + c.slots, 0);
   while (candidates.length > 0) {
     // A panel left in the scrolling row needs a slot to be drawn in, whatever the minimum says.
-    const need = Math.max(g.minScrollSlots, present.length - candidates.length > 0 ? 1 : 0);
+    const need = Math.max(minScrollSlots, presentCount - candidates.length > 0 ? 1 : 0);
     if (used() + need <= totalSlots) break;
     let lowest = 0;
-    for (const [j, c] of candidates.entries()) if (c.rank < candidates[lowest]!.rank || (c.rank === candidates[lowest]!.rank && c.k > candidates[lowest]!.k)) lowest = j;
+    for (const [j, c] of candidates.entries()) if (returnsBefore(c, candidates[lowest]!)) lowest = j;
     candidates = candidates.filter((_, j) => j !== lowest);
   }
-  const stickySlots = used();
-  return { picks: candidates.map(({ k, side }) => ({ k, side })), totalSlots, stickySlots, scrollSlots: totalSlots - stickySlots };
+  return candidates;
 }
 
 /** The widths the two edge groups take in flow for `picks`: the left group with its trailing gap, the right with its leading one. */

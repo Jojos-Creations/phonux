@@ -17,6 +17,42 @@
   and `{ kind: 'scroll', slots, panelIds }` segments, left to right.
 - `usePanelDots(...).sticky` lists the sticky panels by side: they get no dot and the app draws a small square at that end
   of the bar. `selectDot(id)` with a sticky panel's id focuses the panel.
+- Side by side. A column made with `createWorkspaceColumn({ sideBySide: true })` shows several workspaces at once, each with its own
+  row, sticky panels and dot bar, in whole slots of one phone and one gap (6 at 2560 px: 2 spaces of 3, 3 of 2 or 6 of 1). New on the
+  handle: `shown` (`ColumnShown[]`: `workspace`, `slots`, `rowSlots`), `showSide(workspace, { at? })`, `hideSide(workspace)`,
+  `setSplit(rowSlots)` (all three answer `{ ok: true }` or `{ ok: false, code, message }` as `SideResult`, with `SideRefusal` codes
+  and never throw) and `focusSide('left' | 'right')`. `step` acts on the focused side and skips a workspace shown elsewhere.
+  A narrow window gives up sticky panels first (lowest `stickyRank`, then the later panel in the column), then the sides the person is
+  not in give up slots, each down to `max(1, minScrollSlots)` row panels, and only then the current side; the space farthest from the
+  current one leaves only when each side cannot keep that, and a wider window restores them all. `step` onto a workspace the window
+  left out makes it current and it keeps its own saved side, so the window plans again around it and every saved side survives, and
+  after the window widens the saved order and split come back; a workspace with no saved side takes the current one's, and that
+  side is gone. Cells never move in the DOM, so no web view reloads and no scroll position resets as the window shows other spaces;
+  Tab is steered across them instead, so Tab and Shift+Tab walk the spaces left to right as they are drawn, with each divider between its
+  two cells, whatever order the column lists them in. Inside a space the browser alone moves focus, so everything it stops at is
+  walked: a web component's controls, an audio or video player's buttons, a date input's fields. The column acts only on its own
+  elements: zero-size sentinels (`data-column-sentinel`) at the ends of the column and of each cell catch the step out of a space and
+  send it to the divider, and a Tab on a divider is handed back to the browser at the next space's start. Where the space drawn
+  first (last) is also the first (last) shown one in the DOM, which is every layout drawn as mounted, the column has no tab stop of
+  its own there and costs no press. Where the two orders disagree at an end, Tab into or out of the column at that end rests for one
+  press on the column's sentinel, which is not drawn. The dividers take focus and are reached by Tab through the column only
+  (`tabindex="-1"`). DESIGN.md "Side by side" has the rules and what the row still chooses by itself.
+  A panel row's Tab hand-over cancels the key only when its target took focus, in a column or out of one, so a row whose next element
+  is inert under a modal dialog no longer holds the person on the dialog's last button.
+  A row whose panels were reordered, with nothing tabbable after it in the page, no longer keeps Tab (and Shift+Tab) going round
+  between two panels, side by side or in a row alone: from the last panel on screen focus is parked on the row's last element in the
+  DOM, and the browser's step leaves the page from there.
+  A button inside a closed `details` or under `content-visibility: hidden` no longer counts as a panel's last or first tab stop, so Tab
+  from the real last stop of a reordered panel is handed to the panel drawn next, which was passed by.
+  A draggable divider between spaces snaps to whole slots and is a `role="separator"` slider
+  (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
+  labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell
+  on its left.
+- `ColumnState.version` is now `1 | 2`, and a version 2 record carries `side: { shown, split }`. A column without `sideBySide` still
+  writes version 1, and a version 1 record reads as only the current workspace shown. An older phonux reads a version 2 record as
+  nothing saved.
+- `arrowKeyBelongsElsewhere` is now also true for a key aimed at a `[role="separator"][aria-valuenow]`, the divider between spaces, so an
+  app's own arrow handler leaves its arrows alone as it does for a slider.
 - `TrustScreen`: the props-driven code exchange that adds someone the person trusts. The person makes a code (shown as
   text and a QR code) or joins with one, waits for the other side, and answers; the maker chooses how long the other side
   may send. The app passes a `TrustExchanges` object (invite, join, the exchange left open, and why a call failed) and

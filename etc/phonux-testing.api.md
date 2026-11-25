@@ -495,6 +495,8 @@ export interface PhonuxLabels {
     shareTrustedLine: string;
     shareYou: string;
     sizeName: (slots: number) => string;
+    splitDivider: (left: string, right: string) => string;
+    splitValue: (left: string, leftPanels: number, right: string, rightPanels: number) => string;
     trustAllow: string;
     trustCancel: string;
     trustClose: string;

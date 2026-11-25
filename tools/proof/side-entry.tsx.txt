@@ -1,0 +1,103 @@
+// A column of spaces side by side, as the app builds one: every space has History as its root (sticky at the start when asked) and
+// pages of the given slots, each panel boxed with its name as its text so a test reads where it is drawn from the page. Built by
+// test/side-by-side-*.test.ts, which drives it in headless Chromium.
+// Query: n=3 (spaces) slots=1,1,1,1,1,1 (each page's slots) sticky=1 (History sticky at the start of every space)
+//        wrap=1 (a dot bar under every row) side=0 (a column without sideBySide)
+//        bands=none (no button and no name above or below a row, so a cell's bands hold nothing Tab stops at)
+// `window.__s` reads the page: every cell, slot and divider as drawn, and drives the column.
+import * as React from 'react';
+import { createWorkspaceColumn, definePanel, useWorkspaceRow, usePanelDots, withSlotChanges, DEFAULT_COLUMN_BANDS } from 'LIB/index.js';
+
+const q = new URLSearchParams(location.search);
+const SPACES = Number(q.get('n') ?? '3');
+const SLOTS = (q.get('slots') ?? '1,1,1,1,1,1').split(',').map(Number);
+const NAMES = ['Research', 'Trip food', 'Notes', 'Garden', 'Bikes', 'Music'];
+const ids = SLOTS.map((_, k) => `p${k + 1}`);
+const stickyOn = q.get('sticky') === '1';
+
+function View({ name, k }: { name: string; k: number }) {
+  const hue = (k * 47) % 360;
+  return (
+    <div data-box={name} tabIndex={-1} style={{ boxSizing: 'border-box', height: '100%', padding: 12, color: '#fff', font: '24px sans-serif', background: name === 'root' ? '#243' : `hsl(${hue} 50% 30%)` }}>
+      {name}
+    </div>
+  );
+}
+
+function DotBar() {
+  const row = useWorkspaceRow();
+  const dots = usePanelDots({ entries: row.entries, scroller: row.scroller });
+  return (
+    <div {...dots.barProps} data-test-dots="" style={{ ...dots.barProps.style, position: 'absolute', bottom: 6, left: '50%', width: dots.width, height: 12, transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
+      {dots.dots.map((d) => (
+        <span key={d.id} {...dots.dotProps(d.id)} style={{ width: d.width, height: 8, background: '#9ab', borderRadius: 4 }} />
+      ))}
+    </div>
+  );
+}
+const Wrap = ({ children }: { children?: React.ReactNode }) => (
+  <>
+    {children}
+    <DotBar />
+  </>
+);
+
+const column = createWorkspaceColumn({
+  sideBySide: q.get('side') !== '0',
+  ...(q.get('bands') === 'none' ? { bands: withSlotChanges(DEFAULT_COLUMN_BANDS, { hide: ['neighbour-above', 'workspace-name', 'neighbour-below'] }) } : {}),
+  root: definePanel({ id: 'root', view: ((props: any) => <View {...props} name="root" k={0} />) as any, settings: { title: 'History', frame: 'none', ...(stickyOn ? { sticky: 'start' } : {}) } as any }),
+  templates: ids.map((id, k) => definePanel({ id, view: ((props: any) => <View {...props} name={id} k={k + 1} />) as any, settings: { title: id, slots: SLOTS[k], maxSlots: 64, frame: 'none' } as any })),
+  tuning: { rowGesture: 'step', rowGap: 16 } as any,
+  ...(q.get('wrap') === '1' ? { wrap: Wrap as any } : {}),
+});
+const spaces = Array.from({ length: SPACES }, (_, k) => column.addWorkspace({ id: `w${k + 1}`, name: NAMES[k] }));
+const first = spaces.map((ws) => ids.map((id) => ws.addPanel(id))[0]!);
+
+const rectOf = (el: Element) => {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+};
+const cellOf = (id: string): HTMLElement => document.querySelector<HTMLElement>(`[data-workspace-cell][data-workspace-id="${id}"]`)!;
+const nameOf = (el: Element): string => el.closest('[data-row-slot]')?.querySelector('[data-box]')?.getAttribute('data-box') ?? '?';
+(window as any).__s = {
+  ready: () => document.querySelectorAll('[data-workspace-cell]').length === SPACES && document.querySelectorAll('[data-row-slot]').length >= SPACES * 2 && column.status === 'ready',
+  column,
+  /** Moves every space's first page one place right, so its row reads in an order its DOM does not have. */
+  reorder: () => first.map((panel) => panel.move(1).ok),
+  spaces: () => spaces.map((w) => w.id),
+  /** The cells in view and the ones out of view, with where each is drawn. */
+  cells: () =>
+    [...document.querySelectorAll<HTMLElement>('[data-workspace-cell]')].map((el) => ({ id: el.dataset.workspaceId!, shown: !el.hasAttribute('inert'), current: el.hasAttribute('data-workspace-active'), ...rectOf(el) })),
+  shown: () => column.shown.map((s) => ({ id: s.workspace.id, name: s.workspace.name, slots: s.slots, rowSlots: s.rowSlots })),
+  /** Every slot of a cell: where it is drawn, whether the row marks it out of sight, and its sticky group. */
+  slots: (id: string) =>
+    [...cellOf(id).querySelectorAll<HTMLElement>('[data-row-slot]')].map((el) => {
+      const away = el.closest('[inert]');
+      return {
+        id: nameOf(el),
+        ...rectOf(el),
+        inert: away !== null && away !== cellOf(id),
+        group: el.closest<HTMLElement>('[data-row-sticky]')?.dataset.rowSticky ?? null,
+        topmost: el.contains(document.elementFromPoint((el.getBoundingClientRect().left + el.getBoundingClientRect().right) / 2, (el.getBoundingClientRect().top + el.getBoundingClientRect().bottom) / 2)),
+      };
+    }),
+  window: (id: string) => rectOf(cellOf(id).querySelector('[data-row-embla-window]')!),
+  /** How far a cell's strip is drawn along, as the browser computes its transform this frame. */
+  offset: (id: string) => -new DOMMatrixReadOnly(getComputedStyle(cellOf(id).querySelector<HTMLElement>('[data-row-embla-window]')!.firstElementChild as HTMLElement).transform).m41,
+  dividers: () =>
+    [...document.querySelectorAll<HTMLElement>('[role="separator"]')].map((el) => ({ ...rectOf(el), now: el.getAttribute('aria-valuenow'), min: el.getAttribute('aria-valuemin'), max: el.getAttribute('aria-valuemax'), text: el.getAttribute('aria-valuetext') })),
+  dots: () =>
+    [...document.querySelectorAll<HTMLElement>('[data-dot-bar]')].map((el) => ({ ...rectOf(el), cell: el.closest<HTMLElement>('[data-workspace-cell]')?.dataset.workspaceId, inert: el.closest('[inert]') !== null })),
+  /** Samples `read()` on every animation frame for `ms`, then resolves with the samples. */
+  sample: (ms: number, read: () => unknown) =>
+    new Promise<unknown[]>((resolve) => {
+      const out: unknown[] = [];
+      const t0 = performance.now();
+      const tick = () => {
+        out.push(read());
+        if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+        else resolve(out);
+      };
+      requestAnimationFrame(tick);
+    }),
+};

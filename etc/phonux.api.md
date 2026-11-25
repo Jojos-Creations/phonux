@@ -140,7 +140,15 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
     storage?: ColumnStorage;
     mount?: HTMLElement | false;
     bands?: ColumnBands;
+    sideBySide?: boolean;
 };
+
+// @public
+export interface ColumnShown {
+    rowSlots: number;
+    slots: number;
+    workspace: WorkspaceHandle;
+}
 
 // @public
 export interface ColumnSlot {
@@ -178,7 +186,11 @@ export interface ColumnSlotProps {
 // @public
 export interface ColumnState {
     current: string | null;
-    version: 1;
+    side?: {
+        shown: string[];
+        split: number[];
+    };
+    version: 1 | 2;
     workspaces: {
         id: string;
         name: string;
@@ -1325,6 +1337,8 @@ export interface PhonuxLabels {
     shareTrustedLine: string;
     shareYou: string;
     sizeName: (slots: number) => string;
+    splitDivider: (left: string, right: string) => string;
+    splitValue: (left: string, leftPanels: number, right: string, rightPanels: number) => string;
     trustAllow: string;
     trustCancel: string;
     trustClose: string;
@@ -1805,6 +1819,18 @@ export function showPanels(panels: Pick<PanelManager, 'get' | 'subscribe' | 'swa
 })[], hide?: readonly PanelId[], options?: WaitOptions): Promise<PanelResult>;
 
 // @public
+export type SideRefusal = 'disposed' | 'not-enabled' | 'not-ready' | 'not-measured' | 'unknown-workspace' | 'already-shown' | 'not-shown' | 'current' | 'no-room' | 'invalid-split';
+
+// @public
+export type SideResult = {
+    ok: true;
+} | {
+    ok: false;
+    code: SideRefusal;
+    message: string;
+};
+
+// @public
 export function slideToTransition(slide: SlideTuning): {
     duration: number;
     ease: [number, number, number, number];
@@ -2156,10 +2182,17 @@ export interface WorkspaceColumnHandle {
     configureTuning(patch: Parameters<PanelManager['configureTuning']>[0]): ConfigureResult;
     readonly current: number;
     dispose(): void;
+    focusSide(direction: 'left' | 'right'): boolean;
+    hideSide(workspace: WorkspaceHandle | number): SideResult;
     movePanel(from: WorkspaceHandle | number, panelId: PanelId, to: WorkspaceHandle | number, options?: MovePanelOptions): MovePanelResult;
     removeWorkspace(target: WorkspaceHandle | number): boolean;
     reorderWorkspace(target: WorkspaceHandle | number, toIndex: number): boolean;
     scrollTo(target: WorkspaceHandle | number): void;
+    setSplit(rowSlots: readonly number[]): SideResult;
+    readonly shown: readonly ColumnShown[];
+    showSide(workspace: WorkspaceHandle | number, options?: {
+        at?: number;
+    }): SideResult;
     readonly status: ColumnStatus;
     step(direction: 'up' | 'down'): boolean;
     update(live: WorkspaceLive): void;

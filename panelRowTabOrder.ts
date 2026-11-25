@@ -3,6 +3,8 @@ import * as React from 'react';
 const TABBABLE = 'a[href],button,input,select,textarea,summary,iframe,[tabindex],[contenteditable=""],[contenteditable="true"]';
 
 function usable(el: HTMLElement): boolean {
+  // What a closed details or `content-visibility: hidden` keeps undrawn still has a box, so only checkVisibility tells it is no stop.
+  if (el.checkVisibility?.() === false) return false;
   return el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[inert]') === null;
 }
 
@@ -13,6 +15,27 @@ function tabbablesOf(scope: Element): HTMLElement[] {
 
 // True while the code itself moves focus onto a sentinel to let the browser's pending step carry on from it.
 let parking = false;
+
+/** Moves focus onto a sentinel without the sentinel's own steering answering, so the browser's pending step carries on from it. */
+export function park(sentinel: HTMLElement): void {
+  parking = true;
+  try {
+    sentinel.focus();
+  } finally {
+    parking = false;
+  }
+}
+
+/** True while `park` is moving focus. */
+export function isParking(): boolean {
+  return parking;
+}
+
+/** True for a row in a cell of a column that shows several spaces: the column's own sentinels then catch every step out of the cell. */
+function inSplitColumn(row: HTMLElement): boolean {
+  const cell = row.closest('[data-workspace-cell]');
+  return cell !== null && cell.querySelector(':scope > [data-column-sentinel]') !== null;
+}
 
 function slotsOf(row: HTMLElement): Map<string, HTMLElement> {
   return new Map([...row.querySelectorAll<HTMLElement>('[data-row-slot]')].map((s) => [s.dataset.rowId ?? '', s]));
@@ -27,8 +50,9 @@ function handOver(slot: HTMLElement, row: HTMLElement, readingIds: readonly stri
     const neighbour = slots.get(readingIds[k]!);
     const found = neighbour === undefined ? [] : tabbablesOf(neighbour);
     if (found.length === 0) continue;
-    found[back ? found.length - 1 : 0]!.focus();
-    return true;
+    const to = found[back ? found.length - 1 : 0]!;
+    to.focus();
+    if (to.ownerDocument.activeElement === to) return true;
   }
   return false;
 }
@@ -63,7 +87,9 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
   if (slot === null || !row.contains(slot)) return;
   const back = event.shiftKey;
   const own = tabbablesOf(slot);
-  if (own[back ? 0 : own.length - 1] !== target) return;
+  // Focus rests on a panel's far sentinel when the step out of a frame found nowhere to go on to: this press leaves the row from it.
+  const rested = (target as HTMLElement).dataset.rowSentinel === (back ? 'start' : 'end');
+  if (own[back ? 0 : own.length - 1] !== target && !rested) return;
   if (readingIds.indexOf(slot.dataset.rowId ?? '') < 0) return;
   if (handOver(slot, row, readingIds, back)) {
     event.preventDefault();
@@ -75,18 +101,27 @@ export function steerTab(event: React.KeyboardEvent<HTMLElement>, row: HTMLEleme
   const extreme = slots[back ? 0 : slots.length - 1];
   const edge = extreme === undefined ? undefined : [...extreme.querySelectorAll<HTMLElement>(`[data-row-sentinel=${back ? 'start' : 'end'}]`)].find(usable);
   if (edge === undefined) {
+    // In a cell of a column that shows several spaces the column catches every step out of the cell. From the last panel in the DOM
+    // that Tab can be in, the browser's own step is then the right one, through whatever else the panel and the cell hold.
+    const live = slots.filter((s) => s.closest('[inert]') === null);
+    if (live[back ? 0 : live.length - 1] === slot && inSplitColumn(row)) return;
     const beyond = elementBeyond(row, back);
-    if (beyond === undefined) return;
-    event.preventDefault();
+    if (beyond === undefined) {
+      // Nothing lies beyond the row, so the step from the row's last stop in the DOM leaves the page: focus is parked there. A row
+      // sentinel counts, as it follows the frame it guards.
+      const all = [...row.querySelectorAll<HTMLElement>(TABBABLE)].filter(usable);
+      const leave = all[back ? 0 : all.length - 1];
+      if (leave !== undefined && leave !== target) park(leave);
+      return;
+    }
+    // A column's sentinel ends the cell this row is in, and only the column knows which cell is drawn next: the step stays pending for it.
+    if (beyond.hasAttribute('data-column-sentinel')) return void park(beyond);
     beyond.focus();
+    // An element a modal dialog makes inert refuses focus: the key is then the browser's, or the person is held where they are.
+    if (beyond.ownerDocument.activeElement === beyond) event.preventDefault();
     return;
   }
-  parking = true;
-  try {
-    edge.focus();
-  } finally {
-    parking = false;
-  }
+  park(edge);
 }
 
 /**
@@ -161,5 +196,13 @@ export function steerEntry(event: React.FocusEvent<HTMLElement>, row: HTMLElemen
   const from = event.relatedTarget as Node | null;
   // A portaled dialog or popover is a React child of the row but not a DOM descendant; its focus is not the row's.
   if (tab === null || !row.contains(event.target as Node) || (from !== null && row.contains(from))) return;
+  // The browser came in by the cell's own end, which the column parked focus on. When the panel it picked is the one reading order
+  // starts at, the element it picked there is the right one too, also one no selector finds: inside a shadow root, a player's control.
+  const entered = (event.target as Element).closest<HTMLElement>('[data-row-slot]');
+  if (entered !== null && inSplitColumn(row)) {
+    const slots = slotsOf(row);
+    const live = readingIds.filter((id) => slots.get(id)?.closest('[inert]') === null);
+    if (entered.dataset.rowId === live[tab.shift ? live.length - 1 : 0]) return;
+  }
   enterInReadingOrder(row, readingIds, tab.shift);
 }

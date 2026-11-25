@@ -23,7 +23,7 @@ import { RowHeightContext } from './panelTuning.js';
 import { bindingOf, type WorkspaceHandle } from './workspaceCore.js';
 import { ChromeStoreContext, createChromeStore, isPanelPress } from './panelChrome.js';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { focusEdgePanel, registerRowKeys } from './rowStep.js';
+import { focusEdgePanel, keyBelongsToRow, registerRowKeys } from './rowStep.js';
 import { AwayContext, createAwayStore } from './panelAway.js';
 import { rowBottomReservePx, rowTopReservePx } from './panelChromeSize.js';
 import { ROW_GAP, ROW_LAYER_Z } from './rowConstants.js';
@@ -265,7 +265,7 @@ export function Workspace(props: WorkspaceProps): React.ReactElement {
     const edge = (direction: 'left' | 'right', target: EventTarget | null): boolean => focusEdgePanel(container, chromeStore.active(), direction, target);
     const onKey = (event: KeyboardEvent): void => {
       if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || arrowKeyBelongsElsewhere(event, container.ownerDocument)) return;
-      if (container.closest('[inert]') !== null) return;
+      if (container.closest('[inert]') !== null || !keyBelongsToRow(container, event.target)) return;
       if (edge(event.key === 'ArrowLeft' ? 'left' : 'right', event.target)) event.preventDefault();
     };
     const view = container.ownerDocument.defaultView ?? window;

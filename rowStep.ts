@@ -3,7 +3,7 @@
  * when the key lands focus on the panel at the far edge of the view instead. `stepRow` gives a host's own chord the same answer.
  */
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
-import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
+import { EMBLA_WINDOW_ATTRIBUTE, PANEL_ROOT_ATTRIBUTE, ROW_ID_ATTRIBUTE, WORKSPACE_ACTIVE_ATTRIBUTE, WORKSPACE_CELL_ATTRIBUTE, panelRootOf } from './rowDom.js';
 
 type Direction = 'left' | 'right';
 
@@ -24,6 +24,19 @@ export function registerRowKeys(container: HTMLElement, part: RowKeys): () => vo
     for (const key of Object.keys(part) as (keyof RowKeys)[]) if (entry[key] === part[key]) delete entry[key];
     if (entry.step === undefined && entry.edge === undefined && entry.half === undefined) rows.delete(container);
   };
+}
+
+/**
+ * Whether a key aimed at `target` is the row drawn in `container`'s to answer. Cells of a column may be in view side by side, so a key
+ * that landed in a cell goes to that cell's row and one aimed at the page goes to the current workspace's; a row outside any cell answers
+ * every key.
+ * @internal
+ */
+export function keyBelongsToRow(container: Element, target: EventTarget | null): boolean {
+  const cell = container.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`);
+  if (cell === null) return true;
+  const aimed = target instanceof Element ? target.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`) : null;
+  return aimed === null ? cell.hasAttribute(WORKSPACE_ACTIVE_ATTRIBUTE) : aimed === cell;
 }
 
 /** A panel with less than this much showing counts as off screen: the row hides a sliver, so there is nothing to see or to focus. */
@@ -103,9 +116,8 @@ export function focusPanelSlot(slot: HTMLElement): void {
  */
 export function stepRow(event: KeyboardEvent, direction: 'left' | 'right'): boolean {
   if (arrowKeyBelongsElsewhere(event, document, direction === 'left' ? 'ArrowLeft' : 'ArrowRight', true)) return false;
-  const cell = event.target instanceof Element ? event.target.closest(`[${WORKSPACE_CELL_ATTRIBUTE}]`) : null;
   for (const [container, keys] of rows) {
-    if (!container.isConnected || container.closest('[inert]') !== null || (cell !== null && !cell.contains(container))) continue;
+    if (!container.isConnected || container.closest('[inert]') !== null || !keyBelongsToRow(container, event.target)) continue;
     if (keys.edge?.(direction, event.target) === true) return true;
     if (keys.step === undefined) continue;
     keys.step(direction);

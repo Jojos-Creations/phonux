@@ -40,6 +40,9 @@ export const WORKSPACE_COLUMN_ATTRIBUTE = 'data-workspace-column';
  */
 export const WORKSPACE_CELL_ATTRIBUTE = 'data-workspace-cell';
 
+/** On the one cell of a `WorkspaceColumn` that holds focus: the current workspace's. Several cells may be in view at once; this marks the one a key aimed at the page goes to. @internal */
+export const WORKSPACE_ACTIVE_ATTRIBUTE = 'data-workspace-active';
+
 /**
  * On every `Panel`'s root element, the box that holds the header, the frame and the footer.
  * @public

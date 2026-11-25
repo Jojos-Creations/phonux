@@ -6,7 +6,7 @@
  * and the row's numbers (fixedViewCount, liveWidths, maxLiveWidth) beside it.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import type { CreatePanelOptions, JsonValue, PanelsAPI, PanelSummary } from '../hostApi.js';
 import { effectiveMaxPanels, rowFitCount } from '../panelCapacity.js';
 import { minWorkspaceWidth } from '../minWorkspaceWidth.js';
@@ -34,6 +34,7 @@ import type { RootView } from '../panelManager.js';
 import { emblaDrawnOf, emblaOf, emblaStripOf, emblaSummonMove, emblaTargetOf, endEmblaWheel, noteEmblaMove, noteEmblaPlace, emblaWouldShow, showOnEmbla, startEmblaAt, subscribeEmblaRests, whenEmblaFree, wholeInView, type StripLayout } from '../emblaRow.js';
 import { useWorkspacePersistence, type RestMark } from './useWorkspacePersistence.js';
 import { keepOpeners } from '../panelOpener.js';
+import { RowFloorContext } from '../rowFloor.js';
 
 /**
  * The rest of a row at scroll `at` as a saved mark names it: the first panel, in strip order, the window shows, and `at`'s offset
@@ -316,7 +317,8 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
   // The row is one continuous strip (Embla): nothing parks for room or for the cap, so the list is the row as it is.
   const panels = rawPanels;
   // Filters over the whole list, never an array position: a panel anchored left of History changes none of these.
-  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step', minScrollSlots: tuning.minScrollSlots };
+  const rowFloor = useContext(RowFloorContext);
+  const rowInput = { entries: panels, phoneWidth: i.phoneWidth, containerWidth: i.containerWidth, gap: tuning.rowGap, fixedItemCount: fixedViewCount, wholePanels: tuning.rowGesture === 'step', minScrollSlots: Math.max(tuning.minScrollSlots, rowFloor ?? 0) };
   const rowNumbers = ((): RowNumbers => {
     return computeRowNumbers(rowInput);
   })();

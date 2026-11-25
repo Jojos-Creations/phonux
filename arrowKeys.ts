@@ -3,7 +3,7 @@
  */
 import { DRAGGING_ATTRIBUTE } from './panelChrome.js';
 
-const EDITABLE_ROLES = '[role="textbox"],[role="searchbox"],[role="combobox"],[role="listbox"],[role="slider"],[role="spinbutton"],[role="menu"],[role="menubar"],[role="tablist"],[role="tree"],[role="grid"],[role="radiogroup"]';
+const EDITABLE_ROLES = '[role="textbox"],[role="searchbox"],[role="combobox"],[role="listbox"],[role="slider"],[role="spinbutton"],[role="menu"],[role="menubar"],[role="tablist"],[role="tree"],[role="grid"],[role="radiogroup"],[role="separator"][aria-valuenow]';
 
 /**
  * Whether an arrow key belongs to something other than the row or column that listens for it: a modified key, one a handler already took,
