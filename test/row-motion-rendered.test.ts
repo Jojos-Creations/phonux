@@ -193,7 +193,7 @@ test('closing a page: a page sliding into the gap is never cut by the narrower w
   }
 });
 
-test('a slow, uneven wheel: the row takes one step in one glide, never stalling or turning back, and rests on it', async (t) => {
+test('a slow, uneven wheel: the row steps at once, queues a stop for each further push, never stalls or turns back, and rests on a stop', async (t) => {
   if (!(await ready(t))) return;
   const page = await open(1300, 6);
   try {
@@ -219,11 +219,12 @@ test('a slow, uneven wheel: the row takes one step in one glide, never stalling 
       return { seen, start };
     });
     const moved = seen[seen.length - 1]! - start;
-    assert.ok(Math.abs(moved - 406) < 1, `the row ended ${moved}px along: one stop is 406px`);
+    // Pushes at 0, 406 and 846 ms each ask for a stop (the step rule's own test holds the timing).
+    assert.ok(Math.abs(moved - 3 * 406) < 1, `the row ended ${moved}px along: three stops are 1218px`);
     const back = Math.max(0, ...seen.slice(1).map((v: number, k: number) => seen[k]! - v));
     assert.ok(back < 1, `the row turned back ${back}px`);
     // Between leaving the start and nearing the stop every frame moves: a stall there is the jitter this guards.
-    const gliding = seen.filter((v: number) => v - start > 4 && v - start < 390);
+    const gliding = seen.filter((v: number) => v - start > 4 && v - start < 3 * 406 - 16);
     assert.ok(gliding.length > 5, `only ${gliding.length} frames of the glide were read`);
     const still = gliding.slice(1).filter((v: number, k: number) => Math.abs(v - gliding[k]!) < 0.05).length;
     assert.ok(still <= 2, `${still} of ${gliding.length} glide frames stood still`);

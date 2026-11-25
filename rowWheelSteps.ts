@@ -11,11 +11,11 @@ export const WHEEL_START_PX = 4;
 export const WHEEL_AGAINST_PX = 8;
 
 /** How long after a step a wheel that is still going queues the next one without a whole pitch of travel, in ms. @internal */
-export const WHEEL_QUEUE_MS = 400;
-/** The travel that queued step needs since the one before, in px: a finger nearly still does not walk the row. @internal */
-export const WHEEL_QUEUE_PX = 60;
-/** The share of the gesture's largest wheel the queuing one needs: a momentum tail only fades, so it queues nothing. @internal */
-export const WHEEL_QUEUE_PEAK = 0.5;
+export const WHEEL_QUEUE_MS = 350;
+/** The travel that queued step needs since the one before, in px: three notches of a slow mouse wheel. @internal */
+export const WHEEL_QUEUE_PX = 12;
+/** A wheel this long after the last one is a fresh push, in ms: a momentum tail comes every frame. @internal */
+export const WHEEL_NOTCH_MS = 60;
 
 /** One gesture's travel. @internal */
 export interface WheelStepState {
@@ -29,8 +29,8 @@ export interface WheelStepState {
   at: number;
   /** When the last step came, ms. */
   stepAt: number;
-  /** The largest single wheel this way, in px. */
-  peak: number;
+  /** The size of the last wheel, in px. */
+  last: number;
 }
 
 /** Whether `state` is too old at `at` for a wheel to extend it. @internal */
@@ -39,11 +39,11 @@ export const wheelStale = (state: WheelStepState | undefined, at: number): boole
 /**
  * One wheel of `by` scroll px at `at` ms. Answers the state to keep and the stops to move, signed: the first step comes as soon
  * as the gesture has `WHEEL_START_PX`, and every further `pitch` px of travel in its direction is one more. A long, slow scroll
- * covers little distance, so one still going `WHEEL_QUEUE_MS` after a step queues the next. Turning round steps once at once.
+ * covers little distance, so one still pushing `WHEEL_QUEUE_MS` after a step queues the next. Turning round steps once at once.
  * @internal
  */
 export function wheelSteps(state: WheelStepState | undefined, by: number, pitch: number, at: number): { state: WheelStepState; steps: number } {
-  const was: WheelStepState = wheelStale(state, at) ? { dir: 0, travel: 0, against: 0, at, stepAt: at, peak: 0 } : state!;
+  const was: WheelStepState = wheelStale(state, at) ? { dir: 0, travel: 0, against: 0, at, stepAt: at, last: 0 } : state!;
   const next: WheelStepState = { ...was, at };
   const sign = Math.sign(by) as -1 | 0 | 1;
   if (sign === 0) return { state: next, steps: 0 };
@@ -62,15 +62,16 @@ export function wheelSteps(state: WheelStepState | undefined, by: number, pitch:
     next.dir = sign;
     next.travel = sign * next.against;
     next.against = 0;
-    next.peak = 0;
     steps = sign;
   }
-  next.peak = Math.max(next.peak, Math.abs(by));
+  next.last = Math.abs(by);
   while (pitch > 0 && Math.abs(next.travel) >= pitch) {
     next.travel -= next.dir * pitch;
     steps += next.dir;
   }
-  const going = sign === next.dir && Math.abs(next.travel) >= WHEEL_QUEUE_PX && Math.abs(by) >= next.peak * WHEEL_QUEUE_PEAK;
+  // A push is a wheel that is not fading: a notch apart from the last, or no smaller than it. A momentum tail only fades.
+  const push = Math.abs(by) >= WHEEL_START_PX && (at - was.at >= WHEEL_NOTCH_MS || Math.abs(by) >= was.last * 0.95);
+  const going = sign === next.dir && push && Math.abs(next.travel) >= WHEEL_QUEUE_PX;
   if (steps === 0 && going && at - next.stepAt >= WHEEL_QUEUE_MS) {
     next.travel = 0;
     steps = next.dir;
