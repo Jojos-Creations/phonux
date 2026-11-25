@@ -99,7 +99,12 @@ for (const [side, start, exit] of [
 
 test('slideFrom is asked with the space left and the one arrived at, and none moves at once', async () => {
   const asked: [string, string][] = [];
-  const c = await column({ slideFrom: (from, to) => (asked.push([from.name, to.name]), 'none') });
+  const c = await column({
+    slideFrom: (from, to) => {
+      asked.push([from.name, to.name]);
+      return 'none';
+    },
+  });
   act(() => c.scrollTo(3));
   await until('arrived', () => cellOf(c.workspaces[3]!.id).style.transform === 'translate(0%, 0%)');
   assert.deepEqual(asked, [['Space 1', 'Space 4']]);
@@ -109,7 +114,12 @@ test('slideFrom is asked with the space left and the one arrived at, and none mo
 
 test('a delete that moves on asks slideFrom with the removed space as the one left', async () => {
   const asked: [string, string][] = [];
-  const c = await column({ slideFrom: (from, to) => (asked.push([from.name, to.name]), 'right') });
+  const c = await column({
+    slideFrom: (from, to) => {
+      asked.push([from.name, to.name]);
+      return 'right';
+    },
+  });
   act(() => c.removeWorkspace(0));
   await until('three cells', () => document.querySelectorAll('[data-workspace-cell]').length === 3);
   assert.deepEqual(asked, [['Space 1', 'Space 2']]);
