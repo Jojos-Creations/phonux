@@ -74,8 +74,13 @@
   itself, more scrolling extends the same glide, and a long slow scroll keeps queuing the next panel while it goes. The pause
   timers that guessed where a scroll stopped are gone.
 - In a scrolling row a one-panel-wide panel shrinks as it leaves an edge, into the middle of the next place beyond it, and grows
-  as it arrives, on a slightly slower clock so a fast scroll shows smaller panels. Wide panels and Reduce Motion do not shrink.
-
+  as it arrives, on a slightly slower clock so a fast scroll shows smaller panels. Wide panels do not shrink; under Reduce Motion
+  the shrink lands at once instead of easing.
+- With the phone fit on, a window resize (a drag, Fill, Zoom, maximize or full screen) moves the row with each step at once, and
+  once the window has settled the new phone size glides in once: every panel slides from where it was drawn, and each is laid out
+  once at its new size and drawn scaled from the old one. A resize settles once width and height have held still for the resize
+  settle and at least 700 ms have passed since its first change, so a zoom's late jump and full screen's late height changes are one
+  resize. Before, a large step landed the new phone size at once with no glide. Reduce Motion still lands everything at once.
 - phonux is licensed under the Mozilla Public License 2.0, in place of the phonux Public License 1.0.0. Versions already
   published keep the license they shipped under.
 - `ShareSheet` without `defaultTab` now opens on Link for a `file` (it opened on People). `PhonuxLabels.offerTitle` takes the

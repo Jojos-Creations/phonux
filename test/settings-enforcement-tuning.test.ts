@@ -32,6 +32,7 @@ import { checkTuningLeaf, resolvePanelSettings } from '../panelSettings.js';
 import { resolveWorkspaceTuning } from '../panelTuning.js';
 import { panelRowSlotMotion } from '../PanelRowSlot.js';
 import { workspaceShellStyle } from '../Workspace.js';
+import { LandingContext } from '../phoneFit.js';
 import { differential, differentialsCovered } from './support/differential.js';
 import { drag } from './support/drag-gesture.js';
 import { advanceFrames, cleanup, mount, panelsInput, withHost, StaticRow, seededWorkspace } from './support/mount-harness.js';
@@ -196,14 +197,14 @@ test('differential tuning.chrome: an idle panel keeps its header drawn under alw
 });
 
 /**
- * Whether the row's vertical centering glides when the phone's height changes, `waitMs` after a jump of the window's width, under
- * the given leaf. The Embla row centers its strip sideways by flex, so nothing there glides; the margin that does is the top one,
- * set from the row's room (`heightBudget`, as autoMount passes it) and the phone's height. A window jump lands with no motion until
- * the room has held still for `resizeSettleSlides` slide durations (useWindowJump), so a change inside that wait snaps.
+ * Whether the row takes a change as a glide again `waitMs` after a jump of the window's width, under the given leaf: a window resize
+ * lands each of its steps (`LandingContext` true) until the room has held still for `resizeSettleSlides` slide durations and at
+ * least `WINDOW_SETTLE_FLOOR_MS` have passed since its first change (useWindowSettle), so a change inside that wait snaps.
  */
 async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Promise<boolean> {
   const workspace = createWorkspace({ mount: false, tuning: { resizeSettleSlides } });
-  const at = (phoneHeight: number, width: number): React.ReactElement =>
+  const Probe = (): React.ReactElement => React.createElement('i', { 'data-landing': String(React.useContext(LandingContext)) });
+  const at = (width: number): React.ReactElement =>
     withHost(
       React.createElement(Workspace, {
         overflowContainerRef: React.createRef<HTMLDivElement>(),
@@ -211,29 +212,26 @@ async function glidesAfterResize(waitMs: number, resizeSettleSlides: number): Pr
         containerWidth: width,
         heightBudget: 1000,
         phoneWidth: 390,
-        phoneHeight,
+        phoneHeight: 700,
         fixedColumnCount: 1,
         liveWidths: [],
         workspace,
-        children: React.createElement('i'),
+        children: React.createElement(Probe),
       } as never),
     );
-  const top = (m: ReturnType<typeof mount>): number => Number.parseFloat(m.container.querySelector<HTMLElement>('[data-row-embla-strip]')!.style.marginTop);
-  const m = mount(at(700, 1000));
+  const landing = (m: ReturnType<typeof mount>): boolean => m.container.querySelector('[data-landing]')!.getAttribute('data-landing') === 'true';
+  const m = mount(at(1000));
   await advanceFrames(2000);
-  // 200 px at once: a jump (120 px or more), not a hand drag.
-  m.rerender(at(700, 1200));
-  await advanceFrames(waitMs);
-  const start = top(m);
-  m.rerender(at(500, 1200));
-  await advanceFrames(32);
-  const mid = top(m);
-  await advanceFrames(2000);
-  const end = top(m);
+  assert.equal(landing(m), false, 'control: a row at rest glides its changes');
+  m.rerender(at(1200));
+  await advanceFrames(16);
+  assert.equal(landing(m), true, 'control: the resize lands its steps');
+  await advanceFrames(waitMs - 16);
+  const glides = !landing(m);
+  await advanceFrames(3000);
+  assert.equal(landing(m), false, 'control: the resize does settle');
   m.unmount();
-  assert.equal(start, 150, 'control: the row starts centered in its room, (1000 - 700) / 2');
-  assert.equal(end, 250, 'control: the margin does move when the phone shrinks, to (1000 - 500) / 2');
-  return mid !== start && mid !== end;
+  return glides;
 }
 
 test('differential tuning.resizeSettleSlides: 1.5 slides after a width change the row glides at 1 slide and still snaps at 2', async () => {

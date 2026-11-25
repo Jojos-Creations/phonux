@@ -104,13 +104,6 @@ export const FOOTER_PAD_Y_PX = 8;
 /** How many slide durations the container width must hold still before the phone size is fitted again: 200 ms at the default slide, short of one macOS zoom. */
 export const RESIZE_SETTLE_SLIDES = 1 / 3;
 
-/**
- * The least time in ms from a resize's first change to its settle, so one window action is one resize: Chrome on macOS hands a page a
- * zoom as an 8 px nudge and its final size ~340 ms later, and full screen as its width at once and two height-only changes up to
- * ~636 ms after the first (2026-11-25, 3 of 3 runs). 700 ms is past the last of those by four frames.
- */
-export const WINDOW_SETTLE_FLOOR_MS = 700;
-
 /** Scrolling the row while a dragged panel is held near the window's edge. */
 export const EDGE_SCROLL_ZONE_PX = 48;
 export const EDGE_SCROLL_MAX_PX_PER_SEC = 900;

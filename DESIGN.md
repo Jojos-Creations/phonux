@@ -594,10 +594,9 @@ A `resizable: true` beside `maxSlots` 1 resolves, but notes `resizable-capped` (
 The default mount calls it itself. A hand-wired flow calls it before `useProvidePanels` and gives the result to both
 `useProvidePanels` (`phoneWidth`) and `Workspace` (`phoneWidth` and `phoneHeight`); the Workspace publishes the pair to `usePhoneSize()`,
 so the capacity, the row numbers and the drawn widths price one phone width. A `Workspace` given no `phoneHeight` publishes nothing.
-The hook also returns the container width and height budget it settled on, and the host hands those, not its live measurement, to
-`useProvidePanels` and `Workspace` (`containerWidth`, `heightBudget`). A window resize then changes nothing until the window holds still,
-and lands as one slide of the row's place, its vertical place, its capacity and the phone size; the live width would recenter and park at
-once and leave the size to follow a settle later.
+The hook also returns the container width and height budget, measured on every step, and the host hands those to `useProvidePanels`
+and `Workspace` (`containerWidth`, `heightBudget`). A window resize moves the row with each step, at once, at the phone size drawn
+before it; the phone size waits for the resize to settle and then glides in once ("One glide after a window settles", below).
 
 `fitPhone` (`phoneFit.ts`, pure) takes the window width, the row's height budget (`RowHeightContext`'s value: the container
 less its padding), the preferred size, the gap, the edge space (the row gap) and the band `phoneFitMin` to `phoneFitMax`
@@ -613,11 +612,49 @@ aspect. The height cap is the height budget over the preferred height, never abo
 No count ever cuts a panel at rest. Exact fill is not promised where the height cap binds. `rowCount` is a parameter of the function
 (each row gets an equal share of the height and all share one scale), not a tuning key: the plan that lays out two rows adds it.
 
-The count follows the window only once width and height have held still for the resize settle (`resizeSettleSlides` slide
-durations; at once under the OS Reduce Motion setting, which the mount reads itself because it sits above any `wrap`), so between settle events the previous count and widths hold and a webview is not re-laid out per
+The count follows the window only once its resize has settled (`useWindowSettle`, `phoneFit.ts`): width and height have held still
+for the resize settle (`resizeSettleSlides` slide durations, 200 ms by default) and at least `WINDOW_SETTLE_FLOOR_MS` (700 ms) have
+passed since the resize's first change. It is at once under the OS Reduce Motion setting, which the mount reads itself because it
+sits above any `wrap`, and with a settle of 0. Between settles the previous count and widths hold and a webview is not re-laid out per
 frame. A change of count also needs margin: a step to more slots needs that count's scale at least 2 percent above the band's minimum, and a
-step back needs the larger phone at least 2 percent under the cap. The panel's size box glides the new size on the slide timing,
-as any size change does.
+step back needs the larger phone at least 2 percent under the cap.
+
+### One glide after a window settles
+
+Owner ruling 2026-11-25: while the window changes, each step lands at once; once it settles, a new phone size glides in once.
+
+- **One resize per window action.** A resize runs from its first change of width or height until both have held still for the
+  settle and 700 ms have passed since that first change, counted on animation frames. The floor comes from what Chrome on this iMac
+  handed a page (`ux-week-out/maximize-probe`, 2026-11-25): Window > Fill is one size a frame for ~345 ms; Zoom is an 8 px nudge and
+  then the final size at ~340 ms; entering full screen is the width at 21-36 ms and two height-only changes at 584-612 and 617-636 ms;
+  leaving it is a height-only change and the final size 24-37 ms later. A quiet wait alone would have to pass 560 ms to hold the
+  full-screen tail in one resize, which makes a zoom's glide start 600 ms after the window stopped; the floor ends the full-screen tail
+  inside one resize (its glide starts 200 ms after the last height change) and starts a zoom's glide ~360 ms after its jump.
+- **Steps land.** The Workspace runs the same settle (50 ms longer, `SETTLE_SLACK_MS`) and publishes `LandingContext` true while a
+  resize runs, so every slot, the row root and the margins land each step at once, as before. The commit that brings the new phone size
+  ends the resize at once (the phone size is the settle's `endKey`): it is the settle, and it is never classed as a step. It changes
+  neither `containerWidth` nor `heightBudget`, so the side by side rule in `recentreRow` (a scroller that changed width lands) does not
+  catch it either, and a side by side cell, which has no phone fit, still lands with no glide.
+- **One glide.** In that commit every slot glides from where it was drawn to its new place on its transform (the slot mover), the
+  row root glides back from where it was drawn (`recentreRow`), Embla's stops are rebuilt once (`moveEmbla`; Embla's own resize watch
+  is vetoed), and all of them start on the commit's shared start time, never backdated. Each size box (`SizeBox`) has its final width
+  and height written once, so its content is laid out once, and is drawn scaled from the size it had back to 1 (`runScaleGlide`: the
+  compositor's `scale`, from the box's left edge and vertical centre). The strip's top margin is written once in that commit too, so the
+  vertical centre the scale holds is where the row stays. Nothing is clipped: a frame's ring, corners and glow scale with the box.
+  Any other size change (a panel resized by hand) keeps the real-size glide.
+- **Reuse.** The glide keys on the phone size changing in a commit with no window step, not on a window, so a later setting that
+  changes how many panels are on screen (and so the phone size) takes the same path.
+
+History: until 2026-11-05 a window resize glided every panel's real width once the window held still (a stale layout, then a
+glide whose start was backdated; real-width easing stalled a webview, #506, #522, #523). a294ef00 (2026-11-05) then landed a window jump
+(a step of 120 px or more, `useWindowJump`) and its phone size in one commit with no motion; with PR 559's room check and PR 562's
+scroller-width check that left no glide after any resize. This section replaces that rule.
+
+Proof (`test/window-glide-rendered.test.ts`, headless Chromium, the default mount with the fit on, four one-slot panels, the measured
+sizes played on animation frames): for Fill and Zoom up and down and full screen in and out, after the window stops no panel moves more
+than a third of its whole move in a frame, its drawn width neither; exactly one start time for every glide; the first frame of the
+glide at most one frame in; no animation of a real width or height; at most two width writes per box; no turn back in the glide and no
+frame drawn away and back while the steps come. Reduce Motion: nothing glides after the window stops. Each shape fails on cdc6e913.
 
 ## Unfocused panels rest at one phone
 
@@ -2012,7 +2049,7 @@ The row's motion follows one set of intentions, so every change reads the same w
   row's scroller, so a scroller that moves (a side by side cell placed again by a split change, a space shown or hidden, a resize)
   carries the row with it in the same frame, and a scroller that changes width lands the row at once too: the cell itself does not
   glide, so the row inside it does not either. A change of room (a window step) and Reduce Motion
-  land at once, and so does the commit the restore lands in; until the restore settles the row is
+  land at once (the settle after a window resize glides once: "One glide after a window settles"), and so does the commit the restore lands in; until the restore settles the row is
   hidden, so the root drawn alone never jumps aside on screen. The hiding lasts at most `RESTORE_HIDE_MS` (1 s): a restore that
   never settles shows what the row has, in place, rather than a blank row.
 - **A set swap** (`PanelManager.swap`, and `showPanels` over it: a host's tab change). The hides and the shows land in one
@@ -3355,6 +3392,9 @@ Not covered:
 - The stretch past an end itself: a wheel with no rubber band would need the step-aside to read "toward the root" some other way.
 
 ### The wheel without a press (closing the family)
+
+Replaced on 2026-11-25 by "The wheel asks for stops", below: `settleWheelRun`, `restStop` and `WHEEL_SLOW_PX_PER_MS` are gone. Kept as
+the record of what it measured.
 
 The two sections above held Embla's drag press open through a wheel gesture, and each input that reached the held press had to be
 stopped by name (`mousemove` at 705f2c1; `mouseup`, `touchmove`, `touchend` at 34db111). A right-click on the row still ran Embla's

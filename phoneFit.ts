@@ -83,6 +83,14 @@ export function fitPhone(i: PhoneFitInput): PhoneFit {
 /** The size the default mount fits to the window; unset where nothing fits, so a reader falls back to the host's own. */
 export const PhoneSizeContext = React.createContext<{ readonly width: number; readonly height: number } | undefined>(undefined);
 
+/**
+ * The least time in ms from a resize's first change to its settle, so one window action is one resize: Chrome on macOS hands a page a
+ * zoom as an 8 px nudge and its final size ~340 ms later, and full screen as its width at once and two height-only changes up to
+ * ~636 ms after the first (2026-11-25, 3 of 3 runs). 700 ms is past the last of those by four frames. Not a tuning key.
+ * @internal
+ */
+export const WINDOW_SETTLE_FLOOR_MS = 700;
+
 /** What `useWindowSettle` reports: the size the window settled at, and whether it is still changing. @internal */
 export interface WindowSettle {
   /** `width` and `height` as of the last settle; the live pair while `instant`, and a side not yet measured (0) takes its first value at once. */
@@ -136,8 +144,9 @@ export function useWindowSettle(width: number, height: number, quietMs: number, 
 }
 
 /**
- * True in the commit that first measures the row's container, and in every commit before it. The fitted size lands in that
- * commit, so the slots moved to it snap there: a slide from the preferred size would be a move nobody asked for.
+ * True in the commit that first measures the row's container, and in every commit before it, and while a window resize runs
+ * (`useWindowSettle`). The fitted size lands in that first commit, so the slots moved to it snap there: a slide from the preferred
+ * size would be a move nobody asked for. A resize's steps land the same way; its settle does not.
  * @internal
  */
 export const LandingContext = React.createContext(false);
