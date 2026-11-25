@@ -15,7 +15,7 @@ test('an argument with shell characters reaches the command as one argument, on 
     steps: [{ kind: 'run', command: process.execPath, args: ['-e', 'console.log(JSON.stringify(process.argv.slice(1)))', arg], cwd: root }],
   };
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
-  // The runner used to choose a shell by platform; claiming Windows here exercises that choice on any machine.
+  // Claiming Windows here runs the Windows spawn path on any machine, where shell quoting is what splits an argument.
   Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
   let ok: boolean;
   try {
