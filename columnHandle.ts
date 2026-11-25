@@ -12,6 +12,7 @@ import { refusedLiveKeys, type WorkspaceLive } from './workspaceLive.js';
 import type { PhonuxTheme } from './defaultTheme.js';
 import type { WorkspaceStorage } from './workspaceState.js';
 import type { ColumnBands } from './columnBands.js';
+import type { ColumnSlideFrom } from './columnSlide.js';
 import { resolveWorkspaceTuning } from './panelTuning.js';
 import { evenRows, minRowSlots, planSides, splitProblem, type SideCell, type SideSpace } from './columnSplit.js';
 import type { StickyCandidate } from './rowNumbers.js';
@@ -76,6 +77,18 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
    * @defaultValue false
    */
   sideBySide?: boolean;
+  /**
+   * Picks how each move to another workspace comes into view: from the left, the right, above or below, by a fade, or at once. The
+   * workspace left goes out the opposite way. Unset: the one arrived at comes from below when it is further down the list and from
+   * above otherwise, as it always did. A move made while the last is still sliding carries on from where every cell stands.
+   */
+  slideFrom?: ColumnSlideFrom;
+  /**
+   * What a move does under Reduce Motion: `instant` (the default) shows the workspace arrived at at once, `fade` crossfades the two
+   * where they stand, which moves nothing.
+   * @defaultValue 'instant'
+   */
+  reducedSwitch?: 'instant' | 'fade';
 };
 
 /** One workspace the window shows: where it stands and how many slots it has. @public */
@@ -272,6 +285,10 @@ interface ColumnCore {
   readonly theme: ((mode: 'light' | 'dark') => PhonuxTheme) | undefined;
   /** The bands every cell draws, if the app gave them. */
   readonly bands: ColumnBands | undefined;
+  /** How each move comes into view, if the app said. */
+  readonly slideFrom: ColumnSlideFrom | undefined;
+  /** What a move does under Reduce Motion. */
+  readonly reducedSwitch: 'instant' | 'fade';
   /** Reports an error the column swallowed: `onError`, else `console.error`. */
   reportError(e: unknown): void;
   /** The drawn width of the column in px, which the slots of the window are counted from at `phoneWidth`; 0 while it is not drawn. */
@@ -318,7 +335,7 @@ const isColumnState = (v: unknown): v is ColumnState => {
  * @public
  */
 export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHandle {
-  const { storage, mount, bands, ...shared } = o;
+  const { storage, mount, bands, slideFrom, reducedSwitch, ...shared } = o;
   let tuningInput = o.tuning;
   let live: WorkspaceLive = {
     ...(o.device !== undefined ? { device: o.device } : {}),
@@ -693,6 +710,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     autoMounted: mount !== false && typeof document !== 'undefined',
     theme: o.theme,
     bands,
+    slideFrom,
+    reducedSwitch: reducedSwitch ?? 'instant',
     reportError,
     setWindowWidth: (px, phone) => {
       const width = Number.isFinite(px) ? Math.max(0, Math.floor(px)) : 0;

@@ -196,6 +196,8 @@ export type { OccupantMove, OpenPlacement, OpenRow, PlaceOpen } from './openPlac
 export { MAX_WORKSPACE_NAME } from './workspaceName.js';
 export { createWorkspaceColumn } from './columnHandle.js';
 export type { ColumnOptions, ColumnShown, ColumnState, ColumnStatus, ColumnStorage, ColumnWorkspaceOptions, SideRefusal, SideResult, WorkspaceColumnHandle } from './columnHandle.js';
+/** How a move of the column comes into view, and the function that picks it (`ColumnOptions.slideFrom`). */
+export type { ColumnSlide, ColumnSlideFrom } from './columnSlide.js';
 export { COLUMN_BOTTOM_BAND, COLUMN_TOP_BAND, WorkspaceColumn } from './WorkspaceColumn.js';
 export {
   COLUMN_BAND_ATTRIBUTE,

@@ -141,6 +141,8 @@ export type ColumnOptions = Omit<WorkspaceOptions, 'id' | 'name' | 'onRename' | 
     mount?: HTMLElement | false;
     bands?: ColumnBands;
     sideBySide?: boolean;
+    slideFrom?: ColumnSlideFrom;
+    reducedSwitch?: 'instant' | 'fade';
 };
 
 // @public
@@ -149,6 +151,12 @@ export interface ColumnShown {
     slots: number;
     workspace: WorkspaceHandle;
 }
+
+// @public
+export type ColumnSlide = 'above' | 'below' | 'left' | 'right' | 'fade' | 'none';
+
+// @public
+export type ColumnSlideFrom = (from: WorkspaceHandle, to: WorkspaceHandle) => ColumnSlide;
 
 // @public
 export interface ColumnSlot {
