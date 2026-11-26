@@ -73,7 +73,7 @@ test('left and declined people sit under their own heading, with a tag, their ol
   const groups = [...m.container.querySelectorAll('ul')];
   assert.equal(groups.length, 2, 'members and the gone group are separate lists');
   assert.ok(groups[1]?.contains(dana), 'the gone group holds them');
-  assert.ok(!groups[0]?.contains(dana), 'the members list does not');
+  assert.doesNotMatch(text(groups[0] as HTMLElement), /Dana|marcus/, 'the members list does not');
 });
 
 test('the gone heading and note say the playlist for a playlist', () => {
