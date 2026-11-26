@@ -35,6 +35,13 @@ type Plain = Record<string, unknown>;
 
 const isPlain = (v: unknown): v is Plain => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** Plain assignment of a key named `__proto__` swaps the object's prototype; defining it keeps it a member the resolver can refuse. */
+function put(target: Plain, key: string, value: unknown): void {
+  Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
+const heldBy = (container: Plain, key: string): unknown => (Object.hasOwn(container, key) ? container[key] : undefined);
+
 /** Merges a patch into one container (the workspace tuning, one tuning leaf, or the header-button map) member by member. */
 function mergeMembers(base: unknown, patch: unknown, deeper: boolean): unknown {
   if (!isPlain(patch)) return patch;
@@ -45,11 +52,11 @@ function mergeMembers(base: unknown, patch: unknown, deeper: boolean): unknown {
     if (asked === null) {
       delete result[key];
     } else if (deeper && isPlain(asked)) {
-      const inner = mergeMembers(result[key], asked, false);
-      if (isPlain(inner) && Object.keys(inner).length === 0 && !isPlain(result[key])) continue;
-      result[key] = inner;
+      const inner = mergeMembers(heldBy(result, key), asked, false);
+      if (isPlain(inner) && Object.keys(inner).length === 0 && !isPlain(heldBy(result, key))) continue;
+      put(result, key, inner);
     } else {
-      result[key] = asked;
+      put(result, key, asked);
     }
   }
   return sameSettingsValue(result, base) ? base : result;
@@ -81,7 +88,7 @@ export function mergePatch(layer: PanelSettings, patch: SettingsPatch): PanelSet
       if (isPlain(merged) && Object.keys(merged).length === 0 && !isPlain(next[key])) continue;
       next[key] = merged;
     } else {
-      next[key] = value;
+      put(next, key, value);
     }
   }
   return sameSettingsValue(next, layer) ? layer : (next as PanelSettings);

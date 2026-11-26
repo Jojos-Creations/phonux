@@ -390,3 +390,24 @@ test('a new save never writes formFactor and writes slots only when it is not on
   assert.equal(JSON.stringify(projected).includes('formFactor'), false);
   assert.deepEqual(Object.fromEntries(projected.panels.map((p) => [p.title, p.slots])), { p: 2, q: 3, r: undefined }, 'one slot is not written');
 });
+
+test('reconcileWorkspace: an empty-string key in a saved instance is dropped with a note, not kept for the next save', () => {
+  const instance = JSON.parse('{"":{"__proto__":0},"title":"kept"}') as WorkspacePanelState['instance'];
+  const saved = file([{ ...savedEntry('a', { view: 't', key: 'k', overrides: {} }), instance }]);
+  const result = run({ saved, templates: [tpl('t')] });
+  assert.deepEqual(result.entries.map((p) => p.instance), [{ title: 'kept' }]);
+  assert.deepEqual(result.notes.filter((n) => n.code === 'invalid-saved-setting').map((n) => n.key), ['']);
+});
+
+test('resolvePanelSettings: a refused empty-string key is named in the throw, unlike a refused whole layer', () => {
+  const keyed = (layers: Parameters<typeof resolvePanelSettings>[0]): string | undefined => {
+    try {
+      resolvePanelSettings(layers);
+    } catch (e) {
+      return `${(e as { layer?: string }).layer}:${String((e as { key?: string }).key)}`;
+    }
+    return undefined;
+  };
+  assert.equal(keyed({ instance: { '': 1 } as never }), 'instance:');
+  assert.equal(keyed({ instance: 5 as never }), 'instance:undefined');
+});

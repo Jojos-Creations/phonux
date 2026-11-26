@@ -1680,14 +1680,14 @@ interface Env {
   pending: Pending[];
 }
 
-/** Drops the key with a note when this layer is a saved one read leniently; throws otherwise. */
-function reject(layer: string, key: string, problem: string, lenientLayer: boolean, notes: SettingNote[]): void {
-  const where = key === '' ? layer : `${layer}.${key}`;
+/** Drops the key with a note when this layer is a saved one read leniently; throws otherwise. `key` is undefined when the whole layer is refused; an empty string is a key like any other. */
+function reject(layer: string, key: string | undefined, problem: string, lenientLayer: boolean, notes: SettingNote[]): void {
+  const where = key === undefined ? layer : `${layer}.${key}`;
   if (lenientLayer) {
-    notes.push({ code: 'invalid-saved-setting', ...(key === '' ? {} : { key }), message: `${where}: ${problem}; dropped` });
+    notes.push({ code: 'invalid-saved-setting', ...(key === undefined ? {} : { key }), message: `${where}: ${problem}; dropped` });
     return;
   }
-  throw new PanelManagerError('invalid-settings', `${where}: ${problem}`, key === '' ? { layer } : { layer, key });
+  throw new PanelManagerError('invalid-settings', `${where}: ${problem}`, key === undefined ? { layer } : { layer, key });
 }
 
 function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
@@ -1695,7 +1695,7 @@ function checkLayer(layer: AskLayer, raw: unknown, env: Env): Accepted {
   if (raw === undefined) return accepted;
   const lenientLayer = env.lenient && layer === 'instance';
   if (!isPlain(raw)) {
-    reject(layer, '', 'a settings layer must be an object', lenientLayer, env.notes);
+    reject(layer, undefined, 'a settings layer must be an object', lenientLayer, env.notes);
     return accepted;
   }
   let edgeHold: 'off' | 'left' | 'right' | 'both' | undefined;
@@ -1758,7 +1758,7 @@ function checkUser(raw: unknown, env: Env): PanelUserLayer {
   const accepted: { slots?: number; anchor?: AnchorRequest; parkable?: boolean } = {};
   if (raw === undefined) return accepted;
   if (!isPlain(raw)) {
-    reject('user', '', 'a settings layer must be an object', env.lenient, env.notes);
+    reject('user', undefined, 'a settings layer must be an object', env.lenient, env.notes);
     return accepted;
   }
   for (const key of Object.keys(raw)) {
