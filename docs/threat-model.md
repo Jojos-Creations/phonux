@@ -16,7 +16,7 @@ In order of damage if lost:
 
 ## Who we defend against, and who we do not
 
-We defend against a stranger on GitHub: anyone can open a pull request or post a review on this public repository. We also
+We defend against a stranger on GitHub: anyone can open a pull request or comment on this public repository. We also
 defend against a compromised dev dependency, and against a hostile saved workspace file or imported panel data.
 
 We do not defend against a host app that is itself hostile, a person with write access to the repository, or a compromised
@@ -24,7 +24,7 @@ GitHub or npm. We also do not defend a host's own views: phonux draws them, it d
 
 ## Entry points
 
-- Pull requests and reviews from any GitHub user.
+- Pull requests and comments from any GitHub user.
 - Dependency updates (Renovate opens them; none merges itself).
 - The publish workflow, `.github/workflows/publish-release.yml`, started by hand.
 - The CLI (`cli/main.ts`), which runs in a developer's own app folder and starts `npm`, `npx cap`, Gradle and Xcode tools.
@@ -48,7 +48,7 @@ GitHub or npm. We also do not defend a host's own views: phonux draws them, it d
 2. **Compromise a dev dependency that runs inside the publish job.** The job runs `npm ci` with install scripts, then the
    gate, then publishes, and it holds `id-token: write` for all of those steps. The approval is given before any of it
    runs. What helps today: action versions are pinned by digest, the npm cache is off, the release commit must be on
-   `main`, lockfile hashes are checked, and Renovate waits seven days before it proposes a new release. The job also still
+   `main`, `npm ci` checks each package against the lockfile hashes, and Renovate waits seven days before it proposes a new release. The job also still
    reads an `NPM_TOKEN` secret when one exists and uses it instead of trusted publishing. Open: building and publishing
    share one job.
 3. **Take over the npm account or a leftover publish token.** One maintainer account holds the package. Account settings
