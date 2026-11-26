@@ -42,10 +42,9 @@ GitHub or npm. We also do not defend a host's own views: phonux draws them, it d
 
 ## Top attack paths
 
-1. **Forge the verifier's pass on a pull request so an agent merges it.** The judge (`newest_comment_review`) takes the
-   newest COMMENT review and checks its shape, verdict, commit and evidence count. It does not check who wrote the review,
-   and on a public repository any account can submit one. A stranger's later "pass" can replace an honest "fail". Nothing
-   else in the repository (no code owners file, no fork check) stops it today. Open.
+1. **Get a pull request merged without a real review.** Agent merges depend on a verifier's report on the pull
+   request, and a person merges the rest. The checks that make that gate hold against strangers on a public repository
+   are being hardened; report a weakness privately as `SECURITY.md` says.
 2. **Compromise a dev dependency that runs inside the publish job.** The job runs `npm ci` with install scripts, then the
    gate, then publishes, and it holds `id-token: write` for all of those steps. The approval is given before any of it
    runs. What helps today: action versions are pinned by digest, the npm cache is off, the release commit must be on
