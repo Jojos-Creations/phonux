@@ -8,7 +8,9 @@ import NativeSelect from '@mui/material/NativeSelect';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import type { PhonuxLabels } from './labels.js';
-import { AddIcon, Avatar, BackIcon, CheckIcon, ItemHeader, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, capitalized, daysUntil, formatFileSize, isEditable, useShareLabels, useTabState, type ShareItem } from './shareParts.js';
+import { SafetyPage } from './shareSafety.js';
+import { AddIcon, Avatar, BackIcon, CheckIcon, ItemHeader, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, ShieldCheckIcon, ShieldIcon, capitalized, daysSince, daysUntil, formatFileSize, isEditable, useShareLabels, useTabState, type ShareItem } from './shareParts.js';
+import { alpha, type Theme } from '@mui/material/styles';
 
 /** The tab a `ShareSheet` shows: `nearby` is the QR code, `people` the trusted people, `link` the web link. @public */
 export type ShareTab = 'nearby' | 'people' | 'link';
@@ -39,6 +41,30 @@ export interface ShareMember {
   joined?: boolean;
   /** True for the user's own row, which is drawn as `You`. */
   you?: boolean;
+  /**
+   * Set once the person has answered no: they left the item or declined the invite. The sheet draws them under
+   * `No longer in this space` (or the item's kind) with a tag, their old access, Invite again and Remove, and no menu.
+   * `joined` is ignored when this is set.
+   */
+  status?: 'left' | 'declined';
+  /** Epoch milliseconds they answered at, for `Left, 3 days ago`; read only with `status`. Left out, the row says no time. */
+  since?: number;
+  /** For a person with `status`: false hides Invite again, for someone the app has no way to invite. Defaults to true. A `name` that is empty never offers it. */
+  canInviteAgain?: boolean;
+  /**
+   * The state of this person's safety code, for a joined person. Left out, the sheet draws nothing about it. The line
+   * under the name then says the state, a `not checked` or `changed` state gets a Check or Review button (with `onSafetyCodeOpen`),
+   * and `checked` puts a green shield on the avatar.
+   */
+  safety?: MemberSafety;
+}
+
+/** The safety code check of one person, as the host knows it. @public */
+export interface MemberSafety {
+  /** `unchecked` was never compared, `checked` was compared and the key has not changed since, `changed` is a new key not yet accepted. */
+  state: 'unchecked' | 'checked' | 'changed';
+  /** The 60 digits, with or without spaces in groups of five. Give it once Check is pressed if it takes time to make; the page waits until it arrives. For `changed`, the code of the new key. */
+  code?: string;
 }
 
 /** A person the user trusts and can send to. @public */
@@ -71,8 +97,18 @@ export interface ShareSheetProps {
   onInvite?: (who: string, role: ShareRole) => void;
   /** Called with the person's id and the role picked from their menu; the menu offers roles only on an item others can edit, and only with this callback. */
   onChangeRole?: (id: string, role: ShareRole) => void;
-  /** Called with the person's id when Remove is pressed in their menu; without it the menu has no Remove. */
+  /** Called with the person's id when Remove is pressed in their menu, or on a person who left or declined; without it neither has a Remove. */
   onRemove?: (id: string) => void;
+  /** Called with the id and the access a person who left or declined had, when Invite again is pressed; without it the button is not drawn. */
+  onInviteAgain?: (id: string, role: ShareRole) => void;
+  /** Called with the person's id when Check, or Review on a changed key, is pressed; the sheet then shows the safety code page for that person. Without it no safety code is drawn except the checked shield. */
+  onSafetyCodeOpen?: (id: string) => void;
+  /** Called with the person's id when They match is pressed on the page; without it the button is not drawn. The sheet then leaves the page, and the app marks the person `checked`. */
+  onSafetyCodeMatch?: (id: string) => void;
+  /** Called with the person's id when They do not match is pressed; without it the button is not drawn. The sheet itself then says not to share anything private until they check again in person. */
+  onSafetyCodeMismatch?: (id: string) => void;
+  /** Called with the person's id when Accept new key is pressed on the page for a `changed` key; without it the button is not drawn. The sheet then leaves the page. */
+  onAcceptNewKey?: (id: string) => void;
   /** The trusted people the People tab lists, in order, each with a Send button. */
   people: readonly SharePerson[];
   /** Ids of `people` already sent this file; each shows `Sent` with a check in place of its Send button. */
@@ -126,6 +162,35 @@ export function ShareSheet(props: ShareSheetProps): React.ReactElement {
   const opens = link?.maxOpens ?? null;
   const showEnds = link !== undefined && (days !== null || opens !== null);
   const sent = new Set(sentTo);
+  const [checkingId, setCheckingId] = React.useState<string | null>(null);
+  const checking = checkingId === null || props.onSafetyCodeOpen === undefined ? undefined : members.find((m) => m.id === checkingId && m.safety !== undefined && m.safety.state !== 'checked');
+  const here = members.filter((m) => m.status === undefined);
+  const gone = members.filter((m) => m.status !== undefined);
+  const kindWord = labels.shareKind(item?.kind ?? 'space');
+
+  if (checking?.safety !== undefined) {
+    const { id } = checking;
+    const done = (call: ((id: string) => void) | undefined): (() => void) | undefined =>
+      call === undefined
+        ? undefined
+        : () => {
+            call(id);
+            setCheckingId(null);
+          };
+    return (
+      <SafetyPage
+        key={id}
+        name={checking.name}
+        state={checking.safety.state === 'changed' ? 'changed' : 'unchecked'}
+        code={checking.safety.code}
+        labels={labels}
+        onMatch={done(props.onSafetyCodeMatch)}
+        onMismatch={props.onSafetyCodeMismatch === undefined ? undefined : () => props.onSafetyCodeMismatch?.(id)}
+        onAccept={done(props.onAcceptNewKey)}
+        onBack={() => setCheckingId(null)}
+      />
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.25, p: 2.5, color: 'text.primary' }}>
@@ -169,12 +234,42 @@ export function ShareSheet(props: ShareSheetProps): React.ReactElement {
               {editable ? labels.sharePeopleHintEdit : labels.sharePeopleHint}
             </Typography>
             {props.onInvite === undefined ? null : <InviteRow editable={editable} labels={labels} onInvite={props.onInvite} />}
-            {members.length === 0 ? null : (
+            {here.length === 0 ? null : (
               <Box component="ul" sx={{ ...GROUP_SX, listStyle: 'none', m: 0, p: 0 }}>
-                {members.map((member) => (
-                  <MemberRow key={member.id} member={member} editable={editable} labels={labels} onChangeRole={props.onChangeRole} onRemove={props.onRemove} />
+                {here.map((member) => (
+                  <MemberRow
+                    key={member.id}
+                    member={member}
+                    editable={editable}
+                    labels={labels}
+                    onChangeRole={props.onChangeRole}
+                    onRemove={props.onRemove}
+                    onSafetyCodeOpen={props.onSafetyCodeOpen === undefined ? undefined : (id) => {
+                      setCheckingId(id);
+                      props.onSafetyCodeOpen?.(id);
+                    }}
+                  />
                 ))}
               </Box>
+            )}
+            {gone.length === 0 ? null : (
+              <>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Typography component="h3" variant="body2" color="text.secondary" sx={{ fontWeight: 600, px: 1.25 }}>
+                    {labels.shareGoneHeading(kindWord)}
+                  </Typography>
+                  <Box component="ul" sx={{ ...GROUP_SX, listStyle: 'none', m: 0, p: 0 }}>
+                    {gone.map((member) => (
+                      <GoneRow key={member.id} member={member} editable={editable} labels={labels} now={at} onInviteAgain={props.onInviteAgain} onRemove={props.onRemove} />
+                    ))}
+                  </Box>
+                </Box>
+                {props.onRemove === undefined ? null : (
+                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>
+                    {labels.shareGoneHint(kindWord)}
+                  </Typography>
+                )}
+              </>
             )}
             {people.length === 0 ? null : (
               <Box component="ul" sx={{ ...GROUP_SX, listStyle: 'none', m: 0, p: 0 }}>
@@ -309,9 +404,10 @@ interface MemberRowProps {
   labels: PhonuxLabels;
   onChangeRole: ((id: string, role: ShareRole) => void) | undefined;
   onRemove: ((id: string) => void) | undefined;
+  onSafetyCodeOpen: ((id: string) => void) | undefined;
 }
 
-function MemberRow({ member, editable, labels, onChangeRole, onRemove }: MemberRowProps): React.ReactElement {
+function MemberRow({ member, editable, labels, onChangeRole, onRemove, onSafetyCodeOpen }: MemberRowProps): React.ReactElement {
   const menuId = React.useId();
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
   const name = member.you === true ? labels.shareYou : member.name;
@@ -319,18 +415,40 @@ function MemberRow({ member, editable, labels, onChangeRole, onRemove }: MemberR
   const roleText = member.role === 'owner' ? labels.shareOwner : !editable || member.role === 'view' ? labels.shareCanView : labels.shareCanEdit;
   const canChange = editable && onChangeRole !== undefined;
   const hasMenu = member.role !== 'owner' && (canChange || onRemove !== undefined);
+  // The check belongs to a joined person other than the user; a pending invite has no key to compare yet.
+  const safety = member.role === 'owner' || member.you === true || pending ? undefined : member.safety;
+  const checkable = safety !== undefined && safety.state !== 'checked' && onSafetyCodeOpen !== undefined;
+  const line = safety !== undefined && (safety.state === 'checked' || checkable) ? labels.shareMemberSafetyLine(roleText, safety.state) : pending ? labels.shareInvitedNotJoined : roleText;
   const close = (): void => setAnchor(null);
   return (
     <Box component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.75, py: 1.25, minHeight: 64, '& + &': { borderTop: 1, borderColor: 'divider' } }}>
-      <Avatar name={name} />
+      <Box sx={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+        <Avatar name={name} />
+        {safety?.state === 'checked' ? (
+          <ShieldCheckIcon aria-hidden="true" data-phonux-shield="checked" sx={{ position: 'absolute', right: -5, bottom: -5, fontSize: 18, p: '1px', borderRadius: '50%', bgcolor: 'background.paper', color: 'success.main' }} />
+        ) : null}
+      </Box>
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         <Typography sx={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{name}</Typography>
         {member.role === 'owner' ? null : (
-          <Typography variant="body2" color="text.secondary">
-            {pending ? labels.shareInvitedNotJoined : roleText}
+          <Typography variant="body2" color={safety?.state === 'changed' && checkable ? 'warning.main' : 'text.secondary'} sx={safety?.state === 'changed' && checkable ? (t: Theme) => ({ color: t.palette.mode === 'dark' ? t.palette.warning.light : t.palette.warning.dark }) : undefined}>
+            {line}
           </Typography>
         )}
       </Box>
+      {checkable ? (
+        <Button
+          variant="outlined"
+          color="inherit"
+          size="small"
+          startIcon={safety.state === 'changed' ? undefined : <ShieldIcon aria-hidden="true" />}
+          aria-label={safety.state === 'changed' ? labels.shareSafetyReviewFor(name) : labels.shareSafetyCheckFor(name)}
+          onClick={() => onSafetyCodeOpen(member.id)}
+          sx={{ ...touchButtonSx, borderColor: 'divider', flexShrink: 0 }}
+        >
+          {safety.state === 'changed' ? labels.shareSafetyReview : labels.shareSafetyCheck}
+        </Button>
+      ) : null}
       {member.role === 'owner' ? (
         <Typography variant="body2" color="text.secondary">
           {roleText}
@@ -371,6 +489,81 @@ function MemberRow({ member, editable, labels, onChangeRole, onRemove }: MemberR
             )}
           </Menu>
         </>
+      ) : null}
+    </Box>
+  );
+}
+
+interface GoneRowProps {
+  member: ShareMember;
+  editable: boolean;
+  labels: PhonuxLabels;
+  now: number;
+  onInviteAgain: ((id: string, role: ShareRole) => void) | undefined;
+  onRemove: ((id: string) => void) | undefined;
+}
+
+/** A person who left or declined: a quiet row with the answer as a tag, and the two things the owner can do about it. */
+function GoneRow({ member, editable, labels, now, onInviteAgain, onRemove }: GoneRowProps): React.ReactElement {
+  const status = member.status ?? 'left';
+  const unknown = member.name.trim() === '';
+  const name = unknown ? labels.shareUnknownAccount : member.name;
+  const days = member.since === undefined ? null : daysSince(member.since, now);
+  const role: ShareRole = editable && member.role !== 'view' ? 'edit' : 'view';
+  const canInvite = onInviteAgain !== undefined && !unknown && member.canInviteAgain !== false;
+  return (
+    <Box component="li" aria-label={labels.shareGoneRow(name, status, days)} sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, px: 1.75, py: 1.5, minHeight: 64, '& + &': { borderTop: 1, borderColor: 'divider' } }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ opacity: 0.55, display: 'flex' }}>
+          <Avatar name={name} />
+        </Box>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{name}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {role === 'edit' ? labels.shareCanEdit : labels.shareCanView}
+          </Typography>
+          {days === null ? null : (
+            <Typography variant="body2" color="text.secondary">
+              {labels.shareGoneSince(status, days)}
+            </Typography>
+          )}
+        </Box>
+        <Box
+          component="span"
+          sx={(t: Theme) => ({
+            flexShrink: 0,
+            px: 1.25,
+            py: 0.25,
+            borderRadius: 4,
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            bgcolor: status === 'declined' ? alpha(t.palette.warning.main, 0.16) : t.palette.action.hover,
+            color: status === 'declined' ? (t.palette.mode === 'dark' ? t.palette.warning.light : t.palette.warning.dark) : t.palette.text.secondary,
+          })}
+        >
+          {status === 'left' ? labels.shareLeft : labels.shareDeclined}
+        </Box>
+      </Box>
+      {canInvite || onRemove !== undefined ? (
+        <Box sx={{ display: 'flex', gap: 1.25 }}>
+          {canInvite ? (
+            <Button
+              variant="contained"
+              disableElevation
+              fullWidth
+              aria-label={labels.shareInviteAgainTo(name)}
+              onClick={() => onInviteAgain(member.id, role)}
+              sx={(t: Theme) => ({ ...touchButtonSx, bgcolor: alpha(t.palette.primary.main, 0.14), color: t.palette.mode === 'dark' ? t.palette.primary.light : t.palette.primary.dark, '&:hover': { bgcolor: alpha(t.palette.primary.main, 0.22) } })}
+            >
+              {labels.shareInviteAgain}
+            </Button>
+          ) : null}
+          {onRemove === undefined ? null : (
+            <Button variant="outlined" color="error" fullWidth aria-label={labels.shareRemoveFrom(name)} onClick={() => onRemove(member.id)} sx={touchButtonSx}>
+              {labels.shareRemove}
+            </Button>
+          )}
+        </Box>
       ) : null}
     </Box>
   );
