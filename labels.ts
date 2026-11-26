@@ -142,6 +142,72 @@ export interface PhonuxLabels {
   shareMemberMore: (name: string) => string;
   /** The menu entry that takes a person off the item. Default `Remove`. */
   shareRemove: string;
+  /** The heading over the people who left or declined, given the item's kind in words (`space`, `playlist`). Default `No longer in this <kind>`. */
+  shareGoneHeading: (kind: string) => string;
+  /** The tag on a person who left. Default `Left`. */
+  shareLeft: string;
+  /** The tag on a person who declined the invite. Default `Declined`. */
+  shareDeclined: string;
+  /** The line saying when they answered, given which answer and whole days since (0 is today), or null when the time is unknown. Default `Left, 3 days ago`, `Declined, today`, or just `Left`. */
+  shareGoneSince: (status: 'left' | 'declined', days: number | null) => string;
+  /** The accessible name of a left or declined person's row, given their name, which answer and whole days since (null when unknown). Default `Dana Okafor left 3 days ago`. */
+  shareGoneRow: (name: string, status: 'left' | 'declined', days: number | null) => string;
+  /** The name drawn for a left or declined person whose name is empty. Default `Unknown account`. */
+  shareUnknownAccount: string;
+  /** The button that invites a left or declined person again. Default `Invite again`. */
+  shareInviteAgain: string;
+  /** The accessible name of that button, given their name. Default `Invite again, <name>`. */
+  shareInviteAgainTo: (name: string) => string;
+  /** The accessible name of a left or declined person's Remove button, given their name. Default `Remove <name>`. */
+  shareRemoveFrom: (name: string) => string;
+  /** The note under the people who left or declined, given the item's kind in words. Default `They stay here until you remove them. Removing gives the <kind> new keys.`. */
+  shareGoneHint: (kind: string) => string;
+  /** The line under a joined person's name when the safety code is part of it, given their access line and the check's state. Default `Can edit, safety code not checked`, `Can edit, safety code checked` or `Can edit, sharing key changed`. */
+  shareMemberSafetyLine: (access: string, state: 'unchecked' | 'checked' | 'changed') => string;
+  /** The small button on a person whose safety code is not checked. Default `Check`. */
+  shareSafetyCheck: string;
+  /** The accessible name of that button, given their name. Default `Check safety code, <name>`. */
+  shareSafetyCheckFor: (name: string) => string;
+  /** The small button on a person whose sharing key changed. Default `Review`. */
+  shareSafetyReview: string;
+  /** The accessible name of that button, given their name. Default `Review new safety code, <name>`. */
+  shareSafetyReviewFor: (name: string) => string;
+  /** The title of the safety code page. Default `Safety code`. */
+  shareSafetyTitle: string;
+  /** The title of the page for a changed key. Default `New safety code`. */
+  shareSafetyNewTitle: string;
+  /** The accessible name of the switch between the digits and the QR code. Default `How to compare`. */
+  shareSafetyViewName: string;
+  /** The switch entry that shows the 12 groups of digits. Default `Numbers`. */
+  shareSafetyNumbers: string;
+  /** The switch entry that shows the QR code. Default `Show QR`. */
+  shareSafetyShowQr: string;
+  /** The accessible name of the list of 12 groups, given the person's name. Default `Safety code with <name>`. */
+  shareSafetyGroups: (name: string) => string;
+  /** The accessible name of the QR code, given the person's name. Default `QR code of the safety code with <name>`. */
+  shareSafetyQrName: (name: string) => string;
+  /** What shows while the host has not given the code yet. Default `Getting the safety code.`. */
+  shareSafetyWaiting: string;
+  /** The note under the digits, given the person's name. Default `Ask <name> to open this page on their phone. Read the 12 groups to each other. If they all match, nobody in the middle swapped a key.`. */
+  shareSafetyHowNumbers: (name: string) => string;
+  /** The note under the QR code, given the person's name. Default `Let <name> scan this from the same page on their phone. Their phone compares all 60 numbers.`. */
+  shareSafetyHowQr: (name: string) => string;
+  /** The button that marks the code as checked. Default `They match`. */
+  shareSafetyMatch: string;
+  /** The button that reports the codes differ. Default `They do not match`. */
+  shareSafetyMismatch: string;
+  /** What the page says after the codes differ, given the person's name. Default `Do not share anything private with <name> until you check again in person.`. */
+  shareSafetyMismatchNote: (name: string) => string;
+  /** The title of the box warning that a key changed, given the person's name. Default `The sharing key for <name> changed`. */
+  shareSafetyChangedTitle: (name: string) => string;
+  /** The body of that box, given the person's name. Default `This usually means they got a new phone or set up the app again. It can also mean someone is trying to get in the middle. Sharing to <name> is paused until you decide.`. */
+  shareSafetyChangedBody: (name: string) => string;
+  /** The button that trusts the changed key. Default `Accept new key`. */
+  shareSafetyAccept: string;
+  /** The button that leaves a changed key undecided. Default `Not now`. */
+  shareSafetyNotNow: string;
+  /** The note under Not now, given the person's name. Default `Not now keeps sharing to <name> paused. You can come back to this page later.`. */
+  shareSafetyNotNowNote: (name: string) => string;
   /** The line under the link buttons about who can open it. Default `People who open it need an account, and nothing downloads until they add it.`. */
   shareLinkNote: string;
   /** The accessible name of the shared list's tabs. Default `Shared files`. */
@@ -330,6 +396,47 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   shareTrustedLine: 'On your trusted list',
   shareMemberMore: (name) => `Change access or remove ${name}`,
   shareRemove: 'Remove',
+  shareGoneHeading: (kind) => `No longer in this ${kind}`,
+  shareLeft: 'Left',
+  shareDeclined: 'Declined',
+  shareGoneSince: (status, days) => {
+    const word = status === 'left' ? 'Left' : 'Declined';
+    if (days === null) return word;
+    return `${word}, ${days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`}`;
+  },
+  shareGoneRow: (name, status, days) => {
+    const word = status === 'left' ? 'left' : 'declined';
+    if (days === null) return `${name} ${word}`;
+    return `${name} ${word} ${days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`}`;
+  },
+  shareUnknownAccount: 'Unknown account',
+  shareInviteAgain: 'Invite again',
+  shareInviteAgainTo: (name) => `Invite again, ${name}`,
+  shareRemoveFrom: (name) => `Remove ${name}`,
+  shareGoneHint: (kind) => `They stay here until you remove them. Removing gives the ${kind} new keys.`,
+  shareMemberSafetyLine: (access, state) => `${access}, ${state === 'unchecked' ? 'safety code not checked' : state === 'checked' ? 'safety code checked' : 'sharing key changed'}`,
+  shareSafetyCheck: 'Check',
+  shareSafetyCheckFor: (name) => `Check safety code, ${name}`,
+  shareSafetyReview: 'Review',
+  shareSafetyReviewFor: (name) => `Review new safety code, ${name}`,
+  shareSafetyTitle: 'Safety code',
+  shareSafetyNewTitle: 'New safety code',
+  shareSafetyViewName: 'How to compare',
+  shareSafetyNumbers: 'Numbers',
+  shareSafetyShowQr: 'Show QR',
+  shareSafetyGroups: (name) => `Safety code with ${name}`,
+  shareSafetyQrName: (name) => `QR code of the safety code with ${name}`,
+  shareSafetyWaiting: 'Getting the safety code.',
+  shareSafetyHowNumbers: (name) => `Ask ${name} to open this page on their phone. Read the 12 groups to each other. If they all match, nobody in the middle swapped a key.`,
+  shareSafetyHowQr: (name) => `Let ${name} scan this from the same page on their phone. Their phone compares all 60 numbers.`,
+  shareSafetyMatch: 'They match',
+  shareSafetyMismatch: 'They do not match',
+  shareSafetyMismatchNote: (name) => `Do not share anything private with ${name} until you check again in person.`,
+  shareSafetyChangedTitle: (name) => `The sharing key for ${name} changed`,
+  shareSafetyChangedBody: (name) => `This usually means they got a new phone or set up the app again. It can also mean someone is trying to get in the middle. Sharing to ${name} is paused until you decide.`,
+  shareSafetyAccept: 'Accept new key',
+  shareSafetyNotNow: 'Not now',
+  shareSafetyNotNowNote: (name) => `Not now keeps sharing to ${name} paused. You can come back to this page later.`,
   shareLinkNote: 'People who open it need an account, and nothing downloads until they add it.',
   sharedTabsName: 'Shared files',
   sharedByYou: 'By you',
