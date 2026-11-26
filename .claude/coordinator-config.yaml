@@ -39,6 +39,19 @@ shared_resources: []
 exclusive_resources: []
 cascade_rules: []
 verifier_mode: local
+
+# Who may judge a pull request. The merge judge (tools/queue/report_rules.py,
+# `queue ship --check`, `queue gate-pass`) counts only reviews whose author
+# login is listed here; on a public repo anyone can post a review, so any
+# other login's PASS is ignored and can never replace a real FAIL. No list,
+# or an empty one, refuses every merge. gate-pass reads origin/main's copy,
+# so a pull request cannot add its own author. The login is the whole lock:
+# GitHub reports an org owner's own reviews as CONTRIBUTOR, so the review's
+# author_association is deliberately not checked.
+# `queue list`, `status` and `doctor` also read only the issues and pull
+# requests these logins opened, and refuse to run without the list.
+verifier_logins:
+  - ChicoBitcoinJoe
 ship_behind_policy: disjoint-ok
 gh_mode: on
 pipeline: github

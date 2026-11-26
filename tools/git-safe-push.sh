@@ -40,8 +40,31 @@
 #     tools/git-safe-push.sh                # push current branch to same name
 #     tools/git-safe-push.sh --to main      # push current branch to main
 #     tools/git-safe-push.sh --expect main  # additionally require HEAD == main
+#     tools/git-safe-push.sh --help         # print this usage and exit 0
+#
+# EXIT CODES
+#     0  pushed, and the pushed commit is on origin/<target>
+#     1  refused (detached HEAD, wrong branch, unstaged changes, an unverifiable
+#        submodule pointer) or the push did not land
+#     2  bad command line
 
 set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+usage: tools/git-safe-push.sh [--to BRANCH] [--expect BRANCH]
+       tools/git-safe-push.sh --help
+
+Push the current branch and prove the commit is on origin.
+
+  --to BRANCH      push to origin/BRANCH instead of the same name
+  --expect BRANCH  refuse unless HEAD is on BRANCH (guards against a moved tree)
+  -h, --help       print this usage and exit 0
+
+Exit 0: pushed and proved. Exit 1: refused, or the push did not land.
+Exit 2: bad command line.
+USAGE
+}
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
@@ -50,9 +73,18 @@ TARGET=""
 EXPECT=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --to)     TARGET="$2"; shift 2 ;;
-    --expect) EXPECT="$2"; shift 2 ;;
-    *) echo "unknown argument: $1" >&2; exit 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --to|--expect)
+      # A branch name cannot start with "-", so a following flag means the
+      # value was left off; without this `--to --expect main` would push to a
+      # branch named "--expect".
+      if [[ $# -lt 2 || -z "$2" || "$2" == -* ]]; then
+        echo "error: $1 needs a branch name (e.g. $1 main)" >&2
+        exit 2
+      fi
+      if [[ "$1" == "--to" ]]; then TARGET="$2"; else EXPECT="$2"; fi
+      shift 2 ;;
+    *) echo "unknown argument: $1 (see --help)" >&2; exit 2 ;;
   esac
 done
 
@@ -104,7 +136,15 @@ while read -r mode _ sha path; do
   # normal here. What is never acceptable is recording a pointer to a commit
   # that is not on any remote -- that produces a repo nobody else can clone.
   if [[ -d "$path/.git" || -f "$path/.git" ]]; then
-    git -C "$path" fetch -q origin 2>/dev/null || true
+    # A failed fetch leaves the remote-tracking refs as they were, so the check
+    # below would pass on stale data: it is a refusal, not a skip.
+    if ! FETCH_ERR="$(git -C "$path" fetch -q origin 2>&1)"; then
+      echo "refusing: $path pointer ${sha:0:8} CANNOT BE VERIFIED -- fetching the" >&2
+      echo "         submodule's origin failed, so its remote branches may be stale:" >&2
+      printf '%s\n' "$FETCH_ERR" | sed 's/^/         /' >&2
+      FAILED=1
+      continue
+    fi
     if ! git -C "$path" branch -r --contains "$sha" 2>/dev/null | grep -q .; then
       echo "refusing: $path pointer ${sha:0:8} is not on any remote branch." >&2
       echo "         A pointer to an unpushed commit produces an unclonable repo." >&2
@@ -125,7 +165,13 @@ while read -r mode _ sha path; do
     FAILED=1
     continue
   fi
-  git --git-dir="$MODULE_DIR" fetch -q origin 2>/dev/null || true
+  if ! FETCH_ERR="$(git --git-dir="$MODULE_DIR" fetch -q origin 2>&1)"; then
+    echo "refusing: $path pointer ${sha:0:8} CANNOT BE VERIFIED -- fetching" >&2
+    echo "         origin into $MODULE_DIR failed, so its remote branches may be stale:" >&2
+    printf '%s\n' "$FETCH_ERR" | sed 's/^/         /' >&2
+    FAILED=1
+    continue
+  fi
   if ! git --git-dir="$MODULE_DIR" cat-file -e "${sha}^{commit}" 2>/dev/null; then
     echo "refusing: $path pointer ${sha:0:8} CANNOT BE VERIFIED -- that commit is" >&2
     echo "         not in $MODULE_DIR," >&2
@@ -143,11 +189,16 @@ done < <(git ls-tree -r HEAD)
 
 HEAD_SHA="$(git rev-parse HEAD)"
 echo "pushing $CURRENT -> origin/$TARGET  (${HEAD_SHA:0:8})"
-git push origin "HEAD:refs/heads/$TARGET"
+# Push the captured SHA, not HEAD: HEAD can move between the line above and
+# the push, and the proof below is about HEAD_SHA.
+git push origin "$HEAD_SHA:refs/heads/$TARGET"
 
-# Assert the EFFECT, not the exit code. This is the check that caught
-# incidents 2 and 3 after the push had already reported success.
-git fetch -q origin
+# Assert the EFFECT, not the exit code: the push-that-carried-nothing incident
+# above reported success. The fetch names the target branch explicitly --
+# a bare `git fetch origin` follows the remote's configured refspec, and in a
+# single-branch clone that never updates origin/$TARGET for any other branch,
+# so the check below would read a stale or missing ref.
+git fetch -q origin "+refs/heads/$TARGET:refs/remotes/origin/$TARGET"
 if git merge-base --is-ancestor "$HEAD_SHA" "origin/$TARGET"; then
   echo "verified: ${HEAD_SHA:0:8} is on origin/$TARGET"
 else

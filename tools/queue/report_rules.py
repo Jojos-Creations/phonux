@@ -2,7 +2,8 @@
 """Shared rule module for the verifier-report contract (git pipeline v2, plan
 section 6): parsing the fenced `json verifier-report` block a verifier posts
 as a PR review, counting the numbered `Evidence required` bullets a PR body
-promises, picking the review that check should actually judge, and applying
+promises, picking the review (the newest COMMENT review by an allowed login
+carrying a report fence) that check should actually judge, and applying
 the pass/fail rules against all three.
 
 WHY THIS IS ITS OWN MODULE, NOT INLINED IN A CALLER
@@ -43,6 +44,22 @@ body's own `audited_sha` names a different commit, and a check that only
 compared one of the two would miss it. `check_report()` below compares
 both, independently, against the same `head_sha`, so either one alone
 drifting is its own named failure.
+
+WHO MAY JUDGE
+-------------
+On a public repo any GitHub account can post a COMMENT review, so a review
+counts only when its author's `user.login` is on the `verifier_logins:` list
+in `.claude/coordinator-config.yaml` (or the logins a caller passes in). Every
+other review is dropped before "newest" is chosen, so a stranger's PASS can
+never replace a real FAIL. An empty or absent list refuses: nothing is
+trusted by default. `author_association` is deliberately not part of the
+test: GitHub reports the organization owner's own reviews on an org repo as
+`CONTRIBUTOR`, so requiring OWNER/MEMBER/COLLABORATOR would refuse every real
+review there, and the login is the part a stranger cannot forge.
+
+A pull request whose head lives in another repository (a fork) is refused
+unless it carries the `owner-approved-fork` label, which only an account with
+triage rights on the base repository can add.
 """
 
 import argparse
@@ -230,10 +247,153 @@ BULLETS_EXPECTED_FIELD = _REPORT["field_roles"]["bullets_expected"]
 BRIEF_HEADING = SCHEMA["pr_body"]["sections"]["brief"]
 NEXT_HEADING_RE = re.compile(r"\n##[ \t]")
 EVIDENCE_REQUIRED_LABEL = SCHEMA["pr_body"]["brief_labels"]["evidence_required"]
-NUMBERED_BULLET_RE = re.compile(r"^[ \t]*\d+\.[ \t]")
+# A bullet is `1.`, `-` or `*`: a Brief written with dashes must count the same
+# as a numbered one, or its empty evidence list would match a count of 0.
+BULLET_RE = re.compile(r"^[ \t]*(?:\d+\.|[-*])[ \t]")
+# The next label in the Brief (`Depends on:`, `Touches:`) ends the evidence
+# list, so a dash list under that label is not counted as evidence.
+_NEXT_LABEL_RE = re.compile(r"^[A-Za-z][A-Za-z ]*:")
+# The status an evidence entry must carry for the report to pass; verifier.md
+# writes `{"bullet": 1, "status": "PASS", ...}`, so it is the verdict's own word.
+EVIDENCE_PASS_STATUS = PASS_VERDICT
+# Field names outside schema.json's four roles. If the schema lacks one, the
+# `.get` in check_report yields None and the rule fails closed.
+GATE_RERUN_FIELD = "gate_rerun"
+GATE_EXIT_FIELD = "exit_code"
+SCOPE_OK_FIELD = "scope_ok"
+GAPS_FIELD = "gaps"
 
 # --- PR reviews (GitHub REST) ------------------------------------------------
 COMMENT_REVIEW_STATE = "COMMENTED"
+
+# --- who may judge -----------------------------------------------------------
+CONFIG_RELPATH = (".claude", "coordinator-config.yaml")
+VERIFIER_LOGINS_KEY = "verifier_logins"
+# Only an account with triage rights on the base repository can add a label.
+FORK_APPROVED_LABEL = "owner-approved-fork"
+# A GitHub user login, or an app's `name[bot]`.
+_LOGIN_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?")
+_LOGINS_KEY_RE = re.compile(r"^" + VERIFIER_LOGINS_KEY + r"\s*:(.*)$")
+_LOGINS_ITEM_RE = re.compile(r"^\s+-\s*(.*)$")
+
+
+class AllowlistError(ValueError):
+    """`verifier_logins` is absent, empty or malformed, so no reviewer can be trusted; the message
+    names the key and where it was read from."""
+
+
+def _strip_scalar(raw):
+    text = raw.strip()
+    if text[:1] in ("'", '"'):
+        end = text.find(text[0], 1)
+        return text[1:end] if end != -1 else text[1:]
+    hash_at = text.find("#")
+    return (text[:hash_at] if hash_at != -1 else text).strip()
+
+
+def parse_verifier_logins(text, source):
+    """Return the logins listed under the top-level `verifier_logins:` block list in a config's text.
+
+    Read line by line with the standard library, never a YAML parser: only a column-0 key counts, and
+    each item is one `  - <login>` line. Raises AllowlistError naming `source` when the key is absent,
+    duplicated, lists nothing, or holds an item that is not a GitHub login.
+    """
+    lines = text.splitlines()
+    key_at = [i for i, line in enumerate(lines) if _LOGINS_KEY_RE.match(line)]
+    if not key_at:
+        raise AllowlistError("%s has no top-level %s: list, so no reviewer is allowed" % (source, VERIFIER_LOGINS_KEY))
+    if len(key_at) > 1:
+        raise AllowlistError("%s lists %s: more than once" % (source, VERIFIER_LOGINS_KEY))
+    inline = _strip_scalar(_LOGINS_KEY_RE.match(lines[key_at[0]]).group(1))
+    if inline not in ("", "[]"):
+        raise AllowlistError("%s: %s must be a block list, one `  - <login>` per line, found %r"
+                             % (source, VERIFIER_LOGINS_KEY, inline))
+    logins = []
+    for line in lines[key_at[0] + 1:]:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line[:1] not in (" ", "\t"):
+            break
+        item = _LOGINS_ITEM_RE.match(line)
+        if item is None:
+            raise AllowlistError("%s: %s holds a line that is not a `- <login>` item: %s"
+                                 % (source, VERIFIER_LOGINS_KEY, line.strip()))
+        login = _strip_scalar(item.group(1))
+        if not _LOGIN_RE.fullmatch(login):
+            raise AllowlistError("%s: %s item %r is not a GitHub login" % (source, VERIFIER_LOGINS_KEY, login))
+        logins.append(login)
+    if not logins:
+        raise AllowlistError("%s: %s lists no login, so no reviewer is allowed" % (source, VERIFIER_LOGINS_KEY))
+    return logins
+
+
+def read_verifier_logins(config_path):
+    """Return `parse_verifier_logins` of the file at `config_path`; AllowlistError when it cannot be read."""
+    try:
+        text = Path(config_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise AllowlistError("cannot read %s (%s), so no reviewer is allowed" % (config_path, exc)) from None
+    return parse_verifier_logins(text, config_path)
+
+
+def check_logins(logins):
+    """Return `logins` as a list once each is a GitHub login; AllowlistError when one is not or none is given."""
+    logins = list(logins or [])
+    bad = [login for login in logins if not isinstance(login, str) or not _LOGIN_RE.fullmatch(login)]
+    if bad:
+        raise AllowlistError("not a GitHub login: %s" % ", ".join(repr(b) for b in bad))
+    if not logins:
+        raise AllowlistError("no allowed reviewer login was given")
+    return logins
+
+
+def is_allowed_login(login, allowed_logins):
+    """True when `login` is one of `allowed_logins`, compared case-insensitively as GitHub does."""
+    if not isinstance(login, str) or not login:
+        return False
+    return login.lower() in {a.lower() for a in allowed_logins if isinstance(a, str)}
+
+
+def review_login(review):
+    """The author login of a review in REST shape (`user.login`), or None."""
+    user = review.get("user") if isinstance(review, dict) else None
+    login = user.get("login") if isinstance(user, dict) else None
+    return login if isinstance(login, str) else None
+
+
+def allowed_reviews(reviews, allowed_logins):
+    """The reviews whose author is on `allowed_logins`, in their original order; an empty allowlist keeps none."""
+    return [r for r in reviews if isinstance(r, dict) and is_allowed_login(review_login(r), allowed_logins)]
+
+
+def fork_problem(is_cross_repository, label_names):
+    """None when the pull request may be judged, else why not: its head is in another repository and it
+    lacks the FORK_APPROVED_LABEL, or it does not say where its head is (`is_cross_repository` not a bool)."""
+    if is_cross_repository is False:
+        return None
+    if is_cross_repository is not True:
+        return "the pull request does not say whether its head is in another repository, so it is refused"
+    if FORK_APPROVED_LABEL in {n.lower() for n in label_names or [] if isinstance(n, str)}:
+        return None
+    return ("the pull request's head is in another repository (a fork); the judge refuses it unless someone "
+            "with triage rights adds the %r label" % FORK_APPROVED_LABEL)
+
+
+def rest_pr_fork_problem(pr):
+    """fork_problem() for a pull request object from GitHub REST `GET /repos/{o}/{r}/pulls/{n}`.
+
+    A head repository that is null (a deleted fork) counts as a fork."""
+    base_repo = (pr.get("base") or {}).get("repo") if isinstance(pr.get("base"), dict) else None
+    head = pr.get("head") if isinstance(pr.get("head"), dict) else {}
+    head_repo = head.get("repo")
+    if not isinstance(base_repo, dict) or not isinstance(base_repo.get("full_name"), str):
+        cross = None
+    elif not isinstance(head_repo, dict) or not isinstance(head_repo.get("full_name"), str):
+        cross = True
+    else:
+        cross = head_repo["full_name"].lower() != base_repo["full_name"].lower()
+    labels = [label.get("name") for label in pr.get("labels") or [] if isinstance(label, dict)]
+    return fork_problem(cross, labels)
 
 # A submitted_at this old sorts behind every real review; used only when a
 # review is missing or has an unparseable submitted_at, so a malformed
@@ -284,9 +444,10 @@ def _brief_section(pr_body):
 
 
 def count_evidence_bullets(pr_body):
-    """Count the numbered bullets under the PR body's `## Brief` section's
-    `Evidence required:` label (plan section 5's PR body shape: `Evidence
-    required:` followed by a `1. <bullet>` numbered list). Returns 0 if the
+    """Count the bullets (`1.`, `-` or `*`) under the PR body's `## Brief`
+    section's `Evidence required:` label (plan section 5's PR body shape:
+    `Evidence required:` followed by a `1. <bullet>` list), up to the next
+    `Label:` line or the end of the section. Returns 0 if the
     section or label is absent -- an empty count, not an error, since a
     malformed body is caught by other checks (schema validity, bullets_expected
     equality), not by this counter refusing to run."""
@@ -295,7 +456,13 @@ def count_evidence_bullets(pr_body):
     if label_at == -1:
         return 0
     rest = section[label_at + len(EVIDENCE_REQUIRED_LABEL):]
-    return sum(1 for line in rest.splitlines() if NUMBERED_BULLET_RE.match(line))
+    count = 0
+    for line in rest.splitlines():
+        if _NEXT_LABEL_RE.match(line):
+            break
+        if BULLET_RE.match(line):
+            count += 1
+    return count
 
 
 def _parse_submitted_at(value):
@@ -311,26 +478,51 @@ def _parse_submitted_at(value):
     return parsed
 
 
-def newest_comment_review(reviews):
+def newest_comment_review(reviews, allowed_logins):
     """Given every page of GET /repos/{o}/{r}/pulls/{n}/reviews concatenated
     (GitHub paginates 30 per page by default, 100 max, oldest first -- see
-    docs.github.com/en/rest/pulls/reviews), return the newest review whose
-    `state` is COMMENTED, by `submitted_at`. Returns None if no COMMENT
-    review exists. A caller must paginate to the end itself: this function
-    trusts the list it is given is complete and does not fetch anything."""
-    comment_reviews = [r for r in reviews if r.get("state") == COMMENT_REVIEW_STATE]
+    docs.github.com/en/rest/pulls/reviews), return the newest review by an
+    allowed login whose `state` is COMMENTED, by `submitted_at`. Returns None
+    if no such review exists. A caller must paginate to the end itself: this
+    function trusts the list it is given is complete and does not fetch anything."""
+    comment_reviews = [r for r in allowed_reviews(reviews, allowed_logins) if r.get("state") == COMMENT_REVIEW_STATE]
     if not comment_reviews:
         return None
     return max(comment_reviews, key=lambda r: _parse_submitted_at(r.get("submitted_at")))
 
 
-def check_report(report, pr_body, head_sha, commit_id=None):
+def newest_report_review(reviews, allowed_logins):
+    """Return the newest COMMENTED review by an allowed login whose body carries
+    a verifier-report fence, by `submitted_at`, or None. A review by any other
+    login is dropped first, so it never governs. A later comment with no fence
+    ("nit: typo") is not a report and must not hide the report before it; a
+    later report of any verdict, even one with unparseable JSON, does govern,
+    so a newer FAIL beats an older PASS. Never raises on a malformed list."""
+    candidates = [
+        r for r in allowed_reviews(reviews if isinstance(reviews, list) else [], allowed_logins)
+        if r.get("state") == COMMENT_REVIEW_STATE
+        and isinstance(r.get("body"), str) and FENCE_RE.search(r["body"])
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda r: _parse_submitted_at(r.get("submitted_at")))
+
+
+def check_report(report, pr_body, head_sha, commit_id=None, require_commit_id=False):
     """Apply every plan-section-6 rule to a parsed verifier-report against
     the PR body it was posted for and the sha it must be judged against.
     Returns (ok, reason): ok is a bool, reason is a human-readable string
     naming the first rule that failed, or "ok" on success. Never raises on a
     malformed report -- a schema violation is a named reason, not an
-    exception the caller must also handle."""
+    exception the caller must also handle.
+
+    A PASS needs all of: the verdict, `audited_sha` equal to the head, a
+    non-empty `gate_rerun` whose every entry has exit code 0, `scope_ok`
+    true, empty `gaps`, every evidence entry's status PASS, and the three
+    evidence counts equal. `commit_id` is the review's own sha; a caller that
+    has a real review passes `require_commit_id=True`, so a review with no
+    commit_id fails instead of skipping the check. `check_report.py`, which
+    judges report text with no review behind it, leaves it False."""
     if report is None:
         return False, "missing or malformed verifier-report fence"
     if not isinstance(report, dict):
@@ -351,11 +543,35 @@ def check_report(report, pr_body, head_sha, commit_id=None):
     if audited_sha != head_sha:
         return False, "%s %s does not match head sha %s" % (AUDITED_SHA_FIELD, audited_sha, head_sha)
 
+    if require_commit_id and not commit_id:
+        return False, "review has no commit_id, so it cannot be tied to head sha %s" % (head_sha,)
     if commit_id is not None and commit_id != head_sha:
         return False, "review commit_id %s does not match head sha %s" % (commit_id, head_sha)
 
+    gate_rerun = report.get(GATE_RERUN_FIELD)
+    if not isinstance(gate_rerun, list) or not gate_rerun:
+        return False, "%s is empty: no gate command was re-run, so a PASS proves nothing" % (GATE_RERUN_FIELD,)
+    for index, entry in enumerate(gate_rerun, 1):
+        exit_code = entry.get(GATE_EXIT_FIELD) if isinstance(entry, dict) else None
+        if not _type_ok(exit_code, int):
+            return False, "%s entry %d has no integer %s" % (GATE_RERUN_FIELD, index, GATE_EXIT_FIELD)
+        if exit_code != 0:
+            return False, "%s entry %d exited %d, not 0" % (GATE_RERUN_FIELD, index, exit_code)
+
+    if report.get(SCOPE_OK_FIELD) is not True:
+        return False, "%s is %r, not true" % (SCOPE_OK_FIELD, report.get(SCOPE_OK_FIELD))
+
+    gaps = report.get(GAPS_FIELD)
+    if not isinstance(gaps, list) or gaps:
+        return False, "%s is not an empty list: a PASS names no gaps" % (GAPS_FIELD,)
+
     bullets_expected = report[BULLETS_EXPECTED_FIELD]
     evidence_checked = report[EVIDENCE_CHECKED_FIELD]
+    for index, entry in enumerate(evidence_checked, 1):
+        status = entry.get("status") if isinstance(entry, dict) else None
+        if status != EVIDENCE_PASS_STATUS:
+            return False, "%s entry %d has status %r, not %s" % (
+                EVIDENCE_CHECKED_FIELD, index, status, EVIDENCE_PASS_STATUS)
     actual_bullets = count_evidence_bullets(pr_body)
     if not (len(evidence_checked) == bullets_expected == actual_bullets):
         return False, (
@@ -378,49 +594,85 @@ def _load_text_file(path):
         return handle.read()
 
 
+# The config beside this checkout's tools/queue, which docs/merge-without-status.md requires be origin/main's.
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2].joinpath(*CONFIG_RELPATH)
+
+
+def _gate_result(ok, reason, code):
+    print(json.dumps({"ok": ok, "reason": reason}))
+    return code
+
+
 def _cmd_gate(args):
     try:
         reviews = _load_json_file(args.reviews)
-        pr_body = _load_text_file(args.pr_body)
+        pr = _load_json_file(args.pr)
+        pr_body = _load_text_file(args.pr_body) if args.pr_body else None
     except (OSError, json.JSONDecodeError) as exc:
-        print(json.dumps({"ok": False, "reason": "CANNOT RUN -- %s" % (exc,)}))
-        return 2
+        return _gate_result(False, "CANNOT RUN -- %s" % (exc,), 2)
 
     if not isinstance(reviews, list):
-        print(json.dumps({"ok": False, "reason": "CANNOT RUN -- --reviews did not contain a JSON array"}))
-        return 2
+        return _gate_result(False, "CANNOT RUN -- --reviews did not contain a JSON array", 2)
+    if not isinstance(pr, dict):
+        return _gate_result(False, "CANNOT RUN -- --pr did not contain a JSON object (GET .../pulls/<n>)", 2)
+    if pr_body is None:
+        pr_body = pr.get("body") if isinstance(pr.get("body"), str) else ""
 
-    review = newest_comment_review(reviews)
+    try:
+        if args.allowed_reviewer:
+            allowed = check_logins(args.allowed_reviewer)
+        else:
+            allowed = read_verifier_logins(args.config or DEFAULT_CONFIG_PATH)
+    except AllowlistError as exc:
+        return _gate_result(False, "NO ALLOWED REVIEWER -- %s" % (exc,), 1)
+
+    pr_head = (pr.get("head") or {}).get("sha") if isinstance(pr.get("head"), dict) else None
+    if pr_head != args.head:
+        return _gate_result(False, "--pr's head sha %s is not --head %s" % (pr_head, args.head), 1)
+
+    problem = rest_pr_fork_problem(pr)
+    if problem is not None:
+        return _gate_result(False, problem, 1)
+
+    review = newest_report_review(reviews, allowed)
     if review is None:
-        print(json.dumps({"ok": False, "reason": "no COMMENTED review found on the PR"}))
-        return 1
+        return _gate_result(False, "no COMMENTED review with a verifier-report fence found on the PR from an allowed "
+                                   "reviewer (%s)" % ", ".join(allowed), 1)
 
     report = parse_report(review.get("body", ""))
-    ok, reason = check_report(report, pr_body, args.head, commit_id=review.get("commit_id"))
-    print(json.dumps({"ok": ok, "reason": reason}))
-    return 0 if ok else 1
+    ok, reason = check_report(report, pr_body, args.head, commit_id=review.get("commit_id"),
+                              require_commit_id=True)
+    return _gate_result(ok, reason, 0 if ok else 1)
 
 
 def main(argv=None):
-    """Run the `gate` subcommand, which judges saved PR reviews against a PR body and head sha.
+    """Run the `gate` subcommand, which judges saved PR reviews against a PR and head sha.
+
+    Only reviews by an allowed login count: `--allowed-reviewer` (repeatable) when given, else the
+    `verifier_logins:` list in `--config` (default: this checkout's `.claude/coordinator-config.yaml`).
+    A fork pull request is refused unless it carries the `owner-approved-fork` label.
 
     Args:
         argv: Command-line arguments; `None` reads `sys.argv`.
 
     Returns:
-        The subcommand's exit code: 0 on PASS, 1 on a rule failure, 2 when an
-        input cannot be read or is not a JSON array.
+        The subcommand's exit code: 0 on PASS, 1 on a rule failure (including no allowed reviewer and
+        a fork), 2 when an input cannot be read or has the wrong JSON shape.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     gate = subparsers.add_parser(
         "gate",
-        help="check the newest COMMENT review on a PR against its body and head sha",
+        help="check the newest COMMENT review by an allowed reviewer carrying a verifier-report fence against the PR",
     )
     gate.add_argument("--head", required=True, help="the PR's current head sha (40hex)")
     gate.add_argument("--reviews", required=True, help="path to a JSON file: every page of GET .../reviews, concatenated")
-    gate.add_argument("--pr-body", required=True, help="path to a text file holding the PR's raw body")
+    gate.add_argument("--pr", required=True, help="path to a JSON file: GET .../pulls/<n>, for the head and fork checks")
+    gate.add_argument("--pr-body", help="path to a text file holding the PR's raw body (default: --pr's body)")
+    gate.add_argument("--allowed-reviewer", action="append", metavar="LOGIN",
+                      help="a login whose reviews count (repeatable); replaces the config's verifier_logins")
+    gate.add_argument("--config", help="the coordinator-config.yaml to read verifier_logins from")
     gate.set_defaults(func=_cmd_gate)
 
     args = parser.parse_args(argv)
