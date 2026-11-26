@@ -7,8 +7,9 @@ The queue pipeline is opt-in per docs/decisions-to-make.md item 3 — most
 forks of this template never turn it on. This script is how a repo takes the
 shared tooling and how it (or CI) later checks that the copies it made have
 not silently drifted from what was vendored. That is the GitHub plan pipeline
-(the queue tool under tools/queue/ and the seat-guard hooks), plans/SCHEMA.md, the markdown-lint carriage and the push-
-then-prove-ancestry helper. `--print-tracked` prints the files a run
+(the queue tool under tools/queue/ and the seat-guard hooks), plans/SCHEMA.md, the markdown-lint carriage, the push-
+then-prove-ancestry helper, and the rules that govern the queue tool: the merge route
+(docs/merge-without-status.md), the verifier agent, and AGENTS.md with the docs/why/ files it links. `--print-tracked` prints the files a run
 overwrites and `--help` lists every TRACKED and STARTER file; no list is
 repeated in this docstring.
 
@@ -20,10 +21,19 @@ What gets copied, and how:
   than silently having none at all. plans/SCHEMA.md comes from its
   templates/ canonical source.
 
+  A TRACKED file the consumer edited by hand (its bytes differ from the hash
+  its lock recorded, or the lock records none) stops the run with exit 1
+  before anything is written, naming each one; `--overwrite-local-edits`
+  overwrites them, each named in a WARNING line. Self-vendoring never stops.
+
   STARTER files are copied only if the destination does not already
   exist -- NEVER hashed, NEVER overwritten, NEVER re-copied on a later
-  run. CLAUDE.md is the one most forks already have from "Use this
-  template" and keep as-is. The plan issue and pull request templates are
+  run. (The one thing that stops a STARTER being seeded is the per-repo
+  opt-out under "Opting out of the starter rules" below.) CLAUDE.md is the one most forks already have from "Use this
+  template" and keep as-is. AGENTS.md (this template's own live file, so
+  there is no second copy of the rules) and the docs/why/ files it links
+  are STARTER files: a consumer receives the rules once, then owns them.
+  The plan issue and pull request templates are
   STARTER files too, and their source is this template's own live copy (no
   templates/ twin to drift): nothing reads them at runtime, so a consumer's
   edits to them are its own.
@@ -42,6 +52,27 @@ What gets copied, and how:
   Repo B's own tools/ has well over a hundred entries; only a handful
   are shared tooling. A glob would leak Repo B-specific ops scripts
   (backups, ingest workers) into every future consumer.
+
+Opting out of the starter rules:
+
+  A repo that keeps its rules elsewhere (in CLAUDE.md, say) would otherwise get
+  AGENTS.md and the docs/why/ files it links seeded again on every run. The
+  starter rules are one group, AGENTS.md plus the docs/why/ STARTER rows, skipped
+  together or not at all; no single file can be opted out. `--skip-starter-rules`
+  records `"skip_starter_rules": true` in the repo's .agent-vendor.lock, and every
+  later plain run honours it without the flag: the group is not seeded, and the
+  lock lists none of it. `--include-starter-rules` removes the record (the group
+  is then seeded as usual). Older readers of the lock ignore the extra key. A run
+  with the opt-out recorded never deletes a file of the group that already exists
+  in the repo; it names them in one line. It prints a `SKIPPED STARTER RULES` line
+  naming the recorded choice, so it can never pass for a full vendor, and one line
+  warning that the vendored docs/merge-without-status.md refers to AGENTS.md rule 13,
+  which the repo's own rules file must then carry: the tool copies that doc
+  byte for byte (it is hashed), so it is not rewritten per repo. `--check` and
+  `--print-tracked` need no flag: neither ever lists the group (a STARTER is not
+  tracked), and `--check` prints a `NOTE` while the opt-out is recorded.
+  Both flags are for a vendor run only; giving both, or either with `--check` or
+  `--print-tracked`, is a usage error (exit 2).
 
 Retiring what an earlier release vendored:
 
@@ -86,7 +117,8 @@ Three distinct outcomes, three distinct exit codes, because "could not run
 this check" and "ran it and found a violation" must never look the same:
 
     0   every tracked file matches its recorded hash
-    1   the lock exists and names one or more missing/drifted files -- OR
+    1   the lock exists and names one or more missing/drifted files, or a
+        TRACKED destination the lock does not list -- OR
         the lock is absent/unusable on a repo that ALREADY shows other
         adoption markers (plans/SCHEMA.md, or a file a past release
         vendored and this one retired, present on disk): that is not
@@ -192,6 +224,9 @@ item 7, gap 17 -- dogfooding):
 Usage:
     vendor-queue-tooling.py <target-repo>                    vendor into target-repo
     vendor-queue-tooling.py <target-repo> --allow-dirty       vendor from a dirty template source
+    vendor-queue-tooling.py <target-repo> --overwrite-local-edits   discard hand edits to TRACKED files
+    vendor-queue-tooling.py <target-repo> --skip-starter-rules   record that this repo has no starter rules (AGENTS.md, docs/why/)
+    vendor-queue-tooling.py <target-repo> --include-starter-rules   remove that record; seed the starter rules again
     vendor-queue-tooling.py <target-repo> --check             verify target-repo's copies; never writes
     vendor-queue-tooling.py <this-template-root>              self-vendor (target == template root)
 """
@@ -216,6 +251,10 @@ CHECK_SKIP_EXIT_CODE = 3
 # way this template's own .claude/settings.json writes it; a mention of the file
 # or the repo-relative path would not run it from every working directory.
 GUARD_WIRING_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/gh_write_guard.py'
+# The same guard run through hook_log.py, which records each hook's outcome and
+# passes the guard's output and exit code through unchanged.
+GUARD_WRAPPED_COMMAND = ('python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/hook_log.py '
+                         '"$CLAUDE_PROJECT_DIR"/.claude/hooks/gh_write_guard.py')
 
 # A matcher made only of these characters is a list of exact tool names.
 _EXACT_TOOL_NAMES_RE = re.compile(r"[A-Za-z0-9_\- ,|]*")
@@ -256,6 +295,14 @@ TRACKED_MANIFEST = [
     ("tools/queue/schema.json", "tools/queue/schema.json"),
     (".claude/hooks/gh_write_guard.py", ".claude/hooks/gh_write_guard.py"),
     (".claude/hooks/pipeline_marker.py", ".claude/hooks/pipeline_marker.py"),
+    # The rules that govern the queue tool travel with it. The merge route is
+    # TRACKED because it must stay identical to the template's: it names the
+    # judge (`report_rules.py gate`) this very manifest delivers, and a stale
+    # copy would describe a different judge. The verifier agent is generated
+    # from the source repo like gh_write_guard.py above and is the one agent the
+    # pipeline cannot merge without, so it is tracked on the same terms.
+    ("docs/merge-without-status.md", "docs/merge-without-status.md"),
+    (".claude/agents/verifier.md", ".claude/agents/verifier.md"),
 ]
 
 # Consumer destinations an earlier release vendored as TRACKED (each hashed
@@ -311,7 +358,61 @@ STARTER_MANIFEST = [
     # ignore points at it. Seeded so it is tracked from the first commit.
     ("templates/plans/records/.gitkeep", "plans/records/.gitkeep"),
     ("templates/gitignore", ".gitignore"),
+    # The rules themselves, seeded once. The source is this template's own live
+    # AGENTS.md, not a templates/ copy: a second copy of the thirteen rules
+    # would drift from the first, and a consumer's own edits to its file are
+    # its own (a STARTER is never overwritten and never hashed). The seeded
+    # CLAUDE.md imports it. Each reason link in AGENTS.md points at the
+    # docs/why/ file below; test_vendor_agents_md_starter.py fails when a
+    # link has no row here.
+    ("AGENTS.md", "AGENTS.md"),
+    ("docs/why/independent-audit.md", "docs/why/independent-audit.md"),
+    ("docs/why/merge-authority.md", "docs/why/merge-authority.md"),
+    ("docs/why/model-escalation.md", "docs/why/model-escalation.md"),
+    ("docs/why/never-block-the-chat.md", "docs/why/never-block-the-chat.md"),
+    ("docs/why/owner-decisions.md", "docs/why/owner-decisions.md"),
+    ("docs/why/shared-tree.md", "docs/why/shared-tree.md"),
+    ("docs/why/silent-failure.md", "docs/why/silent-failure.md"),
 ]
+
+# The lock key that records a repo's opt-out of the starter rules group. Absent
+# means "not opted out", so a default run writes the same lock as before.
+SKIP_STARTER_RULES_KEY = "skip_starter_rules"
+
+# The two lines the opt-out prints; the tests pin the leading words.
+SKIPPED_STARTER_RULES_NOTICE = (
+    "SKIPPED STARTER RULES: AGENTS.md and the docs/why/ files were NOT seeded (skipped by "
+    "recorded choice in " + LOCK_FILENAME + ", key " + SKIP_STARTER_RULES_KEY + "). This is not a "
+    "full vendor. Remove the choice with --include-starter-rules."
+)
+MERGE_DOC_RULES_WARNING = (
+    "WARNING: docs/merge-without-status.md refers to AGENTS.md rule 13, so this repo's own rules "
+    "file must carry that rule."
+)
+
+
+def starter_rules_dests():
+    """The destinations of the starter rules group: AGENTS.md and every docs/why/ STARTER row.
+
+    Derived from STARTER_MANIFEST, so a new reason file added there joins the group.
+    """
+    return [dest for _src, dest in STARTER_MANIFEST if dest == "AGENTS.md" or dest.startswith("docs/why/")]
+
+
+def _read_lock(target_repo):
+    """The parsed lock at target_repo, or {} when it is absent, unreadable or not an object."""
+    try:
+        with open(os.path.join(target_repo, LOCK_FILENAME), "r", encoding="utf-8") as handle:
+            lock = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return lock if isinstance(lock, dict) else {}
+
+
+def starter_rules_skipped(target_repo):
+    """True when target_repo's lock records the opt-out of the starter rules group."""
+    return _read_lock(target_repo).get(SKIP_STARTER_RULES_KEY) is True
+
 
 def _rel_to_native(rel):
     return os.path.join(*rel.split("/"))
@@ -373,6 +474,54 @@ def _recorded_hashes(target_repo):
         return {}
     files = lock.get("files") if isinstance(lock, dict) else None
     return files if isinstance(files, dict) else {}
+
+
+def vendor_command(target_repo):
+    """The command that re-vendors into `target_repo`, in a form that runs.
+
+    A consumer's own copy of this script cannot vendor: it lacks the template's
+    source files and stops with "this template's own source is missing". So the
+    command names the template checkout's script and passes the consumer as the
+    argument. When this very file sits in a template checkout its real path is
+    used; from a consumer's copy a placeholder stands in for the checkout.
+    """
+    here = os.path.abspath(__file__)
+    template_root = os.path.dirname(os.path.dirname(here))
+    if all(os.path.isfile(os.path.join(template_root, _rel_to_native(src))) for src, _dest in TRACKED_MANIFEST):
+        script = here
+    else:
+        script = "<path-to-a-template-checkout>/tools/vendor-queue-tooling.py"
+    return "python3 " + script + " " + target_repo
+
+
+def plan_local_edits(template_root, target_repo):
+    """The TRACKED destinations a vendor run would overwrite that hold local edits. Reads only.
+
+    Returns a list of `(dest_rel, reason)`. A destination counts when it exists,
+    its bytes differ from what would be copied, and either the consumer's own lock
+    recorded a different hash for it (hand-edited since the last vendor run) or the
+    lock records none (nothing shows it was ever unedited). An absent destination, one
+    identical to its source, and one that still matches its recorded hash are not
+    edits, so a plain re-vendor of an untouched copy is never refused.
+    """
+    recorded = _recorded_hashes(target_repo)
+    edits = []
+    for src_rel, dest_rel in TRACKED_MANIFEST:
+        dest = os.path.join(target_repo, _rel_to_native(dest_rel))
+        if not os.path.lexists(dest):
+            continue
+        if os.path.islink(dest) or not os.path.isfile(dest):
+            edits.append((dest_rel, "it is not a regular file"))
+            continue
+        actual = sha256_file(dest)
+        if actual == sha256_file(os.path.join(template_root, _rel_to_native(src_rel))):
+            continue
+        expected = recorded.get(dest_rel)
+        if not isinstance(expected, str):
+            edits.append((dest_rel, LOCK_FILENAME + " records no hash for it, so nothing shows it was ever unedited"))
+        elif actual != expected:
+            edits.append((dest_rel, "it differs from the hash " + LOCK_FILENAME + " recorded at the last vendor run"))
+    return edits
 
 
 def plan_retirements(target_repo):
@@ -459,7 +608,7 @@ def _matcher_selects_bash(matcher):
 def guard_is_wired(target_repo):
     """True only when the consumer's committed .claude/settings.json holds a
     PreToolUse entry that selects Bash and has an unconditional command hook
-    equal to GUARD_WIRING_COMMAND. Reads that one file (never settings.local.json
+    equal to GUARD_WIRING_COMMAND or GUARD_WRAPPED_COMMAND. Reads that one file (never settings.local.json
     or the user's own settings); any malformed shape reads as not wired."""
     try:
         with open(os.path.join(target_repo, ".claude", "settings.json"), "r", encoding="utf-8") as handle:
@@ -471,7 +620,7 @@ def guard_is_wired(target_repo):
             for hook in entry.get("hooks", []):
                 if (isinstance(hook, dict) and hook.get("type") == "command" and "if" not in hook
                         and isinstance(hook.get("command"), str)
-                        and hook["command"].strip() == GUARD_WIRING_COMMAND):
+                        and hook["command"].strip() in (GUARD_WIRING_COMMAND, GUARD_WRAPPED_COMMAND)):
                     return True
     except Exception:
         return False
@@ -494,7 +643,7 @@ def warn_if_guard_unwired(target_repo):
     print(GUARD_WIRING_COMMAND)
 
 
-def cmd_vendor(template_root, target_repo, allow_dirty):
+def cmd_vendor(template_root, target_repo, allow_dirty, overwrite_local_edits=False, skip_starter_rules=None):
     """Copy the tracked and starter files into `target_repo` and write the drift lock.
 
     Args:
@@ -502,10 +651,16 @@ def cmd_vendor(template_root, target_repo, allow_dirty):
         target_repo: Repo to vendor into; may equal `template_root`.
         allow_dirty: Vendor from uncommitted template source, recording
             `upstream_dirty: true` in the lock.
+        overwrite_local_edits: Overwrite a TRACKED file the consumer edited by
+            hand (its bytes differ from its recorded hash, or it has none), naming
+            each. Without it such a file stops the run.
+        skip_starter_rules: True records the opt-out of the starter rules group in
+            the lock, False removes the record, None keeps what the lock records.
 
     Returns:
         Exit code 0 on success, 1 when refusing (missing source, missing target
-        directory, unsafe retirement, or dirty source without `allow_dirty`);
+        directory, unsafe retirement, a locally edited TRACKED file without
+        `overwrite_local_edits`, or dirty source without `allow_dirty`);
         a refusal copies and writes nothing.
     """
     # Self-vendoring: this template vendoring itself into its own repo root
@@ -522,6 +677,10 @@ def cmd_vendor(template_root, target_repo, allow_dirty):
         print("ERROR: this template's own source is missing expected file(s) -- cannot vendor:")
         for rel in missing_sources:
             print("  " + rel)
+        print(
+            "If this is a consumer repo's own copy of the script, it cannot vendor: run the "
+            "template checkout's copy against this repo instead: " + vendor_command(target_repo)
+        )
         return 1
 
     if not os.path.isdir(target_repo):
@@ -571,6 +730,25 @@ def cmd_vendor(template_root, target_repo, allow_dirty):
         for rel in dirty:
             print("  " + rel)
 
+    # Before anything is written: a TRACKED file the consumer hand-edited would be
+    # overwritten with only a `vendored <path>` line to show for it. Self-vendoring
+    # copies a file onto itself, so it has no local edit to lose.
+    local_edits = [] if is_self else plan_local_edits(template_root, target_repo)
+    if local_edits and not overwrite_local_edits:
+        print(
+            "ERROR: refusing to re-vendor: the TRACKED file(s) below hold edits that this run "
+            "would overwrite. Nothing was copied, deleted or written."
+        )
+        for rel, reason in local_edits:
+            print("  " + rel + ": " + reason)
+        print(
+            "Move each edit somewhere that survives (a commit, a patch) and re-run, or pass "
+            "--overwrite-local-edits to discard them."
+        )
+        return 1
+    for rel, reason in local_edits:
+        print("WARNING: overwriting local edit (--overwrite-local-edits): " + rel + " (" + reason + ")")
+
     upstream_sha = git_head_sha(template_root)
     if upstream_sha is None:
         print(
@@ -599,9 +777,20 @@ def cmd_vendor(template_root, target_repo, allow_dirty):
         files_map[dest_rel] = sha256_file(dest)
         print("vendored " + dest_rel)
 
+    skip_rules = starter_rules_skipped(target_repo) if skip_starter_rules is None else skip_starter_rules
+    rules_group = set(starter_rules_dests())
+    starters = [row for row in STARTER_MANIFEST if not (skip_rules and row[1] in rules_group)]
+    if skip_rules:
+        print(SKIPPED_STARTER_RULES_NOTICE)
+        present = [rel for rel in starter_rules_dests() if os.path.lexists(os.path.join(target_repo, _rel_to_native(rel)))]
+        if present:
+            print("left in place (never deleted): " + ", ".join(present))
+    elif skip_starter_rules is False and starter_rules_skipped(target_repo):
+        print("removed the recorded opt-out of the starter rules; seeding them again")
+
     seeded = 0
     kept = 0
-    for src_rel, dest_rel in STARTER_MANIFEST:
+    for src_rel, dest_rel in starters:
         dest = os.path.join(target_repo, _rel_to_native(dest_rel))
         if os.path.exists(dest):
             kept += 1
@@ -643,6 +832,8 @@ def cmd_vendor(template_root, target_repo, allow_dirty):
         "self": is_self,
         "files": files_map,
     }
+    if skip_rules:
+        lock[SKIP_STARTER_RULES_KEY] = True
     lock_path = os.path.join(target_repo, LOCK_FILENAME)
     with open(lock_path, "w", encoding="utf-8") as handle:
         json.dump(lock, handle, indent=2, sort_keys=True)
@@ -653,6 +844,9 @@ def cmd_vendor(template_root, target_repo, allow_dirty):
         + " starter file(s) (" + str(kept) + " already present, left untouched); retired "
         + str(len(retire_delete)) + " file(s); wrote " + LOCK_FILENAME
     )
+    if skip_rules:
+        print(SKIPPED_STARTER_RULES_NOTICE)
+        print(MERGE_DOC_RULES_WARNING)
     warn_if_guard_unwired(target_repo)
     return 0
 
@@ -694,8 +888,8 @@ def cmd_check(target_repo):
                 "already carries adopted queue-tooling files (plans/SCHEMA.md, or a file a past "
                 "release vendored and this one retired). This is NOT the same as a "
                 "repo that simply never vendored -- something removed or never committed the "
-                "lock a real adoption should have written. Re-vendor with "
-                "'python3 tools/vendor-queue-tooling.py .' to regenerate it, or restore it, "
+                "lock a real adoption should have written. Re-vendor with '" + vendor_command(target_repo)
+                + "' (run from a template checkout) to regenerate it, or restore it, "
                 "before this can pass."
             )
             return 1
@@ -716,7 +910,8 @@ def cmd_check(target_repo):
                 "FAIL: " + lock_path + " could not be parsed as JSON (" + str(exc) + "), but "
                 "this repo already carries adopted queue-tooling files. A corrupt lock in an "
                 "already-adopted repo must never look like the harmless 'never vendored' case "
-                "-- re-vendor with 'python3 tools/vendor-queue-tooling.py .' to regenerate it."
+                "-- re-vendor with '" + vendor_command(target_repo) + "' (run from a template checkout) "
+                "to regenerate it."
             )
             return 1
         print("SKIPPED: " + lock_path + " could not be parsed as JSON: " + str(exc))
@@ -728,14 +923,18 @@ def cmd_check(target_repo):
         if adoption_markers_present(target_repo):
             print(
                 "FAIL: " + lock_path + " has no non-empty \"files\" map, but this repo already "
-                "carries adopted queue-tooling files. Re-vendor with "
-                "'python3 tools/vendor-queue-tooling.py .' to regenerate a real lock."
+                "carries adopted queue-tooling files. Re-vendor with '" + vendor_command(target_repo)
+                + "' (run from a template checkout) to regenerate a real lock."
             )
             return 1
         print("SKIPPED: " + lock_path + " has no non-empty \"files\" map -- nothing recorded to verify.")
         return CHECK_SKIP_EXIT_CODE
 
     is_self = bool(lock.get("self")) if isinstance(lock, dict) else False
+
+    if lock.get(SKIP_STARTER_RULES_KEY) is True:
+        print("NOTE: the starter rules (AGENTS.md, docs/why/) are skipped by recorded choice in "
+              + LOCK_FILENAME + "; they are not checked.")
 
     if is_self:
         # SELF-VENDORING: target_repo IS the template's own repo root, so
@@ -801,8 +1000,8 @@ def cmd_check(target_repo):
                 print(problem)
             print(
                 "FAIL: " + str(len(problems)) + " self-vendored file(s) missing or drifted "
-                "from their canonical templates/ source. Re-run "
-                "tools/vendor-queue-tooling.py to re-vendor and refresh " + LOCK_FILENAME + "."
+                "from their canonical templates/ source. Re-run '"
+                + vendor_command(target_repo) + "' to re-vendor and refresh " + LOCK_FILENAME + "."
             )
             return 1
 
@@ -824,7 +1023,7 @@ def cmd_check(target_repo):
         # exact file and the remedy, never a silent "provenance note" -- that
         # softer wording is exactly what let this template's own lock sit at
         # 11-of-14 stale entries with --check reporting OK the whole time.
-        remedy = "re-run 'python3 tools/vendor-queue-tooling.py " + target_repo + "' to refresh " + LOCK_FILENAME
+        remedy = "re-run '" + vendor_command(target_repo) + "' to refresh " + LOCK_FILENAME
         lock_problems = []
         for _src_rel, dest_rel in TRACKED_MANIFEST:
             dest_full = os.path.join(target_repo, _rel_to_native(dest_rel))
@@ -891,14 +1090,22 @@ def cmd_check(target_repo):
         actual = sha256_file(full)
         if actual != expected:
             problems.append("drifted (hash mismatch): " + rel)
+    # The loop above only walks what the lock lists, so a lock trimmed to one entry would pass
+    # with every other TRACKED file unchecked. Every TRACKED destination must be in the lock.
+    for _src_rel, dest_rel in TRACKED_MANIFEST:
+        if dest_rel not in files:
+            problems.append(
+                "not recorded in " + LOCK_FILENAME + ": " + dest_rel + " (a TRACKED file with no lock entry, "
+                "so its content is not checked at all)"
+            )
 
     if problems:
         for problem in problems:
             print(problem)
         print(
-            "FAIL: " + str(len(problems)) + " vendored file(s) missing or drifted from "
-            + LOCK_FILENAME + ". Re-run tools/vendor-queue-tooling.py to re-vendor, "
-            "or investigate the hand-edit before committing."
+            "FAIL: " + str(len(problems)) + " vendored file(s) missing, drifted from, or not recorded in "
+            + LOCK_FILENAME + ". Re-vendor with '" + vendor_command(target_repo)
+            + "' (run from a template checkout), or investigate the hand-edit before committing."
         )
         return 1
 
@@ -961,11 +1168,32 @@ def main(argv):
              "(default: parent of this script's directory)",
     )
     parser.add_argument(
+        "--overwrite-local-edits", action="store_true",
+        help="overwrite a TRACKED file the consumer edited by hand (its bytes differ from the hash "
+             ".agent-vendor.lock recorded, or the lock records none); each is named. Without this flag "
+             "such a file stops the run before anything is written.",
+    )
+    parser.add_argument(
         "--allow-dirty", action="store_true",
         help="vendor even if the template's own source files are uncommitted; "
              "the lock records upstream_dirty: true instead of a trustworthy sha",
     )
+    skip_group = parser.add_mutually_exclusive_group()
+    skip_group.add_argument(
+        "--skip-starter-rules", action="store_true",
+        help="record in .agent-vendor.lock that this repo has no starter rules (AGENTS.md and the "
+             "docs/why/ files it links, one group): this run and every later one skips them, "
+             "never deleting a file already there, and says so loudly",
+    )
+    skip_group.add_argument(
+        "--include-starter-rules", action="store_true",
+        help="remove the --skip-starter-rules record from .agent-vendor.lock; the starter rules "
+             "are seeded again (only where missing)",
+    )
     args = parser.parse_args(argv)
+    if (args.skip_starter_rules or args.include_starter_rules) and (args.check or args.print_tracked):
+        parser.error("--skip-starter-rules and --include-starter-rules apply to a vendor run, "
+                     "not to --check or --print-tracked")
 
     if args.print_tracked:
         for _src, dest in TRACKED_MANIFEST:
@@ -982,7 +1210,10 @@ def main(argv):
     else:
         template_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    return cmd_vendor(template_root, target_repo, allow_dirty=args.allow_dirty)
+    skip_starter_rules = True if args.skip_starter_rules else (False if args.include_starter_rules else None)
+    return cmd_vendor(template_root, target_repo, allow_dirty=args.allow_dirty,
+                      overwrite_local_edits=args.overwrite_local_edits,
+                      skip_starter_rules=skip_starter_rules)
 
 
 if __name__ == "__main__":

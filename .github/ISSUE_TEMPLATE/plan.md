@@ -2,7 +2,6 @@
 name: Plan
 about: A candidate plan entry for the queue. It stays a stub until Touches, Evidence required and Research are filled in.
 title: ""
-labels: plan, p3
 assignees: ""
 ---
 <!-- plan:v1 -->

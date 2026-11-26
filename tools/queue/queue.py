@@ -32,22 +32,39 @@ module carries the exact same logic instead, proven equal by a parity test
 (`tools/tests/test_queue_tool_marker.py`) that imports both modules by path
 and asserts they return the same mode for every fixture.
 
-READ-BACK, ALWAYS. Section 5's invariant: GitHub's PATCH on an oversized
-body returns HTTP 200 and silently writes nothing (the 262,144-character
-case, verified in the plan's own probing). Every write in this file re-GETs
-what it just wrote and byte-compares before calling itself done; a mismatch
-is `WRITE NOT PERSISTED`, never a silent "saved."
+READ-BACK. Section 5's invariant: GitHub's PATCH on an oversized body returns
+HTTP 200 and silently writes nothing (the 262,144-character case, verified in
+the plan's own probing). What is re-read after a write, and compared before the
+verb calls itself done (a mismatch is `WRITE NOT PERSISTED`, never a silent
+"saved"):
+
+  * an issue or pull request BODY written by `stub`, `research`, `accept` and
+    `implemented` is re-GET and compared (ignoring only a cloud proxy's
+    decoration), and a pull request body's closing reference must still name
+    its issue (`ISSUE UNLINKED`);
+  * `gate-pass` re-reads the posted commit status;
+  * `init` re-lists the labels it wrote; `migrate` re-reads every issue, comment,
+    label and pull request it created and compares counts.
+
+What is NOT re-read: labels added or removed by `accept`, `block` and `unblock`,
+comments posted by `accept`, `audit-record`, `block`, `unblock`, `log` and
+`stub --successor-of`, `retire`, `retire-pr`, and `gh pr ready`. Each of those
+is one gh call whose exit status is the only evidence; `doctor` and the state
+derivation read them back later, on the next run.
 
 `gate-pass` is the one verb that posts a commit status instead of writing a body. It judges the
 PR's newest PASS review with this directory's own `report_rules`, so it first proves that this
 copy of queue.py, report_rules.py and schema.json is origin/main's, and it prints success only
-after a read-back shows the status.
+after a read-back shows the status. Only a review by a login in origin/main's `verifier_logins:`
+counts, and a fork pull request needs the `owner-approved-fork` label; `ship --check` applies the
+same two rules with the checkout's own config.
 """
 
 import argparse
 import copy
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -62,7 +79,7 @@ from pathlib import Path
 
 THIS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(THIS_DIR))
-import report_rules  # noqa: E402  (sibling module, path-imported -- see module docstring)
+import report_rules  # sibling module, path-imported -- see module docstring
 
 SCHEMA_PATH = Path(__file__).resolve().with_name("schema.json")
 try:
@@ -240,9 +257,9 @@ def pipeline_mode(repo_root):
         return "yaml" if queue_path.exists() else "none"
 
     try:
-        text = config_path.read_text()
-    except OSError:
-        return "error"
+        text = config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return "error"  # unreadable, or not UTF-8 (`_marker_diagnostic` says which)
 
     raw = _parse_top_level_pipeline(text)
     if raw is None:
@@ -297,7 +314,9 @@ def _marker_diagnostic(repo_root, mode, marker_path):
     if mode != "error" or not marker_path.exists():
         return mode, None
     try:
-        text = marker_path.read_text()
+        text = marker_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return mode, "not valid UTF-8"
     except OSError:
         return mode, "unreadable"
     raw = _parse_top_level_pipeline(text)
@@ -482,6 +501,15 @@ def _rest_state(item):
     return "OPEN" if item.get("state") == "open" else "CLOSED"
 
 
+def _rest_is_cross_repository(pr):
+    """True when the PR's head lives in another repository than its base; a deleted head repo counts as one."""
+    head_repo = (pr.get("head") or {}).get("repo")
+    base_repo = (pr.get("base") or {}).get("repo") or {}
+    if not isinstance(head_repo, dict):
+        return True
+    return (head_repo.get("full_name") or "").lower() != (base_repo.get("full_name") or "").lower()
+
+
 def _rest_pr_object(pr, fields, cwd):
     """One PR in `gh pr view --json` shape for exactly `fields`; the heavy ones are fetched only when asked."""
     number = pr["number"]
@@ -494,6 +522,8 @@ def _rest_pr_object(pr, fields, cwd):
         "headRefName": lambda: pr["head"]["ref"],
         "headRefOid": lambda: pr["head"]["sha"],
         "baseRefName": lambda: pr["base"]["ref"],
+        "author": lambda: _rest_user(pr.get("user")),
+        "isCrossRepository": lambda: _rest_is_cross_repository(pr),
         "mergedAt": lambda: pr.get("merged_at"),
         "mergeCommit": lambda: {"oid": pr["merge_commit_sha"]} if pr.get("merged_at") and pr.get("merge_commit_sha") else None,
         "labels": lambda: [_rest_label(l) for l in pr.get("labels") or []],
@@ -516,6 +546,7 @@ def _rest_issue_object(issue, fields, cwd):
         "number": lambda: number,
         "title": lambda: issue.get("title"),
         "body": lambda: issue.get("body") or "",
+        "author": lambda: _rest_user(issue.get("user")),
         "state": lambda: "CLOSED" if issue.get("state") == "closed" else "OPEN",
         "updatedAt": lambda: issue.get("updated_at"),
         "labels": lambda: [_rest_label(l) for l in issue.get("labels") or []],
@@ -758,21 +789,59 @@ def _heading_level(heading):
     return len(heading) - len(heading.lstrip("#"))
 
 
+_LINE_RE = re.compile(r"[^\n]*\n|[^\n]+")
+_FENCE_LINE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})(.*)$")
+
+
+def _scan_fences(text):
+    """([(offset, line)], open_at_end): every line of `text` outside a fenced code block (`line` without its
+    newline; the fence lines themselves are left out) and whether `text` ends inside a fence. A fence is opened by
+    a line of three or more backticks or tildes and closed by a line of only that character, at least as long (a
+    backtick fence's info string holds no backtick)."""
+    fence = None
+    lines = []
+    for match in _LINE_RE.finditer(text):
+        line = match.group().rstrip("\n")
+        if fence is None:
+            opened = _FENCE_LINE_RE.match(line)
+            if opened and not (opened.group(1)[0] == "`" and "`" in opened.group(2)):
+                fence = (opened.group(1)[0], len(opened.group(1)))
+            else:
+                lines.append((match.start(), line))
+        else:
+            stripped = line.strip()
+            if len(stripped) >= fence[1] and set(stripped) == {fence[0]}:
+                fence = None
+    return lines, fence is not None
+
+
+def _iter_unfenced_lines(text):
+    """(offset, line) for every line of `text` outside a fenced code block."""
+    return _scan_fences(text)[0]
+
+
+def _leaves_fence_open(text):
+    """True when `text` ends inside a fenced code block, so everything after it would read as code."""
+    return _scan_fences(text)[1]
+
+
 def section_span(body, heading):
     """(start, end) of the section body text for `heading` (a literal
     string like "## Handoff"), starting just after its own line and ending
     just before the next heading whose level is <= this heading's level, or
-    end of string. None if the heading is not present at all."""
-    heading_re = re.compile(r"^" + re.escape(heading) + r"[ \t]*$", re.MULTILINE)
-    match = heading_re.search(body)
-    if match is None:
-        return None
+    end of string. None if the heading is not present at all. A line inside
+    a fenced code block is never a heading, so a `# comment` in a shell
+    snippet neither starts nor ends a section."""
     level = _heading_level(heading)
-    rest_start = match.end() + 1 if body[match.end():match.end() + 1] == "\n" else match.end()
-    next_re = re.compile(r"^#{1,%d}[ \t]" % level, re.MULTILINE)
-    next_match = next_re.search(body, rest_start)
-    end = next_match.start() if next_match else len(body)
-    return (rest_start, end)
+    end_re = re.compile(r"#{1,%d}[ \t]" % level)
+    rest_start = None
+    for offset, line in _iter_unfenced_lines(body):
+        if rest_start is None:
+            if line.rstrip(" \t") == heading:
+                rest_start = offset + len(line) + (1 if body[offset + len(line):offset + len(line) + 1] == "\n" else 0)
+        elif end_re.match(line):
+            return (rest_start, offset)
+    return None if rest_start is None else (rest_start, len(body))
 
 
 def get_section(body, heading):
@@ -1005,6 +1074,15 @@ def _body_tempfile(body):
     return handle.name
 
 
+def _unlink_quietly(path):
+    """Remove a temp file this process made; a file already gone is fine, and a failure to remove one never hides
+    the result of the write it carried."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
 # A Claude Code cloud session's proxy decorates every PR/issue body it stores: a leading
 # `<!-- ccr-projects-attribution: ... -->` block (plus its `_Requested by ..._` line) and a trailing
 # `---` / `_Generated by [Claude Code](...)_` footer. Neither is part of what queue.py wrote, so a byte-compare
@@ -1044,7 +1122,10 @@ def write_issue_body(number, body, add_labels=None, remove_labels=None, repo_roo
         args += ["--add-label", label]
     for label in remove_labels or []:
         args += ["--remove-label", label]
-    run_gh(args, cwd=repo_root)
+    try:
+        run_gh(args, cwd=repo_root)
+    finally:
+        _unlink_quietly(path)
     readback = gh_json(["issue", "view", number, "--json", "body"], cwd=repo_root)
     if not bodies_match(readback.get("body"), body):
         sys.stderr.write("WRITE NOT PERSISTED: issue #%d body read-back did not match what was written\n" % number)
@@ -1101,7 +1182,10 @@ def write_pr_body(number, body, add_labels=None, remove_labels=None, issue_numbe
         args += ["--add-label", label]
     for label in remove_labels or []:
         args += ["--remove-label", label]
-    run_gh(args, cwd=repo_root)
+    try:
+        run_gh(args, cwd=repo_root)
+    finally:
+        _unlink_quietly(path)
     readback = gh_json(["pr", "view", number, "--json", "body,closingIssuesReferences"], cwd=repo_root)
     if not bodies_match(readback.get("body"), body):
         sys.stderr.write("WRITE NOT PERSISTED: PR #%d body read-back did not match what was written\n" % number)
@@ -1114,12 +1198,12 @@ def write_pr_body(number, body, add_labels=None, remove_labels=None, issue_numbe
 # list / status -- the derived state model, section 4.
 # =============================================================================
 
-ISSUE_LIST_FIELDS = "number,title,body,labels,comments,updatedAt,closedByPullRequestsReferences"
+ISSUE_LIST_FIELDS = "number,title,body,labels,comments,updatedAt,closedByPullRequestsReferences,author"
 # No bare "merged" field: gh pr view/list --json has none (live field list,
 # 2026-09-28) -- state=="MERGED" plus mergedAt is the real read.
 PR_LIST_FIELDS = (
     "number,title,isDraft,headRefName,headRefOid,body,labels,reviews,comments,mergedAt,"
-    "closingIssuesReferences,baseRefName,state,mergeCommit,statusCheckRollup"
+    "closingIssuesReferences,baseRefName,state,mergeCommit,statusCheckRollup,isCrossRepository,author"
 )
 
 LIVE_STATES = ("stub", "researched", "accepted", "implemented", "verified", "blocked")
@@ -1145,17 +1229,28 @@ def _priority_of(label_names):
     return None, None
 
 
-def _find_pr_for_issue(issue_number, prs):
-    for pr in prs:
-        for ref in pr.get("closingIssuesReferences") or []:
-            if ref.get("number") == issue_number:
-                return pr
+def _pr_rank(pr):
+    """0 for an open pull request, 1 for a merged one, 2 for one closed unmerged (a missing state reads as open)."""
+    if pr.get("state") == "MERGED" or pr.get("mergedAt"):
+        return 1
+    return 2 if pr.get("state") == "CLOSED" else 0
+
+
+def _find_pr_for_issue(issue_number, prs, allow_closed_unmerged=False):
+    """The pull request that closes `issue_number`: an open one, else a merged one (the first listed of its
+    kind, which `gh pr list` gives newest first). One closed unmerged is returned only when nothing else exists
+    and the caller says it is read-only (`allow_closed_unmerged`): a verb that writes must never act on a
+    PR that was abandoned."""
+    linked = [pr for pr in prs if any(ref.get("number") == issue_number for ref in pr.get("closingIssuesReferences") or [])]
+    ranked = sorted(linked, key=_pr_rank)  # sorted is stable: the first listed wins within a kind
+    if ranked and (allow_closed_unmerged or _pr_rank(ranked[0]) < 2):
+        return ranked[0]
     return None
 
 
 def _rest_shaped_reviews(reviews):
     """New review dicts with the REST names every reader and `check_report` expect. `gh pr view
-    --json reviews` is GraphQL: it carries `commit.oid` and `submittedAt`, so without this a reader
+    --json reviews` is GraphQL: it carries `commit.oid`, `submittedAt` and `author`, so without this a reader
     skips the commit check and, with every `submitted_at` missing, picks the oldest review. A null
     `commit` (a force-pushed review) becomes an empty `commit_id`, which never equals a head sha.
     Pure: the input is not mutated, `id` is kept (`_fetch_review_html_url` matches on it), and a
@@ -1168,19 +1263,26 @@ def _rest_shaped_reviews(reviews):
             review["commit_id"] = (commit.get("oid") if isinstance(commit, dict) else None) or ""
         if "submitted_at" not in review and "submittedAt" in review:
             review["submitted_at"] = review["submittedAt"]
+        if "user" not in review and "author" in review:
+            review["user"] = review["author"]
         shaped.append(review)
     return shaped
 
 
-def _judge_verdict(reviews, pr_body, head_sha):
-    """(review, reason) for the PR's newest COMMENTED review: the one place `ship --check` and
-    `gate-pass` apply report_rules.check_report. `reason` is None when the review passes, else the
-    first rule it failed; `review` is None only when there is no COMMENTED review at all."""
-    review = report_rules.newest_comment_review(_rest_shaped_reviews(reviews))
+def _judge_verdict(reviews, pr_body, head_sha, allowed_logins):
+    """(review, reason) for the PR's newest COMMENTED review by an allowed login that carries a verifier-report
+    fence: the one place `ship --check` and `gate-pass` apply report_rules.check_report. `reason` is None when
+    the review passes, else the first rule it failed; `review` is None when no allowed review qualifies.
+    An empty `allowed_logins` refuses: no review is trusted by default."""
+    if not allowed_logins:
+        return None, "no allowed reviewer: %s lists no login" % report_rules.VERIFIER_LOGINS_KEY
+    review = report_rules.newest_report_review(_rest_shaped_reviews(reviews), allowed_logins)
     if review is None:
-        return None, "no COMMENTED review (verifier-report) found on the PR"
+        return None, ("no COMMENTED review with a verifier-report fence found on the PR from an allowed reviewer (%s)"
+                      % ", ".join(allowed_logins))
     report = report_rules.parse_report(review.get("body", ""))
-    ok, reason = report_rules.check_report(report, pr_body, head_sha, commit_id=review.get("commit_id"))
+    ok, reason = report_rules.check_report(report, pr_body, head_sha, commit_id=review.get("commit_id"),
+                                         require_commit_id=True)
     return review, (None if ok else reason)
 
 
@@ -1277,18 +1379,22 @@ def _stale_check_run_text(pr_number, entry):
     )
 
 
-def _pr_has_pass_verdict(pr):
-    review = report_rules.newest_comment_review(_rest_shaped_reviews(pr.get("reviews") or []))
-    if review is None:
+def _pr_fork_problem(pr):
+    """None when the PR's head is in its own repository or it carries the owner's fork label, else why not."""
+    return report_rules.fork_problem(pr.get("isCrossRepository"), _label_names(pr.get("labels")))
+
+
+def _pr_has_pass_verdict(pr, allowed_logins):
+    """True when the PR is not an unapproved fork and its newest allowed verifier review is a PASS bound to its
+    exact head, by the same judgment `ship --check` and `gate-pass` apply (`_judge_verdict`), never a copy of it."""
+    if _pr_fork_problem(pr) is not None:
         return False
-    report = report_rules.parse_report(review.get("body", ""))
-    ok, _ = report_rules.check_report(
-        report, pr.get("body", ""), pr.get("headRefOid", ""), commit_id=review.get("commit_id")
-    )
-    return ok
+    _review, reason = _judge_verdict(pr.get("reviews") or [], pr.get("body", ""), pr.get("headRefOid", ""),
+                                     allowed_logins)
+    return reason is None
 
 
-def _pr_verdict_status(pr):
+def _pr_verdict_status(pr, allowed_logins):
     """("ok", None) | ("stale", reason) | ("missing", None) | ("other", reason) -- classifies a
     PR's newest COMMENT review for `doctor` (section 4's `verified` row,
     section 17's checker table), reusing report_rules.check_report for
@@ -1307,13 +1413,14 @@ def _pr_verdict_status(pr):
     "ok": a fully matching PASS review.
     """
     head_sha = pr.get("headRefOid", "")
-    review = report_rules.newest_comment_review(_rest_shaped_reviews(pr.get("reviews") or []))
+    review = report_rules.newest_report_review(_rest_shaped_reviews(pr.get("reviews") or []), allowed_logins)
     if review is None:
         return "missing", None
     report = report_rules.parse_report(review.get("body", ""))
     if report is None:
         return "missing", None
-    ok, reason = report_rules.check_report(report, pr.get("body", ""), head_sha, commit_id=review.get("commit_id"))
+    ok, reason = report_rules.check_report(report, pr.get("body", ""), head_sha, commit_id=review.get("commit_id"),
+                                         require_commit_id=True)
     if ok:
         return "ok", None
     if report_rules.AUDITED_SHA_FIELD in reason or "commit_id" in reason:
@@ -1364,10 +1471,11 @@ def _stub_body_is_researched(body):
     return touches_ok and evidence_ok and research_ok
 
 
-def derive_state(issue, prs):
+def derive_state(issue, prs, allowed_logins=()):
     """One issue's live state, section 4's names restricted to the six an
     open issue can be in (merged/retired issues are CLOSED, not in this
-    list at all -- record's list --json contract)."""
+    list at all -- record's list --json contract). `verified` needs a PASS
+    from one of `allowed_logins`, so with none given an entry never reads verified."""
     labels = _label_names(issue.get("labels"))
     if _has_label(labels, LABEL_BLOCKED):
         return "blocked"
@@ -1376,7 +1484,7 @@ def derive_state(issue, prs):
         if _stub_body_is_researched(body):
             return "researched"
         return "stub"
-    pr = _find_pr_for_issue(issue["number"], prs)
+    pr = _find_pr_for_issue(issue["number"], prs, allow_closed_unmerged=True)
     if pr is None:
         return "accepted"
     if pr.get("isDraft"):
@@ -1385,9 +1493,21 @@ def derive_state(issue, prs):
     evidence_report = get_section(pr.get("body", ""), EVIDENCE_REPORT_HEADING) or ""
     if HANDOFF_SENTINEL in handoff or not evidence_report.strip():
         return "accepted"
-    if _verifier_gate_green(pr) and _pr_has_pass_verdict(pr):
+    # A PASS verdict on the exact head is what makes an entry verified. The verifier-gate commit status is no
+    # requirement: main has none, and a cloud session can never post one (docs/merge-without-status.md). A newest
+    # verifier-gate CheckRun that is not passing still blocks a merge, so it keeps the entry at implemented.
+    if _pr_has_pass_verdict(pr, allowed_logins) and _stale_gate_check_run(pr.get("statusCheckRollup")) is None:
         return "verified"
     return "implemented"
+
+
+def allowed_reviewers(repo_root):
+    """The working tree's `verifier_logins`, for the state model's `verified`; () when absent or malformed,
+    so nothing reads verified. `gate-pass` reads origin/main's instead (`_main_allowed_reviewers`)."""
+    try:
+        return tuple(report_rules.read_verifier_logins(Path(repo_root).joinpath(*CONFIG_RELPATH)))
+    except report_rules.AllowlistError:
+        return ()
 
 
 def _only_plan_issues(issues):
@@ -1398,15 +1518,64 @@ def _only_plan_issues(issues):
     return [issue for issue in issues if _has_label(_label_names(issue.get("labels")), LABEL_PLAN)]
 
 
+# `gh ... list --limit N` returns at most N and says nothing when it stopped there, so a full page is treated as
+# truncated: a state, a duplicate-id check or doctor run over a partial list is wrong without any sign of it.
+GH_LIST_LIMIT = 500
+
+
+class ListTruncatedError(ValueError):
+    """A `gh ... list` came back with exactly its --limit items, so it may hide the rest."""
+
+
+def _gh_list(noun, plural, args, repo_root):
+    """`gh <args> --limit GH_LIST_LIMIT` parsed, or ListTruncatedError when the page came back full."""
+    items = gh_json(list(args) + ["--limit", str(GH_LIST_LIMIT)], cwd=repo_root)
+    if isinstance(items, list) and len(items) >= GH_LIST_LIMIT:
+        raise ListTruncatedError(
+            "the %s list returned %d %s, its --limit, so it may be truncated and what is read from it could be wrong; "
+            "nothing was changed" % (noun, len(items), plural)
+        )
+    return items
+
+
+def _listing_allowlist(repo_root):
+    """The working tree's `verifier_logins`, required: a listing that silently dropped every item for want of
+    a list would read as an empty queue. Raises report_rules.AllowlistError, which main() reports as REFUSED."""
+    if repo_root is None:
+        raise report_rules.AllowlistError("no repo root, so %s cannot be read" % "/".join(CONFIG_RELPATH))
+    return report_rules.read_verifier_logins(Path(repo_root).joinpath(*CONFIG_RELPATH))
+
+
+def _only_allowed_authors(items, allowed_logins, noun):
+    """The items whose `author.login` is allowed. Anyone can open an issue or a pull request on a public repo,
+    and the queue reads their bodies as plans and briefs, so the rest are dropped, each named on stderr.
+    `allowed_logins` None keeps every item, for a reader that must see all of them."""
+    if allowed_logins is None:
+        return list(items)
+    kept = []
+    for item in items:
+        login = (item.get("author") or {}).get("login") if isinstance(item.get("author"), dict) else None
+        if report_rules.is_allowed_login(login, allowed_logins):
+            kept.append(item)
+        else:
+            sys.stderr.write("note: ignored %s #%s by %r: the author is not in %s\n"
+                             % (noun, item.get("number"), login, report_rules.VERIFIER_LOGINS_KEY))
+    return kept
+
+
 def fetch_live_issues(repo_root=None):
-    return _only_plan_issues(gh_json(
-        ["issue", "list", "--label", LABEL_PLAN, "--state", "open", "--limit", "500", "--json", ISSUE_LIST_FIELDS],
-        cwd=repo_root,
-    ))
+    allowed = _listing_allowlist(repo_root)
+    return _only_allowed_authors(_only_plan_issues(_gh_list(
+        "issue", "issues", ["issue", "list", "--label", LABEL_PLAN, "--state", "open", "--json", ISSUE_LIST_FIELDS],
+        repo_root,
+    )), allowed, "issue")
 
 
-def fetch_all_prs(repo_root=None):
-    return gh_json(["pr", "list", "--state", "all", "--limit", "500", "--json", PR_LIST_FIELDS], cwd=repo_root)
+def fetch_all_prs(repo_root=None, every_author=False):
+    allowed = None if every_author else _listing_allowlist(repo_root)
+    return _only_allowed_authors(_gh_list(
+        "pull request", "pull requests", ["pr", "list", "--state", "all", "--json", PR_LIST_FIELDS], repo_root,
+    ), allowed, "pull request")
 
 
 # `doctor` (section 4's negative controls, section 17's checker table) needs
@@ -1416,16 +1585,43 @@ def fetch_all_prs(repo_root=None):
 DOCTOR_ISSUE_FIELDS = ISSUE_LIST_FIELDS + ",state"
 
 
-def fetch_all_plan_issues(repo_root=None):
-    return _only_plan_issues(gh_json(
-        ["issue", "list", "--label", LABEL_PLAN, "--state", "all", "--limit", "500", "--json", DOCTOR_ISSUE_FIELDS],
-        cwd=repo_root,
-    ))
+def fetch_all_plan_issues(repo_root=None, every_author=False):
+    """Every plan issue, open or closed; `every_author` keeps a stranger's too, where an id clash must count."""
+    allowed = None if every_author else _listing_allowlist(repo_root)
+    return _only_allowed_authors(_only_plan_issues(_gh_list(
+        "issue", "issues", ["issue", "list", "--label", LABEL_PLAN, "--state", "all", "--json", DOCTOR_ISSUE_FIELDS],
+        repo_root,
+    )), allowed, "issue")
 
 
 PLAN_AUDIT_FENCE_RE = re.compile(r"```json plan-audit\s*\n(.*?)```", re.DOTALL)
 LOG_LINE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\b")
 UNBLOCKED_COMMENT_TEXT = "Unblocked."
+
+
+def _plan_audit_payload(fence_match):
+    """The payload dict of a matched plan-audit fence, or None when it is malformed: bad JSON, valid JSON that is
+    not an object (`[1]`), or a `verdict` other than APPROVED / REVISE. One parser for the log and for `accept`."""
+    try:
+        payload = json.loads(fence_match.group(1))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or payload.get("verdict") not in ("APPROVED", "REVISE"):
+        return None
+    return payload
+
+
+def newest_plan_audit_verdict(comments):
+    """The verdict (APPROVED or REVISE) of the newest well-formed plan-audit comment, else None. Newest is by
+    `createdAt`, ties broken by the order given; a malformed fence or an ordinary comment is not a verdict. The
+    record (`audit-record`) holds only `verdict` and `note`, so nothing binds a verdict to a version of the body."""
+    ordered = sorted(enumerate(comments or []), key=lambda pair: (pair[1].get("createdAt") or "", pair[0]))
+    for _index, comment in reversed(ordered):
+        fence_match = PLAN_AUDIT_FENCE_RE.search(comment.get("body") or "")
+        payload = _plan_audit_payload(fence_match) if fence_match else None
+        if payload is not None:
+            return payload["verdict"]
+    return None
 
 
 def _classify_log_comment(comment):
@@ -1441,13 +1637,10 @@ def _classify_log_comment(comment):
 
     fence_match = PLAN_AUDIT_FENCE_RE.search(body)
     if fence_match:
-        try:
-            payload = json.loads(fence_match.group(1))
-        except json.JSONDecodeError:
+        payload = _plan_audit_payload(fence_match)
+        if payload is None:
             return None
-        verdict = payload.get("verdict")
-        if verdict not in ("APPROVED", "REVISE"):
-            return None
+        verdict = payload["verdict"]
         # The literal word REVISE must survive here -- audit_mechanical.py's
         # stuck-loop check matches it as a plain substring against this
         # exact log line, never a semantic verdict field.
@@ -1480,7 +1673,7 @@ def _build_log(issue, pr):
     return [line for line in (_classify_log_comment(c) for c in comments) if line is not None]
 
 
-def build_live_entries(issues, prs):
+def build_live_entries(issues, prs, allowed_logins=()):
     # First pass: every live issue's own entry id, keyed by issue number --
     # prerequisites resolve THROUGH this map (an id absent from it, because
     # the referenced issue is closed/merged/retired, or simply not a plan
@@ -1489,18 +1682,17 @@ def build_live_entries(issues, prs):
     id_by_issue_number = {}
     for issue in issues:
         body = issue.get("body", "")
-        pr = _find_pr_for_issue(issue["number"], prs)
+        pr = _find_pr_for_issue(issue["number"], prs, allow_closed_unmerged=True)
         _, entry_id = parse_entry_header(pr["body"]) if pr else (None, None)
         if entry_id is None:
-            id_match = re.search(r"^id:\s*(\S+)", body, re.MULTILINE)
-            entry_id = id_match.group(1) if id_match else "issue-%d" % issue["number"]
+            entry_id = _issue_entry_id(body) or "issue-%d" % issue["number"]
         id_by_issue_number[issue["number"]] = entry_id
 
     entries = []
     for issue in issues:
         body = issue.get("body", "")
-        state = derive_state(issue, prs)
-        pr = _find_pr_for_issue(issue["number"], prs)
+        state = derive_state(issue, prs, allowed_logins)
+        pr = _find_pr_for_issue(issue["number"], prs, allow_closed_unmerged=True)
         entry_id = id_by_issue_number[issue["number"]]
         touches_section = get_section(body, ISSUE_HEADINGS["touches"]) or ""
         touches = [line[2:].strip() for line in touches_section.splitlines() if line.startswith("- ")]
@@ -1538,13 +1730,109 @@ def build_live_entries(issues, prs):
 # =============================================================================
 
 
+# Every heading this tool reads a section by. A user-supplied value holding one of these as a line of its own
+# would be read back as that section (the first match wins), so it is refused before anything is written.
+OWN_SECTION_HEADINGS = frozenset(ISSUE_HEADINGS.values()) | frozenset(PR_HEADINGS.values()) | {BRIEF_HEADING}
+
+
+def _section_value_problem(value):
+    """Why `value` cannot be written into a body section, else None: it holds a line that is one of this tool's own
+    section headings outside a code fence (a spoofed section), or it leaves a code fence open (everything after
+    it would read as code and the sections below would vanish)."""
+    for _offset, line in _iter_unfenced_lines(value):
+        if line.rstrip(" \t") in OWN_SECTION_HEADINGS:
+            return ("it has a line that is the section heading %r outside a code fence, which would be read back "
+                    "as that section; put it in a fenced block or reword it" % line.rstrip(" \t"))
+    if _leaves_fence_open(value):
+        return "it opens a code fence it never closes, so the sections after it would read as code"
+    return None
+
+
+def _section_roundtrip_problem(body, written):
+    """The first (heading, why) among `written` ((heading, text) or (heading, text, exact) tuples; `exact` False
+    means the section holds more after the text) whose section does not read back from `body` as the text
+    written into it, else None. Catches what the heading check cannot name: any heading line of the section's
+    own level or shallower that ends the section early."""
+    for heading, text, *flags in written:
+        got = get_section(body, heading)
+        matches = got is not None and (got.strip().startswith(text.strip()) if flags == [False] else got.strip() == text.strip())
+        if not matches:
+            return (heading, "it would not read back as written: a heading line inside it ends the section early "
+                             "(put such a line in a fenced block or indent it)")
+    return None
+
+
+# The `id:` line `stub` writes, read back by accept, doctor, list and migrate. `[ \t]*`, not `\s*`: a bare `id:`
+# line must not borrow the next line's first word.
+ENTRY_ID_LINE_RE = re.compile(r"^id:[ \t]*(\S+)", re.MULTILINE)
+# What `stub --id` accepts: lower-case letters and digits, joined by single `-`, `.` or `_`. Every id in
+# plans/records/ satisfies it, it holds nothing `ENTRY_ID_LINE_RE` (no whitespace) or ENTRY_ID_RE (no backtick)
+# would split on, and `plan/<id>` is always a valid branch name.
+ENTRY_ID_SLUG_RE = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
+ENTRY_ID_MAX_LENGTH = 80
+
+
+def _entry_id_problem(entry_id):
+    """Why `entry_id` cannot name a plan entry, else None."""
+    if not isinstance(entry_id, str) or not entry_id:
+        return "the id is empty"
+    if len(entry_id) > ENTRY_ID_MAX_LENGTH:
+        return "the id is %d characters; the limit is %d" % (len(entry_id), ENTRY_ID_MAX_LENGTH)
+    if not ENTRY_ID_SLUG_RE.fullmatch(entry_id) or entry_id.endswith(".lock"):
+        return ("the id must be lower-case letters and digits joined by single '-', '.' or '_' (for example "
+                "`fix-the-thing`), and not end in .lock: it names the branch plan/<id> and the `id:` line")
+    return None
+
+
+def _issue_entry_id(body):
+    """The `id:` an issue body carries, else None."""
+    match = ENTRY_ID_LINE_RE.search(body or "")
+    return match.group(1) if match else None
+
+
+def _refuse(verb, flag, value, reason):
+    sys.stderr.write("%s: refusing %s %r: %s\n" % (verb, flag, value, reason))
+    return 1
+
+
 def cmd_stub(args, repo_root):
     entry_id = args.id
+    why = _entry_id_problem(entry_id)
+    if why is not None:
+        return _refuse("stub", "--id", entry_id, why)
+    for problem in (
+        _research_list_value_problem("--touches", args.touches or [], lambda i, v: "- %s" % v),
+        _research_list_value_problem("--evidence", args.evidence or [], lambda i, v: "%d. %s" % (i, v)),
+    ):
+        if problem is not None:
+            return _refuse("stub", *problem)
+    why = _section_value_problem(args.intent)
+    if why is not None:
+        return _refuse("stub", "--intent", args.intent, why)
     body = compose_issue_body(entry_id, args.intent, args.touches or [], args.evidence or [])
+    bad = _section_roundtrip_problem(body, [(ISSUE_HEADINGS["intent"], args.intent)])
+    if bad is not None:
+        return _refuse("stub", "--intent", args.intent, bad[1])
+    # Open and closed alike: a closed plan issue keeps its id, and a second issue under it would adopt its branch.
+    try:
+        existing = fetch_all_plan_issues(repo_root, every_author=True)
+    except (GhError, ValueError) as exc:
+        sys.stderr.write("stub: cannot list the existing plan issues (%s), so a duplicate id cannot be ruled out; "
+                         "nothing was written\n" % (exc,))
+        return 1
+    for issue in existing:
+        found = _issue_entry_id(issue.get("body") or "")
+        if found is not None and found.lower() == entry_id.lower():
+            return _refuse("stub", "--id", entry_id, "issue #%d already carries the id (state %s); pick another id, "
+                           "or take the plan label off that issue if it is retired for good"
+                           % (issue["number"], issue.get("state", "OPEN")))
     path = _body_tempfile(body)
     create_args = ["issue", "create", "--title", args.title, "--body-file", path, "--label", LABEL_PLAN,
                    "--label", PRIORITY_LABEL_BY_NUMBER[args.priority]]
-    result = run_gh(create_args, cwd=repo_root)
+    try:
+        result = run_gh(create_args, cwd=repo_root)
+    finally:
+        _unlink_quietly(path)
     number_match = re.search(r"/issues/(\d+)", result.stdout)
     if number_match is None:
         sys.stderr.write("WRITE NOT PERSISTED: gh issue create did not report a new issue number\n")
@@ -1561,8 +1849,7 @@ def cmd_stub(args, repo_root):
 
 
 def _research_refuse(flag, value, reason):
-    sys.stderr.write("research: refusing %s %r: %s\n" % (flag, value, reason))
-    return 1
+    return _refuse("research", flag, value, reason)
 
 
 def _research_list_value_problem(flag, values, line_format):
@@ -1587,19 +1874,27 @@ def cmd_research(args, repo_root):
     ):
         if problem is not None:
             return _research_refuse(*problem)
-    wants_sections = touches is not None or evidence is not None
-    json_fields = "body,labels" if wants_sections else "body"
-    issue = gh_json(["issue", "view", args.issue, "--json", json_fields], cwd=repo_root)
+    # (flag, value, the heading it writes): every research field is checked the same way, so no field can edit a
+    # frozen issue or hit a missing heading that set_section would raise on.
+    given = [(flag, value, key) for flag, value, key in (
+        ("--touches", touches, "touches"), ("--evidence", evidence, "evidence_required"),
+        ("--local", args.local, "local_insights"), ("--online", args.online, "online_insights"),
+        ("--api-docs", args.api_docs, "api_docs_needed"), ("--prereq", args.prereq, "gates"),
+    ) if value is not None]
+    if not given:
+        sys.stderr.write("research: nothing to write: give at least one of --local, --online, --api-docs, "
+                         "--prereq, --touches, --evidence\n")
+        return 1
+    issue = gh_json(["issue", "view", args.issue, "--json", "body,labels"], cwd=repo_root)
     body = issue["body"]
-    if wants_sections:
-        flag = "--touches" if touches is not None else "--evidence"
-        if _has_label(_label_names(issue.get("labels")), LABEL_ACCEPTED):
-            return _research_refuse(flag, "", "issue #%d is accepted and frozen; its pull request is the record" % args.issue)
-        if ISSUE_MARKER not in body:
-            return _research_refuse(flag, "", "issue #%d body lacks the %s marker, so it is not a plan issue" % (args.issue, ISSUE_MARKER))
-        for given, key, name in ((touches, "touches", "--touches"), (evidence, "evidence_required", "--evidence")):
-            if given is not None and section_span(body, ISSUE_HEADINGS[key]) is None:
-                return _research_refuse(name, "", "issue #%d body lacks the %s heading" % (args.issue, ISSUE_HEADINGS[key]))
+    first_flag = given[0][0]
+    if _has_label(_label_names(issue.get("labels")), LABEL_ACCEPTED):
+        return _research_refuse(first_flag, "", "issue #%d is accepted and frozen; its pull request is the record" % args.issue)
+    if ISSUE_MARKER not in body:
+        return _research_refuse(first_flag, "", "issue #%d body lacks the %s marker, so it is not a plan issue" % (args.issue, ISSUE_MARKER))
+    for flag, _value, key in given:
+        if section_span(body, ISSUE_HEADINGS[key]) is None:
+            return _research_refuse(flag, "", "issue #%d body lacks the %s heading" % (args.issue, ISSUE_HEADINGS[key]))
     if touches is not None:
         body = set_section(body, ISSUE_HEADINGS["touches"], "\n".join("- %s" % t for t in touches) + "\n\n")
     if evidence is not None:
@@ -1607,12 +1902,17 @@ def cmd_research(args, repo_root):
             body, ISSUE_HEADINGS["evidence_required"],
             "\n".join("%d. %s" % (i, e) for i, e in enumerate(evidence, start=1)) + "\n\n",
         )
-    if args.local is not None:
-        body = set_section(body, ISSUE_HEADINGS["local_insights"], args.local.rstrip() + "\n")
-    if args.online is not None:
-        body = set_section(body, ISSUE_HEADINGS["online_insights"], args.online.rstrip() + "\n")
-    if args.api_docs is not None:
-        body = set_section(body, ISSUE_HEADINGS["api_docs_needed"], args.api_docs.rstrip() + "\n")
+    for flag, value, key in (("--local", args.local, "local_insights"), ("--online", args.online, "online_insights"),
+                             ("--api-docs", args.api_docs, "api_docs_needed")):
+        if value is None:
+            continue
+        why = _section_value_problem(value)
+        if why is not None:
+            return _research_refuse(flag, value, why)
+        body = set_section(body, ISSUE_HEADINGS[key], value.rstrip() + "\n")
+        bad = _section_roundtrip_problem(body, [(ISSUE_HEADINGS[key], value)])
+        if bad is not None:
+            return _research_refuse(flag, value, bad[1])
     if args.prereq is not None:
         gates_section = get_section(body, ISSUE_HEADINGS["gates"]) or ""
         new_gates = _set_depends_on_in_gates(gates_section, sorted(set(args.prereq)))
@@ -1634,21 +1934,94 @@ def _today():
     return date.today().isoformat()
 
 
+def _accept_refuse(issue_number, reason):
+    sys.stderr.write("accept: refusing issue #%d: %s\n" % (issue_number, reason))
+    return 1
+
+
+def _bullet_lines(section_text):
+    return [line[2:].strip() for line in section_text.splitlines() if line.startswith("- ")]
+
+
+def _numbered_lines(section_text):
+    return [re.sub(r"^\d+\.\s*", "", line).strip() for line in section_text.splitlines() if re.match(r"^\d+\.\s", line)]
+
+
+def _accept_unresearched(body):
+    """The names of the sections a plan issue still lacks before it can be accepted (plans/README.md's
+    `researched` row): Intent, Touches and Evidence required real, and at least one Research subsection filled.
+    A section holding only a placeholder line (`- <TODO>`) is empty, and so is one with no bullet to copy."""
+    gaps = []
+    if not _non_empty_not_placeholder(get_section(body, ISSUE_HEADINGS["intent"]) or ""):
+        gaps.append(ISSUE_HEADINGS["intent"])
+    touches_text = get_section(body, ISSUE_HEADINGS["touches"]) or ""
+    if not _non_empty_not_placeholder(touches_text) or not _bullet_lines(touches_text):
+        gaps.append(ISSUE_HEADINGS["touches"])
+    evidence_text = get_section(body, ISSUE_HEADINGS["evidence_required"]) or ""
+    if not _non_empty_not_placeholder(evidence_text) or not _numbered_lines(evidence_text):
+        gaps.append(ISSUE_HEADINGS["evidence_required"])
+    research = (ISSUE_HEADINGS["local_insights"], ISSUE_HEADINGS["online_insights"], ISSUE_HEADINGS["api_docs_needed"])
+    if not any(_non_empty_not_placeholder(get_section(body, heading) or "") for heading in research):
+        gaps.append("%s (at least one of %s)" % (ISSUE_HEADINGS["research"], ", ".join(research)))
+    return gaps
+
+
+def _gates_json_list(gates_section, key):
+    """(value, None) for the `key:` JSON list line of an issue's Gates section ([] when the line is absent),
+    or (None, why) when it is not a JSON list: an empty list would drop a resource lease without a word."""
+    match = re.search(r"^%s:[ \t]*(.*)$" % re.escape(key), gates_section, re.MULTILINE)
+    if match is None:
+        return [], None
+    try:
+        value = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        return None, "the Gates `%s:` line is not valid JSON (%s): %r" % (key, exc, match.group(1))
+    if not isinstance(value, list):
+        return None, "the Gates `%s:` line must be a JSON list, found %r" % (key, match.group(1))
+    return value, None
+
+
+def _accept_precondition_problem(issue, body, labels):
+    """Why this issue cannot be accepted, else None (plans/README.md's states: an open plan issue, researched,
+    its newest plan-audit verdict APPROVED, not blocked; an already accepted one only resumes)."""
+    number = issue["number"]
+    if ISSUE_MARKER not in body:
+        return "its body lacks the %s marker, so it is not a plan issue" % ISSUE_MARKER
+    if not _has_label(labels, LABEL_PLAN):
+        return "it does not carry the %s label" % LABEL_PLAN
+    if str(issue.get("state") or "").upper() != "OPEN":
+        return "it is %s, not OPEN" % (issue.get("state") or "of unknown state")
+    if _has_label(labels, LABEL_BLOCKED):
+        return "it is blocked (unblock #%d first)" % number
+    if not _has_label(labels, LABEL_ACCEPTED):
+        gaps = _accept_unresearched(body)
+        if gaps:
+            return "it is not researched yet: %s still empty or a placeholder" % ", ".join(gaps)
+        # An already accepted issue resumes without a new audit: the verdict that let it through was read then.
+        verdict = newest_plan_audit_verdict(issue.get("comments"))
+        if verdict != "APPROVED":
+            return ("its newest plan-audit verdict is %s, not APPROVED: run the plan-auditor agent over it, then record an "
+                    "APPROVED verdict with `queue audit-record %d --verdict APPROVED` before accepting"
+                    % (verdict or "missing", number))
+    return None
+
+
 def cmd_accept(args, repo_root):
-    issue = gh_json(["issue", "view", args.issue, "--json", "number,title,body,labels"], cwd=repo_root)
+    issue = gh_json(["issue", "view", args.issue, "--json", "number,title,body,labels,state,comments"], cwd=repo_root)
     body = issue["body"]
-    id_match = re.search(r"^id:\s*(\S+)", body, re.MULTILINE)
-    entry_id = id_match.group(1) if id_match else "issue-%d" % issue["number"]
+    labels = _label_names(issue.get("labels"))
+    # Every check comes before the first git or gh write, so a refusal leaves nothing behind.
+    problem = _accept_precondition_problem(issue, body, labels)
+    if problem is not None:
+        return _accept_refuse(issue["number"], problem)
+    entry_id = _issue_entry_id(body) or "issue-%d" % issue["number"]
+    branch = "plan/%s" % entry_id
+    if run_git(["check-ref-format", "refs/heads/%s" % branch], cwd=repo_root, check=False).returncode != 0:
+        return _accept_refuse(issue["number"], "its id %r would make %r, which is not a valid branch name" % (entry_id, branch))
     intent = (get_section(body, ISSUE_HEADINGS["intent"]) or "").strip()
-    touches_section = get_section(body, ISSUE_HEADINGS["touches"]) or ""
-    touches = [line[2:].strip() for line in touches_section.splitlines() if line.startswith("- ")]
-    evidence_section = get_section(body, ISSUE_HEADINGS["evidence_required"]) or ""
-    evidence_required = [
-        re.sub(r"^\d+\.\s*", "", line).strip()
-        for line in evidence_section.splitlines()
-        if re.match(r"^\d+\.\s", line)
-    ]
-    priority, priority_label = _priority_of(_label_names(issue.get("labels")))
+    touches = _bullet_lines(get_section(body, ISSUE_HEADINGS["touches"]) or "")
+    evidence_required = _numbered_lines(get_section(body, ISSUE_HEADINGS["evidence_required"]) or "")
+    priority, priority_label = _priority_of(labels)
     if priority is None:
         priority = DEFAULT_PRIORITY
         priority_label = PRIORITY_LABEL_BY_NUMBER[priority]
@@ -1656,20 +2029,28 @@ def cmd_accept(args, repo_root):
     online = (get_section(body, ISSUE_HEADINGS["online_insights"]) or "").strip()
     api_docs = (get_section(body, ISSUE_HEADINGS["api_docs_needed"]) or "").strip()
     gates_section = get_section(body, ISSUE_HEADINGS["gates"]) or ""
-    resources_match = re.search(r"^resources:\s*(.*)$", gates_section, re.MULTILINE)
-    gate_override_match = re.search(r"^gate_override:\s*(.*)$", gates_section, re.MULTILINE)
-    try:
-        resources = json.loads(resources_match.group(1)) if resources_match else []
-    except (json.JSONDecodeError, AttributeError):
-        resources = []
-    try:
-        gate_override = json.loads(gate_override_match.group(1)) if gate_override_match else []
-    except (json.JSONDecodeError, AttributeError):
-        gate_override = []
+    resources, why = _gates_json_list(gates_section, "resources")
+    if why is None:
+        gate_override, why = _gates_json_list(gates_section, "gate_override")
+    if why is not None:
+        return _accept_refuse(issue["number"], why)
     depends_on = _parse_depends_on_ids(gates_section)
 
     base = args.base or "main"
-    branch = "plan/%s" % entry_id
+    # An open PR already on plan/<id> is adopted only when its body names THIS issue: a duplicate id would
+    # otherwise hand this issue another issue's pull request.
+    existing_prs = gh_json(["pr", "list", "--head", branch, "--state", "open", "--json", "number,body"], cwd=repo_root)
+    own_pr = None
+    for candidate in existing_prs:
+        closes, _ = parse_entry_header(candidate.get("body") or "")
+        if closes == issue["number"]:
+            own_pr = candidate
+            break
+    if existing_prs and own_pr is None:
+        return _accept_refuse(issue["number"], "an open PR already heads %s but is %s, not this issue's (a duplicate id?); "
+                              "close or rename one of them" % (branch, ", ".join(
+                                  "PR #%s (closes #%s)" % (c.get("number"), parse_entry_header(c.get("body") or "")[0])
+                                  for c in existing_prs)))
     _fetch_pinned([_tracking_refspec(base)], repo_root)
     existing_branches = _parse_ls_remote_branch_names(
         run_git(["ls-remote", "origin", "refs/heads/%s" % branch], cwd=repo_root).stdout
@@ -1697,19 +2078,21 @@ def cmd_accept(args, repo_root):
     # it: the PR must exist before the issue is labeled or commented on, so
     # a crash between the branch push and `gh pr create` leaves no stray
     # label behind for `queue doctor` to have to notice.
-    existing_prs = gh_json(["pr", "list", "--head", branch, "--state", "open", "--json", "number,body"], cwd=repo_root)
-    if existing_prs:
-        pr_number = existing_prs[0]["number"]
+    if own_pr is not None:
+        pr_number = own_pr["number"]
     else:
         pr_body = compose_pr_body_at_accept(
             entry_id, issue["number"], intent, priority, priority_label, touches, evidence_required,
             depends_on=depends_on, resources=resources, gate_override=gate_override, local=local, online=online, api_docs=api_docs,
         )
         pr_body_path = _body_tempfile(pr_body)
-        result = run_gh([
-            "pr", "create", "--draft", "--title", issue["title"], "--body-file", pr_body_path,
-            "--head", branch, "--base", base,
-        ], cwd=repo_root)
+        try:
+            result = run_gh([
+                "pr", "create", "--draft", "--title", issue["title"], "--body-file", pr_body_path,
+                "--head", branch, "--base", base,
+            ], cwd=repo_root)
+        finally:
+            _unlink_quietly(pr_body_path)
         pr_number_match = re.search(r"/pull/(\d+)", result.stdout)
         if pr_number_match is None:
             sys.stderr.write("WRITE NOT PERSISTED: gh pr create did not report a new PR number\n")
@@ -1721,31 +2104,76 @@ def cmd_accept(args, repo_root):
             raise SystemExit(1)
         _check_pr_links_issue(readback, issue["number"], pr_number, repo_root)
 
-    if _has_label(_label_names(issue.get("labels")), LABEL_ACCEPTED):
-        print("accept: issue #%d -> PR #%d on %s (resumed; already labeled)" % (issue["number"], pr_number, branch))
+    # The label, the notice and the snapshot are each written only when missing, so a re-run after a crash
+    # between them writes what the crash skipped (the snapshot is what doctor's ISSUE DIVERGED check compares to).
+    comment_texts = [(c.get("body") or "") for c in issue.get("comments") or [] if isinstance(c, dict)]
+    notice = ACCEPTED_NOTICE % pr_number
+    resumed = _has_label(labels, LABEL_ACCEPTED)
+    wrote = []
+    if not resumed:
+        run_gh(["issue", "edit", issue["number"], "--add-label", LABEL_ACCEPTED], cwd=repo_root)
+    if not any(text.strip() == notice for text in comment_texts):
+        run_gh(["issue", "comment", issue["number"], "--body", notice], cwd=repo_root)
+        wrote.append("accepted notice")
+    if not any(ACCEPTED_SNAPSHOT_RE.search(text) for text in comment_texts):
+        snapshot = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        run_gh(["issue", "comment", issue["number"], "--body", ACCEPTED_SNAPSHOT_COMMENT % snapshot], cwd=repo_root)
+        wrote.append("snapshot comment")
+    if resumed:
+        print("accept: issue #%d -> PR #%d on %s (resumed; already labeled%s)" % (
+            issue["number"], pr_number, branch,
+            "; wrote the missing " + " and ".join(wrote) if wrote else ", notice and snapshot present"))
         return 0
-
-    run_gh(["issue", "edit", issue["number"], "--add-label", LABEL_ACCEPTED], cwd=repo_root)
-    run_gh(["issue", "comment", issue["number"], "--body", ACCEPTED_NOTICE % pr_number], cwd=repo_root)
-    snapshot = hashlib.sha256(body.encode("utf-8")).hexdigest()
-    run_gh(["issue", "comment", issue["number"], "--body", ACCEPTED_SNAPSHOT_COMMENT % snapshot], cwd=repo_root)
     print("accept: issue #%d -> PR #%d on %s" % (issue["number"], pr_number, branch))
     return 0
 
 
+def _implemented_refuse(reason):
+    sys.stderr.write("implemented: refusing: %s\n" % reason)
+    return 1
+
+
 def cmd_implemented(args, repo_root):
-    pr = gh_json(["pr", "view", args.pr, "--json", "number,body"], cwd=repo_root)
-    body = pr["body"]
-    check_not_already_implemented(body, args.pr)
-    _, entry_id = parse_entry_header(body)
-    issue_number, _ = parse_entry_header(body)
+    # Every argument check comes before the first gh call, so a refusal writes nothing.
+    if args.split_into is not None and not args.partial:
+        return _implemented_refuse("--split-into needs --partial (a split is recorded only on a partial PR)")
     evidence_report_text = args.evidence_report
     if args.evidence_report_file:
-        with open(args.evidence_report_file, "r", encoding="utf-8") as fh:
-            evidence_report_text = fh.read()
+        try:
+            with open(args.evidence_report_file, "r", encoding="utf-8") as fh:
+                evidence_report_text = fh.read()
+        except (OSError, UnicodeDecodeError) as exc:
+            return _implemented_refuse("cannot read evidence report file %s -- %s" % (args.evidence_report_file, exc))
+    if not (evidence_report_text or "").strip():
+        return _implemented_refuse(
+            "the evidence report is empty; give --evidence-report TEXT or --evidence-report-file PATH with what "
+            "the gate and each evidence bullet showed (an empty report would mark the PR ready with nothing to verify)"
+        )
+    for flag, text in (("--handoff", args.handoff), ("the evidence report", evidence_report_text)):
+        why = _section_value_problem(text)
+        if why is not None:
+            return _implemented_refuse("%s: %s" % (flag, why))
+
+    pr = gh_json(["pr", "view", args.pr, "--json", "number,body,isDraft"], cwd=repo_root)
+    body = pr["body"]
+    issue_number, entry_id = parse_entry_header(body)
+    handoff_section = get_section(body, HANDOFF_HEADING) or ""
+    if HANDOFF_SENTINEL not in handoff_section:
+        # An earlier run wrote the body, then `pr ready` failed: finish that run instead of refusing it, and write
+        # nothing a second time. A PR that is ready, or whose Evidence report is empty, is not that case.
+        evidence_written = (get_section(body, EVIDENCE_REPORT_HEADING) or "").strip()
+        if pr.get("isDraft") is True and evidence_written:
+            run_gh(["pr", "ready", args.pr], cwd=repo_root)
+            print("implemented: PR #%d (%s) resumed: its Handoff and Evidence report were already written, "
+                  "marked ready; the arguments of this run were not applied" % (args.pr, entry_id))
+            return 0
+        check_not_already_implemented(body, args.pr)
     new_body = compose_handoff_and_evidence(
-        body, args.handoff, evidence_report_text or "", partial=args.partial, split_into=args.split_into,
+        body, args.handoff, evidence_report_text, partial=args.partial, split_into=args.split_into,
     )
+    bad = _section_roundtrip_problem(new_body, [(HANDOFF_HEADING, args.handoff, False), (EVIDENCE_REPORT_HEADING, evidence_report_text)])
+    if bad is not None:
+        return _implemented_refuse("%s: %s" % (bad[0], bad[1]))
     write_pr_body(args.pr, new_body, issue_number=issue_number, repo_root=repo_root)
     run_gh(["pr", "ready", args.pr], cwd=repo_root)
     print("implemented: PR #%d (%s)" % (args.pr, entry_id))
@@ -1788,7 +2216,7 @@ def _fetch_rest_reviews(pr_number, repo_root=None):
     return _flatten_paginated_pages(pages)
 
 
-def _fetch_review_html_url(pr_number, target_review, repo_root=None):
+def _fetch_review_html_url(pr_number, target_review, allowed_logins, repo_root=None):
     """The verifier review's own web URL, for the merge-body `Verifier-
     Review:` trailer -- `gh pr view --json reviews` (GraphQL) carries no
     `html_url`/`url` field at all (live field list, 2026-09-28; repair
@@ -1797,13 +2225,13 @@ def _fetch_review_html_url(pr_number, target_review, repo_root=None):
     `gh api repos/{owner}/{repo}/pulls/<n>/reviews --paginate --slurp`
     (`{owner}`/`{repo}` are gh's own placeholder syntax, resolved from the
     invoking repo's context, never hand-resolved here). Matched to
-    `target_review` (the GraphQL review `newest_comment_review` already
+    `target_review` (the GraphQL review `newest_report_review` already
     picked) by id first -- but GraphQL's `id` is a node id string
     (`PRR_...`) while REST review objects carry a numeric `id` and the SAME
     node id under `node_id` (live shapes, repair round 3), so the match is
     against `node_id`, never the REST numeric `id`, or it can never hit.
-    Falls back to "the newest COMMENTED one" by the same rule
-    report_rules.newest_comment_review already applies, reused here since
+    Falls back to "the newest COMMENTED one with a report fence" by the same rule
+    report_rules.newest_report_review already applies, reused here since
     REST review objects carry the same `state`/`submitted_at` shape.
     Returns None, never "", on any failure to find one -- an empty URL must
     be a refusal, never a blank trailer."""
@@ -1819,7 +2247,7 @@ def _fetch_review_html_url(pr_number, target_review, repo_root=None):
                 if url:
                     return url
 
-    newest = report_rules.newest_comment_review(rest_reviews)
+    newest = report_rules.newest_report_review(rest_reviews, allowed_logins)
     if newest is not None:
         url = newest.get("html_url")
         if url:
@@ -1827,16 +2255,47 @@ def _fetch_review_html_url(pr_number, target_review, repo_root=None):
     return None
 
 
+RELEASE_BRANCH = "release"
+
+
+def _pr_base_problem(pr, pr_number):
+    """(base, None) for a PR whose base branch this tool may act on, else (None, why): a PR that reports no
+    base branch cannot be placed, and the release branch is the owner's (AGENTS.md section 13): an agent never
+    ships or gates a promotion."""
+    base = pr.get("baseRefName")
+    if not isinstance(base, str) or not base:
+        return None, ("PR #%d reports no base branch (baseRefName), so where it merges cannot be checked "
+                      "(verified work lands on main)" % pr_number)
+    if base == RELEASE_BRANCH:
+        return None, ("PR #%d is based on %r, the owner's promotion branch: an agent never ships or gates a promotion; "
+                      "verified work lands on main" % (pr_number, base))
+    return base, None
+
+
 def cmd_ship_check(args, repo_root):
+    try:
+        allowed = report_rules.read_verifier_logins(repo_root.joinpath(*CONFIG_RELPATH))
+    except report_rules.AllowlistError as exc:
+        sys.stderr.write("CANNOT SHIP: no allowed reviewer -- %s\n" % exc)
+        raise SystemExit(1) from None
     pr = gh_json(["pr", "view", args.pr, "--json",
-                  "number,title,headRefOid,reviews,body,closingIssuesReferences,statusCheckRollup,baseRefName"], cwd=repo_root)
+                  "number,title,headRefOid,reviews,body,closingIssuesReferences,statusCheckRollup,baseRefName,"
+                  "isCrossRepository,labels"], cwd=repo_root)
     head_sha = pr["headRefOid"]
+    base, base_problem = _pr_base_problem(pr, args.pr)
+    if base_problem is not None:
+        sys.stderr.write("CANNOT SHIP: %s\n" % base_problem)
+        raise SystemExit(1)
+    fork_problem = _pr_fork_problem(pr)
+    if fork_problem is not None:
+        sys.stderr.write("CANNOT SHIP: PR #%d: %s\n" % (args.pr, fork_problem))
+        raise SystemExit(1)
     issue_number, entry_id = parse_entry_header(pr["body"])
     if issue_number is None:
         sys.stderr.write("CANNOT SHIP: PR #%d's ## Entry header does not name a Closes #n / id\n" % args.pr)
         raise SystemExit(1)
 
-    review, reason = _judge_verdict(_rest_shaped_reviews(pr.get("reviews") or []), pr["body"], head_sha)
+    review, reason = _judge_verdict(_rest_shaped_reviews(pr.get("reviews") or []), pr["body"], head_sha, allowed)
     if reason is not None:
         sys.stderr.write("CANNOT SHIP: %s\n" % reason)
         raise SystemExit(1)
@@ -1861,7 +2320,7 @@ def cmd_ship_check(args, repo_root):
     # entry id, not a human-readable title, and happened to read the same
     # as entry_id only by fixture coincidence in this file's own tests.
     subject = "plan/%s: %s" % (entry_id, pr.get("title", ""))
-    review_url = _fetch_review_html_url(args.pr, review, repo_root=repo_root)
+    review_url = _fetch_review_html_url(args.pr, review, allowed, repo_root=repo_root)
     if not review_url:
         # An empty URL must be a refusal, never a blank Verifier-Review:
         # trailer.
@@ -1896,22 +2355,25 @@ def cmd_ship_check(args, repo_root):
     # precondition, checked above -- so it must never be printed as a
     # second, runnable `gh pr review` call: running it again would post a
     # DUPLICATE review. This line is a comment, not a command.
-    print("# already posted: %s (gh pr review %d --comment --body-file %s)" % (review_url, args.pr, v_path))
+    print("# already posted: %s (gh pr review %d --comment --body-file %s)" % (review_url, args.pr, shlex.quote(str(v_path))))
     print("python3 tools/queue/queue.py --repo-root . gate-pass %d" % args.pr)
+    # Every interpolated value is shlex-quoted: the line is pasted into a shell, and a PR title or a path is
+    # outside text that `$(...)`, a backtick or a space would otherwise turn into code or a second argument.
     print("gh pr merge --merge --match-head-commit %s --subject %s --body-file %s %d" % (
-        head_sha, json.dumps(subject), merge_body_path, args.pr,
+        shlex.quote(head_sha), shlex.quote(subject), shlex.quote(str(merge_body_path)), args.pr,
     ))
     return 0
 
 
 def _ship_behind_overlap(pr, head_sha, repo_root):
-    refspecs = [_tracking_refspec("main")]
+    base = pr["baseRefName"]  # the PR's own base: `ship --check` has refused a missing or release base before this
+    refspecs = [_tracking_refspec(base)]
     # The PR head is a branch tip on origin: fetched by object name, so no ref is written for it.
     if run_git(["cat-file", "-e", "%s^{commit}" % head_sha], cwd=repo_root, check=False).returncode != 0:
         refspecs.append(head_sha)
     _fetch_pinned(refspecs, repo_root)
-    main_sha = run_git(["rev-parse", "origin/main"], cwd=repo_root).stdout.strip()
-    merge_base = run_git(["merge-base", "origin/main", head_sha], cwd=repo_root).stdout.strip()
+    main_sha = run_git(["rev-parse", "origin/%s" % base], cwd=repo_root).stdout.strip()
+    merge_base = run_git(["merge-base", "origin/%s" % base, head_sha], cwd=repo_root).stdout.strip()
     if merge_base == main_sha:
         return set()  # not behind at all
     main_changed = set(run_git(["diff", "--name-only", merge_base, main_sha], cwd=repo_root).stdout.splitlines())
@@ -1929,6 +2391,9 @@ def _fetch_merge_commit_message(merge_sha, repo_root):
 
 
 TRAILER_RE_TEMPLATE = r"^%s:\s*(.+)$"
+# A merge commit's `Verified-Sha:` trailer as `ship --check` writes it: a line of its own with a 40-hex value and
+# nothing after it. Prose that names the key, or a short or malformed value, is not the trailer.
+VERIFIED_SHA_TRAILER_RE = re.compile(r"^Verified-Sha: [0-9a-f]{40}[ \t]*$", re.MULTILINE)
 
 
 def _parse_trailer(commit_message, key):
@@ -1959,16 +2424,20 @@ def _check_merge_trailers(commit_message, entry_id, issue_number, head_sha):
 
 
 def cmd_ship_confirm(args, repo_root):
-    pr = gh_json(["pr", "view", args.pr, "--json", "number,state,mergeCommit,mergedAt,body,headRefOid"], cwd=repo_root)
+    pr = gh_json(["pr", "view", args.pr, "--json", "number,state,mergeCommit,mergedAt,body,headRefOid,baseRefName"], cwd=repo_root)
     if pr.get("state") != "MERGED":
         sys.stderr.write("NOT MERGED: PR #%d state is %r, not MERGED\n" % (args.pr, pr.get("state")))
+        raise SystemExit(1)
+    base, base_problem = _pr_base_problem(pr, args.pr)
+    if base_problem is not None:
+        sys.stderr.write("CANNOT CONFIRM: %s\n" % base_problem)
         raise SystemExit(1)
     merge_sha = (pr.get("mergeCommit") or {}).get("oid")
     if not merge_sha:
         sys.stderr.write("CANNOT CONFIRM: PR #%d has no mergeCommit.oid\n" % args.pr)
         raise SystemExit(1)
-    _fetch_pinned([_tracking_refspec("main")], repo_root)
-    run_git(["merge-base", "--is-ancestor", merge_sha, "origin/main"], cwd=repo_root)
+    _fetch_pinned([_tracking_refspec(base)], repo_root)
+    run_git(["merge-base", "--is-ancestor", merge_sha, "origin/%s" % base], cwd=repo_root)
 
     issue_number, entry_id = parse_entry_header(pr["body"])
     if issue_number is None:
@@ -1985,7 +2454,7 @@ def cmd_ship_confirm(args, repo_root):
     if issue.get("state") != "CLOSED":
         print("REPAIR NEEDED: gh issue close %d --reason completed" % issue_number)
         return 1
-    print("ship --confirm: PR #%d merged as %s, ancestor of origin/main, issue closed" % (args.pr, merge_sha))
+    print("ship --confirm: PR #%d merged as %s, ancestor of origin/%s, issue closed" % (args.pr, merge_sha, base))
     return 0
 
 
@@ -2024,6 +2493,16 @@ def _judge_integrity_problem(repo_root):
                 "in a clean tree, then run gate-pass again" % (relpath, THIS_DIR / name)
             )
     return None
+
+
+def _main_allowed_reviewers(repo_root):
+    """origin/main's `verifier_logins`, never the working tree's: a pull request must not be able to add its
+    own author to the list that judges it. Call after `_judge_integrity_problem`, which fetches origin/main."""
+    relpath = "/".join(CONFIG_RELPATH)
+    shown = run_git(["show", "origin/main:%s" % relpath], cwd=repo_root, check=False)
+    if shown.returncode != 0:
+        raise report_rules.AllowlistError("origin/main has no %s, so no reviewer is allowed" % relpath)
+    return report_rules.parse_verifier_logins(shown.stdout, "origin/main:%s" % relpath)
 
 
 def _gate_status_posted(rollup, review_url):
@@ -2079,18 +2558,29 @@ def cmd_gate_pass(args, repo_root):
     if problem is not None:
         return _gate_pass_refuse(problem)
 
-    pr = gh_json(["pr", "view", args.pr, "--json", "headRefOid,body,baseRefName,statusCheckRollup"], cwd=repo_root)
-    # `main` is spelled out, as in `_ship_behind_overlap`: this file never reads default_branch.
-    if pr.get("baseRefName") != "main":
-        return _gate_pass_refuse("PR #%d is based on %r, not 'main'" % (args.pr, pr.get("baseRefName")))
+    try:
+        allowed = _main_allowed_reviewers(repo_root)
+    except report_rules.AllowlistError as exc:
+        return _gate_pass_refuse("no allowed reviewer -- %s" % exc)
+
+    pr = gh_json(["pr", "view", args.pr, "--json", "headRefOid,body,baseRefName,statusCheckRollup,isCrossRepository,labels"],
+                 cwd=repo_root)
+    # The judge above is main's (`_judge_integrity_problem`), whatever the PR's base; the PR itself may base on any
+    # branch but the release one.
+    _base, base_problem = _pr_base_problem(pr, args.pr)
+    if base_problem is not None:
+        return _gate_pass_refuse(base_problem)
     head_sha = pr.get("headRefOid")
     if not head_sha:
         return _gate_pass_refuse("PR #%d reports no head sha" % args.pr)
+    fork_problem = _pr_fork_problem(pr)
+    if fork_problem is not None:
+        return _gate_pass_refuse("PR #%d: %s" % (args.pr, fork_problem))
 
     reviews = _fetch_rest_reviews(args.pr, repo_root)
     if reviews is None:
         return _gate_pass_refuse("PR #%d's reviews did not come back as the REST page-list shape" % args.pr)
-    review, reason = _judge_verdict(reviews, pr.get("body") or "", head_sha)
+    review, reason = _judge_verdict(reviews, pr.get("body") or "", head_sha, allowed)
     if reason is not None:
         return _gate_pass_refuse(reason)
     review_url = review.get("html_url")
@@ -2117,19 +2607,35 @@ def cmd_gate_pass(args, repo_root):
     return code
 
 
+def _plan_issue_of_pr(pr_number, repo_root, verb):
+    """The number of the plan issue `pr_number` closes, read from its `## Entry` header; a SystemExit(1) naming
+    the PR when it has none. A state is derived from the issue's labels alone, so a `--pr` verb acts on the
+    issue and not on the pull request."""
+    pr = gh_json(["pr", "view", pr_number, "--json", "number,body"], cwd=repo_root)
+    issue_number, _entry_id = parse_entry_header(pr.get("body") or "")
+    if issue_number is None:
+        sys.stderr.write(
+            "%s: PR #%d names no plan issue (its body has no `Closes #<n>  (`<id>`)` ## Entry header), so there is "
+            "no queue entry to %s; pass the issue number without --pr\n" % (verb, pr_number, verb)
+        )
+        raise SystemExit(1)
+    return issue_number
+
+
 def cmd_block(args, repo_root):
-    kind = "pr" if args.pr else "issue"
-    run_gh([kind, "edit", args.number, "--add-label", LABEL_BLOCKED], cwd=repo_root)
-    run_gh([kind, "comment", args.number, "--body", "%s: %s" % (BLOCKED_COMMENT_MARKER, args.reason)], cwd=repo_root)
-    print("block: %s #%d" % (kind, args.number))
+    # The queue state is read from the issue's labels, so `--pr` resolves the PR's plan issue and blocks that.
+    issue_number = _plan_issue_of_pr(args.number, repo_root, "block") if args.pr else args.number
+    run_gh(["issue", "edit", issue_number, "--add-label", LABEL_BLOCKED], cwd=repo_root)
+    run_gh(["issue", "comment", issue_number, "--body", "%s: %s" % (BLOCKED_COMMENT_MARKER, args.reason)], cwd=repo_root)
+    print("block: issue #%d%s" % (issue_number, " (PR #%d's plan issue)" % args.number if args.pr else ""))
     return 0
 
 
 def cmd_unblock(args, repo_root):
-    kind = "pr" if args.pr else "issue"
-    run_gh([kind, "edit", args.number, "--remove-label", LABEL_BLOCKED], cwd=repo_root)
-    run_gh([kind, "comment", args.number, "--body", "Unblocked."], cwd=repo_root)
-    print("unblock: %s #%d" % (kind, args.number))
+    issue_number = _plan_issue_of_pr(args.number, repo_root, "unblock") if args.pr else args.number
+    run_gh(["issue", "edit", issue_number, "--remove-label", LABEL_BLOCKED], cwd=repo_root)
+    run_gh(["issue", "comment", issue_number, "--body", UNBLOCKED_COMMENT_TEXT], cwd=repo_root)
+    print("unblock: issue #%d%s" % (issue_number, " (PR #%d's plan issue)" % args.number if args.pr else ""))
     return 0
 
 
@@ -2165,15 +2671,15 @@ def cmd_status(args, repo_root):
     try:
         issues = fetch_live_issues(repo_root)
         prs = fetch_all_prs(repo_root)
-    except (GhError, GitError, json.JSONDecodeError) as exc:
+    except (GhError, GitError, ValueError) as exc:  # ValueError: bad JSON, or ListTruncatedError
         sys.stderr.write("STALE: a live read failed, not printing possibly-wrong state -- %s\n" % exc)
         raise SystemExit(4)
 
-    if not issues:
+    if not issues and not args.json:
         print("queue is empty")
         return 0
 
-    entries = build_live_entries(issues, prs)
+    entries = build_live_entries(issues, prs, allowed_reviewers(repo_root))
     counts = {s: 0 for s in LIVE_STATES}
     for e in entries:
         counts[e["state"]] = counts.get(e["state"], 0) + 1
@@ -2189,7 +2695,7 @@ def cmd_status(args, repo_root):
 def cmd_list(args, repo_root):
     issues = fetch_live_issues(repo_root)
     prs = fetch_all_prs(repo_root)
-    entries = build_live_entries(issues, prs)
+    entries = build_live_entries(issues, prs, allowed_reviewers(repo_root))
     if args.json:
         print(json.dumps(entries))
     else:
@@ -2201,7 +2707,7 @@ def cmd_list(args, repo_root):
 def cmd_order(args, repo_root):
     issues = fetch_live_issues(repo_root)
     prs = fetch_all_prs(repo_root)
-    entries = build_live_entries(issues, prs)
+    entries = build_live_entries(issues, prs, allowed_reviewers(repo_root))
     entries.sort(key=lambda e: (e["priority"], e["id"]))
     for e in entries:
         print("p%d %s (#%d) [%s]" % (e["priority"], e["id"], e["issue"], e["state"]))
@@ -2238,6 +2744,9 @@ def cmd_lint(args, repo_root):
         for p in problems:
             sys.stderr.write(p + "\n")
         raise SystemExit(1)
+    if not issues:
+        print("lint: OK, 0 issue(s) checked -- nothing was checked: GitHub listed no open plan issue")
+        return 0
     print("lint: OK, %d issue(s) checked" % len(issues))
     return 0
 
@@ -2344,6 +2853,8 @@ def cmd_doctor(args, repo_root):
     findings = []
     residue = []
     waived = []
+    unchecked = []
+    unchecked_prs = set()
     merged_prs = {}
 
     waiver_data, waiver_problem = _read_doctor_waivers(repo_root)
@@ -2368,6 +2879,7 @@ def cmd_doctor(args, repo_root):
 
     issues = fetch_all_plan_issues(repo_root)
     prs = fetch_all_prs(repo_root)
+    allowed_logins = allowed_reviewers(repo_root)
     ls_remote_output = run_git(["ls-remote", "origin", "refs/heads/plan/*"], cwd=repo_root).stdout
     plan_branches = _parse_ls_remote_branch_names(ls_remote_output)
     branch_tips = _migrate_remote_shas(ls_remote_output)
@@ -2384,8 +2896,7 @@ def cmd_doctor(args, repo_root):
             continue  # an unparseable body has no reliable id/sections to check further
 
         labels = _label_names(issue.get("labels"))
-        id_match = re.search(r"^id:\s*(\S+)", body, re.MULTILINE)
-        entry_id = id_match.group(1) if id_match else None
+        entry_id = _issue_entry_id(body)
 
         # Only an issue still OPEN is expected to have a live branch or PR --
         # a merged entry's issue is CLOSED with its branch long deleted
@@ -2404,6 +2915,12 @@ def cmd_doctor(args, repo_root):
 
         comment_text = "\n".join(c.get("body", "") for c in (issue.get("comments") or []))
         snapshot_match = ACCEPTED_SNAPSHOT_RE.search(comment_text)
+        if snapshot_match is None and _has_label(labels, LABEL_ACCEPTED) and issue.get("state") == "OPEN":
+            # Without the snapshot the divergence check below has nothing to compare to and silently skips.
+            findings.append(
+                "ACCEPTED WITHOUT SNAPSHOT #%d: the issue is accepted but carries no accepted-snapshot comment, so "
+                "ISSUE DIVERGED cannot be checked; re-run `queue accept %d` to write it" % (number, number)
+            )
         if snapshot_match:
             current_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
             if current_hash != snapshot_match.group(1):
@@ -2422,7 +2939,7 @@ def cmd_doctor(args, repo_root):
         issue_number, _entry_id = parse_entry_header(pr.get("body", ""))
 
         if pr.get("state") == "OPEN":
-            status, reason = _pr_verdict_status(pr)
+            status, reason = _pr_verdict_status(pr, allowed_logins)
             if status == "stale":
                 findings.append("STALE VERDICT: PR #%d's newest review does not match its head -- %s" % (pr_number, reason))
             elif status in ("missing", "other") and _verifier_gate_green(pr):
@@ -2440,14 +2957,23 @@ def cmd_doctor(args, repo_root):
             if pr.get("baseRefName") == "release": continue
             merge_sha = (pr.get("mergeCommit") or {}).get("oid")
             trailer_present = False
+            not_fetched = False
             if merge_sha:
-                try:
+                if run_git(["cat-file", "-e", "%s^{commit}" % merge_sha], cwd=repo_root, check=False).returncode != 0:
+                    # Not in this clone, and doctor never fetches: it cannot say whether the trailer is there, which is
+                    # no verdict either way. Listed apart so it is neither a false finding nor a silent pass.
+                    not_fetched = True
+                    unchecked_prs.add(pr_number)
+                    unchecked.append(
+                        "cannot check: commit not fetched: PR #%d's merge commit %s is not in this clone, so its "
+                        "Verified-Sha: trailer was not checked (git fetch origin, then run doctor again)" % (pr_number, merge_sha)
+                    )
+                else:
                     commit_message = run_git(["log", "-1", "--format=%B", merge_sha], cwd=repo_root).stdout
-                    trailer_present = "Verified-Sha:" in commit_message
-                except GitError:
-                    trailer_present = False  # e.g. the merge commit isn't fetched locally -- treat as unproven, not silently clean
-            merged_prs[pr_number] = (merge_sha, trailer_present)
-            if not trailer_present:
+                    trailer_present = VERIFIED_SHA_TRAILER_RE.search(commit_message) is not None
+            if not not_fetched:
+                merged_prs[pr_number] = (merge_sha, trailer_present)
+            if not not_fetched and not trailer_present:
                 line = "SHIPPED WITHOUT VERDICT: PR #%d's merge commit has no Verified-Sha: trailer" % pr_number
                 entry = waivers_by_merge.get(merge_sha)
                 if _predates_cutover(merge_sha, cutover_sha, repo_root):
@@ -2466,6 +2992,8 @@ def cmd_doctor(args, repo_root):
                     )
 
     for entry in (waiver_data or {}).get("waivers", []):
+        if entry["pr"] in unchecked_prs:
+            continue  # its merge commit was not checkable, so a waiver for it is neither valid nor invalid
         merged = merged_prs.get(entry["pr"])
         if not _waiver_applies(entry, merged, repo_root, closed_at):
             findings.append(
@@ -2475,6 +3003,8 @@ def cmd_doctor(args, repo_root):
         sys.stderr.write("NOTE: cutover point unknown (%s); nothing is treated as pre-cutover\n" % cutover_reason)
     for finding in findings:
         print(finding)
+    for line in unchecked:
+        print(line)
     if residue:
         print("PRE-CUTOVER RESIDUE at or before cutover point %s: %d line(s), listed and not counted" % (cutover_sha, len(residue)))
         for line in residue:
@@ -2486,7 +3016,13 @@ def cmd_doctor(args, repo_root):
             print(line)
     if findings:
         return 1
-    print("doctor: OK, marker=%r agrees with plans/SCHEMA.md and queue.yaml presence, no findings" % mode)
+    note = ""
+    if not issues and not prs:
+        note = (" -- nothing was checked on GitHub: it listed 0 plan issues and 0 pull requests (expected in a "
+                "new repo; if this repo has work, the repo root or the account is wrong)")
+    elif unchecked:
+        note = " -- %d merged pull request(s) NOT checked: merge commit not fetched (listed above)" % len(unchecked)
+    print("doctor: OK, marker=%r agrees with plans/SCHEMA.md and queue.yaml presence, no findings%s" % (mode, note))
     return 0
 
 
@@ -2657,14 +3193,17 @@ def _init_print_ruleset(repo_root):
         print("# (gh could not name this repo, so the commands below leave {owner}/{repo} for gh to fill in"
               " from the clone you run them in)")
         slug = "{owner}/{repo}"
-    print("gh api --method POST repos/%s/rulesets --input %s" % (slug, ruleset_file))
+        endpoint = "repos/%s/rulesets" % slug  # braces without a comma are literal to a shell; gh fills them
+    else:
+        endpoint = shlex.quote("repos/%s/rulesets" % slug)
+    print("gh api --method POST %s --input %s" % (endpoint, ruleset_file))
     print()
     print(RELEASE_RULESET_MARKER)
     print(json.dumps(build_release_ruleset(checks), indent=2))
     print()
     print("# The release ruleset, for the owner once the release branch exists. Save the JSON above as %s,"
           " then run this from your own terminal:" % release_file)
-    print("gh api --method POST repos/%s/rulesets --input %s" % (slug, release_file))
+    print("gh api --method POST %s --input %s" % (endpoint, release_file))
     return 0
 
 
@@ -2785,8 +3324,6 @@ def cmd_init(args, repo_root):
 # =============================================================================
 
 MIGRATE_DEFAULT_MAX_WRITES = 400
-# fetch_all_plan_issues' own --limit: a full page may hide a clashing id.
-MIGRATE_LIST_LIMIT = 500
 MIGRATE_SOURCE_STATES = ("stub", "researched", "claimed", "blocked")
 # An implemented entry, and one blocked from implemented, have no adopt path: no real queue holds one.
 MIGRATE_CLAIMED_ONLY = "migrate adopts a claimed entry only; finish it, or return it to claimed, before migrating"
@@ -2878,8 +3415,7 @@ def _migrate_is_str_list(value):
 
 
 def _migrate_has_open_fence(text):
-    fences = [line for line in text.splitlines() if line.lstrip().startswith(("```", "~~~"))]
-    return len(fences) % 2 == 1
+    return _leaves_fence_open(text)
 
 
 def _migrate_read_text(path):
@@ -3041,6 +3577,23 @@ def _migrate_load_entries(repo_root):
     if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
         _migrate_refuse("%s has no `entries:` list of mappings. Nothing was written." % (queue_path,), 2)
     return entries
+
+
+def _migrate_record_path_problem(plan, repo_root):
+    """Why `plan` cannot be read as a record inside the repo (absolute, a `..` part, or a symlink that leaves
+    the repo), else None. The same bounds legacy mode puts on its `plan` field, applied to plain mode."""
+    relative = Path(plan)
+    if relative.is_absolute():
+        return "it is an absolute path"
+    if ".." in relative.parts:
+        return "it climbs out with .."
+    try:
+        (Path(repo_root) / relative).resolve().relative_to(Path(repo_root).resolve())
+    except ValueError:
+        return "it resolves to a file outside the repo (a symlink)"
+    except OSError as exc:
+        return "it cannot be resolved (%s)" % exc
+    return None
 
 
 def _migrate_legacy_record_path(plan, repo_root):
@@ -3376,6 +3929,9 @@ def _migrate_normalise_entry(raw, repo_root, legacy=False):
         record = None
         if not isinstance(plan_path, str) or not plan_path.strip():
             bad("a %s entry needs plan: its record path" % kind)
+        elif _migrate_record_path_problem(plan_path, repo_root) is not None:
+            bad("plan %s must name a file inside the repo: %s" % (
+                _migrate_short(plan_path), _migrate_record_path_problem(plan_path, repo_root)))
         else:
             try:
                 record = _migrate_read_text(repo_root / plan_path)
@@ -3517,8 +4073,7 @@ def migrate_check_issue(spec, observed, number_to_id):
     body = observed.get("body") or ""
     if observed.get("title") != spec["title"]:
         bad("title", spec["title"], observed.get("title"))
-    id_match = re.search(r"^id:\s*(\S+)", body, re.MULTILINE)
-    found_id = id_match.group(1) if id_match else None
+    found_id = _issue_entry_id(body)
     if found_id != spec["id"]:
         bad("id", spec["id"], found_id)
 
@@ -3813,18 +4368,15 @@ def _migrate_preflight(repo_root, max_writes, legacy=False):
     _migrate_check_labels_exist(specs, repo_root)
 
     try:
-        existing = fetch_all_plan_issues(repo_root)
+        existing = fetch_all_plan_issues(repo_root, every_author=True)
     except (GhError, OSError, ValueError) as exc:
         _migrate_refuse("could not list the existing plan issues (%s), so a clash with an existing id cannot be ruled "
                         "out. Nothing was written." % (exc,))
-    if len(existing) >= MIGRATE_LIST_LIMIT:
-        _migrate_refuse("the issue list returned %d issues, its --limit, so it may hide a clashing id. Nothing was "
-                        "written." % len(existing))
     existing_by_id = {}
     for issue in existing:
-        id_match = re.search(r"^id:\s*(\S+)", issue.get("body") or "", re.MULTILINE)
-        if id_match:
-            existing_by_id[id_match.group(1)] = issue
+        found_id = _issue_entry_id(issue.get("body") or "")
+        if found_id:
+            existing_by_id[found_id] = issue
     clashes = ["%s: issue #%d already carries this id: (state %s); a second run would duplicate it"
                % (spec["id"], existing_by_id[spec["id"]]["number"], existing_by_id[spec["id"]].get("state"))
                for spec in specs if spec["id"] in existing_by_id]
@@ -3984,7 +4536,7 @@ def _migrate_report_partial(created, reason, ledger=None):
         % LABEL_PLAN
     )
     for _, number, _ in created:
-        sys.stderr.write("  gh issue edit %d --remove-label %s\n" % (number, LABEL_PLAN))
+        sys.stderr.write("  gh issue edit %d --remove-label %s\n" % (number, shlex.quote(LABEL_PLAN)))
         sys.stderr.write("  gh issue close %d --reason \"not planned\"\n" % number)
     sys.stderr.write("  or, with admin rights, delete each one instead:\n")
     for _, number, _ in created:
@@ -4151,7 +4703,7 @@ def _migrate_read_back_one(item, number_to_id, repo_root, plan):
         if adopted is None:
             return ["%s: no pull request was recorded for this adopted entry" % spec["id"]], None
         try:
-            observed["prs"] = fetch_all_prs(repo_root)
+            observed["prs"] = fetch_all_prs(repo_root, every_author=True)
         except (GhError, ValueError, OSError) as exc:
             return ["%s: the pull requests could not be read back -- %s" % (spec["id"], exc)], None
         problems += _migrate_check_adopted_pr(spec, number, adopted, observed["prs"])
@@ -4328,37 +4880,37 @@ def build_parser():
     p = sub.add_parser("gate-pass", help="judge a PR's PASS review with main's own tools/queue, then post the verifier-gate status on its head")
     p.add_argument("pr", type=int)
 
-    p = sub.add_parser("block")
+    p = sub.add_parser("block", help="add the blocked label and a reason comment to a plan issue (--pr: to the issue that PR closes)")
     p.add_argument("number", type=int)
     p.add_argument("reason")
     p.add_argument("--pr", action="store_true")
 
-    p = sub.add_parser("unblock")
+    p = sub.add_parser("unblock", help="remove the blocked label from a plan issue (--pr: from the issue that PR closes) and say so")
     p.add_argument("number", type=int)
     p.add_argument("--pr", action="store_true")
 
-    p = sub.add_parser("retire")
+    p = sub.add_parser("retire", help="close a plan issue as not planned")
     p.add_argument("issue", type=int)
 
-    p = sub.add_parser("retire-pr")
+    p = sub.add_parser("retire-pr", help="close an open pull request unmerged")
     p.add_argument("pr", type=int)
 
-    p = sub.add_parser("log")
+    p = sub.add_parser("log", help="add a dated comment to an issue or pull request")
     p.add_argument("number", type=int)
     p.add_argument("text")
     p.add_argument("--pr", action="store_true")
 
-    p = sub.add_parser("status")
+    p = sub.add_parser("status", help="count the live plan entries in each state (--json)")
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("list")
+    p = sub.add_parser("list", help="print every live plan entry with its state (--json)")
     p.add_argument("--json", action="store_true")
 
-    p = sub.add_parser("lint")
+    p = sub.add_parser("lint", help="check plan issues for a missing marker or placeholder bullets; --offline checks SCHEMA.md")
     p.add_argument("--offline", action="store_true")
 
-    sub.add_parser("order")
-    sub.add_parser("doctor")
+    sub.add_parser("order", help="print the live plan entries by priority, then id")
+    sub.add_parser("doctor", help="report disagreements between the marker, the workflow and GitHub's own state")
     p = sub.add_parser("init", help="create the label set and check the repo; --print-ruleset prints the ruleset")
     p.add_argument("--print-ruleset", action="store_true",
                     help="print plan section 7's ruleset JSON, then the release ruleset JSON, each with the owner's "
@@ -4428,6 +4980,15 @@ def main(argv=None):
             return cmd_migrate(args, repo_root)
     except (GhError, GitError) as exc:
         sys.stderr.write("%s\n" % exc)
+        return 1
+    except ListTruncatedError as exc:
+        sys.stderr.write("REFUSED: %s\n" % exc)
+        return 1
+    except report_rules.AllowlistError as exc:
+        sys.stderr.write("REFUSED: %s\n" % exc)
+        return 1
+    except json.JSONDecodeError as exc:
+        sys.stderr.write("UNREADABLE: gh printed output that is not JSON (%s); nothing was changed\n" % exc)
         return 1
 
     parser.error("unknown verb %r" % (args.verb,))
