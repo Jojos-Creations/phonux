@@ -271,3 +271,23 @@ test('mergeTuningPatch: 300 seeded patches agree with a hand-written reference a
     if (isDeepStrictEqual(base, expected)) assert.equal(merged, base, `seed ${31000 + i}: nothing changed, so the same object`);
   }
 });
+
+test('mergePatch: a patch key named __proto__ stays a member of the result and never becomes its prototype', () => {
+  const patch = JSON.parse('{"__proto__":{"polluted":true},"title":"t"}') as Loose;
+  const next = mergePatch({}, asPatch(patch)) as Loose;
+  assert.equal(Object.getPrototypeOf(next), Object.prototype);
+  assert.equal(next.polluted, undefined);
+  assert.deepEqual(Object.keys(next), ['__proto__', 'title']);
+  assert.equal(({} as Loose).polluted, undefined);
+  assert.throws(() => resolvePanelSettings({ instance: next }), /unknown setting/);
+});
+
+test('mergeTuningPatch: a member named __proto__ stays a member and never becomes the prototype', () => {
+  const patch = JSON.parse('{"slide":{"__proto__":{"polluted":true}},"__proto__":{"polluted":true}}') as Loose;
+  const next = mergeTuningPatch({}, patch) as Loose;
+  assert.equal(Object.getPrototypeOf(next), Object.prototype);
+  assert.equal(next.polluted, undefined);
+  assert.equal(Object.getPrototypeOf(next.slide), Object.prototype);
+  assert.equal((next.slide as Loose).polluted, undefined);
+  assert.deepEqual(Object.keys(next).sort(), ['__proto__', 'slide']);
+});
