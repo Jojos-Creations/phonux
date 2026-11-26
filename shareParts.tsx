@@ -18,6 +18,9 @@ export const SpaceIcon = createSvgIcon(<path d="M3 3v8h8V3zm6 6H5V5h4zm-6 4v8h8v
 export const PlaylistIcon = createSvgIcon(<path d="M15 6H3v2h12zm0 4H3v2h12zM3 16h8v-2H3zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6z" />, 'QueueMusic');
 export const TrackIcon = createSvgIcon(<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3z" />, 'MusicNote');
 export const PageIcon = createSvgIcon(<path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2m0 14H5V8h14z" />, 'WebAsset');
+export const ShieldIcon = createSvgIcon(<path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5zm0 2.18 7 3.11V11c0 4.52-2.98 8.69-7 9.93-4.02-1.24-7-5.41-7-9.93V6.29z" />, 'ShieldOutlined');
+export const ShieldCheckIcon = createSvgIcon(<path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9z" />, 'VerifiedUser');
+export const WarningIcon = createSvgIcon(<path d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z" />, 'Warning');
 export const MoreIcon = createSvgIcon(<path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2" />, 'MoreHoriz');
 
 /** What kind of thing is shared. The five named kinds have their own glyph and wording; any other string is a kind the host names itself. @public */
@@ -106,6 +109,11 @@ export function formatFileSize(bytes: number): string {
 /** Whole days from `now` to `at`, rounded up so a link with a few hours left still says one day, and never below one. */
 export function daysUntil(at: number, now: number): number {
   return Math.max(1, Math.ceil((at - now) / 86_400_000));
+}
+
+/** Whole days from `since` to `now`, 0 for anything under a day or in the future. */
+export function daysSince(since: number, now: number): number {
+  return Math.max(0, Math.floor((now - since) / 86_400_000));
 }
 
 const TONES = ['primary', 'secondary', 'success', 'info', 'warning'] as const;

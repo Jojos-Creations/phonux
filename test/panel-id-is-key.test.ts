@@ -15,6 +15,7 @@ import { made, mountRow, panelsOf, rootEntry, row } from './support/scroll-row.j
 import { flush, markerTemplate, mountWorkspace, rowEntries } from './support/workspace-row.js';
 
 afterEach(() => {
+  mock.timers.reset();
   mock.restoreAll();
   cleanup();
 });
@@ -109,10 +110,13 @@ test('useActivePanel reports and takes a key', async () => {
 });
 
 test('the snapshot trigger is given a panel\'s key', async () => {
+  // An opened panel is pictured on a wall-clock timer; held here so a slow machine cannot add opening pictures to the list.
+  mock.timers.enable({ apis: ['setTimeout'] });
   const r = await matrixRig({ extra: [matrixTemplate('multi', { settings: { multiple: true } })] });
   const one = r.ws.addPanel('multi');
   await r.settle();
   assert.ok(one.id.includes('~'), 'control: the key is not the counter');
+  assert.equal(r.capture.captured.length, 0, 'control: no picture before the park, so the list below holds only what the park asked for');
   r.turn(() => one.hide());
   await r.settle();
   assert.deepEqual(r.capture.captured, [one.id], 'the park asked for a picture under the key');

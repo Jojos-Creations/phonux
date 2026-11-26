@@ -531,6 +531,12 @@ export const maximizedPanel: () => MaximizablePanel | null;
 export type MaximizePhase = 'home' | 'growing' | 'maximized' | 'shrinking';
 
 // @public
+export interface MemberSafety {
+    code?: string;
+    state: 'unchecked' | 'checked' | 'changed';
+}
+
+// @public
 export function minWorkspaceWidth(input: MinWorkspaceWidthInput): number;
 
 // @public
@@ -1305,6 +1311,7 @@ export interface PhonuxLabels {
     sharedByYou: string;
     sharedChangeEnd: string;
     sharedCopyAgain: string;
+    shareDeclined: string;
     sharedEmpty: string;
     sharedMore: (name: string, person?: string, detail?: string) => string;
     sharedRenew: string;
@@ -1313,21 +1320,52 @@ export interface PhonuxLabels {
     sharedStop: string;
     sharedTabsName: string;
     sharedWithYou: string;
+    shareGoneHeading: (kind: string) => string;
+    shareGoneHint: (kind: string) => string;
+    shareGoneRow: (name: string, status: 'left' | 'declined', days: number | null) => string;
+    shareGoneSince: (status: 'left' | 'declined', days: number | null) => string;
     shareInPersonHint: string;
     shareInvite: string;
+    shareInviteAgain: string;
+    shareInviteAgainTo: (name: string) => string;
     shareInvitedNotJoined: string;
     shareInviteField: string;
     shareKind: (kind: string) => string;
     shareKindPlural: (kind: string) => string;
+    shareLeft: string;
     shareLinkEnds: (days: number | null, opens: number | null) => string;
     shareLinkNote: string;
     shareMemberMore: (name: string) => string;
+    shareMemberSafetyLine: (access: string, state: 'unchecked' | 'checked' | 'changed') => string;
     shareMoreApps: string;
     shareOfferWaits: string;
     shareOwner: string;
     sharePeopleHint: string;
     sharePeopleHintEdit: string;
     shareRemove: string;
+    shareRemoveFrom: (name: string) => string;
+    shareSafetyAccept: string;
+    shareSafetyChangedBody: (name: string) => string;
+    shareSafetyChangedTitle: (name: string) => string;
+    shareSafetyCheck: string;
+    shareSafetyCheckFor: (name: string) => string;
+    shareSafetyGroups: (name: string) => string;
+    shareSafetyHowNumbers: (name: string) => string;
+    shareSafetyHowQr: (name: string) => string;
+    shareSafetyMatch: string;
+    shareSafetyMismatch: string;
+    shareSafetyMismatchNote: (name: string) => string;
+    shareSafetyNewTitle: string;
+    shareSafetyNotNow: string;
+    shareSafetyNotNowNote: (name: string) => string;
+    shareSafetyNumbers: string;
+    shareSafetyQrName: (name: string) => string;
+    shareSafetyReview: string;
+    shareSafetyReviewFor: (name: string) => string;
+    shareSafetyShowQr: string;
+    shareSafetyTitle: string;
+    shareSafetyViewName: string;
+    shareSafetyWaiting: string;
     shareSend: string;
     shareSendTo: (name: string) => string;
     shareSent: string;
@@ -1337,6 +1375,7 @@ export interface PhonuxLabels {
     shareTabsName: string;
     shareTitle: string;
     shareTrustedLine: string;
+    shareUnknownAccount: string;
     shareYou: string;
     sizeName: (slots: number) => string;
     splitDivider: (left: string, right: string) => string;
@@ -1767,10 +1806,14 @@ export interface ShareLinkInfo {
 
 // @public
 export interface ShareMember {
+    canInviteAgain?: boolean;
     id: string;
     joined?: boolean;
     name: string;
     role: 'owner' | ShareRole;
+    safety?: MemberSafety;
+    since?: number;
+    status?: 'left' | 'declined';
     you?: boolean;
 }
 
@@ -1795,14 +1838,19 @@ export interface ShareSheetProps {
     link?: ShareLinkInfo;
     members?: readonly ShareMember[];
     now?: number;
+    onAcceptNewKey?: (id: string) => void;
     onAddPerson?: () => void;
     onChangeLink?: () => void;
     onChangeRole?: (id: string, role: ShareRole) => void;
     onClose?: () => void;
     onCopyLink: () => void;
     onInvite?: (who: string, role: ShareRole) => void;
+    onInviteAgain?: (id: string, role: ShareRole) => void;
     onMoreApps?: () => void;
     onRemove?: (id: string) => void;
+    onSafetyCodeMatch?: (id: string) => void;
+    onSafetyCodeMismatch?: (id: string) => void;
+    onSafetyCodeOpen?: (id: string) => void;
     onSend: (id: string) => void;
     onTabChange?: (tab: ShareTab) => void;
     people: readonly SharePerson[];
