@@ -77,6 +77,11 @@
 
 ### Changed
 
+- The release workflow publishes in two jobs. One installs with `--ignore-scripts`, runs the gate and packs `dist/`; the other,
+  which holds the npm trusted-publishing identity and runs no repository code, publishes that exact tarball (checked against
+  its sha256) with provenance. The `NPM_TOKEN` fallback is gone, a ref must be a full sha on `main`, and a private repository stops
+  the publish instead of dropping provenance. A final version publishes under `latest`, which moves it off `0.2.0-rc.5`. The pack
+  smoke refuses a manifest whose `license` is not the source's SPDX id (`MPL-2.0`).
 - A sideways wheel or trackpad scroll now asks the row for whole panels instead of dragging it: the row glides to each stop
   itself, more scrolling extends the same glide, and a long slow scroll keeps queuing the next panel while it goes. The pause
   timers that guessed where a scroll stopped are gone.

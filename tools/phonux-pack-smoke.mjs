@@ -293,6 +293,8 @@ try {
     const problems = [];
     if (Object.hasOwn(packed, 'private')) problems.push(`has a 'private' key (${packed.private}); npm's real publish refuses it with EPRIVATE`);
     if (typeof packed.license !== 'string' || packed.license.trim() === '') problems.push('has no license');
+    // A registry page and licence scanners read this field; a pointer or an id the source does not carry says nothing about the package.
+    if (packed.license !== srcPkg.license || /^(SEE LICENSE IN|UNLICENSED$)/.test(String(packed.license))) problems.push(`license "${packed.license}" is not the source manifest's SPDX id "${srcPkg.license}"`);
     const needsText = typeof packed.license === 'string' && packed.license !== 'UNLICENSED' && !packed.license.startsWith('SEE LICENSE IN');
     if (needsText && !packedFiles.some((f) => /^LICEN[CS]E(\.|$)/i.test(f))) problems.push(`license "${packed.license}" has no LICENSE file in the tarball`);
     if (typeof packed.description !== 'string' || packed.description.trim() === '') problems.push('has no description');

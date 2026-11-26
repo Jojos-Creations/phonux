@@ -9,20 +9,29 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
-  # npm trusted publishing exchanges this OIDC token for a one-time publish token; provenance signs with it too.
-  id-token: write
+# Each job states its own permissions, so a job never inherits one it does not name.
+permissions: {}
 
 concurrency:
   group: publish-release
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # Runs every dev dependency's code, so it holds no publish identity: no id-token, no environment.
+  build:
     runs-on: ubuntu-latest
-    environment: npm-release
+    permissions:
+      contents: read
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+      version: ${{ steps.pack.outputs.version }}
     steps:
+      # A branch or tag name can move between the approval and the checkout; a full sha cannot.
+      - name: Refuse a ref that is not a full sha
+        env:
+          REF: ${{ inputs.ref }}
+        run: printf '%s' "$REF" | grep -Eq '^[0-9a-f]{40}$'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -33,54 +42,125 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
         run: git merge-base --is-ancestor "$REF" origin/main
-      # No registry-url: setup-node would write an _authToken line that, left empty, stops npm from trying OIDC.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           # A release build must not restore a cache an earlier, untrusted run could have written.
           package-manager-cache: false
-      # Trusted publishing needs npm 11.5.1 or later.
-      - run: npm install -g npm@11.6.2
-      - run: npm ci
+      # No dependency's install script runs; esbuild's is its only one and it only checks the binary the platform package ships.
+      - run: npm ci --ignore-scripts
       # The gate runs here too: release:check builds and smokes the package, which a red tree can pass.
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
       # release:check refuses a version the registry already has, then builds and runs the publish gate.
       - run: npm run release:check
-      - name: Publish from dist/
+      - name: Pack dist/ and record its hash
+        id: pack
         working-directory: dist
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/release"
+          mkdir "$out"
+          version=$(node -p "require('./package.json').version")
+          npm pack --ignore-scripts --pack-destination "$out" > /dev/null
+          tarball="phonux-$version.tgz"
+          test -f "$out/$tarball"
+          test "$(find "$out" -type f | wc -l)" -eq 1
+          sha256=$(sha256sum "$out/$tarball" | cut -d' ' -f1)
+          printf '%s  %s\n' "$sha256" "$tarball" > "$out/$tarball.sha256"
+          {
+            echo "tarball=$tarball"
+            echo "sha256=$sha256"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          # The approver of the publish job reads this before approving.
+          {
+            echo "### $tarball"
+            echo "sha256 \`$sha256\`"
+            echo '```'
+            tar -tzf "$out/$tarball"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: phonux-release
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+          retention-days: 7
+
+  # Holds the publish identity and runs nothing from the repository: no checkout, no npm ci.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: npm-release
+    permissions:
+      contents: read
+      # npm trusted publishing exchanges this OIDC token for a one-time publish token; provenance signs with it too.
+      id-token: write
+    steps:
+      # No registry-url: setup-node would write an _authToken line that, left empty, stops npm from trying OIDC.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # Trusted publishing needs npm 11.5.1 or later.
+      - run: npm install -g npm@11.6.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: phonux-release
+          path: release
+      - name: Verify the tarball is the one the build job hashed
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TARBALL" | grep -Eq '^phonux-[0-9A-Za-z.+-]+\.tgz$'
+          printf '%s' "$EXPECTED_SHA256" | grep -Eq '^[0-9a-f]{64}$'
+          test "$TARBALL" = "phonux-$VERSION.tgz"
+          test "$(find release -type f | wc -l)" -eq 2
+          actual=$(sha256sum "release/$TARBALL" | cut -d' ' -f1)
+          if [ "$actual" != "$EXPECTED_SHA256" ]; then
+            echo "tarball sha256 $actual differs from the build job's $EXPECTED_SHA256"
+            exit 1
+          fi
+          test "$(cat "release/$TARBALL.sha256")" = "$EXPECTED_SHA256  $TARBALL"
+          # The manifest inside the tarball is what the registry will serve, so it must agree with what the build job reported.
+          packed=$(tar -xOzf "release/$TARBALL" package/package.json | node -p "const p = JSON.parse(require('fs').readFileSync(0, 'utf8')); p.name + '@' + p.version")
+          test "$packed" = "phonux@$VERSION"
+          echo "verified $TARBALL ($actual)"
+      - name: Publish the verified tarball
+        env:
+          TARBALL: ${{ needs.build.outputs.tarball }}
+          VERSION: ${{ needs.build.outputs.version }}
           REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
           set -euo pipefail
-          version=$(node -p "require('./package.json').version")
-          # A prerelease must never take latest; a final takes it by name so the tag is never left to a default.
-          case "$version" in
+          # npm refuses provenance from a private repository (E422); publishing without it would be a silent downgrade, so stop.
+          if [ "$REPO_PRIVATE" != "false" ]; then
+            echo "repository is not public (private=$REPO_PRIVATE): refusing to publish without provenance"
+            exit 1
+          fi
+          # A prerelease must never take latest; a final takes it by name, which also moves latest off an older release candidate.
+          case "$VERSION" in
             *-*) tag=next ;;
             *) tag=latest ;;
           esac
-          # npm refuses provenance from a private repository (E422), so it is added only once the repo is public.
-          provenance=""
-          if [ "$REPO_PRIVATE" = "false" ]; then provenance="--provenance"; else echo "repository is private: publishing without provenance"; fi
-          # With no NPM_TOKEN secret npm authenticates through trusted publishing; a token, when set, is used instead.
-          if [ -n "$NPM_TOKEN" ]; then
-            printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$RUNNER_TEMP/.npmrc"
-            export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc"
-          fi
-          npm publish --tag "$tag" --access public $provenance
-          echo "published phonux@$version under $tag"
+          npm publish "./release/$TARBALL" --provenance --tag "$tag" --access public
+          echo "published phonux@$VERSION under $tag"
       - name: Confirm the registry serves the version under its tag
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
-          version=$(node -p "require('./dist/package.json').version")
-          case "$version" in *-*) tag=next ;; *) tag=latest ;; esac
+          case "$VERSION" in *-*) tag=next ;; *) tag=latest ;; esac
           for attempt in 1 2 3 4 5; do
-            served=$(npm view "phonux@$version" version 2>/dev/null || true)
+            served=$(npm view "phonux@$VERSION" version 2>/dev/null || true)
             tagged=$(npm view phonux "dist-tags.$tag" 2>/dev/null || true)
-            if [ "$served" = "$version" ] && [ "$tagged" = "$version" ]; then echo "registry serves phonux@$version as $tag"; exit 0; fi
+            if [ "$served" = "$VERSION" ] && [ "$tagged" = "$VERSION" ]; then echo "registry serves phonux@$VERSION as $tag"; exit 0; fi
             sleep 10
           done
-          echo "registry does not yet serve phonux@$version as $tag (version: ${served:-none}, $tag: ${tagged:-none})"
+          echo "registry does not yet serve phonux@$VERSION as $tag (version: ${served:-none}, $tag: ${tagged:-none})"
           exit 1

@@ -2467,8 +2467,10 @@ The library began as a folder inside phonux-app and was extracted with `git filt
 so `git log --follow` on a source file runs back through its years inside the app. The first entry of `CHANGELOG.md` names the
 phonux-app commit the extraction was taken at.
 
-A release is `npm run release:check`, then a publish: either the manual `.github/workflows/publish-release.yml` run (it waits for approval in the `npm-release`
-environment, then publishes `dist/` under the right dist-tag through npm trusted publishing), or the maintainer's own
+A release is `npm run release:check`, then a publish: either the manual `.github/workflows/publish-release.yml` run (a build job with no publish identity installs with `--ignore-scripts`, runs the gate and packs `dist/` into a tarball with its sha256; the
+publish job waits for approval in the `npm-release` environment, checks the hash and publishes that tarball with provenance under the right
+dist-tag through npm trusted publishing, and never installs or runs repository code; a private repository or a ref that is not a full
+sha on `main` stops it), or the maintainer's own
 `npm publish` from `dist/` (`npm publish --tag next` for a prerelease version). For a
 `0.x.y-rc.N` version, release:check first fetches `origin/rcN` and refuses when HEAD lacks any of it, naming each missing pull request; the
 command it prints starts with `node tools/phonux-rc-branch-check.mjs` so the same comparison runs again at the moment of publishing,
