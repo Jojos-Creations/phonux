@@ -503,7 +503,7 @@ interface GoneRowProps {
   onRemove: ((id: string) => void) | undefined;
 }
 
-/** A person who left or declined: a quiet row with the answer as a tag, and the two things the owner can do about it. */
+/** A person who left or declined: a quiet row with the answer as a tag, and the actions the owner has on it. */
 function GoneRow({ member, editable, labels, now, onInviteAgain, onRemove }: GoneRowProps): React.ReactElement {
   const status = member.status ?? 'left';
   const unknown = member.name.trim() === '';
