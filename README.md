@@ -254,6 +254,20 @@ builds from the same command (`--debug` still makes test builds):
 The keystore passwords come from `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD`, never from a file. `web` and
 `desktop` name npm scripts, and default to the two shown.
 
+## Embedding safely
+
+A saved workspace is untrusted input. The library checks a loaded file with `isWorkspaceState` before it restores
+anything. A host that reads a saved file itself, to import it or show what is in it, must call `isWorkspaceState` first
+too. The guard does not check `params` deeply, so each view validates the `params` it is given before it uses them.
+
+A view that shows a remote page must use a sandboxed `iframe` or an isolated webview. It must never share the host's
+preload script, which can reach the host's own APIs.
+
+Emotion, which MUI uses for its styles, writes its rules into `<style>` elements. A Content-Security-Policy blocks them
+unless it allows `style-src 'unsafe-inline'`, or the host gives Emotion a nonce with `createCache({ key, nonce })` inside
+a `CacheProvider`. Production builds insert rules through the CSSOM, which the policy does not block, so the gap often
+shows only in development.
+
 ## License
 
 phonux is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/). Anyone may use it, including commercially. If you change a file of phonux and distribute the result, you share your changes to that file under the same license; your own files that use phonux stay yours. The full text is in LICENSE.
