@@ -4,6 +4,26 @@
 
 ### Added
 
+- Share sheet, people who left or declined. A `ShareMember` with `status` `'left'` or `'declined'` (and `since`, epoch
+  milliseconds) moves out of the members list into a quieter group under `No longer in this space` (the item's kind, so
+  `playlist` reads right). Each row has a grey Left or orange Declined tag, the access they had, `Left, 3 days ago`, and
+  full-width Invite again and Remove buttons; there is no role menu and no more button. `joined` is ignored when `status`
+  is set. `onInviteAgain(id, role)` draws Invite again, and `onRemove` is reused for Remove; each button is drawn only
+  with its callback. `canInviteAgain: false` hides Invite again for a person the app cannot invite, and an empty `name`
+  shows `Unknown account` with Remove only. A row is named for assistive technology as `Dana Okafor left 3 days ago`.
+  A note under the group says they stay until removed and that removing gives the space new keys. Nothing is drawn
+  when the group is empty. New labels: `shareGoneHeading`, `shareLeft`, `shareDeclined`, `shareGoneSince`,
+  `shareGoneRow`, `shareUnknownAccount`, `shareInviteAgain`, `shareInviteAgainTo`, `shareRemoveFrom`, `shareGoneHint`.
+- Share sheet, safety code. A joined `ShareMember` can carry `safety: { state, code? }` (`MemberSafety`, state
+  `'unchecked'`, `'checked'` or `'changed'`). With `onSafetyCodeOpen` the row says `safety code not checked` and has a
+  small Check button (Review on a changed key); `checked` puts a green shield on the avatar. Pressing it reports the
+  id and opens a full page inside the sheet: the 60 digits as 12 large numbered groups, a Numbers or Show QR switch (the
+  QR holds the 60 digits without spaces), They match (`onSafetyCodeMatch`, then the sheet leaves the page), They do
+  not match (`onSafetyCodeMismatch`, then a line telling the user not to share anything private until they check again
+  in person, and Back). A changed key opens the same page with a warning box and the new code, Accept new key
+  (`onAcceptNewKey`) and Not now. The sheet only draws and reports taps; the app holds the codes and the checked state.
+  Each action is drawn only with its callback. Scanning with the camera is not part of the sheet. New labels
+  start with `shareSafety`, plus `shareMemberSafetyLine`.
 - Sticky panels. The panel setting `sticky` (`'off'` by default, `'start'` or `'end'`) takes the panel's slots out of the
   scrolling row at that end of the row, and the panel never moves while the row scrolls: `[sticky | row of 4]`,
   `[sticky | row of 3 | sticky]`, `[sticky | sticky | row of 3]`, up to every slot. It takes its slots whether or not the
