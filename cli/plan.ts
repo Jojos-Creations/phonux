@@ -46,8 +46,9 @@ function npm(app: AppInfo, script: string): Step {
   return { kind: 'run', command: 'npm', args: ['run', script], cwd: app.root };
 }
 
+// --no-install: a missing local @capacitor/cli must fail, never fetch whatever registry package is named `cap`.
 function cap(app: AppInfo, ...args: string[]): Step {
-  return { kind: 'run', command: 'npx', args: ['cap', ...args], cwd: app.root };
+  return { kind: 'run', command: 'npx', args: ['--no-install', 'cap', ...args], cwd: app.root };
 }
 
 // `cap add` creates the native project once; after that it is the developer's to commit and customize.
@@ -87,7 +88,7 @@ function androidJob(app: AppInfo, probe: Probe, env: Record<string, string>, opt
       {
         kind: 'run', command: java, cwd: android,
         args: [
-          '-sigalg', 'SHA1withRSA', '-digestalg', 'SHA1', '-keystore', signing.keystore,
+          '-sigalg', 'SHA256withRSA', '-digestalg', 'SHA-256', '-keystore', signing.keystore,
           '-keypass:env', keyPassVar, '-storepass:env', 'PHONUX_KEYSTORE_PASSWORD',
           '-signedjar', join(bundle, 'app-release-signed.aab'), join(bundle, 'app-release.aab'), signing.alias,
         ],

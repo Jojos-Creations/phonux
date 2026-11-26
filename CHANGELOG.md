@@ -116,6 +116,9 @@
 
 ### Fixed
 
+- `phonux build` signs the Android bundle with `SHA256withRSA` and `SHA-256` instead of SHA-1, which current JDKs treat as
+  unsigned, and runs Capacitor as `npx --no-install cap`, so a project without `@capacitor/cli` installed fails instead of
+  downloading an unrelated package from the registry.
 - `phonux build` no longer puts the Android keystore passwords on any command line, where another local user could read
   them from the process list. A signed Android build now runs Gradle's `:app:bundleRelease` and then `jarsigner` with
   `-storepass:env PHONUX_KEYSTORE_PASSWORD` and `-keypass:env` (`PHONUX_KEY_PASSWORD`, or the keystore password when that
