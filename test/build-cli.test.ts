@@ -103,7 +103,7 @@ test('desktop alone needs no web build, and a missing native project is added fi
   assert.deepEqual(desktop.jobs.map((j) => j.id), ['desktop']);
   const android = planBuild(targetsById(['android-tablet']), app(), probe, (p) => checkPlatform(p, app(), probe), { debug: false });
   const steps = android.jobs[1]!.steps.map((s) => (s.kind === 'run' ? `${s.command} ${s.args.join(' ')}` : s.kind));
-  assert.deepEqual(steps, ['npx cap add android', 'npx cap sync android', './gradlew assembleDebug', 'copy']);
+  assert.deepEqual(steps, ['npx --no-install cap add android', 'npx --no-install cap sync android', './gradlew assembleDebug', 'copy']);
   assert.equal(android.jobs[1]!.output, join('.phonux', 'build', 'android', 'app-debug.apk'));
 });
 
@@ -138,7 +138,7 @@ test('every phone build lands under .phonux/build, signed or not', () => {
 
 test('a signed Android build names its passwords by environment variable, never on the command line', () => {
   const signed = app({ android: { keystore: 'release.jks', alias: 'upload' } });
-  const envs: Record<string, string>[] = [{ PHONUX_KEYSTORE_PASSWORD: 'store-secret' }, { PHONUX_KEYSTORE_PASSWORD: 'store-secret', PHONUX_KEY_PASSWORD: 'key-secret' }];
+  const envs: Record<string, string>[] = [{ PHONUX_KEYSTORE_PASSWORD: 'pw-secret' }, { PHONUX_KEYSTORE_PASSWORD: 'pw-secret', PHONUX_KEY_PASSWORD: 'key-secret' }];
   for (const env of envs) {
     const probe = fullMac([join(ROOT, 'android')], env);
     const plan = planBuild(targetsById(['android-phone']), signed, probe, (p) => checkPlatform(p, signed, probe), { debug: false });
@@ -155,6 +155,32 @@ test('a signed Android build names its passwords by environment variable, never 
     assert.deepEqual(sign.args.slice(sign.args.indexOf('-keypass:env'), sign.args.indexOf('-keypass:env') + 2), ['-keypass:env', keyVar]);
     assert.equal(sign.args.at(-1), 'upload');
   }
+});
+
+test('a signed Android bundle is signed with SHA-256, never SHA-1', () => {
+  const signed = app({ android: { keystore: 'release.jks', alias: 'upload' } });
+  const probe = fullMac([join(ROOT, 'android')], { PHONUX_KEYSTORE_PASSWORD: 'pw-secret' });
+  const plan = planBuild(targetsById(['android-phone']), signed, probe, (p) => checkPlatform(p, signed, probe), { debug: false });
+  const sign = plan.jobs.find((j) => j.id === 'android')!.steps.find((s) => s.kind === 'run' && s.args.includes('-signedjar'))!;
+  assert.ok(sign.kind === 'run');
+  assert.deepEqual(sign.args.slice(sign.args.indexOf('-sigalg'), sign.args.indexOf('-sigalg') + 2), ['-sigalg', 'SHA256withRSA']);
+  assert.deepEqual(sign.args.slice(sign.args.indexOf('-digestalg'), sign.args.indexOf('-digestalg') + 2), ['-digestalg', 'SHA-256']);
+  assert.ok(!sign.args.some((a) => /SHA1/i.test(a)), describeStep(sign));
+});
+
+test('every npx the build runs is --no-install, so a missing local binary fails instead of downloading a registry package', () => {
+  const signed = app({ android: { keystore: 'release.jks', alias: 'upload' }, ios: { teamId: 'ABCDE12345' } });
+  const probe = fullMac([join(ROOT, 'android'), join(ROOT, 'ios')], { PHONUX_KEYSTORE_PASSWORD: 'secret' });
+  const everyTarget = TARGETS.map((t) => t.id);
+  const npxSteps: string[][] = [];
+  for (const config of [app(), signed]) {
+    for (const debug of [false, true]) {
+      const plan = planBuild(targetsById(everyTarget), config, probe, (p) => checkPlatform(p, config, probe), { debug });
+      for (const job of plan.jobs) for (const step of job.steps) if (step.kind === 'run' && step.command === 'npx') npxSteps.push(step.args);
+    }
+  }
+  assert.ok(npxSteps.length >= 8, `only ${npxSteps.length} npx steps were planned, so this proved little`);
+  for (const args of npxSteps) assert.equal(args[0], '--no-install', `npx ${args.join(' ')}`);
 });
 
 function deferred(): { promise: Promise<boolean>; resolve: (ok: boolean) => void } {
