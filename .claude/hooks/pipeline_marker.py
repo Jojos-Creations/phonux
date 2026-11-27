@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# GENERATED FILE -- DO NOT EDIT. Regenerate by running claude-config's tools/publish-template.py (see ADR 0007). Source: ~/.claude/hooks/pipeline_marker.py
+# GENERATED FILE -- DO NOT EDIT. Published from a private source repo by its tools/publish-template.py (see ADR 0007); do not edit here. Source: ~/.claude/hooks/pipeline_marker.py
 """The one local, no-network migration signal, both directions
 (PLAN-2026-09-27-git-pipeline-v2.md section 5, "The pipeline marker").
 
