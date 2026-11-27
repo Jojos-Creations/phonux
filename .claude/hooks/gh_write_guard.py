@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# GENERATED FILE -- DO NOT EDIT. Regenerate by running claude-config's tools/publish-template.py (see ADR 0007). Source: ~/.claude/hooks/gh_write_guard.py
+# GENERATED FILE -- DO NOT EDIT. Published from a private source repo by its tools/publish-template.py (see ADR 0007); do not edit here. Source: ~/.claude/hooks/gh_write_guard.py
 """PreToolUse guard on Bash: refuse the `gh` and `queue` writes section 8 of
 PLAN-2026-09-27-git-pipeline-v2.md reserves to one seat, plus two writes no
 seat may ever make (PLAN section 12's "Build-time refinements", point 3).
@@ -32,15 +32,20 @@ TWO INDEPENDENT LAYERS
    session `cwd`'s own repo. Section 8's table, reproduced as data below:
    only the coordinator or main session may create or edit an issue, create
    or edit a PR's body/title/labels, call `gh pr ready`, or call
-   `gh pr update-branch`; only the verifier may post `gh pr review` or call
-   `gh pr merge --match-head-commit`; nobody
-   but the verifier may call `gh pr merge` at all EXCEPT the main session,
-   which may call a PLAIN `gh pr merge` (no `--match-head-commit`) since
-   GitHub's own required check is the actual gate there, never this hook
-   (section 8's "why the owner can merge by hand" paragraph); every other
-   subagent (plan-worker, plan-researcher, plan-auditor, anything else) gets
-   read-only `gh`/`git` and commits on `plan/<id>`, nothing that writes
-   issue or PR state. The `queue` tool's own subcommands are gated the same
+   `gh pr update-branch`; the verifier may post `gh pr review` and call
+   `gh pr merge --match-head-commit`. The main session is also a verifier
+   seat in a cloud session (the proxy refuses the commit-status write, so
+   the verdict is a COMMENT review judged offline by
+   `tools/queue/report_rules.py`, docs/merge-without-status.md), so it may
+   post a COMMENT review (`gh pr review --comment`; never `--approve` or
+   `--request-changes`) and may call `gh pr merge` ONLY with
+   `--match-head-commit <sha>`. The reason for the pin: main has no
+   required status check, so nothing on GitHub's side binds a merge to the
+   head the verifier judged; `--match-head-commit` is that binding, and a
+   merge without it is refused here. The coordinator may never merge; every
+   other subagent (plan-worker, plan-researcher, plan-auditor, anything
+   else) gets read-only `gh`/`git` and commits on `plan/<id>`, nothing that
+   writes issue or PR state. The `queue` tool's own subcommands are gated the same
    way, after skipping queue.py's OWN leading options to find the real verb:
    `--repo-root` (and every argparse abbreviation of it, 3+ characters
    counting the dashes; the LAST one wins), `-h`/`--help`, and a bare `--`.
@@ -129,8 +134,10 @@ and `turn_budget.py` already key on for the identical reason. `agent_type`
 set with `agent_id` empty is a top-level `claude --agent <name>` session,
 not a dispatched, independently-auditing subagent, and falls into the
 "main session" row: this is precisely what stops a bare `claude --agent
-verifier` session from self-granting merge power (PLAN section 8, closing
-`refute-2-harness-coupling.md` defect 1).
+verifier` session from self-granting the verifier-only powers, an approving
+or change-requesting review (PLAN section 8, closing
+`refute-2-harness-coupling.md` defect 1). Main may merge, but only pinned,
+and review, but only as a comment.
 
 WHY NO SUBPROCESS, STDLIB ONLY
 --------------------------------
@@ -1067,6 +1074,43 @@ def _has_flag(args, names):
     return any(t in names or t.startswith(eq_prefixes) for t in args)
 
 
+def _review_kinds(args):
+    """The review kinds (`approve`, `request-changes`, `comment`) a `gh pr
+    review` argument list asks for, read the way gh's flag parser reads it:
+    short flags cluster (`-ac`), and the value of `-b`/`-F`/`--body`/
+    `--body-file` is never read as a flag."""
+    kinds = set()
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        i += 1
+        if tok == "--":
+            break
+        if tok.startswith("--"):
+            name, has_value, _ = tok.partition("=")
+            if name in ("--body", "--body-file") and not has_value:
+                i += 1
+            elif name == "--approve":
+                kinds.add("approve")
+            elif name == "--request-changes":
+                kinds.add("request-changes")
+            elif name == "--comment":
+                kinds.add("comment")
+        elif tok.startswith("-") and len(tok) > 1:
+            for pos, ch in enumerate(tok[1:], 1):
+                if ch in "bF":
+                    if pos == len(tok) - 1:
+                        i += 1  # value is the next token
+                    break  # otherwise the rest of this token is the value
+                if ch == "a":
+                    kinds.add("approve")
+                elif ch == "r":
+                    kinds.add("request-changes")
+                elif ch == "c":
+                    kinds.add("comment")
+    return kinds
+
+
 def _check_gh_seat_rule(verb, args, seat):
     """One reason string to deny, or None to allow -- PLAN section 8's
     table, reproduced as code. Only called once the target repo's marker
@@ -1083,15 +1127,32 @@ def _check_gh_seat_rule(verb, args, seat):
                     "-- only the verifier merges (owner ruling, plan section 8).")
         if seat == "main":
             if has_match_head:
-                return ("gh_write_guard: `gh pr merge --match-head-commit` is "
-                        "refused outside the verifier seat (plan section 8).")
-            return None  # plain merge: GitHub's own required check is the gate
+                return None
+            # main has no required status check, so the pin is the only thing
+            # binding the merge to the head the verifier judged.
+            return ("gh_write_guard: the main session must pin a merge to the "
+                    "head that was judged: `gh pr merge --match-head-commit "
+                    "<sha>`. main has no required status check, so an unpinned "
+                    "merge is refused (AGENTS.md rule 13; "
+                    "docs/merge-without-status.md).")
         return "gh_write_guard: this seat may not run `gh pr merge` (plan section 8)."
 
     if verb == "pr_review":
         if seat == "verifier":
             return None
-        return ("gh_write_guard: only the verifier seat may post `gh pr review` "
+        if seat == "main":
+            # A cloud session's verifier runs as main and posts its verdict as
+            # a COMMENT review (docs/merge-without-status.md); an approval or
+            # a change request is never main's to give.
+            kinds = _review_kinds(args)
+            if "comment" in kinds and not kinds & {"approve", "request-changes"}:
+                return None
+            return ("gh_write_guard: the main session may only post a COMMENT "
+                    "review (`gh pr review --comment`); `--approve` and "
+                    "`--request-changes` are the verifier seat's "
+                    "(docs/merge-without-status.md).")
+        return ("gh_write_guard: only the verifier seat, or the main session "
+                "with `--comment`, may post `gh pr review` "
                 "(the verdict review; plan section 8).")
 
     if verb == "pr_edit":
