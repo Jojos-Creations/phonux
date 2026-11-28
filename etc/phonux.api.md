@@ -1478,6 +1478,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly exitRightIds: ReadonlySet<string>;
     readonly fixedViewCount: number;
     followPanel(id: string): void;
+    holdUndo(on: boolean): void;
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
     readonly rowNumbers: RowNumbers;
