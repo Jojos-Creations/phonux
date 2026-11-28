@@ -875,8 +875,11 @@ The motion is written by `columnMotion.ts` straight to each cell's style after e
 Reduce Motion, from MotionConfig or from the system query alone, makes the switch instant when the app gives no `enterSide`, as it always was, and the regression tests pin each source (`test/workspace-switch-scroll*.test.ts`). With `enterSide` it is a 150 ms crossfade in place instead: both cells stand at rest, the one arriving drawn over the one leaving, and only their opacity changes; a switch during a fade carries on from each cell's drawn opacity. Reduce Motion allows a fade, and an app that tells the library where its workspaces are drawn is one that wants the switch seen. A row that moves horizontally inside a workspace is a separate mechanism (`rowScroller.ts`) and is not part of this.
 
 **Saved list.** `ColumnState` is `{ version: 1 | 2, workspaces: [{ id, name }], current, side? }`; `side` and version 2 are explained in "Side by side". It is read once; workspaces code added before it
-arrived keep their handle and take the saved name, the saved order wins, and any that the list does not know follow it. A record that
-fails the guard reads as nothing saved. Saves run one after another after each change to the list, a name or the current workspace.
+arrived keep their handle and take the saved name, the saved order wins, and any that the list does not know follow it. `load()` returning
+`null` means nothing is saved. A rejection, a throw, or a record that is not understood (a version this build does not read, or no list of
+workspaces) is reported through `onError` and sets the column to save nothing for the rest of the launch: the record was not read, so replacing
+it with the list the launch has would destroy it. In a record of a known version, an entry that is not well formed or repeats an id is dropped and
+reported, and the others are kept and saved. Saves run one after another after each change to the list, a name or the current workspace.
 
 **Moving.** The column is moved only by `step`, `scrollTo`, the keys and the two buttons, never by a wheel or trackpad, so it cannot chain
 a scroll out of a panel. Its cells slide as "Switch motion" says. A button where there is no neighbor reads `labels.newWorkspace` and creates one on that side, then scrolls to it.
@@ -1001,9 +1004,11 @@ A sentinel that refuses focus (everything outside an open modal dialog does) lea
 own dot bar, so a window of two spaces has two bars; the bar of a cell the window does not show stays mounted but inert and hidden from
 assistive technology, like the rest of that cell.
 
-**Saved state.** With `sideBySide` the column writes version 2: `{ version: 2, workspaces, current, side: { shown: string[], split: number[] } }`,
-the intent in workspace ids and row slots. A column without `sideBySide` writes version 1 as before and ignores `side` when it reads. A version 1
-record reads as only the current workspace shown. A `side` that does not read (wrong shape) is ignored and the workspaces beside it
+**Saved state.** With `sideBySide` the column writes `{ version: 1, workspaces, current, side: { shown: string[], split: number[] } }`,
+the intent in workspace ids and row slots. The version stays 1 because the format only grew (the extension rule under "Versioning and failure"):
+a build that reads only version 1 reads the workspaces and ignores `side`, so rolling back keeps the list. A record of version 2, which an earlier
+release wrote, is still read with its `side`; nothing writes version 2 now. A column without `sideBySide` writes no `side` and ignores one when it reads.
+A record with no readable `side` reads as only the current workspace shown. A `side` that does not read (wrong shape) is ignored and the workspaces beside it
 are kept; ids that name a workspace that is gone are dropped, and a `side` that leaves out the current workspace has it added with one row slot.
 Removing a workspace gives its side to the one that becomes current, unless another side shows it already.
 
@@ -1227,8 +1232,10 @@ the restored list applies via one later state update once `load()` resolves -- n
 initializer. `WorkspaceStorage.load(): Promise<WorkspaceState | null>` is called once per mount, from a mount
 effect (StrictMode runs that effect twice in development, so `load()` is then called twice and only the call
 that was not cancelled applies). `null`, a rejection, and a `load()` that throws before it returns a promise all
-mean nothing saved, silently. A result that fails `isWorkspaceState`, or names a version this build does not
-recognize, also means nothing saved, and logs one console warning.
+mean nothing saved only in the sense that nothing is restored: a rejection and a throw are reported through `onError`, and a result that fails
+`isWorkspaceState`, or names a version this build does not recognize, is reported through `onError` and logs one console warning. After any of
+those three, and after a restore that throws, the workspace saves nothing for the rest of the mount: the file was there and this launch did not
+read it, so the first change would replace it. `null` (or undefined) is the only answer that leaves saving on.
 
 Fresh ids and `defaultHostData` are drawn in the promise callback, never inside a state updater, because React
 may run an updater twice; the fresh ids come from the same counter `create()` uses, so a restored id never
@@ -1319,7 +1326,7 @@ resized window lands on a stop that shows the panel at the same offset in phone 
 
 - **Missing.** A missing file -- no saved data at all -- is treated the same as first launch: no saved state, nothing restored.
 - **Corrupt.** A corrupt file -- unparsable JSON, or content that fails the shape guard -- likewise yields no saved state, logged once and otherwise silent.
-- **Version.** An unrecognized `version` yields no saved state and no migration path: hydrate never guesses at an old shape, and the next save overwrites that file.
+- **Version.** An unrecognized `version` yields no saved state and no migration path: hydrate never guesses at an old shape, and the file is left as it is (nothing is saved for the rest of the mount).
 - **Extension rule.** `version` stays `1` while the format only grows. A later optional field is additive: `isWorkspaceState` ignores keys it does not know and hydrate copies only the keys it knows. Only a breaking change bumps `version`, and a build that then meets a version it does not know sees no saved state.
 - **Not a new failure case: anchors and view keys.** A dangling or cyclic `anchor.panel` and an unregistered `view` key are not new failure cases: hydrate composes through the existing anchor-fallback and view-placeholder mechanisms already used at runtime, the same ones either can hit outside restore.
 - **Not a new failure case: slot fit.** A restored panel whose `slots` no longer fit the live window width is likewise not a new failure case needing its own fit-checking: `usePanelManager`'s capacity-reconcile effect already fires on any panels-array change, including a bulk restore, and parks the overflow the same way it parks an ordinary width overflow.

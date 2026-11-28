@@ -68,9 +68,9 @@
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
   labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell
   on its left.
-- `ColumnState.version` is now `1 | 2`, and a version 2 record carries `side: { shown, split }`. A column without `sideBySide` still
-  writes version 1, and a version 1 record reads as only the current workspace shown. An older phonux reads a version 2 record as
-  nothing saved.
+- `ColumnState` carries an optional `side: { shown, split }`, written by a column made with `sideBySide`. The record stays version 1,
+  so an older phonux reads the workspaces and ignores `side`; a record with no readable `side` reads as only the current workspace
+  shown. `ColumnState.version` is typed `1 | 2` because a version 2 record from a development build is still read; nothing writes it.
 - `arrowKeyBelongsElsewhere` is now also true for a key aimed at a `[role="separator"][aria-valuenow]`, the divider between spaces, so an
   app's own arrow handler leaves its arrows alone as it does for a slider.
 - `TrustScreen`: the props-driven code exchange that adds someone the person trusts. The person makes a code (shown as
@@ -136,6 +136,11 @@
 
 ### Fixed
 
+- A saved record that could not be read is no longer saved over. A column or workspace whose `load` rejects or throws, a column
+  record of a version phonux does not read, and a workspace file that is not a version 1 file are reported through `onError`,
+  and that column or workspace then saves nothing until it is made again, so the stored record stays as it was. `null` still means
+  nothing is saved and saving goes on. In a column record of a known version, one workspace entry that is not well formed no longer
+  costs the whole list: it is dropped and reported, and the others are kept.
 - `phonux build` signs the Android bundle with `SHA256withRSA` and `SHA-256` instead of SHA-1, which current JDKs treat as
   unsigned, and runs Capacitor as `npx --no-install cap`, so a project without `@capacitor/cli` installed fails instead of
   downloading an unrelated package from the registry.

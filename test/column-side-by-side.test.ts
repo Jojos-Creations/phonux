@@ -378,7 +378,7 @@ async function loaded(storage: ColumnStorage, o: Parameters<typeof createWorkspa
 }
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
 
-test('the shown list and the split are saved as version 2 and read back', async () => {
+test('the shown list and the split are saved as version 1 with a side, and read back', async () => {
   const storage = keep();
   const c = await loaded(storage);
   c.addWorkspace({ id: 'a', name: 'Research' });
@@ -388,7 +388,7 @@ test('the shown list and the split are saved as version 2 and read back', async 
   assert.deepEqual(c.setSplit([4, 2]), { ok: true });
   await flush();
   const last = storage.saved[storage.saved.length - 1]!;
-  assert.deepEqual(last, { version: 2, workspaces: [{ id: 'a', name: 'Research' }, { id: 'b', name: 'Trip food' }, { id: 'c', name: 'Notes' }], current: 'a', side: { shown: ['a', 'b'], split: [4, 2] } });
+  assert.deepEqual(last, { version: 1, workspaces: [{ id: 'a', name: 'Research' }, { id: 'b', name: 'Trip food' }, { id: 'c', name: 'Notes' }], current: 'a', side: { shown: ['a', 'b'], split: [4, 2] } });
   const back = await loaded(keep(last));
   assert.deepEqual(back.workspaces.map((w) => w.id), ['a', 'b', 'c']);
   assert.equal(view(back), 'Research 4/4, Trip food 2/2', 'the same split after a reload');

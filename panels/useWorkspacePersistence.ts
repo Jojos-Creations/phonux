@@ -2,7 +2,8 @@
  * Keeps the panel list between launches through a host's `WorkspaceStorage`: one restore at mount, then a
  * debounced save of every committed change; a save that fails is saved again by the next change. The restore is
  * `reconcileWorkspace`, called in the load's success handler; a throw there takes the same path as a failed load, so
- * the workspace always settles. With no storage it does nothing: no state, no promise, no timer.
+ * the workspace always settles. A load that failed, or a file that is not a workspace file this build reads, is reported and
+ * never saved over for the rest of the mount. With no storage it does nothing: no state, no promise, no timer.
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
@@ -90,6 +91,8 @@ export function useWorkspacePersistence(i: {
   // pending (with nothing to restore) would never be saved.
   const [settledStore] = useState(() => createPanelList(false));
   const settled = useSyncExternalStore(settledStore.subscribe, settledStore.get, settledStore.get);
+  // Set when the file was there but could not be read or understood: a save would replace what this launch never saw.
+  const unreadable = useRef(false);
   // The JSON the file is known to hold: restored, or saved and settled without error. A projection equal to it is not saved again.
   const lastSaved = useRef<string | null>(null);
   // The newest save that has not settled; a change that projects to the same JSON is already on its way.
@@ -185,6 +188,10 @@ export function useWorkspacePersistence(i: {
       }
       settle(restored);
     };
+    const refuse = (e: unknown): void => {
+      unreadable.current = true;
+      reportError(e);
+    };
     if (storage === undefined) {
       if (replay === true && !replayed.current) {
         replayed.current = true;
@@ -196,10 +203,12 @@ export function useWorkspacePersistence(i: {
     new Promise<WorkspaceState | null>((resolve) => resolve(storage.load())).then(
       (loaded) => {
         if (cancelled) return;
+        if (loaded !== null && loaded !== undefined && !isWorkspaceState(loaded)) refuse(new Error('The saved workspace is not a version 1 workspace file, so it is left as it is and nothing is saved.'));
         let restored: PanelWindow[];
         try {
           restored = reconcile(loaded);
-        } catch {
+        } catch (e) {
+          refuse(e);
           fail();
           return;
         }
@@ -207,8 +216,9 @@ export function useWorkspacePersistence(i: {
         const rest = savedRest(loaded, restored);
         settle(restored, typeof saved === 'number' && Number.isInteger(saved) && saved >= 1 ? saved : undefined, rest);
       },
-      () => {
+      (e) => {
         if (cancelled) return;
+        refuse(e);
         fail();
       },
     );
@@ -219,7 +229,7 @@ export function useWorkspacePersistence(i: {
   }, []);
 
   useEffect(() => {
-    if (storage === undefined || !settled) return;
+    if (storage === undefined || !settled || unreadable.current) return;
     const state = projectWorkspaceState(panels, rootId, dismissed.current, scroll ?? undefined);
     const json = JSON.stringify(state);
     // A save in flight may land after this change, so a match with the baseline does not yet mean the file is right.
