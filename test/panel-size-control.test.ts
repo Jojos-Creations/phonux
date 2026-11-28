@@ -154,6 +154,22 @@ test('with a middle width current, focus opens on Phone and the arrow keys land 
   assert.equal(at(), 'fold', 'ArrowLeft lands on it again');
 });
 
+test('under right-to-left the arrows follow the drawn side in the size menu', async () => {
+  document.documentElement.setAttribute('dir', 'rtl');
+  try {
+    const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+    await openSizes(rig);
+    const stops = [...document.querySelectorAll<HTMLButtonElement>('[data-panel-size-group] button')];
+    assert.ok(document.activeElement === stops[1], 'focus starts on Fold');
+    key(document.activeElement!, 'ArrowLeft');
+    assert.ok(document.activeElement === stops[2], 'ArrowLeft goes on to Tablet, which is drawn to the left');
+    key(document.activeElement!, 'ArrowRight');
+    assert.ok(document.activeElement === stops[1], 'ArrowRight comes back to Fold');
+  } finally {
+    document.documentElement.removeAttribute('dir');
+  }
+});
+
 test('Escape closes the menu and focus returns to the View Size button', async () => {
   const rig = await headerRig({ ids: ['a'], sizeControl: true });
   await openSizes(rig);

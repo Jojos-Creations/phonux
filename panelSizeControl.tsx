@@ -17,6 +17,7 @@ import { resolveLabels } from './labels.js';
 import { usePanelMaximize } from './panelMaximize.js';
 import { PanelSlotContext, type PanelSlotValue } from './panelSlotContext.js';
 import { panelRootOf } from './rowDom.js';
+import { inlineKey } from './arrowDirection.js';
 
 /** The menu's inset from the panel's sides, in px. */
 const MENU_INSET_PX = 8;
@@ -45,7 +46,7 @@ function stepFocus(event: React.KeyboardEvent<HTMLElement>): void {
   const at = stops.indexOf(event.target as HTMLElement);
   if (at < 0) return;
   event.preventDefault();
-  const to = event.key === 'Home' ? 0 : event.key === 'End' ? stops.length - 1 : at + (event.key === 'ArrowRight' ? 1 : -1);
+  const to = event.key === 'Home' ? 0 : event.key === 'End' ? stops.length - 1 : at + (inlineKey(event.key, event.currentTarget) === 'ArrowRight' ? 1 : -1);
   stops[Math.min(Math.max(to, 0), stops.length - 1)]?.focus({ preventScroll: true });
 }
 // The current size keeps focus, so a screen reader can say which size it is, but takes no press: it is marked aria-disabled, not

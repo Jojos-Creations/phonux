@@ -12,6 +12,7 @@ import type { ViewHandle } from './panelTemplate.js';
 import { PanelLevelContext } from './panelLevelContext.js';
 import { reportItemShapeOnce } from './panelLevelChecks.js';
 import { PanelSlotContext, type HeaderButtonsSlot } from './panelSlotContext.js';
+import { inlineKey } from './arrowDirection.js';
 
 /** What every listed header button has, whichever form it takes. @public */
 export interface PanelHeaderButtonItemBase {
@@ -119,7 +120,8 @@ function syncTabStop(runtime: Runtime): void {
 function rove(runtime: Runtime, from: string, key: string): boolean {
   const pool = reachable(runtime);
   const at = pool.findIndex(([id]) => id === from);
-  const to = key === 'Home' ? 0 : key === 'End' ? pool.length - 1 : key === 'ArrowRight' ? at + 1 : key === 'ArrowLeft' ? at - 1 : -1;
+  const arrow = at < 0 ? key : inlineKey(key, pool[at]![1]);
+  const to = key === 'Home' ? 0 : key === 'End' ? pool.length - 1 : arrow === 'ArrowRight' ? at + 1 : arrow === 'ArrowLeft' ? at - 1 : -1;
   if (to < 0 || to >= pool.length || to === at) return key === 'Home' || key === 'End' || key === 'ArrowRight' || key === 'ArrowLeft';
   pool[to]![1].focus({ preventScroll: true });
   return true;
