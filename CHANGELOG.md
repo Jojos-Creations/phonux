@@ -136,6 +136,10 @@
 
 ### Fixed
 
+- `QrCode` holds the UTF-8 bytes of its `value`. It kept only the low byte of each character, so `Ł` drew the code of `A` and a link
+  with a Japanese name scanned as other text; text with non-ASCII characters now draws a different code than before (ASCII,
+  such as the safety code, is unchanged). A value over 2331 bytes threw `code length overflow` while rendering and took down
+  the tree around it; it now draws a tile with no modules and `data-phonux-qr-error="too-long"`.
 - `npm run release:check` and the rc branch check printed with its publish command now refuse a working tree with uncommitted or
   untracked files, for every version, and compare a final version (no `-rc.N`) with `origin/main` after a fetch: HEAD must be
   on it. A final used to pass on a dirty tree at any commit.
