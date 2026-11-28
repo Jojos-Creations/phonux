@@ -1386,7 +1386,7 @@ export interface PhonuxLabels {
     trustCodeEnded: string;
     trustCodeEndedMaker: string;
     trustCodeLabel: string;
-    trustCodeNote: string;
+    trustCodeNote: (hours: number) => string;
     trustCopied: string;
     trustCopy: string;
     trustCouldNotReach: string;
