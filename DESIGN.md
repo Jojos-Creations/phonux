@@ -1514,9 +1514,12 @@ its slot's own travel on screen, not the scroll distance alone, so a swap that m
 pointer and the release counts hops from where the box is. A root that is not `crossable` and starts the strip is a wall:
 the box stops at its right edge plus the gap, and the left band ends there rather than at the window's edge.
 
-**Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative: offer a button that calls
-the same `onClose`, as a host's own close buttons do. The row's drag-to-reorder needs one too; `handle.move(1)` and `handle.move(-1)`
-exist for it, but no such control is built.
+**Alternatives to the gesture.** WCAG 2.5.7 asks for a single-pointer alternative. A press on the grab handle that does not
+end a drag (a click, a tap, Enter or Space) opens a menu of Move left, Move right and Close, each drawn only when the handle can
+do it: `reorder.onStep` for the moves, `onClose` and a closable panel for Close. A move says what it did in the live region, as
+the arrow keys do, and a close, from the menu or by Delete, hands focus to the grab strip of the panel that takes its place.
+A touch still never drags the handle (it is `touch-action: pan-x`), so the tap is the touch route to reordering and closing.
+Pressing the divider has no such menu: it steps by key and resets by double click.
 
 ## A drag that starts outside the row: `usePanelRowDrop`
 
