@@ -52,9 +52,9 @@ host to build and no width to track. A template takes four optional fields beyon
 bottom of every panel made from it (it gets the same props as `view`, and scrolls above it), `touch: true`, which makes a mouse
 drag in the panel in use scroll its content as a finger does on a phone (`touch: 'content'` keeps the header and footer
 to the mouse; see `DESIGN.md`, "A touch template"), `verticalDrag: true`, which lets a person drag the grab bar down to
-close the panel (off by default, so the grab bar only reorders), and `api`, the
+close the panel (off by default; without it the grab bar still drags sideways to reorder), and `api`, the
 panel API level the template was written against (left out, it is the newest). A view returns bare content and phonux draws the panel around it (title bar, grab bar,
-drag sideways to reorder), and after the person closes a panel the workspace shows a toast whose Undo puts it back where it was, at the same size and with its state. Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
+drag sideways to reorder; a click, tap, Enter or Space on the grab bar opens a Move left / Move right / Close menu, each item drawn only when the panel can do it), and after the person closes a panel the workspace shows a toast whose Undo puts it back where it was, at the same size and with its state. Nothing is saved between launches until you pass a `storage` option. With `storage`, the panels come back at the next launch, and so does the stop the row rests on once you have moved it: the row reopens at that stop with no visible scroll.
 
 Pass the app's own values as options (`device`, `snapshots`, `labels`, `topInset`, `panels`; a view reads `snapshots` and `labels` with a fallback, because the first frame holds only what you passed), a `wrap`
 component for the app's providers (StrictMode, `MotionConfig` and contexts go in it), a `theme: (mode) => PhonuxTheme` for its own theme (the mount draws it with one baseline; the `mode` is the window's color scheme; each field is also a CSS custom property, such as `--phonux-primary`, that a stylesheet rule overrides), and `workspace.update(...)` to give a running workspace new values (see `DESIGN.md`,
