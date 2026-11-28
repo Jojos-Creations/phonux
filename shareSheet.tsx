@@ -52,7 +52,7 @@ export interface ShareMember {
   /** For a person with `status`: false hides Invite again, for someone the app has no way to invite. Defaults to true. A `name` that is empty never offers it. */
   canInviteAgain?: boolean;
   /**
-   * The state of this person's safety code, for a joined person. Left out, the sheet draws nothing about it. The line
+   * The state of this person's safety code, for a joined person, the owner included; it is never drawn on the user's own row or a pending invite. Left out, the sheet draws nothing about it. The line
    * under the name then says the state, a `not checked` or `changed` state gets a Check or Review button (with `onSafetyCodeOpen`),
    * and `checked` puts a green shield on the avatar.
    */
@@ -416,9 +416,12 @@ function MemberRow({ member, editable, labels, onChangeRole, onRemove, onSafetyC
   const canChange = editable && onChangeRole !== undefined;
   const hasMenu = member.role !== 'owner' && (canChange || onRemove !== undefined);
   // The check belongs to a joined person other than the user; a pending invite has no key to compare yet.
-  const safety = member.role === 'owner' || member.you === true || pending ? undefined : member.safety;
+  const safety = member.you === true || pending ? undefined : member.safety;
   const checkable = safety !== undefined && safety.state !== 'checked' && onSafetyCodeOpen !== undefined;
-  const line = safety !== undefined && (safety.state === 'checked' || checkable) ? labels.shareMemberSafetyLine(roleText, safety.state) : pending ? labels.shareInvitedNotJoined : roleText;
+  const safetyLine = safety !== undefined && (safety.state === 'checked' || checkable);
+  const line = safetyLine ? labels.shareMemberSafetyLine(roleText, safety.state) : pending ? labels.shareInvitedNotJoined : roleText;
+  // The owner's role word sits at the right, so the line under the name is drawn for an owner only when it says something about the key.
+  const lineBelow = member.role !== 'owner' || safetyLine;
   const close = (): void => setAnchor(null);
   return (
     <Box component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.75, py: 1.25, minHeight: 64, '& + &': { borderTop: 1, borderColor: 'divider' } }}>
@@ -430,11 +433,11 @@ function MemberRow({ member, editable, labels, onChangeRole, onRemove, onSafetyC
       </Box>
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         <Typography sx={{ fontWeight: 500, overflowWrap: 'anywhere' }}>{name}</Typography>
-        {member.role === 'owner' ? null : (
+        {lineBelow ? (
           <Typography variant="body2" color={safety?.state === 'changed' && checkable ? 'warning.main' : 'text.secondary'} sx={safety?.state === 'changed' && checkable ? (t: Theme) => ({ color: t.palette.mode === 'dark' ? t.palette.warning.light : t.palette.warning.dark }) : undefined}>
             {line}
           </Typography>
-        )}
+        ) : null}
       </Box>
       {checkable ? (
         <Button
@@ -449,7 +452,7 @@ function MemberRow({ member, editable, labels, onChangeRole, onRemove, onSafetyC
           {safety.state === 'changed' ? labels.shareSafetyReview : labels.shareSafetyCheck}
         </Button>
       ) : null}
-      {member.role === 'owner' ? (
+      {member.role === 'owner' && !lineBelow ? (
         <Typography variant="body2" color="text.secondary">
           {roleText}
         </Typography>

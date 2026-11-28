@@ -136,6 +136,10 @@
 
 ### Fixed
 
+- Share sheet: the safety code is drawn for the owner's row as it is for any other joined person. A changed key on the owner
+  used to show nothing (no warning line, no Review, no shield for `checked`, no Check for `unchecked`); the row now says
+  `Owner, sharing key changed` and so on, and the Owner word at the right is drawn only when there is no such line. The
+  user's own row and a pending invite still draw none.
 - `phonux build` signs the Android bundle with `SHA256withRSA` and `SHA-256` instead of SHA-1, which current JDKs treat as
   unsigned, and runs Capacitor as `npx --no-install cap`, so a project without `@capacitor/cli` installed fails instead of
   downloading an unrelated package from the registry.
