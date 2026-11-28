@@ -35,6 +35,7 @@ import {
   SLIDE_DURATION_SEC,
   SLIDE_EASE,
 } from './rowConstants.js';
+import { isDevelopment } from './devMode.js';
 
 // ---------------------------------------------------------------------------
 // Declared types
@@ -1451,7 +1452,7 @@ const warnedRemoved = new Set<string>();
  * host built against an rc that had it still renders. @internal
  */
 export function warnRemovedWithParking(name: string): void {
-  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || warnedRemoved.has(name)) return;
+  if (!isDevelopment() || warnedRemoved.has(name)) return;
   warnedRemoved.add(name);
   console.warn(`phonux: the setting '${name}' was removed in 0.2.0 with the parking engine; it is ignored. Remove it from your settings.`);
 }
@@ -1476,7 +1477,7 @@ const warnedEdgeHold = new Set<string>();
 
 /** The `sticky` a layer's deprecated `edgeHold` reads as; warns once per value, in development only. 'both' no longer exists and reads as 'off'. @internal */
 export function stickyFromEdgeHold(value: 'off' | 'left' | 'right' | 'both'): SettingValues['sticky'] {
-  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production' && !warnedEdgeHold.has(value)) {
+  if (isDevelopment() && !warnedEdgeHold.has(value)) {
     warnedEdgeHold.add(value);
     console.warn(
       value === 'both'

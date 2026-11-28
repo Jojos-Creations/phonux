@@ -52,12 +52,12 @@ interface FakeExchange extends TrustExchange {
   ended: boolean;
 }
 
-function exchange(role: 'maker' | 'joiner', calls: string[]): FakeExchange {
+function exchange(role: 'maker' | 'joiner', calls: string[], endsAt = Date.now() + 5.5 * 3_600_000): FakeExchange {
   let answered = false;
   const ex: FakeExchange = {
     role,
     code: 'KW-7Q4M-ZX2P',
-    endsAt: Date.now() + 5.5 * 3_600_000,
+    endsAt,
     progress: { theirName: null, answered: false, canSendToThem: false },
     checks: 0,
     calls,
@@ -241,4 +241,140 @@ test('the QR code is the same for the same text, differs for other text, and kee
   quiet.unmount();
   const sized = mount(h(QrCode, { value: 'x', label: 'code', size: 96 }));
   assert.equal(sized.container.querySelector('svg')!.getAttribute('width'), '96');
+});
+
+const noteOf = (root: ParentNode): string => text(root.querySelector('[data-phonux-trust-code]')!.parentElement!.nextElementSibling!);
+
+test('the note under the code says the hours the exchange has left, not a fixed 24', async () => {
+  for (const [hoursAhead, said] of [
+    [24, 'Works for 24 hours, for one person.'],
+    [5.5, 'Works for 6 hours, for one person.'],
+    [72, 'Works for 72 hours, for one person.'],
+    [0.4, 'Works for 1 hour, for one person.'],
+  ] as const) {
+    const { trust } = service({
+      invite: async () => {
+        return exchange('maker', [], Date.now() + hoursAhead * 3_600_000);
+      },
+    });
+    const { m } = screen(trust);
+    await type(field(m.container, 'What you call yourself'), 'Joe');
+    await press(button(m.container, 'Make a code'));
+    assert.equal(noteOf(m.container), said);
+    m.unmount();
+  }
+});
+
+test('a code that has run out says less than 1 hour, and a label replaces the note with the hours it is given', async () => {
+  const { trust } = service({
+    invite: async () => {
+      return exchange('maker', [], Date.now() - 1000);
+    },
+  });
+  const { m } = screen(trust, { labels: { trustCodeNote: (hours) => `Valid ${hours} h` } });
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  await press(button(m.container, 'Make a code'));
+  assert.equal(noteOf(m.container), 'Valid 0 h');
+  const plain = screen(trust);
+  await type(field(plain.m.container, 'What you call yourself'), 'Joe');
+  await press(button(plain.m.container, 'Make a code'));
+  assert.equal(noteOf(plain.m.container), 'Works for less than 1 hour, for one person.');
+});
+
+const clipboardWith = (writeText: (text: string) => Promise<void>): (() => void) => {
+  const before = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  return () => {
+    if (before === undefined) Reflect.deleteProperty(navigator, 'clipboard');
+    else Object.defineProperty(navigator, 'clipboard', before);
+  };
+};
+const alerts = (root: ParentNode): string[] => [...root.querySelectorAll('[role="alert"]')].map(text);
+
+test('Copy says so when the clipboard refuses, selects the code to copy by hand, and a later copy that works clears it', async () => {
+  let refuse = true;
+  const copied: string[] = [];
+  const restore = clipboardWith(async (value) => {
+    if (refuse) throw new Error('denied');
+    copied.push(value);
+  });
+  try {
+    const { trust } = service();
+    const { m } = screen(trust);
+    await type(field(m.container, 'What you call yourself'), 'Joe');
+    await press(button(m.container, 'Make a code'));
+    assert.deepEqual(alerts(m.container), [], 'control: nothing is wrong before a copy is tried');
+    await press(button(m.container, 'Copy'));
+    assert.deepEqual(alerts(m.container), ['That did not work. Try again.'], 'a refused copy is reported');
+    assert.ok(button(m.container, 'Copy'), 'the button still says Copy, not Copied');
+    assert.equal(window.getSelection()?.toString(), 'KW-7Q4M-ZX2P', 'the code is selected so it can be copied by hand');
+    refuse = false;
+    await press(button(m.container, 'Copy'));
+    assert.deepEqual(copied, ['KW-7Q4M-ZX2P']);
+    assert.deepEqual(alerts(m.container), [], 'a copy that worked clears the report');
+    assert.ok(button(m.container, 'Copied'));
+  } finally {
+    restore();
+  }
+});
+
+test('Copy with no clipboard at all is reported the same way', async () => {
+  const before = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+  try {
+    const { trust } = service();
+    const { m } = screen(trust);
+    await type(field(m.container, 'What you call yourself'), 'Joe');
+    await press(button(m.container, 'Make a code'));
+    await press(button(m.container, 'Copy'));
+    assert.deepEqual(alerts(m.container), ['That did not work. Try again.']);
+  } finally {
+    if (before === undefined) Reflect.deleteProperty(navigator, 'clipboard');
+    else Object.defineProperty(navigator, 'clipboard', before);
+  }
+});
+
+test('a step with no field of its own takes focus on its title, so a keyboard user is not sent back to the top of the page', async () => {
+  const { trust, made } = service();
+  const { m } = screen(trust);
+  const focusedTitle = (): boolean => document.activeElement === m.container.querySelector('h2');
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  button(m.container, 'Make a code').focus();
+  await press(button(m.container, 'Make a code'));
+  assert.equal(focusedTitle(), true, 'the code step');
+  button(m.container, 'Done, wait for them').focus();
+  await press(button(m.container, 'Done, wait for them'));
+  assert.equal(focusedTitle(), true, 'the waiting step');
+  made[0]!.progress = { theirName: 'Sam', answered: true, canSendToThem: false };
+  await until('the decide step', () => title(m.container) === 'Sam wants to be able to send you files');
+  assert.equal(document.activeElement === field(m.container, 'Save them as'), true, 'a step with a field keeps focus in the field');
+});
+
+test('the unselected how-long buttons are drawn in the primary text color, not the grey that fails 4.5:1 on the tray', async () => {
+  const { trust, made } = service();
+  const { m } = screen(trust);
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  await press(button(m.container, 'Make a code'));
+  await press(button(m.container, 'Done, wait for them'));
+  made[0]!.progress = { theirName: 'Sam', answered: true, canSendToThem: false };
+  await until('the decide step', () => title(m.container) === 'Sam wants to be able to send you files');
+  const toggle = button(m.container, '1 week');
+  const rules = [...document.styleSheets].flatMap((s) => [...s.cssRules]).filter((r): r is CSSStyleRule => r instanceof CSSStyleRule && !r.selectorText.includes('::'));
+  const own = rules.filter((r) => /:not\(\.Mui-selected\)/.test(r.selectorText) && toggle.matches(r.selectorText.replace(/\.Mui-selected/, '.Mui-selected')));
+  assert.ok(own.some((r) => /^rgba?\(0, 0, 0, 0\.87\)$/.test(r.style.getPropertyValue('color'))), `a rule colors the unselected toggle in the primary text color; found: ${own.map((r) => r.cssText).join(' | ')}`);
+});
+
+test('the join code field names its error as its description', async () => {
+  const { trust } = service();
+  const { m } = screen(trust);
+  await press(button(m.container, 'I have a code'));
+  const code = field(m.container, 'Code');
+  assert.equal(code.getAttribute('aria-describedby'), null, 'control: no description before an error');
+  await type(code, 'nope');
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  await press(button(m.container, 'Join'));
+  const alert = m.container.querySelector('[role="alert"]');
+  assert.ok(alert, 'the error is shown');
+  assert.equal(code.getAttribute('aria-describedby'), alert.id);
+  assert.notEqual(alert.id, '');
 });

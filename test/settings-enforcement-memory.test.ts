@@ -580,7 +580,7 @@ test('restoreVisibility saved, live and parked applied to a saved-live and a sav
   }
 });
 
-test('initialScroll through a throw planted in the load success handler: the row stays unscrolled and the workspace settles', async () => {
+test('initialScroll through a throw planted in the load success handler: the row stays unscrolled and the saved file is not saved over', async () => {
   const row11 = deriveAnchorsFromOrder([rootEntry(), ...Array.from({ length: 10 }, (_, k) => made(`s${k + 1}`))], ROOT);
   const file = projectWorkspaceState(row11, ROOT);
   const saves: WorkspaceState[] = [];
@@ -605,6 +605,6 @@ test('initialScroll through a throw planted in the load success handler: the row
   assert.equal(m.container.scrollLeft, 0);
   act(() => m.latest().create({ view: 'scroll-row-view', title: 'later' }));
   act(() => mock.timers.tick(QUIET_MS + 50));
-  assert.equal(saves.length, 1, 'saving resumed: the workspace settled');
+  assert.equal(saves.length, 0, 'a file whose restore threw is not saved over');
   warn.mock.restore();
 });

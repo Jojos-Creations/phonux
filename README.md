@@ -7,23 +7,28 @@ app-internal (see `DESIGN.md` in this folder for why).
 
 ## Install
 
-While 0.2 is a release candidate, install the `next` tag, together with the peer dependencies:
-
 ```sh
-npm install phonux@next
-npm install react react-dom @mui/material @emotion/react @emotion/styled motion
+npm install phonux
+npm install react react-dom @mui/material @emotion/react @emotion/styled motion@13
 ```
 
-`@dnd-kit/core` is a dependency of phonux, not a peer: npm installs it for you. The package also ships `DESIGN.md`, which explains
-the design decisions behind the API.
+phonux asks for these peers: `react` and `react-dom` 19.2.8 or newer, `@mui/material` 9.3.1 or newer, `@emotion/react` 11.14 or newer,
+`@emotion/styled` 11.14.1 or newer, and `motion` 13.3 or newer in major 13. Write `motion@13`: the plain name installs motion 14, which is
+outside that range, so npm marks the tree invalid and every later `npm install` and `npm ci` in the app stops with `ERESOLVE`. The two
+lines above install, in a new project, react 19.3.1, `@mui/material` 9.6.0, `@emotion/react` 11.14.0, `@emotion/styled` 11.14.1 and
+`motion` 13.5.1, and `npm ls` then reports no problem. `jsdom` 26 is an optional peer, for `phonux/testing/row`.
+
+phonux has its own dependencies (`@dnd-kit/core`, `embla-carousel`, `qrcode-generator`, `wheel-gestures` and `cross-spawn`); npm installs them
+for you. The package also ships `DESIGN.md`, which explains the design decisions behind the API, and `THIRD_PARTY_NOTICES.md`. The change
+history, and how to move from 0.1, is in [CHANGELOG.md](https://github.com/Jojos-Creations/phonux/blob/main/CHANGELOG.md).
 
 ## Testing main without a publish
 
-Every push to `main` force-pushes the built package to the `dist` branch, a test channel and not a release. An app that wants
-to try main before a publish depends on `github:Jojos-Creations/phonux#dist`. The package version on that branch is the source
-version, so the commit SHA in the app's lockfile, not the version, says which build it is. A shipped app never depends on
-`dist`. `npm publish` and its publish gate are unchanged. The repository is private, so whoever installs it, CI included,
-needs a GitHub credential.
+A push to `release` (or a manual run of the Dist branch workflow) force-pushes the built package to the `dist` branch, a test channel and not a
+release. An app that wants to try a build before a publish depends on `github:Jojos-Creations/phonux#dist`. The package version on that branch
+is the source version, so the commit SHA in the app's lockfile, not the version, says which build it is, and the branch holds whatever was
+built last, under the license of that source. A shipped app never depends on `dist`. The repository is public, so installing from it needs no
+credential.
 
 ## Quickstart
 
@@ -56,22 +61,22 @@ component for the app's providers (StrictMode, `MotionConfig` and contexts go in
 "Workspace options, wrap and update"). A title-bar button is a setting too: `headerButtons: { more: { label: 'More', onClick } }`
 draws the label as the button's text.
 
-A view unmounts when its panel parks or closes, so audio, a web view or a socket started inside a view stops with it. Start those in the `wrap` component instead, which stays mounted for the workspace's life, and let the panel render controls for them (see `DESIGN.md`, "A parked view unmounts").
+A view unmounts when its panel closes, so audio, a web view or a socket started inside a view stops with it. Start those in the `wrap` component instead, which stays mounted for the workspace's life, and let the panel render controls for them (see `DESIGN.md`, "A parked view unmounts").
 
 ## The row
 
 The row is a strip of slots one phone width apart; a panel is a whole number of slots wide. The row steps one phone width per
 scroll step and rests with its whole slots centered in the window, at the ends too; a sideways wheel or Shift+wheel anywhere
 on the row steps it (Option held gives the gesture to the content), a vertical wheel goes to the content, and ArrowLeft and
-ArrowRight on the page step it (`stepRow(event, direction)` gives a host's own chord the same answer). A panel that no longer
-fits parks, and a scroll at the row's end brings a parked panel back. Motion follows one rule set: a new panel grows from its
-center, a closing one shrinks into its center, a parking one shrinks into the edge it leaves by and a returning one grows out of
-that edge, all on one 0.6 s in-out clock (`DESIGN.md`, "Motion").
+ArrowRight on the page step it (`stepRow(event, direction)` gives a host's own chord the same answer). A row wider than the
+window scrolls, and no panel is cut off at a stop. Motion follows one rule set: a new panel grows from its center and a closing
+one shrinks into its center, on one in-out clock, and a one-panel-wide panel also shrinks as it scrolls out past an edge and grows
+as it arrives (`DESIGN.md`, "Motion").
 
 Where a new panel lands is the template's `placeOnAdd` (default: the far right, the leftmost panel in view leaving when there is
 no room) or the caller's `addPanel(template, { place })` function, which picks the slot among the panels in view, what the
 panel there does (shift left, shift right or close) and the entrance. `usePanelDots` gives a host the dots and the oval of a
-dot bar in place of a scrollbar, parked panels included; `usePanelMaximize` and `toggleMaximize` grow a panel to fill the window;
+dot bar in place of a scrollbar; `usePanelMaximize` and `toggleMaximize` grow a panel to fill the window;
 `whenAccepted`, `whenPanel`, `showPanels` and `whenColumnReady` wait on the row instead of a timer; `rowDom.ts` exports the
 `data-*` attribute names the library draws; `useRowFrameBand`, `PANEL_BAR_HEIGHT_PX`, `PANEL_FOOTER_ROOM_PX` and
 `rowFootReserve` give a host the numbers to lay its page out around the row. Each has a section in `DESIGN.md`.
@@ -175,6 +180,91 @@ panel changes size under it (see DESIGN.md, "Whole panels only"). The setter's t
 panel `px` wide at once, so the grabber follows the pointer frame by frame (`pin: 'end'` keeps the right edge still for a grabber on the left);
 end a drag with `setSlots(nearest)`, `setDrawnWidth(null)` and `setResizing(false)`, in that order.
 
+## Sticky panels
+
+A panel with `sticky: 'start'` or `'end'` takes its slots at that end of the row and stays there while the rest of the row scrolls:
+a navigation panel on the left, a player on the right. It takes its slots whether or not the row would overflow, and no panel is cut off.
+
+<!-- sticky:start -->
+```tsx
+import { createWorkspace, definePanel } from 'phonux';
+
+const library = definePanel({ id: 'library', view: LibraryView, settings: { title: 'Library', sticky: 'start' } });
+const player = definePanel({ id: 'player', view: PlayerView, settings: { title: 'Player', sticky: 'end', stickyRank: 1 } });
+
+const workspace = createWorkspace({ templates: [library, player] });
+workspace.addPanel('library');
+workspace.addPanel('player');
+```
+<!-- sticky:end -->
+
+When the window is too narrow for the sticky panels and the `tuning.minScrollSlots` the scrolling row keeps, the sticky panel with the
+lowest `stickyRank` goes back into the scrolling row (of equal rank, the later one first) and is sticky again when room returns. A window
+one slot wide has no sticky panels. `edgeHold` is the old name of `sticky` and is read as it.
+
+## Side by side
+
+A column made with `sideBySide: true` shows several workspaces at once when the window has room, each with its own row, in whole slots of
+one phone and one gap; a narrow window shows fewer, and a wide one restores them. The divider between two spaces is a slider (arrow keys,
+Home, End, double click to even the split).
+
+<!-- side-by-side:start -->
+```tsx
+import { createWorkspaceColumn, definePanel } from 'phonux';
+
+const notes = definePanel({ id: 'notes', view: NotesView });
+const column = createWorkspaceColumn({ templates: [notes], sideBySide: true });
+column.addWorkspace({ name: 'Research' }).addPanel('notes');
+column.addWorkspace({ name: 'Trip food' }).addPanel('notes');
+const shown = column.showSide(1); // the second space, next to the current one
+if (shown.ok) column.setSplit([2, 2]); // two row slots for each
+```
+<!-- side-by-side:end -->
+
+`column.shown` lists what is drawn, `showSide`, `hideSide` and `setSplit` answer `{ ok: true }` or `{ ok: false, code, message }` and never
+throw, and `focusSide('left' | 'right')` picks the side `step` acts on. `homeWorkspace: id` keeps one workspace permanently first.
+
+## Sharing and trust
+
+`ShareSheet`, `OfferCard`, `SharedList`, `TrustScreen` and `QrCode` are components that draw and report taps; the app keeps the people,
+the codes, the checked state and the network. Each action is drawn only when its callback is passed. The default words state rules only
+the app can keep, such as how long an invite waits, so an app whose rules differ passes its own `labels`.
+
+<!-- share:start -->
+```tsx
+import { QrCode, ShareSheet, TrustScreen, type TrustExchanges } from 'phonux';
+
+export function ShareSpace({ link, trust }: { link: string; trust: TrustExchanges }) {
+  return (
+    <>
+      <ShareSheet
+        item={{ kind: 'space', name: 'Trip to Lisbon' }}
+        qr={<QrCode value={link} label="Link to this space" />}
+        members={[
+          { id: 'dana', name: 'Dana', role: 'owner', safety: { state: 'unchecked', code: '19896 56652 89711 42431 13353 29651 69207 07134 80072 66512 41361 36167' } },
+          { id: 'me', name: 'Me', role: 'edit', you: true },
+        ]}
+        people={[{ id: 'sam', name: 'Sam' }]}
+        onSend={(id) => console.log('send to', id)}
+        onCopyLink={() => navigator.clipboard.writeText(link)}
+        onSafetyCodeOpen={(id) => console.log('show the safety code of', id)}
+        onSafetyCodeMatch={(id) => console.log('checked', id)}
+      />
+      <TrustScreen trust={trust} onDone={() => console.log('done')} />
+    </>
+  );
+}
+```
+<!-- share:end -->
+
+`QrCode` holds the UTF-8 bytes of its `value`, at most 2331 of them; a longer value draws an empty tile marked `data-phonux-qr-error="too-long"`
+instead of throwing. `OfferCard` shows one incoming offer (`from`, `file`, `expiresAt`, and `onAccept`, `onNotNow`, `onDecline` and `onReport`
+for its buttons), and `SharedList` lists what the person shares and what is shared with them (`byYou`, `withYou`, with `onRenew`,
+`onCopyLink`, `onShowQr`, `onChangeEnd` and `onStopSharing`). The people on a `ShareSheet` can carry a `safety` state: `unchecked` draws Check,
+`changed` draws Review, `checked` draws a shield, and that includes the owner's row. `TrustScreen` takes a `TrustExchanges` object from the app
+(`invite`, `join`, `pending` and `failureOf`) and runs the exchange from both sides; its note under the code says the hours the exchange
+really has left. `DESIGN.md` has "One share view".
+
 ## Testing a view
 
 `phonux/testing` exports `createFakeHost()`: a recording fake of every host
@@ -268,9 +358,18 @@ unless it allows `style-src 'unsafe-inline'`, or the host gives Emotion a nonce 
 a `CacheProvider`. Production builds insert rules through the CSSOM, which the policy does not block, so the gap often
 shows only in development.
 
+## Security
+
+Report a vulnerability as [SECURITY.md](https://github.com/Jojos-Creations/phonux/blob/main/SECURITY.md) describes; the repository's private
+vulnerability reporting is switched on.
+
 ## License
 
-phonux is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/). Anyone may use it, including commercially. If you change a file of phonux and distribute the result, you share your changes to that file under the same license; your own files that use phonux stay yours. The full text is in LICENSE.
+phonux is licensed under the [Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/). Copyright (c) 2026 Joseph Reed. Anyone may use it, including commercially. If you change a file of phonux and distribute the result, you share your changes to that file under the same license; your own files that use phonux stay yours. The full text is in LICENSE.
+
+Every source file of phonux in this package is Covered Software under the notice the license asks for in Exhibit A, given here once for all of them in place of a header in each file:
+
+> This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 Versions 0.1.0, 0.2.0-rc.1 and 0.2.0-rc.2 were published under the MIT license and stay MIT. Versions 0.2.0-rc.3 through 0.2.0-rc.5 were published under the PolyForm Noncommercial License 1.0.0 and stay under it. Versions 0.2.0-rc.6 through 0.2.0-rc.8 were published under the phonux Public License 1.0.0 and stay under it. Releases after 0.2.0-rc.8 are under the Mozilla Public License 2.0. Third-party notices are in THIRD_PARTY_NOTICES.md in the package.
 

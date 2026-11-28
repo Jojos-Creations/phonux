@@ -2,12 +2,13 @@
 
 import type { PanelsAPI } from './hostApi.js';
 import type { ProvidedPanels } from './panels/useProvidePanels.js';
+import { isDevelopment } from './devMode.js';
 
 const warned = new Set<string>();
 
-/** Logs once per verb that it is deprecated and names what replaces it; silent in production and where `process` is undefined. @internal */
+/** Logs once per verb that it is deprecated and names what replaces it; silent in production. @internal */
 export function warnDeprecatedVerb(verb: string, instead: string): void {
-  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || warned.has(verb)) return;
+  if (!isDevelopment() || warned.has(verb)) return;
   warned.add(verb);
   console.warn(`phonux: useHost().panels.${verb} is deprecated and is removed in a later release; use ${instead}.`);
 }

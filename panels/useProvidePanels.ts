@@ -239,6 +239,8 @@ export interface ProvidedPanels extends PanelsAPI {
   readonly entries: readonly PanelWindow[];
   /** The views in `recentlyClosed` the person closed (source `'person'`), oldest first; null when there are none. What the undo-close toast shows. */
   readonly closedByPerson: readonly PanelSummary[] | null;
+  /** Holds the undo window open while `on` is true, which the undo-close toast sets while it has the pointer or focus, and gives it its whole length again when `on` goes false. */
+  holdUndo(on: boolean): void;
   /** How many always-rendered columns the row has: `PanelsInput.fixedViewCount` when passed, else `count(!collapsible)` over `entries`. Capacity is priced from it. */
   readonly fixedViewCount: number;
   /** Each live collapsible panel's own width in row order, capped at `maxLiveWidth`: the row's centering margin reads the same array the park capacity is priced from. */
@@ -1175,6 +1177,7 @@ export function useProvidePanels(i: PanelsInput): ProvidedPanels {
     recentlyClosed: closing.recentlyClosed?.map(summarisePanel) ?? null,
     closedByPerson: closing.closedByPerson?.map(summarisePanel) ?? null,
     undoClose: raw(() => closing.closedIds(), 'other', closing.undoClose),
+    holdUndo: closing.holdWindow,
     // Drops every clearable panel: never History, a fixed column or an unclearable one. Its picture goes now, not at an
     // undo window: a dropped panel can never be shown again. The ids come from the updater's own list, because
     // this render's `panels` misses a panel created earlier in the same batch.

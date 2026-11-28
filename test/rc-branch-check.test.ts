@@ -174,9 +174,85 @@ test('rcBranchProblem: a scratch copy that skips the on-main test passes the off
   }
 });
 
-test('rcBranchProblem: a version with no rc branch is not compared', async () => {
+test('rcBranchProblem: a final version is published from origin main, so a clean checkout on main passes', async () => {
+  const { rcBranchProblem, rcBranchStatus } = (await load(RC_FILE)) as Module & { rcBranchStatus: (o: { version: string; cwd: string }) => { problem: string | null; summary: string } };
+  mainOnlyRepos(({ clone }) => {
+    assert.equal(rcBranchProblem({ version: '0.2.0', cwd: clone }), null);
+    assert.match(rcBranchStatus({ version: '0.2.0', cwd: clone }).summary, /0\.2\.0 is not a release candidate.*HEAD \([0-9a-f]{7}\) is on origin\/main/);
+  });
+});
+
+test('rcBranchProblem: a final version with an edited tracked file is refused, and names the file', async () => {
   const { rcBranchProblem } = await load(RC_FILE);
-  scratchRepos(({ clone }) => assert.equal(rcBranchProblem({ version: '0.2.0', cwd: clone }), null));
+  mainOnlyRepos(({ clone }) => {
+    writeFileSync(join(clone, 'a.txt'), 'edited\n');
+    const problem = rcBranchProblem({ version: '0.2.0', cwd: clone }) ?? '';
+    assert.match(problem, /uncommitted or untracked files/);
+    assert.match(problem, /M a\.txt/);
+  });
+});
+
+test('rcBranchProblem: a final version with an untracked file is refused', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ clone }) => {
+    writeFileSync(join(clone, 'new.txt'), 'x\n');
+    assert.match(rcBranchProblem({ version: '0.2.0', cwd: clone }) ?? '', /\?\? new\.txt/);
+  });
+});
+
+test('rcBranchProblem: a release candidate with an edited file is refused too', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ clone }) => {
+    writeFileSync(join(clone, 'a.txt'), 'edited\n');
+    assert.match(rcBranchProblem({ version: '0.2.0-rc.7', cwd: clone }) ?? '', /uncommitted or untracked files/);
+  });
+});
+
+test('rcBranchProblem: a final version at a commit that is not on origin main is refused, and passes once main has it', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ origin, clone }) => {
+    offMain(clone);
+    assert.match(rcBranchProblem({ version: '0.2.0', cwd: clone }) ?? '', /0\.2\.0 is not a release candidate, so it is published from main, and HEAD \([0-9a-f]{7}\) is not on origin\/main/);
+    git(origin, 'pull', '-q', '--ff-only', clone, 'main');
+    assert.equal(rcBranchProblem({ version: '0.2.0', cwd: clone }), null);
+  });
+});
+
+test('rcBranchProblem: a final version with an origin it cannot reach is a failure that proved nothing', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  mainOnlyRepos(({ clone }) => {
+    assert.match(rcBranchProblem({ version: '0.2.0', cwd: clone, remote: 'nowhere' }) ?? '', /could not fetch nowhere main .*this proved nothing/);
+  });
+});
+
+test('rcBranchProblem: a directory that is not a git checkout proves nothing, never a pass', async () => {
+  const { rcBranchProblem } = await load(RC_FILE);
+  const bare = mkdtempSync(join(tmpdir(), 'phonux-rc-bare-'));
+  try {
+    assert.match(rcBranchProblem({ version: '0.2.0', cwd: bare }) ?? '', /this proved nothing/);
+  } finally {
+    rmSync(bare, { recursive: true, force: true });
+  }
+});
+
+test('rcBranchProblem: a scratch copy that skips the clean-tree check passes the edited checkout, so that case can fail', async () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'phonux-rc-copy-'));
+  try {
+    const source = readFileSync(RC_FILE, 'utf8');
+    const edited = source.replace("if (status.out === '') return null;", 'if (status.out !== null) return null;');
+    assert.notEqual(edited, source, 'the planted edit must change the text');
+    const copy = join(scratch, 'phonux-rc-branch.mjs');
+    writeFileSync(copy, edited);
+    const real = (await load(RC_FILE)).rcBranchProblem;
+    const planted = (await load(copy)).rcBranchProblem;
+    mainOnlyRepos(({ clone }) => {
+      writeFileSync(join(clone, 'a.txt'), 'edited\n');
+      assert.notEqual(real({ version: '0.2.0', cwd: clone }), null);
+      assert.equal(planted({ version: '0.2.0', cwd: clone }), null);
+    });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 test('rcBranchProblem: a scratch copy that never reports missing commits passes the behind checkout, so the case can fail', async () => {

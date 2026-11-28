@@ -51,3 +51,42 @@ test('the README tells a reader which license each version is under and how the 
   assert.match(readme, /Mozilla Public License 2\.0/);
   assert.match(readme, /0\.2\.0-rc\.6 through 0\.2\.0-rc\.8 were published under the phonux Public License 1\.0\.0/);
 });
+
+const APACHE_2_0_SHA256 = 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30';
+
+test('THIRD_PARTY_NOTICES.md carries the Apache License 2.0 text for the Material Icons, byte for byte', () => {
+  const notices = read('THIRD_PARTY_NOTICES.md');
+  const open = '<!-- apache-2.0:start -->\n```text\n';
+  const close = '```\n<!-- apache-2.0:end -->';
+  const from = notices.indexOf(open);
+  const to = notices.indexOf(close);
+  assert.ok(from !== -1 && to > from, 'the Apache text sits between its markers');
+  const text = notices.slice(from + open.length, to);
+  assert.match(text, /TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION/);
+  assert.equal(createHash('sha256').update(text).digest('hex'), APACHE_2_0_SHA256);
+  assert.equal(notices.indexOf(open, from + 1), -1, 'the text is there once');
+});
+
+test('THIRD_PARTY_NOTICES.md credits @mui/icons-material with its copyright line, and names the QR Code trademark', () => {
+  const notices = read('THIRD_PARTY_NOTICES.md');
+  assert.match(notices, /@mui\/icons-material/);
+  assert.match(notices, /Copyright \(c\) 2014 Call-Em-All/);
+  assert.match(notices, /"QR Code" is a registered trademark of DENSO WAVE INCORPORATED/);
+});
+
+test('the README names the copyright holder and carries the MPL Exhibit A notice, and package.json names the author', () => {
+  const readme = read('README.md');
+  assert.match(readme, /Copyright \(c\) 2026 Joseph Reed/);
+  assert.ok(
+    readme.includes('This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.'),
+    'the Exhibit A sentence, word for word',
+  );
+  assert.equal(JSON.parse(read('package.json')).author, 'Joseph Reed');
+});
+
+test('the README says when the dist branch is built, and that the repository is public', () => {
+  const readme = read('README.md');
+  assert.doesNotMatch(readme, /repository is private|needs a GitHub credential/);
+  assert.doesNotMatch(readme, /Every push to `main`/);
+  assert.match(readme, /push to `release`/);
+});

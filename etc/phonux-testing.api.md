@@ -438,6 +438,8 @@ export interface PhonuxLabels {
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
+    moveLeft: string;
+    moveRight: string;
     newWorkspace: string;
     offerAccept: (kindPlural: string) => string;
     offerDecline: string;
@@ -536,7 +538,7 @@ export interface PhonuxLabels {
     trustCodeEnded: string;
     trustCodeEndedMaker: string;
     trustCodeLabel: string;
-    trustCodeNote: string;
+    trustCodeNote: (hours: number) => string;
     trustCopied: string;
     trustCopy: string;
     trustCouldNotReach: string;

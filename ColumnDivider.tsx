@@ -96,8 +96,8 @@ export function ColumnDivider({ column, evenSplit, rows, at, controls, names, le
         cursor: 'col-resize',
         touchAction: 'none',
         outline: 'none',
-        '& [data-column-divider-line]': { position: 'absolute', top: 0, bottom: 0, left: (HIT_PX - LINE_PX) / 2, width: LINE_PX, borderRadius: `${LINE_PX}px`, background: 'currentColor', opacity: dragging ? 0.6 : 0.2, pointerEvents: 'none' },
-        '&:hover [data-column-divider-line]': { opacity: 0.5 },
+        '& [data-column-divider-line]': { position: 'absolute', top: 0, bottom: 0, left: (HIT_PX - LINE_PX) / 2, width: LINE_PX, borderRadius: `${LINE_PX}px`, background: 'currentColor', opacity: dragging ? 0.8 : 0.5, pointerEvents: 'none' },
+        '&:hover [data-column-divider-line]': { opacity: 0.7 },
         '&:focus-visible [data-column-divider-line]': { opacity: 1, background: 'var(--phonux-primary, currentColor)' },
       }}
     >

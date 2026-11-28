@@ -26,6 +26,7 @@ import { entryNamed } from './panelIds.js';
 import { familyIds } from './panelOpener.js';
 import { resolveOpen, type PlaceOpen } from './openPlacement.js';
 import { createLiveStore, refusedLiveKeys, type LiveStore, type WorkspaceLive } from './workspaceLive.js';
+import { isDevelopment } from './devMode.js';
 
 /** The id of the marker entry a workspace without a root keeps. */
 export const ROOT_MARKER_ID = '__root__';
@@ -1292,7 +1293,7 @@ export function createWorkspace(o: WorkspaceOptions = {}): WorkspaceHandle {
     rowNearSlots: o.rowNearSlots,
     theme: o.theme,
     warnHandMounted: () => {
-      if (!autoMounted || warnedHandMount || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
+      if (!autoMounted || warnedHandMount || !isDevelopment()) return;
       warnedHandMount = true;
       console.warn('phonux: a PanelRow was given a workspace that also renders itself, so its panels mount twice. Pass `mount: false` to createWorkspace when you render the workspace yourself.');
     },

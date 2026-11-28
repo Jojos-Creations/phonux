@@ -92,7 +92,11 @@ export type WorkspaceState = {
  * @public
  */
 export type WorkspaceStorage = {
-  /** Resolves the saved state, or `null` when there is none. */
+  /**
+   * Resolves the saved state, or `null` when there is none. Only `null` (or undefined) means nothing is saved and leaves saving on.
+   * A rejection, a throw, and a result that is not a workspace file of a version this build reads are reported through
+   * `WorkspaceOptions.onError`, and the workspace then saves nothing until it is mounted again, so the file stays as it was.
+   */
   load(): Promise<WorkspaceState | null>;
   /**
    * Stores `state`. Returning nothing, or a promise that resolves, tells the workspace the state is saved. A throw or a

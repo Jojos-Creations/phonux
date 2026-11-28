@@ -1,11 +1,45 @@
 import { cpSync, createWriteStream, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
+import { Transform } from 'node:stream';
 import spawn from 'cross-spawn';
 import type { Job, Step } from './plan.js';
+
+/** The environment variables that hold the keystore passwords. */
+const PASSWORD_VARIABLES = ['PHONUX_KEYSTORE_PASSWORD', 'PHONUX_KEY_PASSWORD'];
 
 /** The command line as printed to the log. Steps carry no secrets: passwords travel by environment variable. */
 export function describeStep(step: Extract<Step, { kind: 'run' }>): string {
   return [step.command, ...step.args].join(' ');
+}
+
+/** The environment a step starts with: the caller's, without the passwords unless the step signs. */
+function stepEnvironment(step: Extract<Step, { kind: 'run' }>, env: Record<string, string>): NodeJS.ProcessEnv {
+  const inherited = { ...process.env };
+  for (const name of PASSWORD_VARIABLES) delete inherited[name];
+  const passwords: NodeJS.ProcessEnv = {};
+  if (step.signs === true) for (const name of PASSWORD_VARIABLES) passwords[name] = process.env[name];
+  return { ...inherited, ...env, ...passwords };
+}
+
+/** Passes output on a line at a time with each secret replaced, so a secret split across two reads is still found. */
+function redactor(secrets: string[]): Transform {
+  const decoder = new StringDecoder('utf8');
+  let pending = '';
+  const clean = (text: string): string => secrets.reduce((out, secret) => out.split(secret).join('[hidden]'), text);
+  return new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      pending += decoder.write(chunk);
+      const end = pending.lastIndexOf('\n') + 1;
+      if (end > 0) this.push(clean(pending.slice(0, end)));
+      pending = pending.slice(end);
+      done();
+    },
+    flush(done) {
+      this.push(clean(pending + decoder.end()));
+      done();
+    },
+  });
 }
 
 function runStep(step: Extract<Step, { kind: 'run' }>, env: Record<string, string>, log: NodeJS.WritableStream): Promise<boolean> {
@@ -13,18 +47,24 @@ function runStep(step: Extract<Step, { kind: 'run' }>, env: Record<string, strin
     log.write(`\n$ ${describeStep(step)}\n`);
     const child = spawn(step.command, step.args, {
       cwd: step.cwd,
-      env: { ...process.env, ...env },
+      env: stepEnvironment(step, env),
       // npm, npx and gradlew.bat are .cmd or .bat files on Windows; cross-spawn starts them with each argument escaped,
       // where `shell: true` would join the arguments unquoted into one command line.
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    child.stdout?.pipe(log, { end: false });
-    child.stderr?.pipe(log, { end: false });
+    const secrets = PASSWORD_VARIABLES.flatMap((name) => process.env[name] ?? []).filter((value) => value !== '');
+    const streams = [child.stdout, child.stderr].flatMap((stream) => {
+      if (!stream) return [];
+      const clean = redactor(secrets);
+      stream.pipe(clean).pipe(log, { end: false });
+      return [new Promise<void>((done) => clean.once('end', done))];
+    });
     child.on('error', (err) => {
       log.write(`\n${err.message}\n`);
       resolve(false);
     });
-    child.on('close', (code) => resolve(code === 0));
+    // The next log line is written only after both outputs have reached the log.
+    child.on('close', (code) => void Promise.all(streams).then(() => resolve(code === 0)));
   });
 }
 

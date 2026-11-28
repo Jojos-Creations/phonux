@@ -97,3 +97,14 @@ test('two panels each have their own single stop', async () => {
   const rig = await headerRig({ ids: ['a', 'b'], slots: three });
   assert.deepEqual([stops(rig, 'a'), stops(rig, 'b')], [['Menu'], ['Menu']]);
 });
+
+test('under right-to-left the arrows follow the drawn side: ArrowLeft goes on to the next button, ArrowRight back', async () => {
+  const rig = await headerRig({ ids: ['a'], slots: three });
+  rig.m.container.setAttribute('dir', 'rtl');
+  const [menu, size] = rig.buttons('a') as [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
+  act(() => menu.focus());
+  assert.equal(keyDown(menu, 'ArrowLeft').defaultPrevented, true);
+  assert.equal(focusedLabel(), 'Size', 'the next button is drawn to the left');
+  keyDown(size, 'ArrowRight');
+  assert.equal(focusedLabel(), 'Menu', 'and ArrowRight comes back');
+});

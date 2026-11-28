@@ -4,6 +4,7 @@
  */
 import { PanelManagerError } from './panelManagerError.js';
 import type { PanelViewProps } from './panelTemplate.js';
+import { isDevelopment } from './devMode.js';
 
 /** A panel API level a template may declare with `api`: the package major version its panel code was written for. @public */
 export type PanelApiLevel = 1;
@@ -112,7 +113,7 @@ const warned = new Set<string>();
 
 /** Logs once per template id that it is on a level older than the newest, naming the removal release only for a deprecated level; silent in production. @internal */
 export function warnIfOldLevel(templateId: string, level: number, table: LevelTable): void {
-  if (level === table.newest || typeof process === 'undefined' || process.env.NODE_ENV === 'production' || warned.has(templateId)) return;
+  if (level === table.newest || !isDevelopment() || warned.has(templateId)) return;
   warned.add(templateId);
   const droppedIn = table.levels.get(level)?.droppedIn;
   const removal = droppedIn === undefined ? '' : `, and level ${level} is deprecated and removed in ${droppedIn}`;
@@ -167,7 +168,7 @@ const reported = new Set<string>();
 
 /** Runs `check` the first time `key` is seen and logs its lines as one console.error under `heading`; silent in production and never throws. @internal */
 export function reportOnce(key: string, heading: string, check: () => string[]): void {
-  if (typeof process === 'undefined' || process.env.NODE_ENV === 'production' || reported.has(key)) return;
+  if (!isDevelopment() || reported.has(key)) return;
   reported.add(key);
   try {
     const problems = check();

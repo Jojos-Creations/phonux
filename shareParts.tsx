@@ -1,7 +1,7 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { alpha, type Theme } from '@mui/material/styles';
+import { type Theme } from '@mui/material/styles';
 import { createSvgIcon } from '@mui/material/utils';
 import { useOptionalHost } from './hostApi.js';
 import { resolveLabels, type PhonuxLabels } from './labels.js';
@@ -140,7 +140,7 @@ export function Avatar({ name, size = 40 }: { name: string; size?: number }): Re
         justifyContent: 'center',
         fontWeight: 600,
         fontSize: size > 44 ? '1.125rem' : '1rem',
-        bgcolor: alpha(t.palette[tone].main, 0.16),
+        bgcolor: t.alpha(t.palette[tone].main, 0.16),
         color: t.palette[tone].dark,
       })}
     >
@@ -162,7 +162,7 @@ export function GlyphTile({ children, tone = 'primary', size = 40 }: { children:
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: alpha(t.palette[tone].main, 0.12),
+        bgcolor: t.alpha(t.palette[tone].main, 0.12),
         color: t.palette[tone].main,
       })}
     >

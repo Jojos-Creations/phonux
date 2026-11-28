@@ -3,9 +3,12 @@ import type { Probe, Readiness } from './checks.js';
 import type { AppInfo } from './config.js';
 import { iosDeviceFamily, type Platform, type Target } from './targets.js';
 
-/** One command a job runs, or a file it writes before the next command. */
+/**
+ * One command a job runs, or a file it writes before the next command. Only a run step with `signs` set is handed the
+ * keystore passwords; every other command starts without them.
+ */
 export type Step =
-  | { kind: 'run'; command: string; args: string[]; cwd: string }
+  | { kind: 'run'; command: string; args: string[]; cwd: string; signs?: true }
   | { kind: 'write'; path: string; content: string }
   | { kind: 'copy'; from: string; to: string };
 
@@ -86,7 +89,7 @@ function androidJob(app: AppInfo, probe: Probe, env: Record<string, string>, opt
       ...prepare,
       { kind: 'run', command: gradlew, args: [':app:bundleRelease'], cwd: android },
       {
-        kind: 'run', command: java, cwd: android,
+        kind: 'run', command: java, cwd: android, signs: true,
         args: [
           '-sigalg', 'SHA256withRSA', '-digestalg', 'SHA-256', '-keystore', signing.keystore,
           '-keypass:env', keyPassVar, '-storepass:env', 'PHONUX_KEYSTORE_PASSWORD',

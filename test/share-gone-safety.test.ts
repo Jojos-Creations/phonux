@@ -36,11 +36,11 @@ const NEW_CODE = '40217 88130 05946 71352 29864 13075 66291 80443 17509 32688 95
 
 const base: ShareMember[] = [
   { id: 'me', name: 'You', role: 'owner', you: true },
-  { id: 'priya', name: 'priya@fastmail.com', role: 'edit' },
+  { id: 'priya', name: 'priya@example.com', role: 'edit' },
 ];
 const gone: ShareMember[] = [
   { id: 'dana', name: 'Dana Okafor', role: 'edit', status: 'left', since: NOW - 3 * DAY },
-  { id: 'marcus', name: 'marcus@me.com', role: 'view', status: 'declined', since: NOW - 5 * DAY },
+  { id: 'marcus', name: 'marcus@example.org', role: 'view', status: 'declined', since: NOW - 5 * DAY },
 ];
 
 function sheet(over: Partial<ShareSheetProps> = {}, item: ShareItem = space) {
@@ -68,8 +68,8 @@ test('left and declined people sit under their own heading, with a tag, their ol
   assert.match(text(m.container), /No longer in this space/);
   const dana = rowOf(m.container, 'Dana Okafor');
   assert.match(text(dana), /Dana Okafor.*Can edit.*Left, 3 days ago.*Left/);
-  const marcus = rowOf(m.container, 'marcus@me.com');
-  assert.match(text(marcus), /marcus@me\.com.*Can view.*Declined, 5 days ago.*Declined/);
+  const marcus = rowOf(m.container, 'marcus@example.org');
+  assert.match(text(marcus), /marcus@example\.org.*Can view.*Declined, 5 days ago.*Declined/);
   const groups = [...m.container.querySelectorAll('ul')];
   assert.equal(groups.length, 2, 'members and the gone group are separate lists');
   assert.ok(groups[1]?.contains(dana), 'the gone group holds them');
@@ -97,8 +97,8 @@ test('the group is not drawn when nobody left or declined', () => {
 });
 
 test('a person with a status has no role menu and no more button, and the joined flag is ignored', () => {
-  const { m } = sheet({ members: [...base, { id: 'x', name: 'x@y.com', role: 'edit', status: 'left', joined: true }] });
-  const row = rowOf(m.container, 'x@y.com');
+  const { m } = sheet({ members: [...base, { id: 'x', name: 'x@example.net', role: 'edit', status: 'left', joined: true }] });
+  const row = rowOf(m.container, 'x@example.net');
   assert.equal(row.querySelectorAll('[aria-haspopup]').length, 0);
   assert.equal(row.querySelectorAll('[aria-label^="Change access"]').length, 0);
   assert.doesNotMatch(text(row), /Invited, not joined yet/);
@@ -108,7 +108,7 @@ test('a person with a status has no role menu and no more button, and the joined
 test('Invite again reports the id and the access they had, and Remove reports the id', () => {
   const { m, calls } = sheet();
   click(m.container.querySelector('[aria-label="Invite again, Dana Okafor"]') ?? undefined);
-  click(m.container.querySelector('[aria-label="Invite again, marcus@me.com"]') ?? undefined);
+  click(m.container.querySelector('[aria-label="Invite again, marcus@example.org"]') ?? undefined);
   click(m.container.querySelector('[aria-label="Remove Dana Okafor"]') ?? undefined);
   assert.deepEqual(calls, ['again:dana:edit', 'again:marcus:view', 'remove:dana']);
 });
@@ -139,13 +139,13 @@ test('a person with no name says Unknown account and has Remove only', () => {
 test('canInviteAgain false hides Invite again for that person only', () => {
   const { m } = sheet({ members: [...base, { ...gone[0]!, canInviteAgain: false }, gone[1]!] });
   assert.equal(byText(rowOf(m.container, 'Dana Okafor'), 'Invite again'), undefined);
-  assert.ok(byText(rowOf(m.container, 'marcus@me.com'), 'Invite again'));
+  assert.ok(byText(rowOf(m.container, 'marcus@example.org'), 'Invite again'));
 });
 
 test('the row is named by who left or declined and how long ago, and says no time when none is known', () => {
   const { m } = sheet({ members: [...base, { id: 'a', name: 'Amy', role: 'edit', status: 'left' }, { id: 'b', name: 'Bob', role: 'edit', status: 'declined', since: NOW - 2 * 3_600_000 }, { id: 'c', name: 'Cy', role: 'edit', status: 'left', since: NOW - DAY }, ...gone] });
   assert.equal(rowOf(m.container, 'Dana Okafor').getAttribute('aria-label'), 'Dana Okafor left 3 days ago');
-  assert.equal(rowOf(m.container, 'marcus@me.com').getAttribute('aria-label'), 'marcus@me.com declined 5 days ago');
+  assert.equal(rowOf(m.container, 'marcus@example.org').getAttribute('aria-label'), 'marcus@example.org declined 5 days ago');
   assert.equal(rowOf(m.container, 'Amy').getAttribute('aria-label'), 'Amy left');
   assert.equal(rowOf(m.container, 'Bob').getAttribute('aria-label'), 'Bob declined today');
   assert.equal(rowOf(m.container, 'Cy').getAttribute('aria-label'), 'Cy left 1 day ago');

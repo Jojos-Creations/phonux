@@ -99,11 +99,17 @@ export function PanelLoader({ load, children, placeholder, failed, windowMs = PA
     setCovering(true);
     const windowTimer = setTimeout(() => { windowOpen = false; }, windowMs);
     const limit = setTimeout(() => { if (current) setOutcome((was) => (was === 'waiting' ? 'timeout' : was)); }, timeoutMs);
-    const asked = given.current.placeholder?.();
+    let asked: ReturnType<NonNullable<PanelLoaderProps['placeholder']>>;
+    try {
+      asked = given.current.placeholder?.();
+    } catch {
+      // A placeholder that throws is only a placeholder that is not there: the load still runs.
+      asked = undefined;
+    }
     // A sync answer is up on this commit; a promise only counts inside the window.
     if (asked !== undefined) void Promise.resolve(asked).then((node) => { if (current && windowOpen) setCustom({ node }); }, () => undefined);
-    // A late success still wins over the timeout: the content is what the person came for.
-    given.current.load().then(
+    // A late success still wins over the timeout: the content is what the person came for. Started inside a promise so a `load` that throws before it returns one fails the load, not the render.
+    Promise.resolve().then(() => given.current.load()).then(
       () => { if (current) setOutcome('ready'); },
       () => { if (current) setOutcome('error'); },
     );

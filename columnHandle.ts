@@ -19,8 +19,10 @@ import type { StickyCandidate } from './rowNumbers.js';
 /** The saved list of a column: which workspaces exist, in order, under which name, and which one was current. @public */
 export interface ColumnState {
   /**
-   * The shape of this record. A column made with `sideBySide` writes 2 and reads 1 or 2; any other column writes and reads 1, and
-   * a different version reads as nothing saved. A record of version 1 has no `side` and reads as only the current workspace shown.
+   * The shape of this record. A column always writes 1, so a build that reads only 1 still reads the list; it reads 1 or 2 (a record
+   * of 2 was written by an earlier release, and its `side` is read as a version 1 record's is). A record of any other version is not
+   * understood: the column leaves it as it is, saves nothing for the rest of the launch, and reports it through `onError`. A record
+   * with no readable `side` reads as only the current workspace shown.
    */
   version: 1 | 2;
   /** The workspaces from top to bottom. */
@@ -28,8 +30,9 @@ export interface ColumnState {
   /** The id of the current workspace, or null for none. */
   current: string | null;
   /**
-   * Version 2 only: the workspaces the window shows side by side, left to right, and the row slots each is given. The two lists are as
-   * long as each other, every split entry is a whole number of at least 1, and the current workspace is among the shown.
+   * Written by a column made with `sideBySide`, and ignored by a build that does not know it: the workspaces the window shows side by
+   * side, left to right, and the row slots each is given. The two lists are as long as each other, every split entry is a whole number
+   * of at least 1, and the current workspace is among the shown.
    */
   side?: { shown: string[]; split: number[] };
 }
@@ -40,7 +43,12 @@ export interface ColumnState {
  * @public
  */
 export interface ColumnStorage {
-  /** The saved list, or null when nothing is saved. A rejection or a record that is not a `ColumnState` reads as nothing saved. */
+  /**
+   * The saved list, or null when nothing is saved. Only null (or undefined) means nothing is saved: a rejection, a throw, and a record
+   * that is not a `ColumnState` of a version this build reads are reported through `onError`, and the column then saves nothing for
+   * the rest of the launch, so the record stays as it was. In a record of a known version, a workspace entry that is not well formed
+   * (or repeats an id) is dropped and reported, and the rest are kept.
+   */
   load(): Promise<ColumnState | null>;
   /** Saves the list after it changed. A rejection is reported once through `onError`. */
   save(state: ColumnState): void | Promise<void>;
@@ -324,20 +332,30 @@ const isSide = (v: unknown): v is NonNullable<ColumnState['side']> => {
   return new Set(shown).size === shown.length && shown.every((id) => typeof id === 'string' && id !== '') && split.every((n) => Number.isInteger(n) && (n as number) >= 1);
 };
 
-const isColumnState = (v: unknown): v is ColumnState => {
-  if (typeof v !== 'object' || v === null) return false;
+/**
+ * What a saved record holds: `none` when nothing is saved, `unreadable` when a record is there that this build does not understand
+ * (its version is not one it reads, or it has no list of workspaces), otherwise the well formed entries and how many were dropped.
+ */
+type SavedRead = 'none' | 'unreadable' | { saved: ColumnState; dropped: number };
+
+const readSaved = (v: unknown): SavedRead => {
+  if (v === null || v === undefined) return 'none';
+  if (typeof v !== 'object') return 'unreadable';
   const s = v as Record<string, unknown>;
-  if ((s.version !== 1 && s.version !== 2) || !Array.isArray(s.workspaces)) return false;
-  if (s.current !== null && typeof s.current !== 'string') return false;
-  // A malformed `side` is read as none, so the workspaces it sits beside are not lost with it.
+  if ((s.version !== 1 && s.version !== 2) || !Array.isArray(s.workspaces)) return 'unreadable';
+  // A malformed `side` or `current` is read as none, so the workspaces beside it are not lost with it.
   const seen = new Set<string>();
-  return s.workspaces.every((w) => {
-    if (typeof w !== 'object' || w === null) return false;
+  const workspaces: ColumnState['workspaces'] = [];
+  for (const w of s.workspaces as unknown[]) {
+    if (typeof w !== 'object' || w === null) continue;
     const { id, name } = w as Record<string, unknown>;
-    if (typeof id !== 'string' || id === '' || typeof name !== 'string' || seen.has(id)) return false;
+    if (typeof id !== 'string' || id === '' || typeof name !== 'string' || seen.has(id)) continue;
     seen.add(id);
-    return true;
-  });
+    workspaces.push({ id, name });
+  }
+  const saved: ColumnState = { version: s.version, workspaces, current: typeof s.current === 'string' ? s.current : null };
+  if (isSide(s.side)) saved.side = s.side;
+  return { saved, dropped: s.workspaces.length - workspaces.length };
 };
 
 /**
@@ -433,12 +451,14 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
     const base = { workspaces: list.map((w) => ({ id: w.id, name: w.name })), current: list[current]?.id ?? null };
     if (!sideBySide) return { version: 1, ...base };
     const kept = sides.filter((e) => list.some((w) => w.id === e.id));
-    return { version: 2, ...base, side: { shown: kept.map((e) => e.id), split: kept.map((e) => e.rows) } };
+    return { version: 1, ...base, side: { shown: kept.map((e) => e.id), split: kept.map((e) => e.rows) } };
   };
   // Saves go one after another so a slow one cannot land after the one that followed it.
   let saving: Promise<void> = Promise.resolve();
+  // Set when the saved list could not be read or understood: a save would replace a record this launch never saw.
+  let unsaved = false;
   const persist = (): void => {
-    if (storage === undefined || status !== 'ready' || restoring) return;
+    if (storage === undefined || status !== 'ready' || restoring || unsaved) return;
     const next = state();
     saving = saving.then(async () => {
       try {
@@ -750,14 +770,26 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
 
   if (storage !== undefined) {
     // The saved list is laid around the workspaces code added before it arrived: saved ones keep their saved order and name.
-    void Promise.resolve()
-      .then(() => storage.load())
-      .catch(() => null)
-      .then((saved) => {
+    void (async (): Promise<{ read: SavedRead } | { failed: unknown }> => {
+      try {
+        await Promise.resolve();
+        return { read: readSaved(await storage.load()) };
+      } catch (failed) {
+        return { failed };
+      }
+    })()
+      .then((outcome) => {
         if (status === 'disposed') return;
+        const read = 'read' in outcome ? outcome.read : 'unreadable';
+        if (read === 'unreadable') {
+          unsaved = true;
+          reportError('failed' in outcome ? outcome.failed : new Error('The saved list of workspaces is not a record this version of phonux reads, so it is left as it is and nothing is saved.'));
+        }
         restoring = true;
         try {
-          if (isColumnState(saved)) {
+          if (typeof read === 'object') {
+            const { saved, dropped } = read;
+            if (dropped > 0) reportError(new Error(`Ignored ${dropped} saved workspace${dropped === 1 ? '' : 's'} that ${dropped === 1 ? 'was' : 'were'} not well formed.`));
             const keep = list[current]?.id;
             const byId = new Map(list.map((w) => [w.id, w]));
             const ordered: WorkspaceHandle[] = [];
@@ -776,8 +808,8 @@ export function createWorkspaceColumn(o: ColumnOptions = {}): WorkspaceColumnHan
             const id = saved.current ?? keep;
             const at = list.findIndex((w) => w.id === id);
             current = at >= 0 ? at : list.length > 0 ? Math.min(Math.max(current, 0), list.length - 1) : -1;
-            // A record of version 1, or one with no readable `side`, shows only the current workspace.
-            const side = sideBySide && saved.version === 2 && isSide(saved.side) ? saved.side : undefined;
+            // A record with no readable `side` shows only the current workspace.
+            const side = sideBySide ? saved.side : undefined;
             const known = new Set(list.map((w) => w.id));
             sides = side === undefined ? [] : side.shown.flatMap((sid, k) => (known.has(sid) ? [{ id: sid, rows: side.split[k]! }] : []));
             const now = list[current];

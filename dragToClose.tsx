@@ -7,6 +7,8 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { DndContext, PointerSensor, useDndMonitor, useDraggable, useSensor, useSensors } from '@dnd-kit/core';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { animate, cancelFrame, frame, motion, useIsPresent, useMotionValue, useReducedMotion, useReducedMotionConfig, useTransform, type MotionValue } from 'motion/react';
 import { AnnounceContext } from './announce.js';
@@ -14,6 +16,7 @@ import { useOptionalHost } from './hostApi.js';
 import { resolveLabels } from './labels.js';
 import { PanelSlotContext, PanelVerticalDragContext, type DragScroll } from './panelSlotContext.js';
 import { edgeScrollOf, edgeScrollerOf, endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
+import { focusNeighbourStrip } from './panelCloseFocus.js';
 import { rowStripOf } from './rowScroller.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import type { CssStyle } from './cssStyle.js';
@@ -125,8 +128,14 @@ export interface DragHandleProps {
   'aria-label'?: string;
   /** The keys the handle takes, for assistive technology. */
   'aria-keyshortcuts'?: string;
-  /** ArrowLeft and ArrowRight call `reorder.onStep(-1 | 1)` and Delete calls `onClose`, each said in the workspace's live region. Absent when the handle takes no keys. */
+  /** ArrowLeft and ArrowRight call `reorder.onStep(-1 | 1)` and Delete calls `onClose`, each said in the workspace's live region. Enter and Space open the handle's menu. Absent when the handle takes no keys. */
   onKeyDown?: (event: HandleKeyEvent) => void;
+  /** A click or tap that did not end a drag opens the handle's menu: Move left, Move right and Close, each only when the panel can. Absent when the handle takes no keys. */
+  onClick?: (event: { readonly currentTarget: unknown }) => void;
+  /** `'menu'` when the handle takes keys: its press opens a menu. */
+  'aria-haspopup'?: 'menu';
+  /** Whether that menu is open; set when the handle takes keys. */
+  'aria-expanded'?: boolean;
 }
 
 /** Hands the same handle's horizontal drag to the caller's own reorder (DESIGN.md, "`DragToClose`"). @public */
@@ -536,13 +545,20 @@ function DragToCloseBox({
     () => slotHandle?.getState().title,
   );
   const titleNow = (): string => slotHandle?.getState().title ?? labels.untitledPanel;
-  // Every close, by a drag or by Delete, says so; the panel is gone by the time anything could.
+  const [menuAnchor, setMenuAnchor] = React.useState<HTMLElement | null>(null);
+  const menuOpenRef = React.useRef(false);
+  menuOpenRef.current = menuAnchor !== null;
+  // The menu's Close waits for the menu to be gone: its focus trap would pull focus back from the panel that takes the place.
+  const closeAfterMenu = React.useRef(false);
+  // Every close, by a drag, a key or the menu, says so; the panel is gone by the time anything could.
   const closeRef = React.useRef<(() => void) | undefined>(onClose);
   closeRef.current =
     onClose === undefined
       ? undefined
       : () => {
           announce?.(labels.closed(titleNow()));
+          // Focus on this panel (or in its menu) has nowhere to stay once it is gone: it goes to the panel that takes its place.
+          if (box.current !== null && (menuOpenRef.current || box.current.contains(box.current.ownerDocument.activeElement))) focusNeighbourStrip(box.current);
           onClose();
         };
   const reorderRef = React.useRef(reorder);
@@ -894,6 +910,17 @@ function DragToCloseBox({
 
   // The focus ring takes the theme's accent, read from the styling theme the mount built from PhonuxTheme.
   const accent = useTheme().palette.primary.main;
+  // One step by key or by menu says the same words.
+  const stepBy = (steps: number): void => {
+    const onStep = reorderRef.current?.onStep;
+    if (onStep !== undefined) announce?.(onStep(steps) ? labels.moved(titleNow(), steps) : labels.cannotMove(titleNow(), steps));
+  };
+  const canClose = (): boolean => closeRef.current !== undefined && closableRef.current;
+  React.useEffect(() => {
+    if (menuAnchor !== null || !closeAfterMenu.current) return;
+    closeAfterMenu.current = false;
+    closeRef.current?.();
+  }, [menuAnchor]);
   const handle: DragHandleProps = {
     onPointerDown: (incoming) => {
       const event = incoming as React.PointerEvent<HTMLElement>;
@@ -936,13 +963,20 @@ function DragToCloseBox({
             if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
             if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && reorderRef.current?.onStep !== undefined) {
               event.preventDefault();
-              const steps = event.key === 'ArrowLeft' ? -1 : 1;
-              announce?.(reorderRef.current.onStep(steps) ? labels.moved(titleNow(), steps) : labels.cannotMove(titleNow(), steps));
-            } else if (event.key === 'Delete' && closeRef.current !== undefined && closableRef.current) {
+              stepBy(event.key === 'ArrowLeft' ? -1 : 1);
+            } else if (event.key === 'Delete' && canClose()) {
               event.preventDefault();
-              closeRef.current();
+              closeRef.current?.();
+            } else if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setMenuAnchor(event.currentTarget as HTMLElement);
             }
           },
+          onClick: (event: { readonly currentTarget: unknown }) => {
+            setMenuAnchor(event.currentTarget as HTMLElement);
+          },
+          'aria-haspopup': 'menu' as const,
+          'aria-expanded': menuAnchor !== null,
         }),
   };
 
@@ -972,6 +1006,43 @@ function DragToCloseBox({
         {children(handle)}
       </motion.div>
       {tile}
+      <Menu
+        open={menuAnchor !== null}
+        anchorEl={menuAnchor}
+        onClose={() => setMenuAnchor(null)}
+        slotProps={{ list: { 'aria-label': labels.grabStrip(drawnTitle ?? labels.untitledPanel) } }}
+      >
+        {reorderRef.current?.onStep !== undefined && (
+          <MenuItem
+            onClick={() => {
+              setMenuAnchor(null);
+              stepBy(-1);
+            }}
+          >
+            {labels.moveLeft}
+          </MenuItem>
+        )}
+        {reorderRef.current?.onStep !== undefined && (
+          <MenuItem
+            onClick={() => {
+              setMenuAnchor(null);
+              stepBy(1);
+            }}
+          >
+            {labels.moveRight}
+          </MenuItem>
+        )}
+        {canClose() && (
+          <MenuItem
+            onClick={() => {
+              closeAfterMenu.current = true;
+              setMenuAnchor(null);
+            }}
+          >
+            {labels.close}
+          </MenuItem>
+        )}
+      </Menu>
     </>
   );
 }

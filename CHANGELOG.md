@@ -2,8 +2,50 @@
 
 ## Unreleased
 
+### Upgrading from 0.1
+
+0.1.0 was followed by eight release candidates, each with its own Breaking and Migration notes further down; this is the
+path from 0.1.0 to this release, in the order to do it. The 0.1.0 package is MIT; everything after `0.2.0-rc.8` is
+MPL-2.0 (see the README's License section).
+
+1. Install the peers this version asks for (README, Install): `react` and `react-dom` 19.2.8 or newer, `@mui/material` 9.3.1 or
+   newer with `@emotion/react` and `@emotion/styled`, and `motion` 13.3 or newer 13.x. `motion` 14 does not satisfy the peer range.
+2. Rename the 22 deprecated aliases 0.1.0 still exported (rc.1, "Removed"): `PhoneAPIs` is `Host`, `PhoneAPIsProvider` is `HostProvider`
+   (its prop is `host`), `usePhoneAPIs` is `useHost`, `PhoneView` is `Panel`, `PhoneFrame` is `PanelFrame`, `createFakePhoneAPIs` is
+   `createFakeHost`, and so on; the full list is in rc.1.
+3. Start the app from templates (rc.3 and rc.4): `definePanel({ id, view })` and `createWorkspace({ templates })` replace
+   `registerView` and `resolveView`, which are gone, and `createWorkspace` now renders itself. An app that renders the row by hand
+   passes `mount: false`, and wraps it in `PhonuxThemeProvider` in place of its own MUI `ThemeProvider` (rc.6).
+4. Replace panel widths: `formFactor`, `formFactors`, `setFormFactor` and the tier names are gone (rc.4). Phone is `slots: 1`, tablet
+   `slots: 2`, and `maxSlots` caps it. `draggable` and `placeable` are one setting, `movable`. `usePanelHidden` is removed; a view
+   that parks unmounts, and rc.7 removed parking for room altogether, so a row that overflowed now scrolls (`tuning.maxLivePanels`
+   caps loaded content).
+5. Check what the library no longer carries: the USB phone-detect prompt (rc.3), the closed-pages panel, `Host.history` and
+   `Host.settings` (rc.6), pinning (rc.6), `PanelFrame`'s content padding and scrollbar styling (rc.4: the view owns its padding and
+   scrolling), and the settings rc.4 and rc.7 removed. In development a removed setting that is still passed logs one warning.
+6. Move the theme to `PhonuxTheme` (rc.6): `createWorkspace({ theme })` takes CSS colors and a corner, with the fields named
+   `card`, `foreground`, `border` and `radius`; `sx` on a header button or drag handle is a plain CSS style object.
+7. Saved files: a 0.1.0 workspace file restores unchanged. A file this version writes holds no counter ids, so 0.1.0 reads it as invalid
+   (rc.4). A column that uses `sideBySide` still writes a version 1 `ColumnState` with an optional `side`, so an older phonux keeps
+   its workspaces and drops only the side-by-side layout. Keep the old library out of an app that shares a saved workspace file
+   with the new one.
+8. New in this release and needing a decision, not a rename: `ShareSheet` opens on Link for a file, `PhonuxLabels.offerAccept` is a
+   function and `offerTitle` takes the kind as a second argument, `RowNumbers.stuck` is gone, the row's root element is a wrapper
+   (`data-row-root`), and `edgeHold: 'both'` has no equivalent in `sticky` (see Changed and Deprecated below).
+
 ### Added
 
+- The grab strip opens a menu on a click, a tap, Enter or Space: Move left, Move right and Close, each drawn only when the
+  panel can do it. A person who cannot drag, or who is on a touch screen, can now reorder and close a panel from the default
+  frame. `DragHandleProps` gains `onClick`, `aria-haspopup` and `aria-expanded`; spread them with the rest of the handle, as
+  the default frame does. A close by the menu or by Delete moves keyboard focus to the grab strip of the panel that takes its
+  place instead of leaving it on the page body.
+- A fullscreen panel draws a pressed Fullscreen button in its corner that shrinks it, so a phone or tablet with no Escape key
+  has a way back.
+- The undo-close toast keeps the undo window open while it has the pointer or focus, and the window starts over when it lets
+  go; a person who needs longer than 10 seconds to reach Undo is no longer cut off. `ProvidedPanels.holdUndo(on)` is the call.
+- A row step by arrow key says which panels came into the window, in the workspace's live region, from the names the slots
+  already carry.
 - Share sheet, people who left or declined. A `ShareMember` with `status` `'left'` or `'declined'` (and `since`, epoch
   milliseconds) moves out of the members list into a quieter group under `No longer in this space` (the item's kind, so
   `playlist` reads right). Each row has a grey Left or orange Declined tag, the access they had, `Left, 3 days ago`, and
@@ -68,9 +110,9 @@
   (Left and Right, Home and End, double click evens the split), spoken as "Research 2 panels, Trip food 2 panels" through the new
   labels `splitDivider(left, right)`, which names the two spaces it parts, and `splitValue`. The divider's `aria-controls` names the cell
   on its left.
-- `ColumnState.version` is now `1 | 2`, and a version 2 record carries `side: { shown, split }`. A column without `sideBySide` still
-  writes version 1, and a version 1 record reads as only the current workspace shown. An older phonux reads a version 2 record as
-  nothing saved.
+- `ColumnState` carries an optional `side: { shown, split }`, written by a column made with `sideBySide`. The record stays version 1,
+  so an older phonux reads the workspaces and ignores `side`; a record with no readable `side` reads as only the current workspace
+  shown. `ColumnState.version` is typed `1 | 2` because a version 2 record from a development build is still read; nothing writes it.
 - `arrowKeyBelongsElsewhere` is now also true for a key aimed at a `[role="separator"][aria-valuenow]`, the divider between spaces, so an
   app's own arrow handler leaves its arrows alone as it does for a slider.
 - `TrustScreen`: the props-driven code exchange that adds someone the person trusts. The person makes a code (shown as
@@ -97,6 +139,16 @@
 
 ### Changed
 
+- README: the install is the plain `npm install phonux`, plus the peers with `motion@13` (the plain `motion` installs 14, outside the
+  peer range, and leaves a tree every later `npm install` and `npm ci` refuses with `ERESOLVE`); it lists the exact peer minimums.
+  The dependency, `dist` branch and repository-visibility lines are corrected, the stale parking lines are gone, and sticky panels,
+  side by side columns and the share and trust components each have a section with an example the tests type-check. The pack
+  smoke refuses a README that installs `phonux@<tag>`.
+- Licenses: `THIRD_PARTY_NOTICES.md` carries the Apache License 2.0 text for the Material Icons, credits `@mui/icons-material`
+  (MIT, Copyright (c) 2014 Call-Em-All) for the paths taken from it and names the QR Code trademark. The README names the
+  copyright holder (Copyright (c) 2026 Joseph Reed), gives the MPL Exhibit A notice once for every source file, and `package.json`
+  has an `author`.
+- Tests and the phone demo use `example.com`, `example.org` and `example.net` addresses; a test fails on an address on any other domain.
 - The release workflow publishes in two jobs. One installs with `--ignore-scripts`, runs the gate and packs `dist/`; the other,
   which holds the npm trusted-publishing identity and runs no repository code, publishes that exact tarball (checked against
   its sha256) with provenance. The `NPM_TOKEN` fallback is gone, a ref must be a full sha on `main`, and a private repository stops
@@ -136,6 +188,48 @@
 
 ### Fixed
 
+- A view that throws while rendering no longer blanks the whole workspace, or every workspace of a column, at every launch. Its
+  panel draws a failed state in the library's frame, with the header (so it can be closed) and a Try again, the error still goes
+  to `onError`, and every other panel stays drawn. A `PanelLoader` whose `load` throws before it returns a promise shows its
+  failed view and Try again instead of taking the panel down, and one whose `placeholder` throws loads without it.
+- A saved record that could not be read is no longer saved over. A column or workspace whose `load` rejects or throws, a column
+  record of a version phonux does not read, and a workspace file that is not a version 1 file are reported through `onError`,
+  and that column or workspace then saves nothing until it is made again, so the stored record stays as it was. `null` still means
+  nothing is saved and saving goes on. In a column record of a known version, one workspace entry that is not well formed no longer
+  costs the whole list: it is dropped and reported, and the others are kept.
+- `ShareSheet`, `OfferCard` and `SharedList` no longer throw `MUI: Unsupported var(--phonux-primary) color` under the library's own
+  theme (the default mount and `PhonuxThemeProvider`), which blanked the whole row. Their tints now come from the theme's own
+  `alpha`, which reads a CSS variable.
+- `phonux build` hands `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD` only to the `jarsigner` step. The web and desktop
+  scripts, `cap`, Gradle and `xcodebuild` used to inherit them, so anything one of those printed or bundled from its
+  environment could reach `.phonux/build/logs/`, the terminal or the shipped web build. Whatever a step prints, a password's
+  value is replaced by `[hidden]` before it is written to the log.
+- `TrustScreen`'s note under the code no longer promises 24 hours whatever the exchange says: `PhonuxLabels.trustCodeNote` is now a
+  function of the whole hours left (from `endsAt`), and its default reads `Works for 6 hours, for one person.`; a fresh 24 hour
+  code reads as before. The hours-left line while waiting no longer stops at 24 for a code that lasts longer.
+- `QrCode` holds the UTF-8 bytes of its `value`. It kept only the low byte of each character, so `Ł` drew the code of `A` and a link
+  with a Japanese name scanned as other text; text with non-ASCII characters now draws a different code than before (ASCII,
+  such as the safety code, is unchanged). A value over 2331 bytes threw `code length overflow` while rendering and took down
+  the tree around it; it now draws a tile with no modules and `data-phonux-qr-error="too-long"`.
+- `npm run release:check` and the rc branch check printed with its publish command now refuse a working tree with uncommitted or
+  untracked files, for every version, and compare a final version (no `-rc.N`) with `origin/main` after a fetch: HEAD must be
+  on it. A final used to pass on a dirty tree at any commit.
+- Share sheet: the safety code is drawn for the owner's row as it is for any other joined person. A changed key on the owner
+  used to show nothing (no warning line, no Review, no shield for `checked`, no Check for `unchecked`); the row now says
+  `Owner, sharing key changed` and so on, and the Owner word at the right is drawn only when there is no such line. The
+  user's own row and a pending invite still draw none.
+- MUI buttons under the library theme show a 2 px focus ring in the theme's accent when reached by keyboard; with the ripple
+  off they showed nothing. The editable panel title shows one too, and the `Untitled` placeholder is no longer the disabled
+  grey.
+- The side-by-side divider's line is drawn at 3:1 against the page at rest, in light and dark.
+- A closed panel leaves at once under the system's reduced-motion setting, with no `MotionConfig` around the row. Panels that
+  move into the gap still slide, as before.
+- Arrow keys in the header toolbar and the size menu follow the drawn side under right-to-left.
+- The development warnings (removed settings, `edgeHold`, deprecated host verbs, old API levels, ids, a hand mount) now print in
+  a browser bundle that defines `process.env.NODE_ENV` but has no `process` global, where they were skipped.
+- The trust screen's Copy says so when the clipboard refuses and selects the code to copy by hand; each step with no field of its
+  own takes focus on its title; the unselected how-long buttons pass 4.5:1; the join code field names its error as its
+  description. Picking a width says the new width in the live region.
 - `phonux build` signs the Android bundle with `SHA256withRSA` and `SHA-256` instead of SHA-1, which current JDKs treat as
   unsigned, and runs Capacitor as `npx --no-install cap`, so a project without `@capacitor/cli` installed fails instead of
   downloading an unrelated package from the registry.

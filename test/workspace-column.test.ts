@@ -361,11 +361,15 @@ test('the panels of a workspace are stored under its id, not its name', async ()
   assert.deepEqual(Object.keys(asked), ['main']);
 });
 
-test('a saved record that is not a ColumnState reads as nothing saved', async () => {
-  for (const bad of [{ version: 2, workspaces: [], current: null }, { version: 1, workspaces: [{ id: 'a', name: 'A' }, { id: 'a', name: 'B' }], current: null }, 'text']) {
-    const c = make({ storage: memoryColumnStorage(bad), mount: false });
+test('a saved record that is not a ColumnState restores nothing and is not saved over', async () => {
+  for (const bad of [{ version: 3, workspaces: [], current: null }, { version: 1, workspaces: 'x', current: null }, 'text']) {
+    const storage = memoryColumnStorage(bad);
+    const c = make({ storage, mount: false, onError: () => undefined });
     await until('ready', () => c.status === 'ready');
     assert.equal(c.workspaces.length, 0);
+    c.addWorkspace();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.deepEqual(await storage.load(), bad);
   }
 });
 

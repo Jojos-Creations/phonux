@@ -311,8 +311,13 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-expanded'?: boolean;
+    'aria-haspopup'?: 'menu';
     'aria-keyshortcuts'?: string;
     'aria-label'?: string;
+    onClick?: (event: {
+        readonly currentTarget: unknown;
+    }) => void;
     onKeyDown?: (event: HandleKeyEvent) => void;
     onPointerDown: (event: HandlePointerEvent) => void;
     role?: 'button';
@@ -1288,6 +1293,8 @@ export interface PhonuxLabels {
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
+    moveLeft: string;
+    moveRight: string;
     newWorkspace: string;
     offerAccept: (kindPlural: string) => string;
     offerDecline: string;
@@ -1386,7 +1393,7 @@ export interface PhonuxLabels {
     trustCodeEnded: string;
     trustCodeEndedMaker: string;
     trustCodeLabel: string;
-    trustCodeNote: string;
+    trustCodeNote: (hours: number) => string;
     trustCopied: string;
     trustCopy: string;
     trustCouldNotReach: string;
@@ -1473,6 +1480,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly exitRightIds: ReadonlySet<string>;
     readonly fixedViewCount: number;
     followPanel(id: string): void;
+    holdUndo(on: boolean): void;
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
     readonly rowNumbers: RowNumbers;
