@@ -4,6 +4,7 @@
  * glide as any other resize.
  */
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Popover from '@mui/material/Popover';
@@ -122,6 +123,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
     setAnchor(null);
   };
   const fullscreenLabel = fullscreenShortcut === undefined ? labels.fullscreen : `${labels.fullscreen} (${fullscreenShortcut})`;
+  // A fullscreen panel has no Escape key on a phone or tablet, and its own header is not a place a pointer can count on reaching.
+  const exitHost = maximize.maximized ? panelRootOf(button.current) : null;
   return (
     <>
       <Tooltip title={labels.viewSize}>
@@ -206,6 +209,22 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
           </Box>
         </Box>
       </Popover>
+      {exitHost !== null ? (
+        // In the panel's own root, which is in the top layer while it is fullscreen: a button outside it would be drawn under the panel.
+        createPortal(
+          <IconButton
+            size="small"
+            data-panel-exit-fullscreen=""
+            aria-label={fullscreenLabel}
+            aria-pressed
+            onClick={() => maximize.toggle()}
+            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1, color: 'text.primary', bgcolor: 'background.paper', boxShadow: 1, '&:hover': { bgcolor: 'background.paper' } }}
+          >
+            {icons.fullscreen}
+          </IconButton>,
+          exitHost,
+        )
+      ) : null}
     </>
   );
 }

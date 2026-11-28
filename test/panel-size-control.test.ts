@@ -10,7 +10,7 @@ import { AnnounceContext } from '../announce.js';
 import { LIBRARY_TUNING_DEFAULTS, PanelSizeControl, type PanelSizeControlProps } from '../index.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
-import { cleanup, mount } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 
 afterEach(() => {
@@ -271,6 +271,34 @@ test('picking the current size calls nothing on the panel handle, while another 
   act(() => void widths().find((b) => b.dataset.viewSize === 'tablet')!.click());
   await wait();
   assert.deepEqual(calls, ['setSlots(3,person)']);
+});
+
+test('a fullscreen panel draws its own way back: a pressed Fullscreen button a pointer can reach, which shrinks the panel', async () => {
+  const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
+  const saved = { show: proto.showPopover, hide: proto.hidePopover };
+  proto.showPopover = () => {};
+  proto.hidePopover = () => {};
+  try {
+    const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+    const exit = (): HTMLButtonElement | null => rig.m.container.querySelector<HTMLButtonElement>('[data-panel-exit-fullscreen]');
+    assert.equal(exit(), null, 'control: a panel in its slot draws no exit');
+    await openSizes(rig);
+    act(() => void document.querySelector<HTMLButtonElement>('[data-view-fullscreen]')!.click());
+    await wait();
+    const back = exit();
+    assert.ok(back, 'a fullscreen panel draws it');
+    assert.equal(back.closest('[data-panel-root]') !== null, true, 'inside the panel, so it is drawn with the panel in the top layer');
+    assert.equal(back.getAttribute('aria-pressed'), 'true');
+    assert.equal(back.getAttribute('aria-label'), 'Fullscreen');
+    act(() => void back.click());
+    await act(async () => void (await advanceFrames(2000)));
+    assert.equal(exit(), null, 'pressing it shrinks the panel, and it is gone');
+    await openSizes(rig);
+    assert.deepEqual(current().map(stopName), ['phone'], 'the panel is back at its width');
+  } finally {
+    proto.showPopover = saved.show;
+    proto.hidePopover = saved.hide;
+  }
 });
 
 test('while the panel is fullscreen, Fullscreen is the current size: reachable, announced as current, and picking it keeps the panel fullscreen', async () => {
