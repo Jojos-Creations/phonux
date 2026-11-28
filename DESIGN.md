@@ -432,8 +432,8 @@ the sticky panels whose `sticky` is `'start'` in row order, the strip Embla move
 - `edgeHold` is the deprecated name. A settings layer, a saved instance layer and a `configure` patch read `edgeHold: 'left'` as `sticky: 'start'` and
   `'right'` as `'end'`; `'both'` (a panel that stuck when scrolled past) no longer exists and reads as `'off'`, all with a development warning. A
   `sticky` in the same layer wins. A resolved value (`getSettings().value`) keeps a read-only `edgeHold` derived from `sticky` (`'start'` reads `'left'`,
-  `'end'` reads `'right'`, `'off'` reads `'off'`); it is not enumerable, so it is not part of the value's key set. It is removed before 0.2.0 final
-  (the alias policy).
+  `'end'` reads `'right'`, `'off'` reads `'off'`); it is not enumerable, so it is not part of the value's key set. It stays in 0.2.0, deprecated, and a later minor release
+  removes it (the alias policy).
 
 ### Scrolling to a panel
 
