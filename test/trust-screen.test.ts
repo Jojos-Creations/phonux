@@ -325,3 +325,18 @@ test('the unselected how-long buttons are drawn in the primary text color, not t
   const own = rules.filter((r) => /:not\(\.Mui-selected\)/.test(r.selectorText) && toggle.matches(r.selectorText.replace(/\.Mui-selected/, '.Mui-selected')));
   assert.ok(own.some((r) => /^rgba?\(0, 0, 0, 0\.87\)$/.test(r.style.getPropertyValue('color'))), `a rule colors the unselected toggle in the primary text color; found: ${own.map((r) => r.cssText).join(' | ')}`);
 });
+
+test('the join code field names its error as its description', async () => {
+  const { trust } = service();
+  const { m } = screen(trust);
+  await press(button(m.container, 'I have a code'));
+  const code = field(m.container, 'Code');
+  assert.equal(code.getAttribute('aria-describedby'), null, 'control: no description before an error');
+  await type(code, 'nope');
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  await press(button(m.container, 'Join'));
+  const alert = m.container.querySelector('[role="alert"]');
+  assert.ok(alert, 'the error is shown');
+  assert.equal(code.getAttribute('aria-describedby'), alert.id);
+  assert.notEqual(alert.id, '');
+});

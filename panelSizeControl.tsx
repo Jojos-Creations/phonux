@@ -178,7 +178,8 @@ export function PanelSizeControl({ topInset, fullscreenShortcut, fullscreenKeys,
                       if (current) return;
                       close();
                       if (maximize.maximized) maximize.toggle();
-                      if (!handle.setSlots(slots, 'person').ok) refused('resize');
+                      if (handle.setSlots(slots, 'person').ok) announce?.(labels.sizeName(slots));
+                      else refused('resize');
                     }}
                     sx={ENTRY}
                   >

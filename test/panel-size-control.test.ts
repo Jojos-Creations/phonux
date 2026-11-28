@@ -329,3 +329,13 @@ test('while the panel is fullscreen, Fullscreen is the current size: reachable, 
     proto.hidePopover = saved.hide;
   }
 });
+
+test('picking a width says the new width in the live region', async () => {
+  const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+  const said = (): string => document.querySelector('[data-workspace-announcer]')?.textContent ?? '';
+  await openSizes(rig);
+  assert.equal(said(), '', 'control: nothing said before the pick');
+  act(() => void widths().find((b) => b.dataset.viewSize === 'tablet')!.click());
+  await wait();
+  assert.equal(said(), 'Tablet');
+});

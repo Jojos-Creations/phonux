@@ -92,7 +92,7 @@ const ClockIcon = createSvgIcon(<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.9
 
 const pill = { borderRadius: 999, textTransform: 'none', fontWeight: 600, minHeight: MIN_TOUCH_PX } as const;
 
-function Field({ label, value, onChange, error, autoFocus, mono }: { label: string; value: string; onChange: (value: string) => void; error?: boolean; autoFocus?: boolean; mono?: boolean }): React.ReactElement {
+function Field({ label, value, onChange, error, describedBy, autoFocus, mono }: { label: string; value: string; onChange: (value: string) => void; error?: boolean; describedBy?: string; autoFocus?: boolean; mono?: boolean }): React.ReactElement {
   return (
     <TextField
       label={label}
@@ -101,14 +101,14 @@ function Field({ label, value, onChange, error, autoFocus, mono }: { label: stri
       error={error === true}
       autoFocus={autoFocus === true}
       fullWidth
-      slotProps={{ htmlInput: { maxLength: 64, spellCheck: false, autoComplete: 'off' }, input: { sx: { borderRadius: 3, ...(mono ? { fontFamily: 'ui-monospace, monospace' } : {}) } } }}
+      slotProps={{ htmlInput: { maxLength: 64, spellCheck: false, autoComplete: 'off', ...(describedBy === undefined ? {} : { 'aria-describedby': describedBy }) }, input: { sx: { borderRadius: 3, ...(mono ? { fontFamily: 'ui-monospace, monospace' } : {}) } } }}
     />
   );
 }
 
-function Message({ children }: { children: React.ReactNode }): React.ReactElement {
+function Message({ id, children }: { id?: string; children: React.ReactNode }): React.ReactElement {
   return (
-    <Box role="alert" sx={{ color: 'error.main', fontSize: 'body2.fontSize' }}>
+    <Box id={id} role="alert" sx={{ color: 'error.main', fontSize: 'body2.fontSize' }}>
       {children}
     </Box>
   );
@@ -280,6 +280,8 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
   const saveOk = saveAs.trim().length > 0;
   const two = { display: 'flex', gap: 1 } as const;
 
+  const titleId = React.useId();
+  const errorId = React.useId();
   let title: string = labels.trustTitle;
   let body: React.ReactNode;
   if (step.id === 'start') {
@@ -312,8 +314,8 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     title = labels.trustJoinTitle;
     body = (
       <>
-        <Field label={labels.trustCodeLabel} value={code} onChange={setCode} error={error !== null} autoFocus mono />
-        {error ? <Message>{error}</Message> : null}
+        <Field label={labels.trustCodeLabel} value={code} onChange={setCode} error={error !== null} {...(error ? { describedBy: errorId } : {})} autoFocus mono />
+        {error ? <Message id={errorId}>{error}</Message> : null}
         <Field label={labels.trustNameLabel} value={name} onChange={setName} />
         <Button variant="contained" disableElevation disabled={!nameOk || code.trim() === '' || busy} onClick={() => void joinCode()} sx={pill}>
           {labels.trustJoin}
@@ -439,7 +441,6 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     );
   }
 
-  const titleId = React.useId();
   const heading = React.useRef<HTMLElement>(null);
   const rootRef = React.useRef<HTMLElement>(null);
   const stepSeen = React.useRef(step.id);
