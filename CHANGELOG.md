@@ -4,6 +4,17 @@
 
 ### Added
 
+- The grab strip opens a menu on a click, a tap, Enter or Space: Move left, Move right and Close, each drawn only when the
+  panel can do it. A person who cannot drag, or who is on a touch screen, can now reorder and close a panel from the default
+  frame. `DragHandleProps` gains `onClick`, `aria-haspopup` and `aria-expanded`; spread them with the rest of the handle, as
+  the default frame does. A close by the menu or by Delete moves keyboard focus to the grab strip of the panel that takes its
+  place instead of leaving it on the page body.
+- A fullscreen panel draws a pressed Fullscreen button in its corner that shrinks it, so a phone or tablet with no Escape key
+  has a way back.
+- The undo-close toast keeps the undo window open while it has the pointer or focus, and the window starts over when it lets
+  go; a person who needs longer than 10 seconds to reach Undo is no longer cut off. `ProvidedPanels.holdUndo(on)` is the call.
+- A row step by arrow key says which panels came into the window, in the workspace's live region, from the names the slots
+  already carry.
 - Share sheet, people who left or declined. A `ShareMember` with `status` `'left'` or `'declined'` (and `since`, epoch
   milliseconds) moves out of the members list into a quieter group under `No longer in this space` (the item's kind, so
   `playlist` reads right). Each row has a grey Left or orange Declined tag, the access they had, `Left, 3 days ago`, and
@@ -136,6 +147,18 @@
 
 ### Fixed
 
+- MUI buttons under the library theme show a 2 px focus ring in the theme's accent when reached by keyboard; with the ripple
+  off they showed nothing. The editable panel title shows one too, and the `Untitled` placeholder is no longer the disabled
+  grey.
+- The side-by-side divider's line is drawn at 3:1 against the page at rest, in light and dark.
+- A closed panel leaves at once under the system's reduced-motion setting, with no `MotionConfig` around the row. Panels that
+  move into the gap still slide, as before.
+- Arrow keys in the header toolbar and the size menu follow the drawn side under right-to-left.
+- The development warnings (removed settings, `edgeHold`, deprecated host verbs, old API levels, ids, a hand mount) now print in
+  a browser bundle that defines `process.env.NODE_ENV` but has no `process` global, where they were skipped.
+- The trust screen's Copy says so when the clipboard refuses and selects the code to copy by hand; each step with no field of its
+  own takes focus on its title; the unselected how-long buttons pass 4.5:1; the join code field names its error as its
+  description. Picking a width says the new width in the live region.
 - `phonux build` signs the Android bundle with `SHA256withRSA` and `SHA-256` instead of SHA-1, which current JDKs treat as
   unsigned, and runs Capacitor as `npx --no-install cap`, so a project without `@capacitor/cli` installed fails instead of
   downloading an unrelated package from the registry.
