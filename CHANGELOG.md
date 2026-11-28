@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### Upgrading from 0.1
+
+0.1.0 was followed by eight release candidates, each with its own Breaking and Migration notes further down; this is the
+path from 0.1.0 to this release, in the order to do it. The 0.1.0 package is MIT; everything after `0.2.0-rc.8` is
+MPL-2.0 (see the README's License section).
+
+1. Install the peers this version asks for (README, Install): `react` and `react-dom` 19.2.8 or newer, `@mui/material` 9.3.1 or
+   newer with `@emotion/react` and `@emotion/styled`, and `motion` 13.3 or newer 13.x. `motion` 14 does not satisfy the peer range.
+2. Rename the 22 deprecated aliases 0.1.0 still exported (rc.1, "Removed"): `PhoneAPIs` is `Host`, `PhoneAPIsProvider` is `HostProvider`
+   (its prop is `host`), `usePhoneAPIs` is `useHost`, `PhoneView` is `Panel`, `PhoneFrame` is `PanelFrame`, `createFakePhoneAPIs` is
+   `createFakeHost`, and so on; the full list is in rc.1.
+3. Start the app from templates (rc.3 and rc.4): `definePanel({ id, view })` and `createWorkspace({ templates })` replace
+   `registerView` and `resolveView`, which are gone, and `createWorkspace` now renders itself. An app that renders the row by hand
+   passes `mount: false`, and wraps it in `PhonuxThemeProvider` in place of its own MUI `ThemeProvider` (rc.6).
+4. Replace panel widths: `formFactor`, `formFactors`, `setFormFactor` and the tier names are gone (rc.4). Phone is `slots: 1`, tablet
+   `slots: 2`, and `maxSlots` caps it. `draggable` and `placeable` are one setting, `movable`. `usePanelHidden` is removed; a view
+   that parks unmounts, and rc.7 removed parking for room altogether, so a row that overflowed now scrolls (`tuning.maxLivePanels`
+   caps loaded content).
+5. Check what the library no longer carries: the USB phone-detect prompt (rc.3), the closed-pages panel, `Host.history` and
+   `Host.settings` (rc.6), pinning (rc.6), `PanelFrame`'s content padding and scrollbar styling (rc.4: the view owns its padding and
+   scrolling), and the settings rc.4 and rc.7 removed. In development a removed setting that is still passed logs one warning.
+6. Move the theme to `PhonuxTheme` (rc.6): `createWorkspace({ theme })` takes CSS colors and a corner, with the fields named
+   `card`, `foreground`, `border` and `radius`; `sx` on a header button or drag handle is a plain CSS style object.
+7. Saved files: a 0.1.0 workspace file restores unchanged. A file this version writes holds no counter ids, so 0.1.0 reads it as invalid
+   (rc.4); and a column that uses `sideBySide` writes a version 2 `ColumnState`, which an older phonux reads as nothing saved. Keep
+   the old library out of an app that shares a saved file with the new one.
+8. New in this release and needing a decision, not a rename: `ShareSheet` opens on Link for a file, `PhonuxLabels.offerAccept` is a
+   function and `offerTitle` takes the kind as a second argument, `RowNumbers.stuck` is gone, the row's root element is a wrapper
+   (`data-row-root`), and `edgeHold: 'both'` has no equivalent in `sticky` (see Changed and Deprecated below).
+
 ### Added
 
 - Share sheet, people who left or declined. A `ShareMember` with `status` `'left'` or `'declined'` (and `since`, epoch
@@ -97,6 +127,16 @@
 
 ### Changed
 
+- README: the install is the plain `npm install phonux`, plus the peers with `motion@13` (the plain `motion` installs 14, outside the
+  peer range, and leaves a tree every later `npm install` and `npm ci` refuses with `ERESOLVE`); it lists the exact peer minimums.
+  The dependency, `dist` branch and repository-visibility lines are corrected, the stale parking lines are gone, and sticky panels,
+  side by side columns and the share and trust components each have a section with an example the tests type-check. The pack
+  smoke refuses a README that installs `phonux@<tag>`.
+- Licenses: `THIRD_PARTY_NOTICES.md` carries the Apache License 2.0 text for the Material Icons, credits `@mui/icons-material`
+  (MIT, Copyright (c) 2014 Call-Em-All) for the paths taken from it and names the QR Code trademark. The README names the
+  copyright holder (Copyright (c) 2026 Joseph Reed), gives the MPL Exhibit A notice once for every source file, and `package.json`
+  has an `author`.
+- Tests and the phone demo use `example.com`, `example.org` and `example.net` addresses; a test fails on an address on any other domain.
 - The release workflow publishes in two jobs. One installs with `--ignore-scripts`, runs the gate and packs `dist/`; the other,
   which holds the npm trusted-publishing identity and runs no repository code, publishes that exact tarball (checked against
   its sha256) with provenance. The `NPM_TOKEN` fallback is gone, a ref must be a full sha on `main`, and a private repository stops

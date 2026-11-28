@@ -3,6 +3,7 @@
   "version": "0.2.0-rc.8",
   "description": "A phone-shaped view host for React: write a view against a small set of host APIs, register it, and render it in one HostProvider.",
   "license": "MPL-2.0",
+  "author": "Joseph Reed",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Jojos-Creations/phonux.git"

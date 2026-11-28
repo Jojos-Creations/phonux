@@ -322,6 +322,8 @@ try {
     const readmeBans = [
       [/client\/src\/shared\/phone/, "names this repo's source folder"],
       [/plans\//, 'names the plans folder'],
+      // A tag install would hand out the older release candidate once the final is published under `latest`.
+      [/npm install phonux@/, 'installs a tag or version of phonux instead of the plain name'],
     ];
     for (const [pattern, problem] of readmeBans) if (pattern.test(readme)) readmeProblems.push(problem);
     // Every link target must be absolute: the registry page has no sibling files, so a path, a bare file name or an
