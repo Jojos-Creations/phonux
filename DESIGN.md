@@ -432,8 +432,8 @@ the sticky panels whose `sticky` is `'start'` in row order, the strip Embla move
 - `edgeHold` is the deprecated name. A settings layer, a saved instance layer and a `configure` patch read `edgeHold: 'left'` as `sticky: 'start'` and
   `'right'` as `'end'`; `'both'` (a panel that stuck when scrolled past) no longer exists and reads as `'off'`, all with a development warning. A
   `sticky` in the same layer wins. A resolved value (`getSettings().value`) keeps a read-only `edgeHold` derived from `sticky` (`'start'` reads `'left'`,
-  `'end'` reads `'right'`, `'off'` reads `'off'`); it is not enumerable, so it is not part of the value's key set. It is removed before 0.2.0 final
-  (the alias policy).
+  `'end'` reads `'right'`, `'off'` reads `'off'`); it is not enumerable, so it is not part of the value's key set. It stays in 0.2.0, deprecated, and a later minor release
+  removes it (the alias policy).
 
 ### Scrolling to a panel
 
@@ -2498,7 +2498,7 @@ tag of this branch's head. The published `0.2.0-rc.N` is the head of `rcN` at pu
 version lists what changed since the one before. The head this text was last checked against:
 
 ```text
-base: 9a793f58d28047c71036dc515bd2d9f747f83f1e
+base: 4df32e10ebde7260eec014ec5af4fe03b64972cd
 ```
 
 No real browser measures this tree in CI: the jsdom and unit suites are the automated evidence behind a candidate, and the

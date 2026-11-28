@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+The release audit report for this version, with the findings fixed and the ones still open, is [docs/audits/0.2.0.md](docs/audits/0.2.0.md).
 
 ### Upgrading from 0.1
 
@@ -183,8 +185,8 @@ MPL-2.0 (see the README's License section).
 - `edgeHold` is the old name of `sticky`. Reads and writes of it keep working: `'left'` is written as `'start'` and `'right'`
   as `'end'`, in a settings layer, in a saved layer and in a `configure` patch, with a development warning, and `'both'`
   reads as `'off'`; a `sticky` in the same layer wins. A resolved value (`getSettings().value`) still has a read-only
-  `edgeHold` derived from `sticky` (`'start'` reads `'left'`, `'end'` reads `'right'`, `'off'` reads `'off'`). It is removed
-  before 0.2.0 final.
+  `edgeHold` derived from `sticky` (`'start'` reads `'left'`, `'end'` reads `'right'`, `'off'` reads `'off'`). `edgeHold` stays
+  in 0.2.0; it is deprecated and will be removed in a later minor release.
 
 ### Fixed
 

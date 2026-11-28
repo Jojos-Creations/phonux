@@ -436,7 +436,7 @@ export type ResolvedPanelSettings = {
   /**
    * The old name of `sticky`, read-only and derived from it: 'left' when `sticky` is 'start', 'right' when it is 'end', 'off' otherwise.
    * It is a property of the value that does not show in `Object.keys` or a spread, so code that copies the value does not carry it.
-   * @deprecated Read `sticky` instead. It is removed before 0.2.0 final.
+   * @deprecated Read `sticky` instead. It stays in 0.2.0 and will be removed in a later minor release.
    */
   readonly edgeHold: 'off' | 'left' | 'right';
 };
@@ -448,7 +448,7 @@ export type PanelSettings = { [K in keyof SettingValues]?: SettingValues[K] } & 
   /**
    * The name `sticky` replaced. 'left' is read as sticky 'start' and 'right' as sticky 'end'; 'both' (a panel that stuck when scrolled past) no longer exists and is read as sticky 'off' with a
    * development warning. A layer that sets `sticky` too ignores this.
-   * @deprecated Set `sticky` instead. It is removed before 0.2.0 final.
+   * @deprecated Set `sticky` instead. It stays in 0.2.0 and will be removed in a later minor release.
    */
   edgeHold?: 'off' | 'left' | 'right' | 'both';
 };
@@ -1482,7 +1482,7 @@ export function stickyFromEdgeHold(value: 'off' | 'left' | 'right' | 'both'): Se
     console.warn(
       value === 'both'
         ? "phonux: the setting 'edgeHold' was replaced by 'sticky'; the value 'both' (stick when scrolled past) no longer exists and is read as sticky 'off'. Remove it from your settings."
-        : `phonux: the setting 'edgeHold' was replaced by 'sticky'; '${value}' is read as sticky '${EDGE_HOLD_AS_STICKY[value]}'. Set 'sticky' instead; 'edgeHold' is removed before 0.2.0 final.`,
+        : `phonux: the setting 'edgeHold' was replaced by 'sticky'; '${value}' is read as sticky '${EDGE_HOLD_AS_STICKY[value]}'. Set 'sticky' instead; 'edgeHold' is deprecated and will be removed in a later minor release.`,
     );
   }
   return EDGE_HOLD_AS_STICKY[value];

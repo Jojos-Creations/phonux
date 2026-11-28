@@ -98,7 +98,7 @@ function missingMatchesRemoved(fixture: ExportsFixture, current: { root: Names; 
 }
 
 /**
- * The backtick-quoted names of the Removed lists: the first set is every bullet under Unreleased's Removed list and the
+ * The backtick-quoted names of the Removed lists: the first set is every bullet under the 0.2.0 section's Removed list and the
  * first top-level bullet of the 0.2.0-rc.1 Removed list; the second is that list's third top-level bullet. One set per group.
  */
 function changelogRemovedBullets(): [Set<string>, Set<string>] {
@@ -112,11 +112,11 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
     }
     return bullets;
   };
-  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.8)\s*$/.test(line));
+  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0)\s*$/.test(line));
   const release = lines.findIndex((line) => /^## 0\.2\.0-rc\.1\s*$/.test(line));
   const unreleasedBullets = removedBullets(unreleased);
   const releaseBullets = removedBullets(release);
-  assert.ok(unreleased >= 0 && release >= 0, 'CHANGELOG.md has an Unreleased section and a 0.2.0-rc.1 section');
+  assert.ok(unreleased >= 0 && release >= 0, 'CHANGELOG.md has a 0.2.0 section and a 0.2.0-rc.1 section');
   assert.ok(releaseBullets.length >= 3, 'the 0.2.0-rc.1 Removed list has at least its three bullets');
   // A name after `->` is the replacement the bullet points to, not a name it removes.
   const names = (bullet: string[] | undefined): Set<string> => new Set([...(bullet ?? []).join('\n').matchAll(/(->\s*)?`([^`]+)`/g)].filter((m) => m[1] === undefined).map((m) => m[2] ?? ''));
@@ -124,12 +124,12 @@ function changelogRemovedBullets(): [Set<string>, Set<string>] {
   return [aliases, names(releaseBullets[2])];
 }
 
-/** The backtick-quoted names of every Breaking list from the Unreleased section down through 0.2.0-rc.3. */
+/** The backtick-quoted names of every Breaking list from the 0.2.0 section down through 0.2.0-rc.3. */
 function changelogBreakingNames(): Set<string> {
   const lines = readText(fileURLToPath(new URL('../CHANGELOG.md', import.meta.url))).split('\n');
-  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0-rc\.8)\s*$/.test(line));
+  const unreleased = lines.findIndex((line) => /^## (Unreleased|0\.2\.0)\s*$/.test(line));
   const rc3 = lines.findIndex((line) => /^## 0\.2\.0-rc\.3\s*$/.test(line));
-  assert.ok(unreleased >= 0 && rc3 >= unreleased, 'CHANGELOG.md has an Unreleased section and a 0.2.0-rc.3 section');
+  assert.ok(unreleased >= 0 && rc3 >= unreleased, 'CHANGELOG.md has a 0.2.0 section and a 0.2.0-rc.3 section');
   const end = lines.findIndex((line, i) => i > rc3 && /^## /.test(line));
   const names = new Set<string>();
   let inBreaking = false;
