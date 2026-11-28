@@ -303,6 +303,8 @@ export function PanelRowSlot({
   }, []);
   const snapping = previewing && (reducedMotion || systemReduced || dragged);
   const instant = reducedMotion === true || snapping || tracking;
+  // A close leaves at once under either preference; a neighbour's move into the gap still slides unless the app's MotionConfig says no.
+  const reduced = reducedMotion === true || systemReduced === true;
   // A drag of any axis lifts its slot above the row's others until it has settled; the slot is its own stacking context, so only its z can do it.
   const lifted = usePanelDragging();
   const [present, safeToRemove] = usePresence();
@@ -369,8 +371,9 @@ export function PanelRowSlot({
         queueMicrotask(() => safeToRemove?.());
         return;
       }
-      const timing = reducedMotion === true ? { duration: 0, ease: transition.ease } : timingOf(exit.transition as { duration?: number; ease?: unknown } | undefined, transition);
-      glide(poseOf(exit, leftOffset), timing, () => safeToRemove?.());
+      const timing = reduced ? { duration: 0, ease: transition.ease } : timingOf(exit.transition as { duration?: number; ease?: unknown } | undefined, transition);
+      // A move of no length lands inside this effect, before AnimatePresence is ready to take a removal.
+      glide(poseOf(exit, leftOffset), timing, () => (timing.duration <= 0 ? queueMicrotask(() => safeToRemove?.()) : safeToRemove?.()));
       return;
     }
     const returning = exiting.current;
