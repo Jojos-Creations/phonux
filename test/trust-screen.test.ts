@@ -52,12 +52,12 @@ interface FakeExchange extends TrustExchange {
   ended: boolean;
 }
 
-function exchange(role: 'maker' | 'joiner', calls: string[]): FakeExchange {
+function exchange(role: 'maker' | 'joiner', calls: string[], endsAt = Date.now() + 5.5 * 3_600_000): FakeExchange {
   let answered = false;
   const ex: FakeExchange = {
     role,
     code: 'KW-7Q4M-ZX2P',
-    endsAt: Date.now() + 5.5 * 3_600_000,
+    endsAt,
     progress: { theirName: null, answered: false, canSendToThem: false },
     checks: 0,
     calls,
@@ -241,4 +241,42 @@ test('the QR code is the same for the same text, differs for other text, and kee
   quiet.unmount();
   const sized = mount(h(QrCode, { value: 'x', label: 'code', size: 96 }));
   assert.equal(sized.container.querySelector('svg')!.getAttribute('width'), '96');
+});
+
+const noteOf = (root: ParentNode): string => text(root.querySelector('[data-phonux-trust-code]')!.parentElement!.nextElementSibling!);
+
+test('the note under the code says the hours the exchange has left, not a fixed 24', async () => {
+  for (const [hoursAhead, said] of [
+    [24, 'Works for 24 hours, for one person.'],
+    [5.5, 'Works for 6 hours, for one person.'],
+    [72, 'Works for 72 hours, for one person.'],
+    [0.4, 'Works for 1 hour, for one person.'],
+  ] as const) {
+    const { trust } = service({
+      invite: async () => {
+        return exchange('maker', [], Date.now() + hoursAhead * 3_600_000);
+      },
+    });
+    const { m } = screen(trust);
+    await type(field(m.container, 'What you call yourself'), 'Joe');
+    await press(button(m.container, 'Make a code'));
+    assert.equal(noteOf(m.container), said);
+    m.unmount();
+  }
+});
+
+test('a code that has run out says less than 1 hour, and a label replaces the note with the hours it is given', async () => {
+  const { trust } = service({
+    invite: async () => {
+      return exchange('maker', [], Date.now() - 1000);
+    },
+  });
+  const { m } = screen(trust, { labels: { trustCodeNote: (hours) => `Valid ${hours} h` } });
+  await type(field(m.container, 'What you call yourself'), 'Joe');
+  await press(button(m.container, 'Make a code'));
+  assert.equal(noteOf(m.container), 'Valid 0 h');
+  const plain = screen(trust);
+  await type(field(plain.m.container, 'What you call yourself'), 'Joe');
+  await press(button(plain.m.container, 'Make a code'));
+  assert.equal(noteOf(plain.m.container), 'Works for less than 1 hour, for one person.');
 });

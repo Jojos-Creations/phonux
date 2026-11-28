@@ -136,6 +136,9 @@
 
 ### Fixed
 
+- `TrustScreen`'s note under the code no longer promises 24 hours whatever the exchange says: `PhonuxLabels.trustCodeNote` is now a
+  function of the whole hours left (from `endsAt`), and its default reads `Works for 6 hours, for one person.`; a fresh 24 hour
+  code reads as before. The hours-left line while waiting no longer stops at 24 for a code that lasts longer.
 - `QrCode` holds the UTF-8 bytes of its `value`. It kept only the low byte of each character, so `Ł` drew the code of `A` and a link
   with a Japanese name scanned as other text; text with non-ASCII characters now draws a different code than before (ASCII,
   such as the safety code, is unchanged). A value over 2331 bytes threw `code length overflow` while rendering and took down
