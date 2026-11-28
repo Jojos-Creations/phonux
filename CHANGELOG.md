@@ -136,6 +136,9 @@
 
 ### Fixed
 
+- `npm run release:check` and the rc branch check printed with its publish command now refuse a working tree with uncommitted or
+  untracked files, for every version, and compare a final version (no `-rc.N`) with `origin/main` after a fetch: HEAD must be
+  on it. A final used to pass on a dirty tree at any commit.
 - Share sheet: the safety code is drawn for the owner's row as it is for any other joined person. A changed key on the owner
   used to show nothing (no warning line, no Review, no shield for `checked`, no Check for `unchecked`); the row now says
   `Owner, sharing key changed` and so on, and the Owner word at the right is drawn only when there is no such line. The
