@@ -26,8 +26,9 @@ MPL-2.0 (see the README's License section).
 6. Move the theme to `PhonuxTheme` (rc.6): `createWorkspace({ theme })` takes CSS colors and a corner, with the fields named
    `card`, `foreground`, `border` and `radius`; `sx` on a header button or drag handle is a plain CSS style object.
 7. Saved files: a 0.1.0 workspace file restores unchanged. A file this version writes holds no counter ids, so 0.1.0 reads it as invalid
-   (rc.4); and a column that uses `sideBySide` writes a version 2 `ColumnState`, which an older phonux reads as nothing saved. Keep
-   the old library out of an app that shares a saved file with the new one.
+   (rc.4). A column that uses `sideBySide` still writes a version 1 `ColumnState` with an optional `side`, so an older phonux keeps
+   its workspaces and drops only the side-by-side layout. Keep the old library out of an app that shares a saved workspace file
+   with the new one.
 8. New in this release and needing a decision, not a rename: `ShareSheet` opens on Link for a file, `PhonuxLabels.offerAccept` is a
    function and `offerTitle` takes the kind as a second argument, `RowNumbers.stuck` is gone, the row's root element is a wrapper
    (`data-row-root`), and `edgeHold: 'both'` has no equivalent in `sticky` (see Changed and Deprecated below).
