@@ -246,8 +246,8 @@ export interface PhonuxLabels {
   trustCopy: string;
   /** The copy button once the code is copied. Default `Copied`. */
   trustCopied: string;
-  /** The line under the code. Default `Works for 24 hours, for one person.`. */
-  trustCodeNote: string;
+  /** The line under the code, given the whole hours the code still works (at least 0, from the exchange's `endsAt`). Default `Works for 24 hours, for one person.`, `Works for 1 hour, for one person.` at 1, and `Works for less than 1 hour, for one person.` at 0. */
+  trustCodeNote: (hours: number) => string;
   /** The button that leaves the code to wait for the other side. Default `Done, wait for them`. */
   trustDoneWait: string;
   /** The button that switches to typing a code. Default `I have a code`. */
@@ -456,7 +456,7 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   trustQr: 'QR code for the code below',
   trustCopy: 'Copy',
   trustCopied: 'Copied',
-  trustCodeNote: 'Works for 24 hours, for one person.',
+  trustCodeNote: (hours) => (hours < 1 ? 'Works for less than 1 hour, for one person.' : hours === 1 ? 'Works for 1 hour, for one person.' : `Works for ${hours} hours, for one person.`),
   trustDoneWait: 'Done, wait for them',
   trustHaveCode: 'I have a code',
   trustMakeInstead: 'Make a code instead',

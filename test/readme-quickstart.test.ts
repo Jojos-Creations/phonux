@@ -81,6 +81,36 @@ test('the quickstart and the advanced block type-check against this checkout', (
   assert.equal(ok.status, 0, ok.out);
 });
 
+/** The views the feature blocks name without defining, declared so that the block under test is the README text itself. */
+const PRELUDE = "import type * as React from 'react';\nimport type { PanelViewProps } from 'phonux';\ndeclare const LibraryView: React.ComponentType<PanelViewProps>;\ndeclare const PlayerView: React.ComponentType<PanelViewProps>;\ndeclare const NotesView: React.ComponentType<PanelViewProps>;\n";
+
+test('the sticky, side by side and sharing blocks type-check against this checkout', () => {
+  const files = Object.fromEntries(
+    ['sticky', 'side-by-side', 'share'].map((name) => [`${name}.tsx`, `${PRELUDE}${extractReadmeBlock(README, name)}${name === 'share' ? '' : 'export {};\n'}`]),
+  );
+  const ok = typecheck(files);
+  assert.equal(ok.status, 0, ok.out);
+  const broken = typecheck({ 'share.tsx': files['share.tsx']!.replace('onSafetyCodeOpen=', 'onSafetyCodeOpened=') });
+  assert.notEqual(broken.status, 0, 'a prop the README names that the component lacks fails the check');
+});
+
+test('the install lines name every peer, and pin motion to the major the peer range allows', () => {
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { peerDependencies: Record<string, string>; peerDependenciesMeta?: Record<string, { optional?: boolean }> };
+  const install = README.slice(README.indexOf('## Install'), README.indexOf('## Quickstart'));
+  const lines = [...install.matchAll(/^npm install (.+)$/gm)].map((m) => m[1]!);
+  assert.equal(lines[0], 'phonux', 'the first line is the plain install, which is the latest tag');
+  assert.doesNotMatch(install, /phonux@next/);
+  const words = lines.slice(1).join(' ').split(/\s+/);
+  const bare = (word: string): string => word.replace(/(?<=.)@[^@]*$/, '');
+  for (const name of Object.keys(pkg.peerDependencies)) {
+    if (pkg.peerDependenciesMeta?.[name]?.optional === true) continue;
+    assert.ok(words.some((word) => bare(word) === name), `the install line names the peer ${name}`);
+  }
+  const motion = /^\^(\d+)\./.exec(pkg.peerDependencies.motion!);
+  assert.ok(motion, 'the motion peer is a caret range');
+  assert.ok(words.includes(`motion@${motion[1]}`), `the install line says motion@${motion[1]}, the major of the peer range ${pkg.peerDependencies.motion}`);
+});
+
 test('a block that calls a removed export fails the type-check', () => {
   const { quickstart } = blocks();
   const broken = typecheck({ 'quickstart.tsx': quickstart.replace(/createWorkspace/g, 'startWorkspace') });

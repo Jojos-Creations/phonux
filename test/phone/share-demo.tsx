@@ -25,8 +25,8 @@ const members = (safety: ShareMember['safety']): ShareMember[] => [
   { id: 'ann', name: 'ann@example.com', role: 'edit' },
   { id: 'bo', name: 'bo@example.com', role: 'edit', joined: false },
   ...(safety === undefined ? [] : [{ id: 'maya', name: 'Maya', role: 'edit' as const, safety }]),
-  { id: 'dana', name: 'dana.okafor@proton.me', role: 'edit', status: 'left', since: NOW - 3 * 86_400_000 },
-  { id: 'marcus', name: 'marcus.webb@me.com', role: 'view', status: 'declined', since: NOW - 5 * 86_400_000 },
+  { id: 'dana', name: 'dana.okafor@example.com', role: 'edit', status: 'left', since: NOW - 3 * 86_400_000 },
+  { id: 'marcus', name: 'marcus.webb@example.org', role: 'view', status: 'declined', since: NOW - 5 * 86_400_000 },
 ];
 
 document.body.style.fontFamily = 'Roboto, Helvetica, Arial, sans-serif';

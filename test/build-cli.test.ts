@@ -157,6 +157,17 @@ test('a signed Android build names its passwords by environment variable, never 
   }
 });
 
+test('only the jarsigner step is marked as signing, so only it is handed the passwords', () => {
+  const signed = app({ android: { keystore: 'release.jks', alias: 'upload' }, ios: { teamId: 'ABCDE12345' } });
+  const probe = fullMac([join(ROOT, 'android'), join(ROOT, 'ios')], { PHONUX_KEYSTORE_PASSWORD: 'pw-secret' });
+  const plan = planBuild(targetsById(['android-phone', 'iphone', 'desktop']), signed, probe, (p) => checkPlatform(p, signed, probe), { debug: false });
+  const runs = plan.jobs.flatMap((job) => job.steps.filter((s) => s.kind === 'run'));
+  assert.ok(runs.length > 6, 'the plan has web, desktop, cap, gradle, xcodebuild and jarsigner steps');
+  const signing = runs.filter((s) => s.signs === true);
+  assert.equal(signing.length, 1);
+  assert.ok(signing[0]!.args.includes('-signedjar'), describeStep(signing[0]!));
+});
+
 test('a signed Android bundle is signed with SHA-256, never SHA-1', () => {
   const signed = app({ android: { keystore: 'release.jks', alias: 'upload' } });
   const probe = fullMac([join(ROOT, 'android')], { PHONUX_KEYSTORE_PASSWORD: 'pw-secret' });

@@ -114,7 +114,7 @@ function Message({ children }: { children: React.ReactNode }): React.ReactElemen
   );
 }
 
-function CodeBlock({ code, labels }: { code: string; labels: PhonuxLabels }): React.ReactElement {
+function CodeBlock({ code, hoursLeft, labels }: { code: string; hoursLeft: number; labels: PhonuxLabels }): React.ReactElement {
   const [copied, setCopied] = React.useState(false);
   const copy = async (): Promise<void> => {
     try {
@@ -137,7 +137,7 @@ function CodeBlock({ code, labels }: { code: string; labels: PhonuxLabels }): Re
           {copied ? labels.trustCopied : labels.trustCopy}
         </Button>
       </Box>
-      <Box sx={{ color: 'text.secondary', fontSize: 'body2.fontSize' }}>{labels.trustCodeNote}</Box>
+      <Box sx={{ color: 'text.secondary', fontSize: 'body2.fontSize' }}>{labels.trustCodeNote(hoursLeft)}</Box>
     </>
   );
 }
@@ -267,7 +267,7 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     onDone();
   };
 
-  const hours = (current: TrustExchange): number => Math.max(0, Math.min(24, Math.ceil((current.endsAt - Date.now()) / HOUR_MS)));
+  const hours = (current: TrustExchange): number => Math.max(0, Math.ceil((current.endsAt - Date.now()) / HOUR_MS));
   const nameOk = name.trim().length > 0;
   const saveOk = saveAs.trim().length > 0;
   const two = { display: 'flex', gap: 1 } as const;
@@ -294,7 +294,7 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     const current = step.exchange;
     body = (
       <>
-        <CodeBlock code={current.code} labels={labels} />
+        <CodeBlock code={current.code} hoursLeft={hours(current)} labels={labels} />
         <Button variant="contained" disableElevation onClick={() => setStep({ id: 'waiting', exchange: current, theirName: null })} sx={pill}>
           {labels.trustDoneWait}
         </Button>
