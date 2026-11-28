@@ -2623,6 +2623,14 @@ the numbers the row prices with, so a host centering the row in its page counts 
 
 A panel is never an empty space while it loads. `PanelLoader` puts a placeholder up on the first frame and mounts its children when `load` resolves. The host's `placeholder` has `windowMs` (200 by default) to answer; a later answer is dropped so the placeholder never swaps late. The generic blocks are still until that window closes, then pulse, so a quick load shows no motion. An error or a timeout ends in a view with Try again, and content that arrives after a timeout still comes in.
 
+**A view that throws.** `ViewBoundary` (`panelViewBoundary.tsx`) sits above `FrameBoundary` in the adapter, so the view's own frame goes with the view when
+it throws, and the panel draws `DefaultFrame` around a failed state with `labels.couldNotLoad` and a `labels.tryAgain` button that draws the view afresh. The
+header stays, so the panel can be closed, and the template's footer is left out. It is above `FrameBoundary` and not below it so that the failed state does not
+make `FrameBoundary` remember the template as bare. The error is not reported by the boundary: React hands it to the root's `onCaughtError`, which the auto
+mount points at `onError`, as it did for `onUncaughtError` before. A host that renders the row itself (`mount: false`) hears it on its own root.
+A `load` or `placeholder` that throws before returning a promise is the same case for `PanelLoader`: `load` runs inside a promise, so the throw ends in the failed
+view; a `placeholder` that throws is dropped.
+
 ## `PanelSizeControl`
 
 One width control for every resizable panel: a header button that shows the panel's own width (`savedSlots ?? slots`, so a

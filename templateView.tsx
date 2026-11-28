@@ -8,6 +8,7 @@ import { PanelLevelContext } from './panelLevelContext.js';
 import { checkPanelApi, NEWEST_SHAPE, reportShapeOnce, SHIPPED_LEVELS, warnIfOldLevel, type LevelTable } from './panelApiLevel.js';
 import { FrameBoundary } from './panelFrameBoundary.js';
 import { PanelFooterContext } from './panelFooter.js';
+import { ViewBoundary } from './panelViewBoundary.js';
 import type { PanelTemplate } from './panelTemplate.js';
 import { PanelTouchContext } from './panelTouch.js';
 import { PanelVerticalDragContext } from './panelSlotContext.js';
@@ -46,9 +47,11 @@ export function templateViewFor(t: PanelTemplate, table: LevelTable = SHIPPED_LE
     reportShapeOnce(t.id, level, viewProps, shape);
     const View = t.view as React.ComponentType<object>;
     const view = (
-      <FrameBoundary template={t} panel={panel}>
-        <View {...viewProps} />
-      </FrameBoundary>
+      <ViewBoundary panel={panel}>
+        <FrameBoundary template={t} panel={panel}>
+          <View {...viewProps} />
+        </FrameBoundary>
+      </ViewBoundary>
     );
     const Footer = t.footer as React.ComponentType<object> | undefined;
     const body = Footer === undefined ? view : <PanelFooterContext.Provider value={<Footer {...viewProps} />}>{view}</PanelFooterContext.Provider>;

@@ -136,6 +136,10 @@
 
 ### Fixed
 
+- A view that throws while rendering no longer blanks the whole workspace, or every workspace of a column, at every launch. Its
+  panel draws a failed state in the library's frame, with the header (so it can be closed) and a Try again, the error still goes
+  to `onError`, and every other panel stays drawn. A `PanelLoader` whose `load` throws before it returns a promise shows its
+  failed view and Try again instead of taking the panel down, and one whose `placeholder` throws loads without it.
 - A saved record that could not be read is no longer saved over. A column or workspace whose `load` rejects or throws, a column
   record of a version phonux does not read, and a workspace file that is not a version 1 file are reported through `onError`,
   and that column or workspace then saves nothing until it is made again, so the stored record stays as it was. `null` still means

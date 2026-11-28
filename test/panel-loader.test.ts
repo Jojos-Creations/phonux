@@ -103,3 +103,36 @@ test('a load that resolves after the panel unmounts changes nothing', async () =
   finish();
   await later(10);
 });
+
+test('a load that throws before it returns a promise shows the failed view, with Try again that asks again', async () => {
+  let asked = 0;
+  const c = await show({
+    load: () => {
+      asked += 1;
+      if (asked === 1) throw new Error('no network module');
+      return Promise.resolve();
+    },
+  });
+  assert.equal(c.querySelector('[data-panel-load-failed]')?.getAttribute('data-panel-load-failed'), 'error');
+  act(() => void c.querySelector<HTMLElement>('[data-panel-load-retry]')!.click());
+  await later(10);
+  assert.ok(c.querySelector('[data-content]'));
+  assert.equal(asked, 2);
+});
+
+test('a load that returns something that is not a promise ends as a load that resolved', async () => {
+  const c = await show({ load: (() => undefined) as unknown as () => Promise<unknown> });
+  await later(10);
+  assert.ok(c.querySelector('[data-content]'));
+});
+
+test('a placeholder that throws is dropped and the load goes on', async () => {
+  const c = await show({
+    load: () => Promise.resolve(),
+    placeholder: () => {
+      throw new Error('placeholder bug');
+    },
+  });
+  await later(10);
+  assert.ok(c.querySelector('[data-content]'));
+});
