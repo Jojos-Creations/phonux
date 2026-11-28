@@ -186,9 +186,12 @@ function isEmptyHeaderContent(node: React.ReactNode): boolean {
   return node === undefined || node === null || node === false || node === '';
 }
 
+/** Drawn inside the box: the title sits in an `overflow: hidden` wrapper that would clip an outset ring. */
+const FOCUS_INSET = { outline: '2px solid var(--phonux-primary, currentColor)', outlineOffset: -2 } as const;
+
 /** A dimmed "Untitled" reads as "intentionally blank" rather than a loading glitch or missing data. */
 const placeholderTitle = (text: string) => (
-  <Box component="span" data-header-placeholder-title="" sx={{ color: 'text.disabled' }}>
+  <Box component="span" data-header-placeholder-title="" sx={{ color: 'text.secondary' }}>
     {text}
   </Box>
 );
@@ -231,7 +234,8 @@ export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, o
   };
   const titleNode =
     draft !== null ? (
-      <input
+      <Box
+        component="input"
         ref={inputRef}
         aria-label={typeof title === 'string' ? title : undefined}
         value={draft}
@@ -241,7 +245,7 @@ export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, o
           if (event.key === 'Enter') commit();
           else if (event.key === 'Escape') setDraft(null);
         }}
-        style={{ font: 'inherit', color: 'inherit', background: 'transparent', border: 0, outline: 'none', padding: 0, width: '100%', minWidth: 0 }}
+        sx={{ font: 'inherit', color: 'inherit', background: 'transparent', border: 0, padding: 0, width: '100%', minWidth: 0, '&:focus-visible': FOCUS_INSET }}
       />
     ) : editable ? (
       <Box
@@ -252,7 +256,7 @@ export function PanelHeaderRow({ title, actions, leading, sx, isInput = false, o
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') setDraft(title);
         }}
-        sx={{ cursor: 'text' }}
+        sx={{ cursor: 'text', '&:focus-visible': FOCUS_INSET }}
       >
         {resolvedTitle}
       </Box>

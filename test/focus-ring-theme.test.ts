@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
-import { PhonuxThemeProvider, createDefaultTheme } from '../index.js';
+import { PanelHeaderRow, PhonuxThemeProvider, createDefaultTheme } from '../index.js';
+import { act } from 'react';
 import { cleanup, mount } from './support/mount-harness.js';
 
 afterEach(cleanup);
@@ -49,3 +50,20 @@ for (const mode of ['light', 'dark'] as const) {
     assert.ok(contrast(theme.primary, theme.background) >= 3, `${mode}: ${theme.primary} on ${theme.background} is at least 3:1`);
   });
 }
+
+test('the editable title button and its input draw a focus ring, and the placeholder title is not the disabled grey', () => {
+  const edit = mount(React.createElement(PanelHeaderRow, { title: 'Notes', isInput: true, onTitleChange: () => {} }));
+  const button = edit.container.querySelector<HTMLElement>('[role="button"]')!;
+  const sheet = () => [...document.styleSheets].flatMap((s) => [...s.cssRules]).map((r) => r.cssText).join('\n');
+  const ringFor = (cls: string): boolean => new RegExp(`\\.${cls}:focus-visible\\s*\\{[^}]*outline:\\s*2px solid`).test(sheet());
+  const classOf = (el: Element): string => [...el.classList].find((c) => c.startsWith('css-'))!;
+  assert.ok(ringFor(classOf(button)), 'the title button has a :focus-visible outline');
+  act(() => button.click());
+  const input = edit.container.querySelector<HTMLElement>('input')!;
+  assert.ok(input, 'a click opens the edit field');
+  assert.ok(ringFor(classOf(input)), 'the edit field has a :focus-visible outline');
+  const bare = mount(React.createElement(PanelHeaderRow, { title: '' }));
+  const placeholder = bare.container.querySelector<HTMLElement>('[data-header-placeholder-title]')!;
+  const placeholderRule = sheet().match(new RegExp(`\\.${classOf(placeholder)}\\s*\\{[^}]*\\}`))?.[0] ?? '';
+  assert.doesNotMatch(placeholderRule, /(?:0, 0, 0, 0\.38|#9e9e9e|rgba\(255, 255, 255, 0\.5\))/i, 'not the disabled grey');
+});
