@@ -25,6 +25,7 @@ import { useInsideSizeBox } from './PanelRowSlot.js';
 import { GRAB_HANDLE_PX } from './rowConstants.js';
 import { PanelTouchContext, usePanelTouch } from './panelTouch.js';
 import { ACTIVE_ATTRIBUTE, CHROME_ATTRIBUTE, CHROME_PARTS, CHROME_SHOWN_ATTRIBUTE, DRAGGING_ATTRIBUTE, PanelChromeVisibleContext, useChromeFade, useChromeVisibility, usePanelActive, usePanelDragging } from './panelChrome.js';
+import { isDevelopment } from './devMode.js';
 
 export { HostMissingProviderError, HostProvider, useHost } from './hostApi.js';
 export type { Host } from './hostApi.js';
@@ -133,7 +134,7 @@ export function Panel({ title, actions, headerProps, headerButtons = true, sizeC
   const grabIcon = resolveIcons(useOptionalHost()?.icons).grab;
   const grabHandle = grabProps && title !== undefined ? <Box {...grabHandleProps}>{grabIcon}</Box> : undefined;
   React.useEffect(() => {
-    if (!untitled || warned.current || typeof process === 'undefined' || process.env.NODE_ENV === 'production') return;
+    if (!untitled || warned.current || !isDevelopment()) return;
     warned.current = true;
     console.warn('Panel: header buttons are declared but the panel has no title, so no header row is drawn and they are not shown.');
   }, [untitled]);
