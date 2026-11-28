@@ -34,6 +34,8 @@ export type Reapplied = { panel: PanelWindow; placeAs: 'old-slot' | AddPlacement
 export interface UsePanelClosingResult {
   /** Closes a view completely and opens the undo window, or extends it to at least the panel's `undoWindowMs` from now (a panel with 0 is final at once). Unknown, root or already-closed id: does nothing and answers false. */
   close: (id: string, byPerson?: boolean) => boolean;
+  /** Holds the undo window open while `on` is true, and gives it a whole new length when it goes false. Does nothing when no window is open. */
+  holdWindow: (on: boolean) => void;
   /** Drops the views closed inside the window whose key is `key`, so an undo has nothing to skip or report for them. True when one was dropped. */
   forgetClosed: (key: string) => boolean;
   /** The ids of the views closed inside the window now, even when no render has seen the close yet. */
@@ -112,6 +114,8 @@ export function usePanelClosing(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // When the open window ends, ms since the epoch: a later close may move it later, never earlier.
   const windowEnd = useRef<number | null>(null);
+  // True while the person has the undo notice under the pointer or focus: the window does not run out meanwhile.
+  const held = useRef(false);
   // Ids closed in the current window: a second close of the same id (a gesture callback that outlived a trash click) is ignored.
   const claimed = useRef<Set<string>>(new Set());
   useEffect(
@@ -152,6 +156,12 @@ export function usePanelClosing(
     const end = Math.max(windowEnd.current ?? 0, now + FIXED.undoWindowMs);
     windowEnd.current = end;
     if (timer.current) clearTimeout(timer.current);
+    // A window held open stays open: it is armed afresh when the hold ends.
+    if (!held.current) armWindow(end - now);
+    return true;
+  };
+
+  const armWindow = (ms: number): void => {
     timer.current = setTimeout(() => {
       timer.current = null;
       windowEnd.current = null;
@@ -159,8 +169,21 @@ export function usePanelClosing(
       const elapsed = closedStore.get().map((e) => e.panel);
       closedStore.set([]);
       onWindowElapsed?.(elapsed);
-    }, end - now);
-    return true;
+    }, ms);
+  };
+
+  const holdWindow = (on: boolean): void => {
+    if (held.current === on) return;
+    held.current = on;
+    if (closedStore.get().length === 0) return;
+    if (on) {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      return;
+    }
+    // Let go, and the person gets the whole window again: how long they held says nothing about how long they need.
+    windowEnd.current = Date.now() + FIXED.undoWindowMs;
+    armWindow(FIXED.undoWindowMs);
   };
 
   const forgetClosed = (key: string): boolean => {
@@ -226,5 +249,5 @@ export function usePanelClosing(
     return true;
   };
 
-  return { close, forgetClosed, closedIds: () => closedStore.get().map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closedByPerson: closed.some((e) => e.byPerson) ? closed.filter((e) => e.byPerson).map((e) => e.panel) : null, closingIds };
+  return { close, forgetClosed, holdWindow, closedIds: () => closedStore.get().map((e) => e.panel.id), undoClose, markReset, recentlyClosed: closed.length > 0 ? closed.map((e) => e.panel) : null, closedByPerson: closed.some((e) => e.byPerson) ? closed.filter((e) => e.byPerson).map((e) => e.panel) : null, closingIds };
 }

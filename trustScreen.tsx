@@ -92,7 +92,7 @@ const ClockIcon = createSvgIcon(<path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.9
 
 const pill = { borderRadius: 999, textTransform: 'none', fontWeight: 600, minHeight: MIN_TOUCH_PX } as const;
 
-function Field({ label, value, onChange, error, autoFocus, mono }: { label: string; value: string; onChange: (value: string) => void; error?: boolean; autoFocus?: boolean; mono?: boolean }): React.ReactElement {
+function Field({ label, value, onChange, error, describedBy, autoFocus, mono }: { label: string; value: string; onChange: (value: string) => void; error?: boolean; describedBy?: string; autoFocus?: boolean; mono?: boolean }): React.ReactElement {
   return (
     <TextField
       label={label}
@@ -101,14 +101,14 @@ function Field({ label, value, onChange, error, autoFocus, mono }: { label: stri
       error={error === true}
       autoFocus={autoFocus === true}
       fullWidth
-      slotProps={{ htmlInput: { maxLength: 64, spellCheck: false, autoComplete: 'off' }, input: { sx: { borderRadius: 3, ...(mono ? { fontFamily: 'ui-monospace, monospace' } : {}) } } }}
+      slotProps={{ htmlInput: { maxLength: 64, spellCheck: false, autoComplete: 'off', ...(describedBy === undefined ? {} : { 'aria-describedby': describedBy }) }, input: { sx: { borderRadius: 3, ...(mono ? { fontFamily: 'ui-monospace, monospace' } : {}) } } }}
     />
   );
 }
 
-function Message({ children }: { children: React.ReactNode }): React.ReactElement {
+function Message({ id, children }: { id?: string; children: React.ReactNode }): React.ReactElement {
   return (
-    <Box role="alert" sx={{ color: 'error.main', fontSize: 'body2.fontSize' }}>
+    <Box id={id} role="alert" sx={{ color: 'error.main', fontSize: 'body2.fontSize' }}>
       {children}
     </Box>
   );
@@ -116,12 +116,19 @@ function Message({ children }: { children: React.ReactNode }): React.ReactElemen
 
 function CodeBlock({ code, hoursLeft, labels }: { code: string; hoursLeft: number; labels: PhonuxLabels }): React.ReactElement {
   const [copied, setCopied] = React.useState(false);
+  const [refused, setRefused] = React.useState(false);
+  const shown = React.useRef<HTMLElement>(null);
   const copy = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
+      setRefused(false);
     } catch {
+      // No permission, a page that is not secure or a web view with no clipboard: the code is selected so it can be copied by hand.
       setCopied(false);
+      setRefused(true);
+      const node = shown.current;
+      if (node !== null) window.getSelection()?.selectAllChildren(node);
     }
   };
   return (
@@ -130,13 +137,14 @@ function CodeBlock({ code, hoursLeft, labels }: { code: string; hoursLeft: numbe
         <QrCode value={code} label={labels.trustQr} />
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, border: 1, borderColor: 'divider', borderRadius: 3, pl: 2, pr: 1, py: 0.5 }}>
-        <Box data-phonux-trust-code="" sx={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: 'body2.fontSize', overflowWrap: 'anywhere' }}>
+        <Box ref={shown} data-phonux-trust-code="" sx={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: 'body2.fontSize', overflowWrap: 'anywhere' }}>
           {code}
         </Box>
         <Button size="small" startIcon={<CopyIcon sx={{ fontSize: 14 }} aria-hidden="true" />} onClick={() => void copy()} sx={{ textTransform: 'none', fontWeight: 600 }}>
           {copied ? labels.trustCopied : labels.trustCopy}
         </Button>
       </Box>
+      {refused ? <Message>{labels.trustFailed}</Message> : null}
       <Box sx={{ color: 'text.secondary', fontSize: 'body2.fontSize' }}>{labels.trustCodeNote(hoursLeft)}</Box>
     </>
   );
@@ -272,6 +280,8 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
   const saveOk = saveAs.trim().length > 0;
   const two = { display: 'flex', gap: 1 } as const;
 
+  const titleId = React.useId();
+  const errorId = React.useId();
   let title: string = labels.trustTitle;
   let body: React.ReactNode;
   if (step.id === 'start') {
@@ -304,8 +314,8 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     title = labels.trustJoinTitle;
     body = (
       <>
-        <Field label={labels.trustCodeLabel} value={code} onChange={setCode} error={error !== null} autoFocus mono />
-        {error ? <Message>{error}</Message> : null}
+        <Field label={labels.trustCodeLabel} value={code} onChange={setCode} error={error !== null} {...(error ? { describedBy: errorId } : {})} autoFocus mono />
+        {error ? <Message id={errorId}>{error}</Message> : null}
         <Field label={labels.trustNameLabel} value={name} onChange={setName} />
         <Button variant="contained" disableElevation disabled={!nameOk || code.trim() === '' || busy} onClick={() => void joinCode()} sx={pill}>
           {labels.trustJoin}
@@ -357,7 +367,7 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
               ['month', labels.trustOneMonth],
             ] as const
           ).map(([value, label]) => (
-            <ToggleButton key={value} value={value} sx={{ border: 0, borderRadius: 2.5, textTransform: 'none' }}>
+            <ToggleButton key={value} value={value} sx={{ border: 0, borderRadius: 2.5, textTransform: 'none', '&:not(.Mui-selected)': { color: 'text.primary' } }}>
               {label}
             </ToggleButton>
           ))}
@@ -431,11 +441,21 @@ export function TrustScreen(props: TrustScreenProps): React.ReactElement {
     );
   }
 
-  const titleId = React.useId();
+  const heading = React.useRef<HTMLElement>(null);
+  const rootRef = React.useRef<HTMLElement>(null);
+  const stepSeen = React.useRef(step.id);
+  React.useEffect(() => {
+    if (stepSeen.current === step.id) return;
+    stepSeen.current = step.id;
+    // A step with a field of its own takes focus there; one without would leave it on the page's body, where the button just pressed was.
+    const focused = document.activeElement;
+    if (!['code', 'waiting', 'result', 'ended'].includes(step.id) || (focused !== null && focused !== document.body && !rootRef.current?.contains(focused))) return;
+    heading.current?.focus({ preventScroll: true });
+  }, [step.id]);
   return (
-    <Box role="group" aria-labelledby={titleId} data-phonux-trust="" sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 3, color: 'text.primary' }}>
+    <Box ref={rootRef} role="group" aria-labelledby={titleId} data-phonux-trust="" sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 3, color: 'text.primary' }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-        <Box component="h2" id={titleId} sx={{ m: 0, fontSize: '1.25rem', fontWeight: 700 }}>
+        <Box component="h2" id={titleId} ref={heading} tabIndex={-1} sx={{ m: 0, fontSize: '1.25rem', fontWeight: 700, outline: 'none' }}>
           {title}
         </Box>
         {onClose === undefined ? null : (

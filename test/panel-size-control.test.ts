@@ -10,7 +10,7 @@ import { AnnounceContext } from '../announce.js';
 import { LIBRARY_TUNING_DEFAULTS, PanelSizeControl, type PanelSizeControlProps } from '../index.js';
 import { PanelSlotContext, type PanelSlotValue } from '../panelSlotContext.js';
 import { slotTuning } from '../panelTuning.js';
-import { cleanup, mount } from './support/mount-harness.js';
+import { advanceFrames, cleanup, mount } from './support/mount-harness.js';
 import { headerRig, type HeaderRig } from './support/header-rig.js';
 
 afterEach(() => {
@@ -154,6 +154,22 @@ test('with a middle width current, focus opens on Phone and the arrow keys land 
   assert.equal(at(), 'fold', 'ArrowLeft lands on it again');
 });
 
+test('under right-to-left the arrows follow the drawn side in the size menu', async () => {
+  document.documentElement.setAttribute('dir', 'rtl');
+  try {
+    const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+    await openSizes(rig);
+    const stops = [...document.querySelectorAll<HTMLButtonElement>('[data-panel-size-group] button')];
+    assert.ok(document.activeElement === stops[1], 'focus starts on Fold');
+    key(document.activeElement!, 'ArrowLeft');
+    assert.ok(document.activeElement === stops[2], 'ArrowLeft goes on to Tablet, which is drawn to the left');
+    key(document.activeElement!, 'ArrowRight');
+    assert.ok(document.activeElement === stops[1], 'ArrowRight comes back to Fold');
+  } finally {
+    document.documentElement.removeAttribute('dir');
+  }
+});
+
 test('Escape closes the menu and focus returns to the View Size button', async () => {
   const rig = await headerRig({ ids: ['a'], sizeControl: true });
   await openSizes(rig);
@@ -257,6 +273,34 @@ test('picking the current size calls nothing on the panel handle, while another 
   assert.deepEqual(calls, ['setSlots(3,person)']);
 });
 
+test('a fullscreen panel draws its own way back: a pressed Fullscreen button a pointer can reach, which shrinks the panel', async () => {
+  const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
+  const saved = { show: proto.showPopover, hide: proto.hidePopover };
+  proto.showPopover = () => {};
+  proto.hidePopover = () => {};
+  try {
+    const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+    const exit = (): HTMLButtonElement | null => rig.m.container.querySelector<HTMLButtonElement>('[data-panel-exit-fullscreen]');
+    assert.equal(exit(), null, 'control: a panel in its slot draws no exit');
+    await openSizes(rig);
+    act(() => void document.querySelector<HTMLButtonElement>('[data-view-fullscreen]')!.click());
+    await wait();
+    const back = exit();
+    assert.ok(back, 'a fullscreen panel draws it');
+    assert.equal(back.closest('[data-panel-root]') !== null, true, 'inside the panel, so it is drawn with the panel in the top layer');
+    assert.equal(back.getAttribute('aria-pressed'), 'true');
+    assert.equal(back.getAttribute('aria-label'), 'Fullscreen');
+    act(() => void back.click());
+    await act(async () => void (await advanceFrames(2000)));
+    assert.equal(exit(), null, 'pressing it shrinks the panel, and it is gone');
+    await openSizes(rig);
+    assert.deepEqual(current().map(stopName), ['phone'], 'the panel is back at its width');
+  } finally {
+    proto.showPopover = saved.show;
+    proto.hidePopover = saved.hide;
+  }
+});
+
 test('while the panel is fullscreen, Fullscreen is the current size: reachable, announced as current, and picking it keeps the panel fullscreen', async () => {
   // jsdom has no popover, which the panel's lift to the window uses.
   const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
@@ -284,4 +328,14 @@ test('while the panel is fullscreen, Fullscreen is the current size: reachable, 
     proto.showPopover = saved.show;
     proto.hidePopover = saved.hide;
   }
+});
+
+test('picking a width says the new width in the live region', async () => {
+  const rig = await headerRig({ ids: ['a'], sizeControl: true, settings: { a: { maxSlots: 3 } } });
+  const said = (): string => document.querySelector('[data-workspace-announcer]')?.textContent ?? '';
+  await openSizes(rig);
+  assert.equal(said(), '', 'control: nothing said before the pick');
+  act(() => void widths().find((b) => b.dataset.viewSize === 'tablet')!.click());
+  await wait();
+  assert.equal(said(), 'Tablet');
 });

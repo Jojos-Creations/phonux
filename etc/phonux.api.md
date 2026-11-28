@@ -311,8 +311,13 @@ export const DRAGGING_ATTRIBUTE = "data-panel-dragging";
 
 // @public
 export interface DragHandleProps {
+    'aria-expanded'?: boolean;
+    'aria-haspopup'?: 'menu';
     'aria-keyshortcuts'?: string;
     'aria-label'?: string;
+    onClick?: (event: {
+        readonly currentTarget: unknown;
+    }) => void;
     onKeyDown?: (event: HandleKeyEvent) => void;
     onPointerDown: (event: HandlePointerEvent) => void;
     role?: 'button';
@@ -1473,6 +1478,7 @@ export interface ProvidedPanels extends PanelsAPI {
     readonly exitRightIds: ReadonlySet<string>;
     readonly fixedViewCount: number;
     followPanel(id: string): void;
+    holdUndo(on: boolean): void;
     readonly liveWidths: readonly number[];
     readonly maxLiveWidth: number;
     readonly rowNumbers: RowNumbers;

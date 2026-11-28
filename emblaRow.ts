@@ -11,6 +11,7 @@ import * as React from 'react';
 import EmblaCarousel, { type EmblaCarouselType, type EmblaOptionsType } from 'embla-carousel';
 import type { AwayStore } from './panelAway.js';
 import { WheelGestures } from 'wheel-gestures';
+import { AnnounceContext } from './announce.js';
 import { arrowKeyBelongsElsewhere } from './arrowKeys.js';
 import { drawShrink, shrinkGoal } from './rowShrink.js';
 import { wheelStale, wheelSteps, type WheelStepState } from './rowWheelSteps.js';
@@ -93,6 +94,16 @@ export function revealScroll(left: number, width: number, scroll: number, window
   if (left >= scroll - 0.5 && left + width <= scroll + windowWidth + 0.5) return null;
   if (left < scroll || width >= windowWidth) return left;
   return left + width - windowWidth;
+}
+
+/** The names of the panels wholly inside a window `windowWidth` wide whose left edge is at scroll `px`, in row order, as the slots name themselves. */
+function namesInWindow(box: Element, px: number, windowWidth: number): string {
+  const shown: Array<{ left: number; name: string }> = [];
+  for (const slot of box.querySelectorAll<HTMLElement>(`[${ROW_SLOT_ATTRIBUTE}][aria-label]`)) {
+    const left = Number(slot.getAttribute(ROW_SLOT_ATTRIBUTE));
+    if (left >= px - 0.5 && left + slot.offsetWidth <= px + windowWidth + 0.5) shown.push({ left, name: slot.getAttribute('aria-label')! });
+  }
+  return shown.sort((a, b) => a.left - b.left).map((n) => n.name).join('. ');
 }
 
 /** Where each panel sits along the strip: ids in row order, each one's left and width in strip px. @internal */
@@ -801,6 +812,10 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
   // focus reveal and every move by code.
   const gestureRef = React.useRef(gesture);
   gestureRef.current = gesture;
+  // A key's step is silent to a screen reader unless it is told which panels came into the window.
+  const announce = React.useContext(AnnounceContext);
+  const announceRef = React.useRef(announce);
+  announceRef.current = announce;
   React.useLayoutEffect(() => {
     const win = windowRef.current;
     if (!enabled || win === null || awayStore === undefined) return undefined;
@@ -900,7 +915,9 @@ export function useEmblaRow(windowRef: React.RefObject<HTMLElement | null>, boxR
       const snaps = embla.scrollSnapList().length;
       const at = nearestStop(embla, emblaTargetOf(embla));
       const to = Math.min(Math.max(0, at + (direction === 'left' ? -1 : 1)), snaps - 1);
-      if (to !== at) glideEmbla(embla, to);
+      if (to === at) return;
+      glideEmbla(embla, to);
+      announceRef.current?.(namesInWindow(box, stopPx(embla, to), box.offsetWidth));
     };
     view.addEventListener('keydown', onKey);
     // A host's own chord (`stepRow`) steps this row as a bare arrow does, and not while a panel of it is lifted.
