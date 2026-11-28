@@ -136,6 +136,10 @@
 
 ### Fixed
 
+- `phonux build` hands `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD` only to the `jarsigner` step. The web and desktop
+  scripts, `cap`, Gradle and `xcodebuild` used to inherit them, so anything one of those printed or bundled from its
+  environment could reach `.phonux/build/logs/`, the terminal or the shipped web build. Whatever a step prints, a password's
+  value is replaced by `[hidden]` before it is written to the log.
 - `TrustScreen`'s note under the code no longer promises 24 hours whatever the exchange says: `PhonuxLabels.trustCodeNote` is now a
   function of the whole hours left (from `endsAt`), and its default reads `Works for 6 hours, for one person.`; a fresh 24 hour
   code reads as before. The hours-left line while waiting no longer stops at 24 for a code that lasts longer.
