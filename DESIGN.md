@@ -2498,7 +2498,7 @@ tag of this branch's head. The published `0.2.0-rc.N` is the head of `rcN` at pu
 version lists what changed since the one before. The head this text was last checked against:
 
 ```text
-base: 9a793f58d28047c71036dc515bd2d9f747f83f1e
+base: 4df32e10ebde7260eec014ec5af4fe03b64972cd
 ```
 
 No real browser measures this tree in CI: the jsdom and unit suites are the automated evidence behind a candidate, and the
