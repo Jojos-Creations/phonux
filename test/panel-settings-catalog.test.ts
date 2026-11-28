@@ -431,18 +431,19 @@ function valueImports(source: string, fileName = 'x.ts'): string[] {
 }
 
 const LEAF_ALLOWED: Record<string, readonly string[]> = {
-  'panelSettings.ts': ['./rowConstants.js', './panelManagerError.js', './panelApiLevel.js'],
-  'panelApiLevel.ts': ['./panelManagerError.js'],
+  'panelSettings.ts': ['./rowConstants.js', './panelManagerError.js', './panelApiLevel.js', './devMode.js'],
+  'devMode.ts': [],
+  'panelApiLevel.ts': ['./panelManagerError.js', './devMode.js'],
   'panelManagerError.ts': [],
   'rowConstants.ts': [],
 };
 
-test('leaf modules: panelSettings.ts value-imports only rowConstants, panelManagerError and panelApiLevel; panelApiLevel.ts only panelManagerError; the other two leaves import nothing at runtime', () => {
+test('leaf modules: panelSettings.ts value-imports only rowConstants, panelManagerError, panelApiLevel and devMode; panelApiLevel.ts only panelManagerError and devMode; the other three leaves import nothing at runtime', () => {
   for (const [file, allowed] of Object.entries(LEAF_ALLOWED)) {
     const found = valueImports(read(file), file);
     assert.deepEqual(found.filter((spec) => !allowed.includes(spec)), [], `${file} value-imports a module outside its leaf set`);
   }
-  assert.deepEqual(valueImports(read('panelSettings.ts'), 'panelSettings.ts').sort(), ['./panelApiLevel.js', './panelManagerError.js', './rowConstants.js'], 'all three leaves are really imported, so the scan read the right file');
+  assert.deepEqual(valueImports(read('panelSettings.ts'), 'panelSettings.ts').sort(), ['./devMode.js', './panelApiLevel.js', './panelManagerError.js', './rowConstants.js'], 'all four leaves are really imported, so the scan read the right file');
 });
 
 test('leaf modules: a planted source importing PanelRowSlot, or loading anything at runtime another way, is flagged', () => {

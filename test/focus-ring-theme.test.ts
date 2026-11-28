@@ -4,6 +4,7 @@
  */
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import './support/jsdom-globals.js';
 import * as React from 'react';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
