@@ -438,6 +438,8 @@ export interface PhonuxLabels {
     goToWorkspace: (name: string) => string;
     grabStrip: (title: string) => string;
     moved: (title: string, steps: number) => string;
+    moveLeft: string;
+    moveRight: string;
     newWorkspace: string;
     offerAccept: (kindPlural: string) => string;
     offerDecline: string;

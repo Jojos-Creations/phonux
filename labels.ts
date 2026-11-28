@@ -10,8 +10,12 @@ export interface PhonuxLabels {
   untitledPanel: string;
   /** The text a `PanelHeaderRow` shows when its title is empty. Default `Untitled`. */
   untitledHeader: string;
-  /** The accessible name of a panel's close button. Default `Close`. */
+  /** The accessible name of a panel's close button, and the Close item of the grab strip's menu. Default `Close`. */
   close: string;
+  /** The grab strip menu item that moves the panel one place to the left. Default `Move left`. */
+  moveLeft: string;
+  /** The grab strip menu item that moves the panel one place to the right. Default `Move right`. */
+  moveRight: string;
   /** The text of the button that creates a workspace where the column has none above or below. Default `New space`. */
   newWorkspace: string;
   /** The accessible name of the button that moves to the workspace called `name`. Default `Go to <name>`. */
@@ -326,6 +330,8 @@ export const DEFAULT_LABELS: Readonly<PhonuxLabels> = {
   untitledPanel: 'Untitled panel',
   untitledHeader: 'Untitled',
   close: 'Close',
+  moveLeft: 'Move left',
+  moveRight: 'Move right',
   newWorkspace: 'New space',
   goToWorkspace: (name) => `Go to ${name}`,
   workspaceName: 'Space name',

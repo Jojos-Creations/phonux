@@ -17,7 +17,6 @@ import { resolveLabels } from './labels.js';
 import { PanelSlotContext, PanelVerticalDragContext, type DragScroll } from './panelSlotContext.js';
 import { edgeScrollOf, edgeScrollerOf, endEdgeHold, openEdgeHold, stepEdgeHold, type EdgeHold } from './panelRowDropScroll.js';
 import { focusNeighbourStrip } from './panelCloseFocus.js';
-import { grabMenuLabels } from './grabMenuLabels.js';
 import { rowStripOf } from './rowScroller.js';
 import { useInsideSizeBox } from './PanelRowSlot.js';
 import type { CssStyle } from './cssStyle.js';
@@ -917,7 +916,6 @@ function DragToCloseBox({
     if (onStep !== undefined) announce?.(onStep(steps) ? labels.moved(titleNow(), steps) : labels.cannotMove(titleNow(), steps));
   };
   const canClose = (): boolean => closeRef.current !== undefined && closableRef.current;
-  const menuLabels = grabMenuLabels(labels);
   React.useEffect(() => {
     if (menuAnchor !== null || !closeAfterMenu.current) return;
     closeAfterMenu.current = false;
@@ -1021,7 +1019,7 @@ function DragToCloseBox({
               stepBy(-1);
             }}
           >
-            {menuLabels.moveLeft}
+            {labels.moveLeft}
           </MenuItem>
         )}
         {reorderRef.current?.onStep !== undefined && (
@@ -1031,7 +1029,7 @@ function DragToCloseBox({
               stepBy(1);
             }}
           >
-            {menuLabels.moveRight}
+            {labels.moveRight}
           </MenuItem>
         )}
         {canClose() && (
