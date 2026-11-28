@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -314,6 +314,11 @@ try {
     const missing = Object.values(packed.exports).flatMap((c) => Object.values(c)).filter((p) => !packedFiles.includes(p.replace(/^\.\//, '')));
     if (missing.length) throw new Error(`exports point at files not in the tarball: ${missing.join(', ')}`);
     for (const doc of ['README.md', 'DESIGN.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE']) if (!packedFiles.includes(doc)) throw new Error(`${doc} is not in the tarball`);
+    // A final version ships the audit report the README points at; zero reports found would make the loop below prove nothing.
+    const auditDir = join(PHONE_DIR, 'docs', 'audits');
+    const audits = existsSync(auditDir) ? readdirSync(auditDir).filter((name) => name.endsWith('.md')) : [];
+    if (audits.length === 0) throw new Error('docs/audits holds no report, so the tarball check for it proved nothing');
+    for (const name of audits) if (!packedFiles.includes(`docs/audits/${name}`)) throw new Error(`docs/audits/${name} is not in the tarball`);
     // The packed README is the registry page: it must say how to install, and must not name this repo's
     // layout or link to a file the page cannot serve.
     const readme = run('tar', ['-xOzf', tarball, 'package/README.md'], root);

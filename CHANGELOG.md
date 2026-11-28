@@ -2,6 +2,8 @@
 
 ## 0.2.0
 
+The release audit report for this version, with the findings fixed and the ones still open, is [docs/audits/0.2.0.md](docs/audits/0.2.0.md).
+
 ### Upgrading from 0.1
 
 0.1.0 was followed by eight release candidates, each with its own Breaking and Migration notes further down; this is the

@@ -19,7 +19,7 @@ lines above install, in a new project, react 19.3.1, `@mui/material` 9.6.0, `@em
 `motion` 13.5.1, and `npm ls` then reports no problem. `jsdom` 26 is an optional peer, for `phonux/testing/row`.
 
 phonux has its own dependencies (`@dnd-kit/core`, `embla-carousel`, `qrcode-generator`, `wheel-gestures` and `cross-spawn`); npm installs them
-for you. The package also ships `DESIGN.md`, which explains the design decisions behind the API, and `THIRD_PARTY_NOTICES.md`. The change
+for you. The package also ships `DESIGN.md`, which explains the design decisions behind the API, `THIRD_PARTY_NOTICES.md`, and the release audit report in `docs/audits/`. The change
 history, and how to move from 0.1, is in [CHANGELOG.md](https://github.com/Jojos-Creations/phonux/blob/main/CHANGELOG.md).
 
 ## Testing main without a publish
@@ -362,6 +362,10 @@ shows only in development.
 
 Report a vulnerability as [SECURITY.md](https://github.com/Jojos-Creations/phonux/blob/main/SECURITY.md) describes; the repository's private
 vulnerability reporting is switched on.
+
+The audit of the 0.2.0 release (security, privacy, usability, accessibility, licenses, legal and age, reliability) is in
+[docs/audits/0.2.0.md](https://github.com/Jojos-Creations/phonux/blob/main/docs/audits/0.2.0.md), and the package ships it. It lists what was fixed
+and what is still open, and says plainly that the package does not meet WCAG 2.2 AA in full.
 
 ## License
 

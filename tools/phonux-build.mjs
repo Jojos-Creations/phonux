@@ -11,6 +11,7 @@ import {
   writeFileSync,
   chmodSync,
   copyFileSync,
+  mkdirSync,
   existsSync,
   readdirSync,
 } from 'node:fs';
@@ -119,9 +120,14 @@ for (const name of ['README.md', 'DESIGN.md', 'THIRD_PARTY_NOTICES.md']) {
   if (!existsSync(from)) fail(`${relative(REPO_ROOT, from)} is missing; dist/ needs a copy for npm pack`);
   copyFileSync(from, join(DIST_DIR, name));
 }
+// Release audit reports travel with the package so a consumer can read what was checked for the version they install.
+const auditsSrc = join(PHONE_DIR, 'docs', 'audits');
+const auditFiles = existsSync(auditsSrc) ? readdirSync(auditsSrc).filter((name) => name.endsWith('.md')) : [];
+if (auditFiles.length > 0) mkdirSync(join(DIST_DIR, 'docs', 'audits'), { recursive: true });
+for (const name of auditFiles) copyFileSync(join(auditsSrc, name), join(DIST_DIR, 'docs', 'audits', name));
 // An SPDX id with no LICENSE text grants nothing on a public package; UNLICENSED and SEE LICENSE IN need no file.
 const licenseSrc = join(PHONE_DIR, 'LICENSE');
 const hasLicenseFile = existsSync(licenseSrc);
 if (hasLicenseFile) copyFileSync(licenseSrc, join(DIST_DIR, 'LICENSE'));
 
-console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md,DESIGN.md,THIRD_PARTY_NOTICES.md${hasLicenseFile ? ',LICENSE' : ''}} and ${Object.keys(exports).length} export target(s)`);
+console.log(`build:phonux OK -- wrote ${relative(REPO_ROOT, DIST_DIR)}/{package.json,README.md,DESIGN.md,THIRD_PARTY_NOTICES.md${hasLicenseFile ? ',LICENSE' : ''}}, ${auditFiles.length} audit report(s) and ${Object.keys(exports).length} export target(s)`);
