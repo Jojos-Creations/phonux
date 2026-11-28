@@ -10,7 +10,7 @@ import Typography from '@mui/material/Typography';
 import type { PhonuxLabels } from './labels.js';
 import { SafetyPage } from './shareSafety.js';
 import { AddIcon, Avatar, BackIcon, CheckIcon, ItemHeader, MIN_TOUCH_PX, MoreIcon, SegmentedTabs, ShieldCheckIcon, ShieldIcon, capitalized, daysSince, daysUntil, formatFileSize, isEditable, useShareLabels, useTabState, type ShareItem } from './shareParts.js';
-import { alpha, type Theme } from '@mui/material/styles';
+import { type Theme } from '@mui/material/styles';
 
 /** The tab a `ShareSheet` shows: `nearby` is the QR code, `people` the trusted people, `link` the web link. @public */
 export type ShareTab = 'nearby' | 'people' | 'link';
@@ -540,7 +540,7 @@ function GoneRow({ member, editable, labels, now, onInviteAgain, onRemove }: Gon
             borderRadius: 4,
             fontSize: '0.8125rem',
             fontWeight: 600,
-            bgcolor: status === 'declined' ? alpha(t.palette.warning.main, 0.16) : t.palette.action.hover,
+            bgcolor: status === 'declined' ? t.alpha(t.palette.warning.main, 0.16) : t.palette.action.hover,
             color: status === 'declined' ? (t.palette.mode === 'dark' ? t.palette.warning.light : t.palette.warning.dark) : t.palette.text.secondary,
           })}
         >
@@ -556,7 +556,7 @@ function GoneRow({ member, editable, labels, now, onInviteAgain, onRemove }: Gon
               fullWidth
               aria-label={labels.shareInviteAgainTo(name)}
               onClick={() => onInviteAgain(member.id, role)}
-              sx={(t: Theme) => ({ ...touchButtonSx, bgcolor: alpha(t.palette.primary.main, 0.14), color: t.palette.mode === 'dark' ? t.palette.primary.light : t.palette.primary.dark, '&:hover': { bgcolor: alpha(t.palette.primary.main, 0.22) } })}
+              sx={(t: Theme) => ({ ...touchButtonSx, bgcolor: t.alpha(t.palette.primary.main, 0.14), color: t.palette.mode === 'dark' ? t.palette.primary.light : t.palette.primary.dark, '&:hover': { bgcolor: t.alpha(t.palette.primary.main, 0.22) } })}
             >
               {labels.shareInviteAgain}
             </Button>

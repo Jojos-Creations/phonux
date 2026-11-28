@@ -136,6 +136,9 @@
 
 ### Fixed
 
+- `ShareSheet`, `OfferCard` and `SharedList` no longer throw `MUI: Unsupported var(--phonux-primary) color` under the library's own
+  theme (the default mount and `PhonuxThemeProvider`), which blanked the whole row. Their tints now come from the theme's own
+  `alpha`, which reads a CSS variable.
 - `phonux build` hands `PHONUX_KEYSTORE_PASSWORD` and `PHONUX_KEY_PASSWORD` only to the `jarsigner` step. The web and desktop
   scripts, `cap`, Gradle and `xcodebuild` used to inherit them, so anything one of those printed or bundled from its
   environment could reach `.phonux/build/logs/`, the terminal or the shipped web build. Whatever a step prints, a password's

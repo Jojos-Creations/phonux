@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import { alpha, type Theme } from '@mui/material/styles';
+import { type Theme } from '@mui/material/styles';
 import type { PhonuxLabels } from './labels.js';
 import { QrCode } from './qrCode.js';
 import { Avatar, BackIcon, MIN_TOUCH_PX, SegmentedTabs, WarningIcon } from './shareParts.js';
@@ -80,7 +80,7 @@ export function SafetyPage({ name, state, code, labels, onMatch, onMismatch, onA
       {changed ? (
         <Box
           role="alert"
-          sx={(t: Theme) => ({ display: 'flex', gap: 1.25, p: 1.75, borderRadius: 3.5, bgcolor: alpha(t.palette.warning.main, 0.14), color: t.palette.mode === 'dark' ? t.palette.warning.light : t.palette.warning.dark })}
+          sx={(t: Theme) => ({ display: 'flex', gap: 1.25, p: 1.75, borderRadius: 3.5, bgcolor: t.alpha(t.palette.warning.main, 0.14), color: t.palette.mode === 'dark' ? t.palette.warning.light : t.palette.warning.dark })}
         >
           <WarningIcon aria-hidden="true" sx={{ color: 'warning.main', flexShrink: 0 }} />
           <Box>
